@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 25, 2025"/>
   </head>
   
   
@@ -822,21 +822,21 @@ in the following commands.</p>
 <input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-x86_64" for="sd-tab-item-9">
 <i class="fa-brands fa-linux"></i> Linux (x86_64)</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="windows-x86_64" for="sd-tab-item-10">
 <i class="fa-brands fa-windows"></i> Windows (x86_64)</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-11">
 <i class="fa-brands fa-linux"></i> Linux (aarch64)</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
 </pre></div>
 </div>
 <div class="admonition note">
@@ -856,6 +856,12 @@ Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch some
 removing the preload warnings during runtime.</p>
 </div>
 </div>
+</div>
+</li>
+<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install
+its Python 3.11 enabled fork:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
+</pre></div>
 </div>
 </li>
 </ul>
@@ -900,14 +906,6 @@ debug and troubleshoot, please check Isaac Sim
 <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">documentation</a>
 and the
 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html">Isaac Sim Forums</a>.</p>
-<ul>
-<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install
-its Python 3.11 enabled fork:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
-</pre></div>
-</div>
-</li>
-</ul>
 </section>
 <section id="running-isaac-lab-scripts">
 <h2>Running Isaac Lab Scripts<a class="headerlink" href="#running-isaac-lab-scripts" title="Permalink to this heading">#</a></h2>
@@ -1018,7 +1016,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2025.
+  Last updated on Oct 25, 2025.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 25, 2025"/>
   </head>
   
   
@@ -733,8 +733,9 @@ Other notable limitations with respect to Isaac Lab include…</p>
 is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.</p></li>
 <li><p>Extended reality teleoperation tools such as <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/api/lab/isaaclab.devices.html#openxr">OpenXR</a> is not supported. This is due
 to encoding performance limitations that have not yet been fully investigated.</p></li>
-<li><p>SKRL training with <a class="reference external" href="https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html">JAX</a> has not been explicitly validated or tested in Isaac Lab on the DGX spark, and so this functionality may be limited or
-different than expected out of the box.</p></li>
+<li><p>SKRL training with JAX &lt;<a class="reference external" href="https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html">https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html</a>&gt;_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.
+JAX provides pre-built CUDA wheels only for Linux on x86_64, so on aarch64 systems (e.g., DGX Spark) it runs on CPU only by default.
+GPU support requires building JAX from source, which has not been validated in Isaac Lab.</p></li>
 <li><p>Livestream and Hub Workstation Cache are not supported on the DGX spark.</p></li>
 <li><p>Multi-node training is not currently supported.</p></li>
 <li><p><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html#generating-additional-demonstrations"><span class="std std-ref">Isaac Lab Mimic</span></a> data generation and policy inference for visuomotor envrionements are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.</p></li>
@@ -954,7 +955,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2025.
+  Last updated on Oct 25, 2025.
   <br/>
 </p>
   </div>
