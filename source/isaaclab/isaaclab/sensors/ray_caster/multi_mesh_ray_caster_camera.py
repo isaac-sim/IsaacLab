@@ -163,7 +163,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 ori_w = math_utils.quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
             count = view.count
-            if not target_cfg.is_global:
+            if count != 1:  # Mesh is not global, i.e. we have different meshes for each env
                 count = count // self._num_envs
                 pos_w = pos_w.view(self._num_envs, count, 3)
                 ori_w = ori_w.view(self._num_envs, count, 4)

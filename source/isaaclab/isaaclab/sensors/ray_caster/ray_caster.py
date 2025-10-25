@@ -78,7 +78,7 @@ class RayCaster(SensorBase):
         sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
         if sensor_path_is_regex:
             raise RuntimeError(
-                f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
+                f"Invalid prim path for the ray-caster sensor: {cfg.prim_path}."
                 "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
             )
         # Initialize base class
