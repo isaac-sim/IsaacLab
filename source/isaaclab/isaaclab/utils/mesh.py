@@ -10,6 +10,7 @@ import numpy as np
 import trimesh
 
 from pxr import Usd, UsdGeom
+from typing import Callable
 
 
 def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
@@ -158,7 +159,7 @@ def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     return mesh
 
 
-_MESH_CONVERTERS_CALLBACKS: dict[str, callable] = {
+_MESH_CONVERTERS_CALLBACKS: dict[str, Callable[[Usd.Prim], trimesh.Trimesh]] = {
     "Plane": _create_plane_trimesh,
     "Cube": _create_cube_trimesh,
     "Sphere": _create_sphere_trimesh,
