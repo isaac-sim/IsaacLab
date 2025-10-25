@@ -20,6 +20,7 @@
       timer
       types
       warp
+      mesh
 
    .. Rubric:: Functions
 
@@ -135,6 +136,14 @@ Warp operations
 ~~~~~~~~~~~~~~~
 
 .. automodule:: isaaclab.utils.warp
+   :members:
+   :imported-members:
+   :show-inheritance:
+
+Mesh operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.mesh
    :members:
    :imported-members:
    :show-inheritance:
