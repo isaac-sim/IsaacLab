@@ -36,7 +36,7 @@ Configuration class
    :show-inheritance:
 
 IO operations
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~isaaclab.utils.rst
 
 .. automodule:: isaaclab.utils.io
    :members:
@@ -136,6 +136,14 @@ Warp operations
 ~~~~~~~~~~~~~~~
 
 .. automodule:: isaaclab.utils.warp
+   :members:
+   :imported-members:
+   :show-inheritance:
+
+Mesh operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.mesh
    :members:
    :imported-members:
    :show-inheritance:
