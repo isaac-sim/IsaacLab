@@ -223,9 +223,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     sim_time = 0.0
     count = 0
 
-    triggered = True
-    countdown = 42
-
     # Simulate physics
     while simulation_app.is_running():
 
@@ -267,15 +264,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         count += 1
         # update buffers
         scene.update(sim_dt)
-
-        if not triggered:
-            if countdown > 0:
-                countdown -= 1
-                continue
-            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()  # noqa: F841
-            triggered = True
-        else:
-            continue
 
 
 def main():

@@ -69,17 +69,29 @@ if args_cli.asset_type == "allegro_hand":
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(-0.70, -0.7, -0.25), rot=(0.268976, 0.268976, 0.653951, 0.653951)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(-0.70, -0.7, -0.25), rot=(0.268976, 0.268976, 0.653951, 0.653951)
+        ),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"
+            ),
             MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
                 target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
             ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"
+            ),
         ],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
