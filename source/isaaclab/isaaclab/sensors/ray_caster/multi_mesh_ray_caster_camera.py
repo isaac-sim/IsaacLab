@@ -137,13 +137,11 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         # increment frame count
         if env_ids is None:
-            env_ids_tensor = torch.arange(self._num_envs, device=self.device)
+            env_ids = torch.arange(self._num_envs, device=self.device)
         elif not isinstance(env_ids, torch.Tensor):
-            env_ids_tensor = torch.tensor(env_ids, device=self.device)
-        else:
-            env_ids_tensor = env_ids
+            env_ids = torch.tensor(env_ids, device=self.device)
 
-        self._frame[env_ids_tensor] += 1
+        self._frame[env_ids] += 1
 
         # Update the mesh positions and rotations
         mesh_idx = 0
@@ -215,7 +213,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
 
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids_tensor] = ray_normal.view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
         if self.cfg.update_mesh_ids:
-            self._data.image_mesh_ids[env_ids_tensor] = ray_mesh_ids.view(-1, *self.image_shape, 1)
+            self._data.image_mesh_ids[env_ids] = ray_mesh_ids.view(-1, *self.image_shape, 1)
