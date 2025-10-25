@@ -10,10 +10,11 @@ import gymnasium as gym
 import os
 
 from . import agents, fixed_base_upper_body_ik_g1_env_cfg, locomanipulation_g1_env_cfg
+from .locomanipulation_g1_env import LocomanipulationG1ManagerBasedRLEnv
 
 gym.register(
     id="Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=LocomanipulationG1ManagerBasedRLEnv,
     kwargs={
         "env_cfg_entry_point": locomanipulation_g1_env_cfg.LocomanipulationG1EnvCfg,
         "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc_rnn_low_dim.json"),
