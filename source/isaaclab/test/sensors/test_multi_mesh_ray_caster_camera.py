@@ -531,7 +531,7 @@ def test_output_equal_to_usdcamera_offset(setup_simulation):
     )
     prim_utils.create_prim("/World/Camera_warp", "Xform")
     camera_cfg_warp = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/Camera",
+        prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
