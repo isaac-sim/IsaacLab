@@ -194,7 +194,7 @@ def test_raycast_rotated_cube(device, single_mesh, rays):
     ray_starts, ray_directions, expected_ray_hits = rays
     _, single_mesh_id = single_mesh
 
-    cube_rotation = quat_from_euler_xyz(torch.tensor([0.0]), torch.tensor([0.0]), torch.tensor([np.pi]))
+    cube_rotation = quat_from_euler_xyz(torch.tensor([0.0]), torch.tensor([0.0]), torch.tensor([np.pi]), device=device)
     ray_hits, ray_distance, ray_normal, ray_face_id, _ = raycast_dynamic_meshes(
         ray_starts,
         ray_directions,
