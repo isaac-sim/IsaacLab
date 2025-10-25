@@ -11,6 +11,7 @@ from isaaclab.utils import configclass
 
 from . import actuator_net, actuator_pd
 from .actuator_base import ActuatorBase
+from .thruster import Thruster
 
 
 @configclass
@@ -283,3 +284,51 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
     """
+
+
+@configclass
+class ThrusterCfg:
+
+    class_type: type[Thruster] = Thruster
+    """Concrete Python class that consumes this config."""
+
+    dt: float = MISSING
+    """Simulation/integration timestep used by the thruster update [s]."""
+
+    num_motors: int = 4
+    """Number of motors/propulsors on the vehicle."""
+
+    thrust_range: tuple[float, float] = (0.1, 10.0)
+    """Per-motor thrust clamp range [N]: values are clipped to this interval."""
+
+    max_thrust_rate: float = 100000.0
+    """Per-motor thrust slew-rate limit applied inside the first-order model [N/s]."""
+
+    thrust_const_range: tuple[float, float] = (9.26312e-06, 1.826312e-05)
+    """Range for thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
+
+    tau_inc_range: tuple[float, float] = (0.05, 0.08)
+    """Range of time constants when commanded output is **increasing** (rise dynamics) [s]."""
+
+    tau_dec_range: tuple[float, float] = (0.005, 0.005)
+    """Range of time constants when commanded output is **decreasing** (fall dynamics) [s]."""
+
+    torque_to_thrust_ratio: float = 0.07
+    """Yaw-moment coefficient converting thrust to motor torque about +Z [N·m per N].
+    Used as ``tau_z = torque_to_thrust_ratio * thrust_z * direction``.
+    """
+
+    use_discrete_approximation: bool = True
+    """If ``True``, use discrete mixing factor ``1/(dt + tau)``; if ``False``, use continuous ``1/tau``."""
+
+    use_rps: bool = True
+    """If ``True``, integrate in rotor-speed domain (ω) and compute thrust via ``F = k_f * ω**2``.
+    If ``False``, integrate thrust directly.
+    """
+
+    integration_scheme: Literal["rk4", "euler"] = "rk4"
+    """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
+
+    thruster_names_expr: list[str] = ["back_left_prop", "back_right_prop", "front_left_prop", "front_right_prop"]
+
+    """Articulation's joint names that are part of the group."""
