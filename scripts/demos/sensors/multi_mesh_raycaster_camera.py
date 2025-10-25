@@ -117,7 +117,6 @@ elif args_cli.asset_type == "anymal_d":
             MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
             MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
         ],
-        # ray_alignment="world",
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
             horizontal_aperture=20.955,
