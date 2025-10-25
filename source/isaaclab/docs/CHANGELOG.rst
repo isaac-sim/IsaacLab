@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.48.0 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed passing the boolean flag to :meth:`isaaclab.sim.schemas.activate_contact_sensors` when activating contact
+  sensors. This was incorrectly modifying the threshold attribute to 1.0 when contact sensors were activated.
+
+Changed
+^^^^^^^
+
+* Detected contacts are reported with the threshold of 0.0 (instead of 1.0). This increases the sensititfy of contact
+  detection.
+
+
 0.47.1 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
 

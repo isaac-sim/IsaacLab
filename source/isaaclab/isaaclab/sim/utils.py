@@ -288,7 +288,7 @@ def clone(func: Callable) -> Callable:
                 sem.GetSemanticDataAttr().Set(semantic_value)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
-            schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
+            schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
