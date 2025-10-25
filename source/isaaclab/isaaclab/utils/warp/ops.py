@@ -229,7 +229,7 @@ def raycast_dynamic_meshes(
             The returned tensor contains :obj:`int(-1)` for missed hits.
         The ray hit mesh id. Shape (B, N,).
             Will only return if :attr:`return_mesh_id` is True else returns None.
-            The returned tensor contains :obj:`0` for missed hits.
+            The returned tensor contains :obj:`-1` for missed hits.
     """
     # extract device and shape information
     shape = ray_starts.shape
