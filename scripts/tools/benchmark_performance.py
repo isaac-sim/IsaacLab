@@ -2,13 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """
 Benchmarking tool to measure simulation performance across different robot counts and configurations.
-
 This script helps identify performance bottlenecks and optimal configurations for your simulations.
 It measures physics update time, rendering time, and total simulation throughput.
-
 Usage:
     # Benchmark default configuration
     ./isaaclab.sh -p scripts/tools/benchmark_performance.py --robot isaaclab_assets.CRAZYFLIE_CFG
@@ -19,15 +16,12 @@ Usage:
     # Export results to CSV
     ./isaaclab.sh -p scripts/tools/benchmark_performance.py --robot isaaclab_assets.CRAZYFLIE_CFG --output benchmark_results.csv
 """
-
 """Launch Isaac Sim Simulator first."""
 import argparse
 import csv
 import time
 from pathlib import Path
-
 from isaaclab.app import AppLauncher
-
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Benchmark simulation performance with different robot counts.")
 parser.add_argument(
@@ -67,18 +61,13 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
-
 """Rest everything follows."""
-
 import importlib
 import torch
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.timer import Timer
-
-
 def load_robot_config(config_path: str):
     """Load robot configuration from module path."""
     parts = config_path.rsplit('.', 1)
@@ -88,8 +77,6 @@ def load_robot_config(config_path: str):
     module_name, config_name = parts
     module = importlib.import_module(module_name)
     return getattr(module, config_name)
-
-
 def benchmark_config(robot_cfg, num_robots: int, iterations: int, warmup: int = 100):
     """Benchmark simulation with specified number of robots.
     
@@ -177,15 +164,13 @@ def benchmark_config(robot_cfg, num_robots: int, iterations: int, warmup: int = 
         'iterations': iterations
     }
     
-    print(f"\n✓ Results:")
+    print(f"\n[SUCCESS] Results:")
     print(f"  Total time: {total_time:.3f}s")
     print(f"  Avg step time: {avg_step_time*1000:.3f}ms")
     print(f"  FPS: {fps:.2f}")
     print(f"  Steps/sec: {fps:.2f}")
     
     return results
-
-
 def main():
     """Main benchmark function."""
     # Parse robot counts
@@ -215,7 +200,7 @@ def main():
             )
             all_results.append(results)
         except Exception as e:
-            print(f"\n❌ Error benchmarking {count} robots: {e}")
+            print(f"\n[ERROR] Error benchmarking {count} robots: {e}")
             continue
     
     # Print summary
@@ -243,11 +228,9 @@ def main():
             writer.writeheader()
             writer.writerows(all_results)
         
-        print(f"\n✓ Results saved to: {output_path}")
+        print(f"\n[SUCCESS] Results saved to: {output_path}")
     
     print("\n" + "="*60)
-
-
 if __name__ == "__main__":
     main()
     simulation_app.close()
