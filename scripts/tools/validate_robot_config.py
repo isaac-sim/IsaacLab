@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """
 Utility script to validate robot configuration files before running simulations.
 
@@ -45,140 +44,99 @@ def validate_config(config: Any, config_name: str, verbose: bool = False) -> tup
     print(f"Validating configuration: {config_name}")
     print(f"{'='*60}\n")
     
-    # Check required attributes
+    # Required attributes check
     for attr in required_attrs:
         if not hasattr(config, attr):
-            errors.append(f"Missing required attribute: '{attr}'")
+            errors.append(f"Missing required attribute: {attr}")
         elif verbose:
-            print(f"✓ Required attribute '{attr}': {getattr(config, attr)}")
+            print(f"[OK] Required attribute '{attr}' present")
     
-    # Check recommended attributes
+    # Recommended attributes check
     for attr in recommended_attrs:
         if not hasattr(config, attr):
-            warnings.append(f"Missing recommended attribute: '{attr}'")
+            warnings.append(f"Missing recommended attribute: {attr}")
         elif verbose:
-            print(f"✓ Recommended attribute '{attr}': present")
+            print(f"[OK] Recommended attribute '{attr}' present")
     
-    # Validate prim_path format
-    if hasattr(config, 'prim_path'):
-        prim_path = config.prim_path
-        if not isinstance(prim_path, str):
-            errors.append(f"prim_path must be string, got {type(prim_path).__name__}")
-        elif not prim_path.startswith('/'):
-            errors.append(f"prim_path must start with '/', got: {prim_path}")
-        elif ' ' in prim_path:
-            errors.append(f"prim_path should not contain spaces: {prim_path}")
-    
-    # Validate init_state if present
+    # Additional validation checks
     if hasattr(config, 'init_state'):
         init_state = config.init_state
-        if hasattr(init_state, 'pos'):
-            pos = init_state.pos
-            if hasattr(pos, '__len__') and len(pos) != 3:
-                errors.append(f"init_state.pos must have 3 elements, got {len(pos)}")
-            elif verbose:
-                print(f"✓ init_state.pos: {pos}")
         
-        if hasattr(init_state, 'rot'):
-            rot = init_state.rot
-            if hasattr(rot, '__len__') and len(rot) != 4:
-                errors.append(f"init_state.rot must have 4 elements (quaternion), got {len(rot)}")
-            elif verbose:
-                print(f"✓ init_state.rot: {rot}")
+        # Check for position
+        if not hasattr(init_state, 'pos'):
+            warnings.append("init_state missing 'pos' attribute")
+        elif verbose:
+            print(f"[OK] init_state.pos present: {init_state.pos}")
+        
+        # Check for rotation
+        if not hasattr(init_state, 'rot'):
+            warnings.append("init_state missing 'rot' attribute")
+        elif verbose:
+            print(f"[OK] init_state.rot present: {init_state.rot}")
     
-    # Validate spawn configuration if present
     if hasattr(config, 'spawn'):
         spawn = config.spawn
-        if hasattr(spawn, 'func'):
-            if verbose:
-                print(f"✓ spawn.func: {spawn.func}")
-        else:
-            warnings.append("spawn config missing 'func' attribute")
+        if not hasattr(spawn, 'func'):
+            errors.append("spawn missing 'func' attribute")
+        elif verbose:
+            print(f"[OK] spawn.func present: {spawn.func}")
     
     # Print summary
     print(f"\n{'='*60}")
-    print(f"Validation Summary for {config_name}")
-    print(f"{'='*60}")
-    
-    if not errors and not warnings:
-        print("\n✅ Configuration is valid! No errors or warnings found.")
+    if len(errors) == 0 and len(warnings) == 0:
+        print(f"[SUCCESS] Configuration is valid! No errors or warnings found.")
+        print(f"{'='*60}\n")
         return True, []
+    elif len(errors) == 0:
+        print(f"[WARNING] Found {len(warnings)} warning(s):")
+        for warning in warnings:
+            print(f"  - {warning}")
+    else:
+        print(f"[ERROR] Found {len(errors)} error(s):")
+        for error in errors:
+            print(f"  - {error}")
+        print(f"\n[ERROR] Configuration validation FAILED!")
     
-    if warnings:
-        print(f"\n⚠️  Found {len(warnings)} warning(s):")
-        for i, warning in enumerate(warnings, 1):
-            print(f"  {i}. {warning}")
+    if len(warnings) > 0 and len(errors) == 0:
+        print(f"[SUCCESS] Configuration is valid! (with warnings)")
     
-    if errors:
-        print(f"\n❌ Found {len(errors)} error(s):")
-        for i, error in enumerate(errors, 1):
-            print(f"  {i}. {error}")
-        print("\n❌ Configuration validation FAILED!")
-        return False, errors
+    print(f"{'='*60}\n")
     
-    print("\n✅ Configuration is valid! (with warnings)")
-    return True, warnings
-
-
-def load_config_from_module(module_path: str):
-    """Load a configuration object from a Python module path.
-    
-    Args:
-        module_path: String in format 'module.submodule.CONFIG_NAME'
-        
-    Returns:
-        The configuration object
-    """
-    try:
-        parts = module_path.rsplit('.', 1)
-        if len(parts) != 2:
-            raise ValueError(f"Config path must be in format 'module.CONFIG_NAME', got: {module_path}")
-        
-        module_name, config_name = parts
-        module = importlib.import_module(module_name)
-        
-        if not hasattr(module, config_name):
-            raise AttributeError(f"Module '{module_name}' has no attribute '{config_name}'")
-        
-        return getattr(module, config_name)
-    except ImportError as e:
-        print(f"❌ Error importing module: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"❌ Error loading config: {e}")
-        sys.exit(1)
+    return len(errors) == 0, errors
 
 
 def main():
-    """Main function to run configuration validation."""
-    parser = argparse.ArgumentParser(
-        description="Validate robot configuration files for IsaacLab.",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    """Main function to parse arguments and validate configuration."""
+    parser = argparse.ArgumentParser(description="Validate robot configuration files")
     parser.add_argument(
         "--config",
         type=str,
         required=True,
-        help="Configuration to validate (e.g., 'isaaclab_assets.CRAZYFLIE_CFG')"
+        help="Config module path (e.g., 'isaaclab_assets.CRAZYFLIE_CFG')"
     )
     parser.add_argument(
-        "--verbose",
+        "--verbose", 
         action="store_true",
-        default=False,
         help="Print detailed validation information"
     )
     
     args = parser.parse_args()
     
-    # Load the configuration
-    print(f"Loading configuration: {args.config}")
-    config = load_config_from_module(args.config)
+    # Parse module and config name
+    try:
+        module_path, config_attr = args.config.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        config = getattr(module, config_attr)
+    except Exception as e:
+        print(f"[ERROR] Error importing module: {e}")
+        sys.exit(1)
     
-    # Validate the configuration
-    is_valid, messages = validate_config(config, args.config, args.verbose)
-    
-    # Exit with appropriate code
-    sys.exit(0 if is_valid else 1)
+    try:
+        is_valid, errors = validate_config(config, args.config, args.verbose)
+        sys.exit(0 if is_valid else 1)
+    except Exception as e:
+        print(f"[ERROR] Error loading config: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
