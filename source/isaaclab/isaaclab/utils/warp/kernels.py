@@ -203,7 +203,7 @@ def raycast_dynamic_meshes_kernel(
         ray_mesh_id: The output ray hit mesh ids. Shape is (B, N,), if ``return_mesh_id`` is True. Otherwise,
             this array is not used.
         mesh_positions: The input mesh positions in world frame. Shape is (W, 3).
-        mesh_rotations: The input mesh rotations in world frame. Shape is (W, 3, 3).
+        mesh_rotations: The input mesh rotations in world frame. Shape is (W, 4).
         max_dist: The maximum ray-cast distance. Defaults to 1e6.
         return_normal: Whether to return the ray hit normals. Defaults to False`.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
