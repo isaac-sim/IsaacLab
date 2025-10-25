@@ -155,9 +155,12 @@ class MultiMeshRayCaster(RayCaster):
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
             target_prim_path = target_cfg.target_prim_expr
-            # check if mesh already casted into warp mesh and get the number of meshes per env
-            if target_prim_path in multi_mesh_ids:
-                self._num_meshes_per_env[target_prim_path] = len(multi_mesh_ids[target_prim_path]) // self._num_envs
+            # # check if mesh already casted into warp mesh and skip if so.
+            if target_prim_path in MultiMeshRayCaster.meshes:
+                carb.log_warn(
+                    f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries in"
+                    " `mesh_prim_paths`? This mesh will be skipped."
+                )
                 continue
 
             # find all matching prim paths to provided expression of the target
