@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Example on using the MultiMesh Raycaster sensor.
+"""Example on using the MultiMesh Raycaster Camera sensor.
 
 Usage:
-    `python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
+    `python scripts/demos/sensors/multi_mesh_raycaster_camera.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
 """
 
 import argparse
