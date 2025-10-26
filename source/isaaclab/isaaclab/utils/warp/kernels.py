@@ -155,7 +155,7 @@ def raycast_static_meshes_kernel(
                 ray_mesh_id[tid_env, tid_ray] = wp.int16(tid_mesh_id)
 
 
-@wp.kernel
+@wp.kernel(enable_backward=False)
 def raycast_dynamic_meshes_kernel(
     mesh: wp.array2d(dtype=wp.uint64),
     ray_starts: wp.array2d(dtype=wp.vec3),
