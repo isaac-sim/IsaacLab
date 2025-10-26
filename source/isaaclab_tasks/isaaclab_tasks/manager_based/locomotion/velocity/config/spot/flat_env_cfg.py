@@ -302,7 +302,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=45,
-                ncon_per_env=30,
+                ncon_per_world=30,
                 ls_iterations=10,
                 cone="pyramidal",
                 impratio=1,

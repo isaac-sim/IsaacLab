@@ -32,7 +32,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         njmax=80,
-        ncon_per_env=25,
+        ncon_per_world=25,
         ls_iterations=15,
         ls_parallel=True,
         cone="pyramidal",

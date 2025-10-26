@@ -14,6 +14,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
@@ -157,6 +160,14 @@ class TerminationsCfg:
 @configclass
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
+
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                ncon_per_world=5,
+            ),
+        )
+    )
 
     # Scene settings
     scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
