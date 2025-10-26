@@ -14,13 +14,13 @@
       dict
       interpolation
       math
+      mesh
       modifiers
       noise
       string
       timer
       types
       warp
-      mesh
 
    .. Rubric:: Functions
 
@@ -90,6 +90,14 @@ Math operations
    :inherited-members:
    :show-inheritance:
 
+Mesh operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.mesh
+   :members:
+   :imported-members:
+   :show-inheritance:
+
 Modifier operations
 ~~~~~~~~~~~~~~~~~~~
 
@@ -136,14 +144,6 @@ Warp operations
 ~~~~~~~~~~~~~~~
 
 .. automodule:: isaaclab.utils.warp
-   :members:
-   :imported-members:
-   :show-inheritance:
-
-Mesh operations
-~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.mesh
    :members:
    :imported-members:
    :show-inheritance:
