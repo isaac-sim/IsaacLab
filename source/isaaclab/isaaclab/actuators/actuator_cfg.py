@@ -295,25 +295,25 @@ class ThrusterCfg:
     dt: float = MISSING
     """Simulation/integration timestep used by the thruster update [s]."""
 
-    num_motors: int = 4
+    num_motors: int = MISSING
     """Number of motors/propulsors on the vehicle."""
 
-    thrust_range: tuple[float, float] = (0.1, 10.0)
+    thrust_range: tuple[float, float] = MISSING
     """Per-motor thrust clamp range [N]: values are clipped to this interval."""
 
     max_thrust_rate: float = 100000.0
     """Per-motor thrust slew-rate limit applied inside the first-order model [N/s]."""
 
-    thrust_const_range: tuple[float, float] = (9.26312e-06, 1.826312e-05)
+    thrust_const_range: tuple[float, float] = MISSING
     """Range for thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
 
-    tau_inc_range: tuple[float, float] = (0.05, 0.08)
+    tau_inc_range: tuple[float, float] = MISSING
     """Range of time constants when commanded output is **increasing** (rise dynamics) [s]."""
 
-    tau_dec_range: tuple[float, float] = (0.005, 0.005)
+    tau_dec_range: tuple[float, float] = MISSING
     """Range of time constants when commanded output is **decreasing** (fall dynamics) [s]."""
 
-    torque_to_thrust_ratio: float = 0.07
+    torque_to_thrust_ratio: float = MISSING
     """Yaw-moment coefficient converting thrust to motor torque about +Z [N·m per N].
     Used as ``tau_z = torque_to_thrust_ratio * thrust_z * direction``.
     """
@@ -329,6 +329,6 @@ class ThrusterCfg:
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
 
-    thruster_names_expr: list[str] = ["back_left_prop", "back_right_prop", "front_left_prop", "front_right_prop"]
+    thruster_names_expr: list[str] = MISSING
 
     """Articulation's joint names that are part of the group."""

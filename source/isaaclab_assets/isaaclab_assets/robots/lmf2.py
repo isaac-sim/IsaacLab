@@ -19,7 +19,15 @@ from isaaclab.assets.articulation import MultirotorCfg
 # Configuration - Actuators.
 ##
 
-LMF2_THRUSTER = ThrusterCfg()
+LMF2_THRUSTER = ThrusterCfg(
+    num_motors=4,
+    thrust_range=(0.1, 10.0),
+    thrust_const_range=(9.26312e-06, 1.826312e-05),
+    tau_inc_range=(0.05, 0.08),
+    tau_dec_range=(0.005, 0.005),
+    torque_to_thrust_ratio=0.07,
+    thruster_names_expr=["back_left_prop", "back_right_prop", "front_left_prop", "front_right_prop"],
+)
 
 ##
 # Configuration - Articulation.
