@@ -27,6 +27,7 @@ from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_m
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -354,7 +355,7 @@ class MultiMeshRayCaster(RayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = sim_utils.obtain_world_pose_from_view(view, None)
+            pos_w, ori_w = obtain_world_pose_from_view(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
