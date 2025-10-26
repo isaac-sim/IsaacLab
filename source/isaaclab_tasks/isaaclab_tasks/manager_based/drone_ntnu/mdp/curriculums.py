@@ -57,15 +57,17 @@ def obstacle_density_curriculum(
     env: ManagerBasedRLEnv, 
     env_ids: Sequence[int], 
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_name: str = "target_pose",
     max_difficulty: int = 10,
+    min_difficulty: int = 2,
 ) -> float:
     """Curriculum that adjusts obstacle density based on performance."""
     # Initialize
     if not hasattr(env, "_obstacle_difficulty_levels"):
-        # TODO: storing this in the env is weird @welfr
-        env._obstacle_difficulty_levels = torch.zeros(env.num_envs, device=env.device)
+        env._obstacle_difficulty_levels = torch.ones(env.num_envs, device=env.device) * min_difficulty
+        env._min_obstacle_difficulty = min_difficulty 
         env._max_obstacle_difficulty = max_difficulty
-        env._obstacle_difficulty = 0.0
+        env._obstacle_difficulty = float(min_difficulty)
     
     if len(env_ids) == 0:
         return env._obstacle_difficulty
@@ -74,32 +76,34 @@ def obstacle_density_curriculum(
     asset: Articulation = env.scene[asset_cfg.name]
     
     # Performance metric
-    target_position_w = env.scene.env_origins.clone()
-    target_position_w[:, 0] += 10.0  # 10m ahead
-    position_error = torch.norm(
-        target_position_w[env_ids, :2] - asset.data.root_pos_w[env_ids, :2], dim=1
-    )
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
     
     # Decide difficulty changes
     crashed = env.termination_manager.terminated[env_ids]
-    move_up = position_error < 1.0  # Success
-    move_down = crashed | (position_error > 5.0)  # Failure
+    move_up = position_error < 1.5  # Success
+    move_down = crashed
     move_down *= ~move_up
     
-    # Update per-env difficulty levels
-    if move_up.any():
-        env._obstacle_difficulty_levels[env_ids[move_up]] = torch.clamp(
-            env._obstacle_difficulty_levels[env_ids[move_up]] + 1,
-            max=max_difficulty
-        )
+    if env_ids[0] == 0 and (env.episode_length_buf[0] % 100 == 0 or move_up.any() or move_down.any()):
+        print(f"\n=== Curriculum Update Debug ===")
+        print(f"Step: {env.episode_length_buf[0].item()}")
+        print(f"Current difficulty: {env._obstacle_difficulty_levels[env_ids[0]].item():.0f} / {max_difficulty}")
+        print(f"Position error: {position_error[0].item():.2f}m (threshold: 1.5m)")
+        print(f"Crashed: {crashed[0].item()}")
+        print(f"Move up: {move_up.sum().item()} envs, Move down: {move_down.sum().item()} envs")
+        if move_up[0]:
+            print(f"  → Env 0 SUCCESS! Increasing difficulty")
+        if move_down[0]:
+            print(f"  → Env 0 FAILED! Decreasing difficulty")
+        print("===============================\n")
+        
+    env._obstacle_difficulty_levels[env_ids] += 1 * move_up - 1 * move_down
+    env._obstacle_difficulty_levels[env_ids] = torch.clip(env._obstacle_difficulty_levels[env_ids], 
+                                                          min=env._min_obstacle_difficulty, 
+                                                          max=env._max_obstacle_difficulty - 1)
     
-    if move_down.any():
-        env._obstacle_difficulty_levels[env_ids[move_down]] = torch.clamp(
-            env._obstacle_difficulty_levels[env_ids[move_down]] - 1,
-            min=0
-        )
-    
-    # Compute mean difficulty for logging
-    env._obstacle_difficulty = env._obstacle_difficulty_levels.float().mean() / max_difficulty
-    
-    return env._obstacle_difficulty
+    return env._obstacle_difficulty_levels.float().mean()

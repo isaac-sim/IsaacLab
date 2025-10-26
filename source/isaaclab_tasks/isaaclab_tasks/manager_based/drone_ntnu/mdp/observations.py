@@ -141,7 +141,7 @@ Commands.
 
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
-def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def generated_drone_commands(env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     asset: RigidObject = env.scene[asset_cfg.name]    
     current_position_w = asset.data.root_pos_w - env.scene.env_origins

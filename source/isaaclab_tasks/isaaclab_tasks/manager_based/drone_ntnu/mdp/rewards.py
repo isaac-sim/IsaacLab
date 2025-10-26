@@ -39,23 +39,27 @@ def distance_to_goal_exp(
     return torch.exp(-position_error_square / std**2)
 
 def distance_to_goal_exp_curriculum(
-    env: ManagerBasedRLEnv,
-    std: float,
-    command_name: str,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> torch.Tensor:
-    """Reward for exponential distance to goal with obstacle curriculum."""
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        std: float = 1.0,
+        command_name: str = "target_pose"
+    ) -> torch.Tensor:
+    """Reward the distance to a goal position using an exponential kernel, with curriculum scaling."""
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    distance = torch.norm(command[:, :3] - asset.data.root_pos_w, dim=-1)
-    
-    # Use obstacle curriculum if it exists
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+
+    # compute the error
+    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
+    # weight based on the current curriculum level
     if hasattr(env, '_obstacle_difficulty_levels'):
         weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
     else:
         weight = 1.0
-    
-    return weight * torch.exp(-distance / std)
+    return weight * torch.exp(-position_error_square / std**2)
 
 def velocity_to_goal_reward(
     env: ManagerBasedRLEnv,

@@ -155,7 +155,7 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         base_link_position = ObsTerm(
-            func=mdp.generated_commands,
+            func=mdp.generated_drone_commands,
             params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.1, n_max=0.1)
         )
@@ -192,7 +192,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False 
 
-    visualization: VisualizationCfg = VisualizationCfg()  # ✅ Add visualization group
+    visualization: VisualizationCfg = VisualizationCfg()
 
 
 @configclass
@@ -231,6 +231,7 @@ class EventCfg:
             "wall_configs": OBSTACLE_SCENE_CFG.wall_cfgs,
             "env_size": OBSTACLE_SCENE_CFG.env_size,
             "use_curriculum": True,
+            "min_num_obstacles": OBSTACLE_SCENE_CFG.min_num_obstacles,
             "max_num_obstacles": OBSTACLE_SCENE_CFG.max_num_obstacles,
             "ground_offset": OBSTACLE_SCENE_CFG.ground_offset,
         }
@@ -283,6 +284,7 @@ class CurriculumCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "max_difficulty": OBSTACLE_SCENE_CFG.max_num_obstacles,
+            "min_difficulty": OBSTACLE_SCENE_CFG.min_num_obstacles,
         }
     )
 
@@ -320,7 +322,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physx.gpu_max_rigid_patch_count = 2**19
+        self.sim.physx.gpu_max_rigid_patch_count = 2**21
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.contact_forces is not None:
