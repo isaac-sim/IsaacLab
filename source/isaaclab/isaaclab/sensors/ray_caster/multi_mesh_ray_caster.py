@@ -290,7 +290,7 @@ class MultiMeshRayCaster(RayCaster):
                     mesh_idx += n_meshes_per_env
 
             if target_cfg.track_mesh_transforms:
-                self.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
+                MultiMeshRayCaster.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
                     self._get_trackable_prim_view(target_prim_path)
                 )
 
