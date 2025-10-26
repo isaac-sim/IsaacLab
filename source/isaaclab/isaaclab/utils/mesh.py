@@ -23,9 +23,8 @@ def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
         mesh_prim: The mesh prim to read the vertices and faces from.
 
     Returns:
-        A tuple containing the vertices and faces of the mesh.
-        Shape of vertices is (n_vertices, 3).
-        Shape of faces is (n_faces, 3).
+    Returns:
+        A trimesh.Trimesh object containing the mesh geometry.
     """
     if mesh_prim.GetTypeName() != "Mesh":
         raise ValueError(f"Prim at path '{mesh_prim.GetPath()}' is not a mesh.")
