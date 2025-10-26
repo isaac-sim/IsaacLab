@@ -493,7 +493,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
     # check image data
     for data_type in data_types:
         if data_type in camera_usd.data.output and data_type in camera_warp.data.output:
-            if data_type == "distance_to_camera":
+            if data_type == "distance_to_camera" or data_type == "distance_to_image_plane":
                 torch.testing.assert_close(
                     camera_usd.data.output[data_type],
                     camera_warp.data.output[data_type],
