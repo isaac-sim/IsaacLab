@@ -137,14 +137,14 @@ def raycast_static_meshes_kernel(
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
 
+        wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
-        if mesh_query_ray_t.t < ray_distance[tid_env, tid_ray]:
-
+        # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison
+        # however, warp atomic_min is returning the wrong values on gpu currently.
+        # FIXME https://github.com/NVIDIA/warp/issues/1058
+        if mesh_query_ray_t.t == ray_distance[tid_env, tid_ray]:
             # convert back to world space and update the hit data
             ray_hits[tid_env, tid_ray] = start_pos + mesh_query_ray_t.t * direction
-
-            # update the hit distance
-            ray_distance[tid_env, tid_ray] = mesh_query_ray_t.t
 
             # update the normal and face id if requested
             if return_normal == 1:
@@ -222,15 +222,15 @@ def raycast_dynamic_meshes_kernel(
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
 
+        wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
-        if mesh_query_ray_t.t < ray_distance[tid_env, tid_ray]:
-
+        # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison
+        # however, warp atomic_min is returning the wrong values on gpu currently.
+        # FIXME https://github.com/NVIDIA/warp/issues/1058
+        if mesh_query_ray_t.t == ray_distance[tid_env, tid_ray]:
             # convert back to world space and update the hit data
             hit_pos = start_pos + mesh_query_ray_t.t * direction
             ray_hits[tid_env, tid_ray] = wp.transform_point(mesh_pose, hit_pos)
-
-            # update the hit distance
-            ray_distance[tid_env, tid_ray] = mesh_query_ray_t.t
 
             # update the normal and face id if requested
             if return_normal == 1:
