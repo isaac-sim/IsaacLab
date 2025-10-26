@@ -23,7 +23,6 @@ def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
         mesh_prim: The mesh prim to read the vertices and faces from.
 
     Returns:
-    Returns:
         A trimesh.Trimesh object containing the mesh geometry.
     """
     if mesh_prim.GetTypeName() != "Mesh":
@@ -78,7 +77,7 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
     all_faces = []
 
     vertex_counter = 0
-    # Iterates over all faces of the mesh to tirangulate them.
+    # Iterates over all faces of the mesh to triangulate them.
     # could be very slow for large meshes
     for num_points in point_counts:
         # Triangulate n-gons (n>4) using fan triangulation

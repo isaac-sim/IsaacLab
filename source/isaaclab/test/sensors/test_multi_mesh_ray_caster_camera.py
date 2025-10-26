@@ -358,7 +358,7 @@ def test_intrinsic_matrix(setup_simulation, height, width):
 
 @pytest.mark.isaacsim_ci
 def test_throughput(setup_simulation):
-    """Checks that the single camera gets created properly with a rig."""
+    """Test camera throughput for different image sizes."""
     sim, dt, camera_cfg = setup_simulation
 
     # Create directory temp dir to dump the results
