@@ -20,6 +20,7 @@ def obtain_world_pose_from_view(
     Args:
         physx_view: The prim view to get the world poses from.
         env_ids: The environment ids of the prims to get the world poses for.
+        clone: Whether to clone the returned tensors (default: False).
     Returns:
         A tuple containing the world positions and orientations of the prims. Orientation is in wxyz format.
     Raises:
