@@ -15,11 +15,13 @@ import re
 import torch
 import trimesh
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import carb
 import omni.log
+import omni.physics.tensors.impl.api as physx
 import warp as wp
+from isaacsim.core.prims import XFormPrim
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import matrix_from_quat, quat_mul
@@ -75,6 +77,11 @@ class MultiMeshRayCaster(RayCaster):
     """The configuration parameters."""
 
     mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+
+    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
+    """A dictionary to store mesh views for raycasting, shared across all instances.
+
+    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
 
     def __init__(self, cfg: MultiMeshRayCasterCfg):
         """Initializes the ray-caster object.
@@ -391,6 +398,7 @@ class MultiMeshRayCaster(RayCaster):
         super().__del__()
         if RayCaster._instance_count == 0:
             MultiMeshRayCaster.mesh_offsets.clear()
+            MultiMeshRayCaster.mesh_views.clear()
 
 
 """
