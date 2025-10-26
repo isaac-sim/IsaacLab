@@ -61,6 +61,24 @@ cuRobo provides the motion planning capabilities for SkillGen. This installation
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 
+   * ``TORCH_CUDA_ARCH_LIST`` in the above command should match your GPU's CUDA compute capability (e.g., ``8.0`` for A100, ``8.6`` for many RTX 30‑series, ``8.9`` for RTX 4090); the ``+PTX`` suffix embeds PTX for forward compatibility so newer GPUs can JIT‑compile when native SASS isn’t included.
+
+.. warning::
+
+   **cuRobo installation may fail if Isaac Sim environment scripts are sourced**
+
+   Sourcing Omniverse Kit/Isaac Sim environment scripts (for example, ``setup_conda_env.sh``) exports ``PYTHONHOME`` and ``PYTHONPATH`` to the Kit runtime and its pre-bundled Python packages. During cuRobo installation this can cause ``conda`` to import Omniverse's bundled libraries (e.g., ``requests``/``urllib3``) before initialization, resulting in a crash (often seen as a ``TypeError`` referencing ``omni.kit.pip_archive``).
+
+   Do one of the following:
+
+   - Install cuRobo from a clean shell that has not sourced any Omniverse/Isaac Sim scripts.
+   - Temporarily reset or ignore inherited Python environment variables (notably ``PYTHONPATH`` and ``PYTHONHOME``) before invoking Conda, so Kit's Python does not shadow your Conda environment.
+   - Use Conda mechanisms that do not rely on shell activation and avoid inheriting the current shell's Python variables.
+
+   After installation completes, you may source Isaac Lab/Isaac Sim scripts again for normal use.
+
+
+
 Step 3: Install Rerun
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -112,7 +130,7 @@ The dataset contains:
 
 * Human demonstrations of Franka arm cube stacking
 * Manually annotated subtask boundaries for each demonstration
-* Compatible with both basic cube stacking and adaptive bin stacking tasks
+* Compatible with both basic cube stacking and adaptive bin cube stacking tasks
 
 Download and Setup
 ^^^^^^^^^^^^^^^^^^
@@ -346,6 +364,15 @@ Generate the complete adaptive stacking dataset:
 
    If the pre-annotated dataset is used and the data generation command is run with ``--headless`` enabled, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on a RTX 6000 Ada GPU.
 
+.. note::
+
+   **VRAM usage and GPU recommendations**
+
+   Figures measured over 10 generated demonstrations on an RTX 6000 Ada.
+    * Vanilla Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~21.8–22.2 GB steady (briefly higher during initialization).
+    * Adaptive Bin Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~22.0–22.3 GB steady (briefly higher during initialization).
+    * Minimum recommended GPU: ≥24 GB VRAM for ``--num_envs`` 1–2; ≥48 GB VRAM for ``--num_envs`` up to ~5.
+    * To reduce VRAM: prefer ``--headless`` and keep ``--num_envs`` modest. Numbers can vary with scene assets and number of demonstrations.
 
 Learning Policies from SkillGen Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
