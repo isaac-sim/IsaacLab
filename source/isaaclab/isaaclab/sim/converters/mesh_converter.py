@@ -29,7 +29,7 @@ class MeshConverter(AssetConverterBase):
     instancing and physics work. The rigid body component must be added to each instance and not the
     referenced asset (i.e. the prototype prim itself). This is because the rigid body component defines
     properties that are specific to each instance and cannot be shared under the referenced asset. For
-    more information, please check the `documentation <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#instancing-rigid-bodies>`_.
+    more information, please check the `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/physics/simulation_fundamentals.html#rigid-body>`_.
 
     Due to the above, we follow the following structure:
 
@@ -122,13 +122,14 @@ class MeshConverter(AssetConverterBase):
             if child_mesh_prim.GetTypeName() == "Mesh":
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
-                    # -- Collision approximation to mesh
-                    # TODO: Move this to a new Schema: https://github.com/isaac-orbit/IsaacLab/issues/163
-                    mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(child_mesh_prim)
-                    mesh_collision_api.GetApproximationAttr().Set(cfg.collision_approximation)
                     # -- Collider properties such as offset, scale, etc.
                     schemas.define_collision_properties(
                         prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                    )
+                # Add collision mesh
+                if cfg.mesh_collision_props is not None:
+                    schemas.define_mesh_collision_properties(
+                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
                     )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)

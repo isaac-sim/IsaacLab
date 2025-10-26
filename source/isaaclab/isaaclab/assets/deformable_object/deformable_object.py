@@ -272,7 +272,9 @@ class DeformableObject(AssetBase):
 
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI),
+            traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(

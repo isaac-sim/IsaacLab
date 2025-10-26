@@ -272,7 +272,9 @@ class SurfaceGripper(AssetBase):
 
         # find surface gripper prims
         gripper_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper"
+            template_prim_path,
+            predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper",
+            traverse_instance_prims=False,
         )
         if len(gripper_prims) == 0:
             raise RuntimeError(

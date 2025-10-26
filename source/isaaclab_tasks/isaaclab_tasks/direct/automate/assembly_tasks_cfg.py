@@ -139,10 +139,6 @@ class AssemblyTask:
     num_eval_trials: int = 100
     eval_filename: str = "evaluation_00015.h5"
 
-    # Fine-tuning
-    sample_from: str = "rand"  # gp, gmm, idv, rand
-    num_gp_candidates: int = 1000
-
 
 @configclass
 class Peg8mm(HeldAssetCfg):

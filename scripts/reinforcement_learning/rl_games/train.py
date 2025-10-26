@@ -79,9 +79,9 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+from isaaclab.utils.io import dump_yaml
 
-from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -127,7 +127,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # specify directory for logging experiments
     config_name = agent_cfg["params"]["config"]["name"]
     log_root_path = os.path.join("logs", "rl_games", config_name)
-    log_root_path = os.path.abspath(log_root_path)
+    if "pbt" in agent_cfg:
+        if agent_cfg["pbt"]["directory"] == ".":
+            log_root_path = os.path.abspath(log_root_path)
+        else:
+            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
     log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -141,8 +146,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
-    dump_pickle(os.path.join(log_root_path, log_dir, "params", "env.pkl"), env_cfg)
-    dump_pickle(os.path.join(log_root_path, log_dir, "params", "agent.pkl"), agent_cfg)
 
     # read configurations about the agent-training
     rl_device = agent_cfg["params"]["config"]["device"]
@@ -151,14 +154,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     obs_groups = agent_cfg["params"]["env"].get("obs_groups")
     concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-    # set the IO descriptors output directory if requested
+    # set the IO descriptors export flag if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
-        env_cfg.io_descriptors_output_dir = os.path.join(log_root_path, log_dir)
     else:
         omni.log.warn(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
         )
+
+    # set the log directory for the environment (works for all environment types)
+    env_cfg.log_dir = log_dir
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
@@ -192,7 +197,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+
+    if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+        observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+        runner = Runner(observers)
+    else:
+        runner = Runner(IsaacAlgoObserver())
+
     runner.load(agent_cfg)
 
     # reset the agent and env
@@ -213,8 +224,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             monitor_gym=True,
             save_code=True,
         )
-        wandb.config.update({"env_cfg": env_cfg.to_dict()})
-        wandb.config.update({"agent_cfg": agent_cfg})
+        if not wandb.run.resumed:
+            wandb.config.update({"env_cfg": env_cfg.to_dict()})
+            wandb.config.update({"agent_cfg": agent_cfg})
 
     if args_cli.checkpoint is not None:
         runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
