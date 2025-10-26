@@ -9,12 +9,12 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         """Updates the ray information buffers."""
 
         # compute poses from current view
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
@@ -152,7 +152,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = sim_utils.obtain_world_pose_from_view(view, None)
+            pos_w, ori_w = obtain_world_pose_from_view(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 

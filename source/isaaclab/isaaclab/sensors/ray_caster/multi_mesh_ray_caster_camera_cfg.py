@@ -5,6 +5,8 @@
 
 """Configuration for the ray-cast camera sensor."""
 
+import carb
+
 from isaaclab.utils import configclass
 
 from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
@@ -17,3 +19,14 @@ class MultiMeshRayCasterCameraCfg(RayCasterCameraCfg, MultiMeshRayCasterCfg):
     """Configuration for the multi-mesh ray-cast camera sensor."""
 
     class_type: type = MultiMeshRayCasterCamera
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Camera only supports 'base' ray alignment. Ensure this is set correctly.
+        if self.ray_alignment != "base":
+            carb.log_warn(
+                "Ray alignment for MultiMeshRayCasterCameraCfg only supports 'base' alignment. Overriding from"
+                f"'{self.ray_alignment}' to 'base'."
+            )
+            self.ray_alignment = "base"

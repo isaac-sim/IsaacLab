@@ -27,6 +27,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -238,7 +239,7 @@ class RayCaster(SensorBase):
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
 
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset[0][env_ids], self._offset[1][env_ids]
         )

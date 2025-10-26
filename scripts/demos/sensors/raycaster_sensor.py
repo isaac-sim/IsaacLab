@@ -135,6 +135,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         else:
             continue
 
+
 def main():
     """Main function."""
 
