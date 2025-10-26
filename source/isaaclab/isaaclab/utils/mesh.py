@@ -8,9 +8,9 @@
 
 import numpy as np
 import trimesh
+from collections.abc import Callable
 
 from pxr import Usd, UsdGeom
-from typing import Callable
 
 
 def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:

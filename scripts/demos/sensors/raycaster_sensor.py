@@ -80,7 +80,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     triggered = True
     countdown = 42
-    
+
     # Simulate physics
     while simulation_app.is_running():
 
@@ -124,16 +124,16 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("-------------------------------")
         print(scene["ray_caster"])
         print("Ray cast hit results: ", scene["ray_caster"].data.ray_hits_w)
-                
+
         if not triggered:
-                    if countdown > 0:
-                        countdown -= 1
-                        continue
-                    data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()
-                    np.save("cast_data.npy", data)
-                    triggered = True
-                else:
-                    continue
+            if countdown > 0:
+                countdown -= 1
+                continue
+            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()
+            np.save("cast_data.npy", data)
+            triggered = True
+        else:
+            continue
 
 def main():
     """Main function."""

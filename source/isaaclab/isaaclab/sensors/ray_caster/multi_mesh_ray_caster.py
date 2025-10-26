@@ -158,8 +158,8 @@ class MultiMeshRayCaster(RayCaster):
             # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in MultiMeshRayCaster.meshes:
                 carb.log_warn(
-                    f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries in"
-                    " `mesh_prim_paths`? This mesh will be skipped."
+                    f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries"
+                    " in `mesh_prim_paths`? This mesh will be skipped."
                 )
                 continue
 
