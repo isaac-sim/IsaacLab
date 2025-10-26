@@ -288,6 +288,13 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
 @configclass
 class ThrusterCfg:
+    """Configuration for thruster actuator groups.
+
+    This config defines per-actuator-group parameters used by the low-level
+    thruster/motor models (time-constants, thrust ranges, integration scheme,
+    and initial state specifications). Fields left as ``MISSING`` are required
+    and must be provided by the user configuration.
+    """
 
     class_type: type[Thruster] = Thruster
     """Concrete Python class that consumes this config."""
