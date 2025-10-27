@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import time
 import torch
 from dataclasses import dataclass
 
@@ -13,6 +12,7 @@ from isaaclab.devices.openxr.openxr_device_controller import (
     MotionControllerTrackingTarget,
 )
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+from isaaclab.sim import SimulationContext
 
 
 @dataclass
@@ -41,7 +41,7 @@ class G1LowerBodyStandingMotionControllerRetargeterCfg(RetargeterCfg):
     hip_height: float = 0.72
     """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
 
-    movement_scale: float = 0.45
+    movement_scale: float = 0.5
     """Scale the movement of the robot to the range of [-movement_scale, movement_scale]."""
 
     rotation_scale: float = 0.35
@@ -55,7 +55,6 @@ class G1LowerBodyStandingMotionControllerRetargeter(RetargeterBase):
         """Initialize the retargeter."""
         self.cfg = cfg
         self._hip_height = cfg.hip_height
-        self._last_update_time = time.time()
 
     def retarget(self, data: dict) -> torch.Tensor:
         left_thumbstick_x = 0.0
@@ -80,15 +79,14 @@ class G1LowerBodyStandingMotionControllerRetargeter(RetargeterBase):
                     right_thumbstick_x = right_inputs[MotionControllerInputIndex.THUMBSTICK_X.value]
                     right_thumbstick_y = right_inputs[MotionControllerInputIndex.THUMBSTICK_Y.value]
 
-        # Thumbstick values are in the range of [-1, 1], so we need to scale them to the range of [-movement_clamp, movement_clamp]
+        # Thumbstick values are in the range of [-1, 1], so we need to scale them to the range of [-movement_scale, movement_scale]
         left_thumbstick_x = left_thumbstick_x * self.cfg.movement_scale
         left_thumbstick_y = left_thumbstick_y * self.cfg.movement_scale
 
-        # Use wall clock time for consistent hip height adjustment regardless of simulation speed
-        current_time = time.time()
-        dt = current_time - self._last_update_time
-        self._last_update_time = current_time
+        # Use rendering time step for deterministic hip height adjustment regardless of wall clock time.
+        dt = SimulationContext.instance().get_rendering_dt()
         self._hip_height -= right_thumbstick_y * dt * self.cfg.rotation_scale
+        self._hip_height = max(0.4, min(1.0, self._hip_height))
 
         return torch.tensor(
             [-left_thumbstick_y, -left_thumbstick_x, -right_thumbstick_x, self._hip_height],

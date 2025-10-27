@@ -8,7 +8,6 @@
 import contextlib
 import math
 import numpy as np
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -22,6 +21,7 @@ from usdrt import Rt
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.sim import SimulationContext
 
 from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
 from .xr_cfg import XrAnchorRotationMode
@@ -93,7 +93,6 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         self.__anchor_prim_initial_quat = None
         self.__anchor_prim_initial_height = None
         self.__smoothed_anchor_quat = None  # For FOLLOW_PRIM_SMOOTHED mode
-        self.__last_smoothing_update_time = None  # For wall clock time tracking
         self.__last_anchor_quat = None
         self.__anchor_rotation_enabled = True
 
@@ -129,7 +128,6 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         self.__anchor_prim_initial_quat = None
         self.__anchor_prim_initial_height = None
         self.__smoothed_anchor_quat = None
-        self.__last_smoothing_update_time = None
         self.__last_anchor_quat = None
         self.__anchor_rotation_enabled = True
         self._sync_headset_to_anchor()
@@ -312,16 +310,10 @@ class OpenXRDeviceMotionController(OpenXRDevice):
                 # Initialize smoothed quaternion on first run
                 if self.__smoothed_anchor_quat is None:
                     self.__smoothed_anchor_quat = pxr_anchor_quat
-                    self.__last_smoothing_update_time = time.time()
                 else:
-                    # Calculate smoothing alpha from wall-clock time delta (not physics dt)
+                    # Calculate smoothing alpha from rendering time step.
                     # Exponential smoothing: alpha = 1 - exp(-dt / time_constant)
-                    current_time = time.time()
-                    if self.__last_smoothing_update_time is None:
-                        # Fallback in case reset didn't happen properly
-                        self.__last_smoothing_update_time = current_time
-                    dt = current_time - self.__last_smoothing_update_time
-                    self.__last_smoothing_update_time = current_time
+                    dt = SimulationContext.instance().get_rendering_dt()
 
                     # Allow very small alpha for strong smoothing; only clamp upper bound
                     alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))

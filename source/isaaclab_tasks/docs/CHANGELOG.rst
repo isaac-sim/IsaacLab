@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added OpenXR motion controller support for the G1 robot locomanipulation environment 
+* Added OpenXR motion controller support for the G1 robot locomanipulation environment
   ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``. This enables teleoperation using XR motion controllers
   in addition to hand tracking.
 * Added :class:`OpenXRDeviceMotionController` for motion controller-based teleoperation with headset anchoring control.
