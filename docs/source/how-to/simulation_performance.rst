@@ -43,6 +43,21 @@ collision detection will fall back to CPU. Collisions with particles and deforma
 Suitable workarounds include switching to a bounding cube approximation, or using a static triangle mesh collider
 if the geometry is not part of a dynamic rigid body.
 
+CPU Governor Settings on Linux
+------------------------------
+
+CPU governors dictate the operating clock frequency range and scaling of the CPU. This can be a limiting factor for Isaac Sim performance. For maximum performance, the CPU governor should be set to ``performance``. To modify the CPU governor, run the following commands:
+
+.. code-block:: bash
+
+    sudo apt-get install linux-tools-common
+    cpupower frequency-info # Check available governors
+    sudo cpupower frequency-set -g performance # Set governor with root permissions
+
+.. note::
+
+    Not all governors are available on all systems. Governors enabling higher clock speed are typically more performance-centric and will yield better performance for Isaac Sim.
+
 Additional Performance Guides
 -----------------------------
 
