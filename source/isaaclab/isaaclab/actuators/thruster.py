@@ -175,15 +175,13 @@ class Thruster:
             (num_resets, self.num_motors),
             self._device,
         )
-        self.curr_thrust[env_ids] = math_utils.sample_uniform(
-            *self.thrust_r,
-            (num_resets, self.num_motors),
-            self._device,
-        )
         self.thrust_const[env_ids] = math_utils.sample_uniform(
             *self.thrust_const_r,
             (num_resets, self.num_motors),
             self._device,
+        )
+        self.curr_thrust[env_ids] = (
+            self.thrust_const[env_ids] * self._init_thruster_rps[env_ids]**2
         )
 
     def reset(self, env_ids: Sequence[int]) -> None:
