@@ -20,6 +20,7 @@
       timer
       types
       warp
+      mesh
 
    .. Rubric:: Functions
 

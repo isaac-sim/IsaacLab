@@ -52,3 +52,43 @@ def terrain_levels_vel(
     terrain.update_drone_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
+
+def obstacle_density_curriculum(
+    env: ManagerBasedRLEnv, 
+    env_ids: Sequence[int], 
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_name: str = "target_pose",
+    max_difficulty: int = 10,
+    min_difficulty: int = 2,
+) -> float:
+    """Curriculum that adjusts obstacle density based on performance."""
+    # Initialize
+    if not hasattr(env, "_obstacle_difficulty_levels"):
+        #TODO: not the best to store in env
+        env._obstacle_difficulty_levels = torch.ones(env.num_envs, device=env.device) * min_difficulty
+        env._min_obstacle_difficulty = min_difficulty 
+        env._max_obstacle_difficulty = max_difficulty
+        env._obstacle_difficulty = float(min_difficulty)
+    
+    # Extract robot
+    asset: Articulation = env.scene[asset_cfg.name]
+    
+    # Performance metric
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
+    
+    # Decide difficulty changes
+    crashed = env.termination_manager.terminated[env_ids]
+    move_up = position_error < 1.5  # Success
+    move_down = crashed
+    move_down *= ~move_up
+        
+    env._obstacle_difficulty_levels[env_ids] += 1 * move_up - 1 * move_down
+    env._obstacle_difficulty_levels[env_ids] = torch.clip(env._obstacle_difficulty_levels[env_ids], 
+                                                          min=env._min_obstacle_difficulty, 
+                                                          max=env._max_obstacle_difficulty - 1)
+    
+    return env._obstacle_difficulty_levels.float().mean()

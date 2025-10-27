@@ -65,9 +65,11 @@ def image_latents(
     # extract the used quantities (to enable type-hinting)
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
+    # sensor.update(env.physics_dt, force_recompute=True) #TODO @welfr make sure this is necessary
+
     # obtain the input image
     images = sensor.data.output[data_type]
-
+    
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
@@ -95,6 +97,7 @@ def image_latents(
         _vae_model.eval()
     with torch.no_grad():
         latents = _vae_model(images.squeeze(-1).half())
+        
     return latents
 
 

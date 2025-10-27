@@ -3,15 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for Warp-based ray-cast sensor."""
+"""Configuration for the ray-cast camera sensor."""
 
-from . import patterns
-from .multi_mesh_ray_caster import MultiMeshRayCaster
+from isaaclab.utils import configclass
+
 from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
-from .multi_mesh_ray_caster_camera_cfg import MultiMeshRayCasterCameraCfg
 from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
-from .ray_caster import RayCaster
-from .ray_caster_camera import RayCasterCamera
 from .ray_caster_camera_cfg import RayCasterCameraCfg
-from .ray_caster_cfg import RayCasterCfg
-from .ray_caster_data import RayCasterData
+
+
+@configclass
+class MultiMeshRayCasterCameraCfg(RayCasterCameraCfg, MultiMeshRayCasterCfg):
+    """Configuration for the multi-mesh ray-cast camera sensor."""
+
+    class_type: type = MultiMeshRayCasterCamera
