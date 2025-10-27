@@ -122,6 +122,7 @@ Guidelines for modifications:
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Ryan Gresia
 * Ryley McCarroll
 * Shafeef Omar
 * Shaoshu Su
