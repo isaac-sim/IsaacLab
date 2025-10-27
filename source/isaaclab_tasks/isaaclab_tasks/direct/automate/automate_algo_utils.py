@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
 import os
+import re
+import subprocess
 import sys
 import torch
 import trimesh
@@ -14,248 +15,60 @@ import warp as wp
 print("Python Executable:", sys.executable)
 print("Python Path:", sys.path)
 
-from scipy.stats import norm
-
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.mixture import GaussianMixture
-
 base_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "."))
 sys.path.append(base_dir)
 
 from isaaclab.utils.assets import retrieve_file_path
 
 """
-Initialization / Sampling
-"""
-
-
-def get_prev_success_init(held_asset_pose, fixed_asset_pose, success, N, device):
-    """
-    Randomly selects N held_asset_pose and corresponding fixed_asset_pose
-    at indices where success is 1 and returns them as torch tensors.
-
-    Args:
-        held_asset_pose (np.ndarray): Numpy array of held asset poses.
-        fixed_asset_pose (np.ndarray): Numpy array of fixed asset poses.
-        success (np.ndarray): Numpy array of success values (1 for success, 0 for failure).
-        N (int): Number of successful indices to select.
-        device: torch device.
-
-    Returns:
-        tuple: (held_asset_poses, fixed_asset_poses) as torch tensors, or None if no success found.
-    """
-    # Get indices where success is 1
-    success_indices = np.where(success == 1)[0]
-
-    if success_indices.size == 0:
-        return None  # No successful entries found
-
-    # Select up to N random indices from successful indices
-    selected_indices = np.random.choice(success_indices, min(N, len(success_indices)), replace=False)
-
-    return torch.tensor(held_asset_pose[selected_indices], device=device), torch.tensor(
-        fixed_asset_pose[selected_indices], device=device
-    )
-
-
-def model_succ_w_gmm(held_asset_pose, fixed_asset_pose, success):
-    """
-    Models the success rate distribution as a function of the relative position between the held and fixed assets
-    using a Gaussian Mixture Model (GMM).
-
-    Parameters:
-        held_asset_pose (np.ndarray): Array of shape (N, 7) representing the positions of the held asset.
-        fixed_asset_pose (np.ndarray): Array of shape (N, 7) representing the positions of the fixed asset.
-        success (np.ndarray): Array of shape (N, 1) representing the success.
-
-    Returns:
-        GaussianMixture: The fitted GMM.
-
-    Example:
-        gmm = model_succ_dist_w_gmm(held_asset_pose, fixed_asset_pose, success)
-        relative_pose = held_asset_pose - fixed_asset_pose
-        # To compute the probability of each component for the given relative positions:
-        probabilities = gmm.predict_proba(relative_pose)
-    """
-    # Compute the relative positions (held asset relative to fixed asset)
-    relative_pos = held_asset_pose[:, :3] - fixed_asset_pose[:, :3]
-
-    # Flatten the success array to serve as sample weights.
-    # This way, samples with higher success contribute more to the model.
-    sample_weights = success.flatten()
-
-    # Initialize the Gaussian Mixture Model with the specified number of components.
-    gmm = GaussianMixture(n_components=2, random_state=0)
-
-    # Fit the GMM on the relative positions, using sample weights from the success metric.
-    gmm.fit(relative_pos, sample_weight=sample_weights)
-
-    return gmm
-
-
-def sample_rel_pos_from_gmm(gmm, batch_size, device):
-    """
-    Samples a batch of relative poses (held_asset relative to fixed_asset)
-    from a fitted GaussianMixture model.
-
-    Parameters:
-        gmm (GaussianMixture): A GaussianMixture model fitted on relative pose data.
-        batch_size (int): The number of samples to generate.
-
-    Returns:
-        torch.Tensor: A tensor of shape (batch_size, 3) containing the sampled relative poses.
-    """
-    # Sample batch_size samples from the Gaussian Mixture Model.
-    samples, _ = gmm.sample(batch_size)
-
-    # Convert the numpy array to a torch tensor.
-    samples_tensor = torch.from_numpy(samples).to(device)
-
-    return samples_tensor
-
-
-def model_succ_w_gp(held_asset_pose, fixed_asset_pose, success):
-    """
-    Models the success rate distribution given the relative position of the held asset
-    from the fixed asset using a Gaussian Process classifier.
-
-    Parameters:
-        held_asset_pose (np.ndarray): Array of shape (N, 7) representing the held asset pose.
-                                      Assumes the first 3 columns are the (x, y, z) positions.
-        fixed_asset_pose (np.ndarray): Array of shape (N, 7) representing the fixed asset pose.
-                                      Assumes the first 3 columns are the (x, y, z) positions.
-        success (np.ndarray): Array of shape (N, 1) representing the success outcome (e.g., 0 for failure,
-                              1 for success).
-
-    Returns:
-        GaussianProcessClassifier: A trained GP classifier that models the success rate.
-    """
-    # Compute the relative position (using only the translation components)
-    relative_position = held_asset_pose[:, :3] - fixed_asset_pose[:, :3]
-
-    # Flatten success array from (N, 1) to (N,)
-    y = success.ravel()
-
-    # Create and fit the Gaussian Process Classifier
-    # gp = GaussianProcessClassifier(kernel=kernel, random_state=42)
-    gp = GaussianProcessRegressor(random_state=42)
-    gp.fit(relative_position, y)
-
-    return gp
-
-
-def propose_failure_samples_batch_from_gp(
-    gp_model, candidate_points, batch_size, device, method="ucb", kappa=2.0, xi=0.01
-):
-    """
-    Proposes a batch of candidate samples from failure-prone regions using one of three acquisition functions:
-    'ucb' (Upper Confidence Bound), 'pi' (Probability of Improvement), or 'ei' (Expected Improvement).
-
-    In this formulation, lower predicted success probability (closer to 0) is desired,
-    so we invert the typical acquisition formulations.
-
-    Parameters:
-        gp_model: A trained Gaussian Process model (e.g., GaussianProcessRegressor) that supports
-                  predictions with uncertainties via the 'predict' method (with return_std=True).
-        candidate_points (np.ndarray): Array of shape (n_candidates, d) representing candidate relative positions.
-        batch_size (int): Number of candidate samples to propose.
-        method (str): Acquisition function to use: 'ucb', 'pi', or 'ei'. Default is 'ucb'.
-        kappa (float): Exploration parameter for UCB. Default is 2.0.
-        xi (float): Exploration parameter for PI and EI. Default is 0.01.
-
-    Returns:
-        best_candidates (np.ndarray): Array of shape (batch_size, d) containing the selected candidate points.
-        acquisition (np.ndarray): Acquisition values computed for each candidate point.
-    """
-    # Obtain the predictive mean and standard deviation for each candidate point.
-    mu, sigma = gp_model.predict(candidate_points, return_std=True)
-    # mu, sigma = gp_model.predict(candidate_points)
-
-    # Compute the acquisition values based on the chosen method.
-    if method.lower() == "ucb":
-        # Inversion: we want low success (i.e. low mu) and high uncertainty (sigma) to be attractive.
-        acquisition = kappa * sigma - mu
-    elif method.lower() == "pi":
-        # Probability of Improvement: likelihood of the prediction falling below the target=0.0.
-        Z = (-mu - xi) / (sigma + 1e-9)
-        acquisition = norm.cdf(Z)
-    elif method.lower() == "ei":
-        # Expected Improvement
-        Z = (-mu - xi) / (sigma + 1e-9)
-        acquisition = (-mu - xi) * norm.cdf(Z) + sigma * norm.pdf(Z)
-        # Set acquisition to 0 where sigma is nearly zero.
-        acquisition[sigma < 1e-9] = 0.0
-    else:
-        raise ValueError("Unknown acquisition method. Please choose 'ucb', 'pi', or 'ei'.")
-
-    # Select the indices of the top batch_size candidates (highest acquisition values).
-    sorted_indices = np.argsort(acquisition)[::-1]  # sort in descending order
-    best_indices = sorted_indices[:batch_size]
-    best_candidates = candidate_points[best_indices]
-
-    # Convert the numpy array to a torch tensor.
-    best_candidates_tensor = torch.from_numpy(best_candidates).to(device)
-
-    return best_candidates_tensor, acquisition
-
-
-def propose_success_samples_batch_from_gp(
-    gp_model, candidate_points, batch_size, device, method="ucb", kappa=2.0, xi=0.01
-):
-    """
-    Proposes a batch of candidate samples from high success rate regions using one of three acquisition functions:
-    'ucb' (Upper Confidence Bound), 'pi' (Probability of Improvement), or 'ei' (Expected Improvement).
-
-    In this formulation, higher predicted success probability is desired.
-    The GP model is assumed to provide predictions with uncertainties via its 'predict' method (using return_std=True).
-
-    Parameters:
-        gp_model: A trained Gaussian Process model (e.g., GaussianProcessRegressor) that supports
-                  predictions with uncertainties.
-        candidate_points (np.ndarray): Array of shape (n_candidates, d) representing candidate relative positions.
-        batch_size (int): Number of candidate samples to propose.
-        method (str): Acquisition function to use: 'ucb', 'pi', or 'ei'. Default is 'ucb'.
-        kappa (float): Exploration parameter for UCB. Default is 2.0.
-        xi (float): Exploration parameter for PI and EI. Default is 0.01.
-
-    Returns:
-        best_candidates (np.ndarray): Array of shape (batch_size, d) containing the selected candidate points.
-        acquisition (np.ndarray): Acquisition values computed for each candidate point.
-    """
-    # Obtain the predictive mean and standard deviation for each candidate point.
-    mu, sigma = gp_model.predict(candidate_points, return_std=True)
-
-    # Compute the acquisition values based on the chosen method.
-    if method.lower() == "ucb":
-        # For maximization, UCB is defined as μ + kappa * σ.
-        acquisition = mu + kappa * sigma
-    elif method.lower() == "pi":
-        # Probability of Improvement (maximization formulation).
-        Z = (mu - 1.0 - xi) / (sigma + 1e-9)
-        acquisition = norm.cdf(Z)
-    elif method.lower() == "ei":
-        # Expected Improvement (maximization formulation).
-        Z = (mu - 1.0 - xi) / (sigma + 1e-9)
-        acquisition = (mu - 1.0 - xi) * norm.cdf(Z) + sigma * norm.pdf(Z)
-        # Handle nearly zero sigma values.
-        acquisition[sigma < 1e-9] = 0.0
-    else:
-        raise ValueError("Unknown acquisition method. Please choose 'ucb', 'pi', or 'ei'.")
-
-    # Sort candidates by acquisition value in descending order and select the top batch_size.
-    sorted_indices = np.argsort(acquisition)[::-1]
-    best_indices = sorted_indices[:batch_size]
-    best_candidates = candidate_points[best_indices]
-
-    # Convert the numpy array to a torch tensor.
-    best_candidates_tensor = torch.from_numpy(best_candidates).to(device)
-
-    return best_candidates_tensor, acquisition
-
-
-"""
 Util Functions
 """
+
+
+def parse_cuda_version(version_string):
+    """
+       Parse CUDA version string into comparable tuple of (major, minor, patch).
+
+       Args:
+           version_string: Version string like "12.8.9" or "11.2"
+
+       Returns:
+           Tuple of (major, minor, patch) as integers, where patch defaults to 0 iff
+    not present.
+
+       Example:
+           "12.8.9" -> (12, 8, 9)
+           "11.2" -> (11, 2, 0)
+    """
+    parts = version_string.split(".")
+    major = int(parts[0])
+    minor = int(parts[1]) if len(parts) > 1 else 0
+    patch = int(parts[2]) if len(parts) > 2 else 0
+    return (major, minor, patch)
+
+
+def get_cuda_version():
+    try:
+        # Execute nvcc --version command
+        result = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, check=True)
+        output = result.stdout
+
+        # Use regex to find the CUDA version (e.g., V11.2.67)
+        match = re.search(r"V(\d+\.\d+(\.\d+)?)", output)
+        if match:
+            return parse_cuda_version(match.group(1))
+        else:
+            print("CUDA version not found in output.")
+            return None
+    except FileNotFoundError:
+        print("nvcc command not found. Is CUDA installed and in your PATH?")
+        return None
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing nvcc: {e.stderr}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
 
 
 def get_gripper_open_width(obj_filepath):
