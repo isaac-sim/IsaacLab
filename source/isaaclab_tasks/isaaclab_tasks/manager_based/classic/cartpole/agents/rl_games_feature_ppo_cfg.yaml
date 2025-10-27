@@ -57,7 +57,7 @@ params:
     mixed_precision: False
     normalize_input: True
     normalize_value: True
-    value_bootstraop: True
+    value_bootstrap: True
     num_actors: -1  # configured from the script (based on num_envs)
     reward_shaper:
       scale_value: 1.0
