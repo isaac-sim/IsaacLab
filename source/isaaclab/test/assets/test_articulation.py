@@ -1450,8 +1450,8 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     # Play sim
     sim.reset()
 
-    # usd default is 80
-    usd_default = 80.0
+    # usd default effort limit is set to 80
+    usd_default_effort_limit = 80.0
 
     # collect limit init values
     physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device)
