@@ -64,13 +64,11 @@ def obstacle_density_curriculum(
     """Curriculum that adjusts obstacle density based on performance."""
     # Initialize
     if not hasattr(env, "_obstacle_difficulty_levels"):
+        #TODO: not the best to store in env
         env._obstacle_difficulty_levels = torch.ones(env.num_envs, device=env.device) * min_difficulty
         env._min_obstacle_difficulty = min_difficulty 
         env._max_obstacle_difficulty = max_difficulty
         env._obstacle_difficulty = float(min_difficulty)
-    
-    if len(env_ids) == 0:
-        return env._obstacle_difficulty
     
     # Extract robot
     asset: Articulation = env.scene[asset_cfg.name]
@@ -87,19 +85,6 @@ def obstacle_density_curriculum(
     move_up = position_error < 1.5  # Success
     move_down = crashed
     move_down *= ~move_up
-    
-    if env_ids[0] == 0 and (env.episode_length_buf[0] % 100 == 0 or move_up.any() or move_down.any()):
-        print(f"\n=== Curriculum Update Debug ===")
-        print(f"Step: {env.episode_length_buf[0].item()}")
-        print(f"Current difficulty: {env._obstacle_difficulty_levels[env_ids[0]].item():.0f} / {max_difficulty}")
-        print(f"Position error: {position_error[0].item():.2f}m (threshold: 1.5m)")
-        print(f"Crashed: {crashed[0].item()}")
-        print(f"Move up: {move_up.sum().item()} envs, Move down: {move_down.sum().item()} envs")
-        if move_up[0]:
-            print(f"  → Env 0 SUCCESS! Increasing difficulty")
-        if move_down[0]:
-            print(f"  → Env 0 FAILED! Decreasing difficulty")
-        print("===============================\n")
         
     env._obstacle_difficulty_levels[env_ids] += 1 * move_up - 1 * move_down
     env._obstacle_difficulty_levels[env_ids] = torch.clip(env._obstacle_difficulty_levels[env_ids], 
