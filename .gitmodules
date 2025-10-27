@@ -1,0 +1,3 @@
+[submodule "source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model"]
+	path = source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model
+	url = git@github.com:ntnu-arl/LMF2_model.git
