@@ -16,7 +16,7 @@ import torch.jit
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, RigidObject
+from isaaclab.assets import Articulation, Multirotor
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ def generated_drone_commands(
     env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Multirotor = env.scene[asset_cfg.name]
     current_position_w = asset.data.root_pos_w - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
     current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)
