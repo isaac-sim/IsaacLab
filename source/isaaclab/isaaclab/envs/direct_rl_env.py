@@ -11,6 +11,7 @@ import inspect
 import math
 import numpy as np
 import torch
+import warnings
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -221,9 +222,10 @@ class DirectRLEnv(gym.Env):
 
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
-            omni.log.warn(
-                "[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
-                " DirectRLEnvCfg.num_rerenders_on_reset instead."
+            warnings.warn(
+                f"\033[93m\033[1m[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use ManagerBasedEnvCfg.num_rerenders_on_reset instead.\033[0m",
+                FutureWarning,
+                stacklevel=2,
             )
             self.cfg.num_rerenders_on_reset = 1
 
