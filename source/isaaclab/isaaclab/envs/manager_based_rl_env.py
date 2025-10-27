@@ -13,7 +13,6 @@ import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-import omni.log
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
