@@ -280,7 +280,6 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             with Timer("[INFO] Time to create scene: "):
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[~groceries_mask.view(-1)])
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[groceries_mask.view(-1)], noise=True)
-                # reset_object_collections(scene, "groceries", spawning_state_w_view_xyzw, view_indices)
                 random_masses = torch.rand(groceries.num_instances * num_objects, device=device) * 0.2 + 0.2
                 groceries.root_physx_view.set_masses(random_masses.cpu(), view_indices.cpu())
                 groceries.root_physx_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
