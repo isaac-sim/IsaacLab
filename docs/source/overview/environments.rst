@@ -243,13 +243,12 @@ We provide environments for both disassembly and assembly.
 
 .. attention::
 
-  CUDA is required for running the AutoMate environments.
-  Follow the below steps to install CUDA 12.8:
+  CUDA is recommended for running the AutoMate environments with 570 drivers. If running with Nvidia driver 570 on Linux with architecture x86_64, we follow the below steps to install CUDA 12.8. This allows for computing rewards in AutoMate environments with CUDA. If you have a different operation system or architecture, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_ for additional instruction.
 
   .. code-block:: bash
 
       wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
-      sudo sh cuda_12.8.0_570.86.10_linux.run
+      sudo sh cuda_12.8.0_570.86.10_linux.run --toolkit
 
   When using conda, cuda toolkit can be installed with:
 
@@ -257,7 +256,7 @@ We provide environments for both disassembly and assembly.
 
       conda install cudatoolkit
 
-  For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
+  With 580 drivers and CUDA 13, we are currently unable to enable CUDA for computing the rewards. The code automatically fallbacks to CPU, resulting in slightly slower performance.
 
 * |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
