@@ -17,10 +17,7 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
-import matplotlib.pyplot as plt
+from isaaclab.sensors import Camera,RayCasterCamera, TiledCamera, MultiMeshRayCasterCamera
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -63,9 +60,7 @@ def image_latents(
     # TODO @mihirk change to use image_features API  
     
     # extract the used quantities (to enable type-hinting)
-    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-
-    # sensor.update(env.physics_dt, force_recompute=True) #TODO @welfr make sure this is necessary
+    sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
     images = sensor.data.output[data_type]
