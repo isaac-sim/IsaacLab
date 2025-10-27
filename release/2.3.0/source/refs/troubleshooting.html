@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="troubleshooting.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/refs/troubleshooting.html" >main</option>
             <option value="../../../2.1.0/source/refs/troubleshooting.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/refs/troubleshooting.html" >release/2.2.0</option>
-            <option value="troubleshooting.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/refs/troubleshooting.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/refs/troubleshooting.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/refs/troubleshooting.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -655,7 +655,6 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#debugging-physics-simulation-stability-issues">Debugging physics simulation stability issues</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preventing-memory-leaks-in-the-simulator">Preventing memory leaks in the simulator</a></li>
@@ -731,32 +730,6 @@ channel levels to get more detailed logs. The logging channel levels can be set 
 </div>
 <p>For more fine-grained control, you can modify the logging channels through the <code class="docutils literal notranslate"><span class="pre">omni.log</span></code> module.
 For more information, please refer to its <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html">documentation</a>.</p>
-</section>
-<section id="using-cpu-scaling-governor-for-performance">
-<h2>Using CPU Scaling Governor for performance<a class="headerlink" href="#using-cpu-scaling-governor-for-performance" title="Permalink to this heading">#</a></h2>
-<p>By default on many systems, the CPU frequency governor is set to
-“powersave” mode, which sets the CPU to lowest static frequency. To
-increase the maximum performance, we recommend setting the CPU frequency
-governor to “performance” mode. For more details, please check the the
-link
-<a class="reference external" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/power_management_guide/cpufreq_governors">here</a>.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>We advice not to set the governor to “performance” mode on a system with poor
-cooling (such as laptops), since it may cause the system to overheat.</p>
-</div>
-<ul>
-<li><p>To view existing <code class="docutils literal notranslate"><span class="pre">scaling_governor</span></code> value per CPU:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-</pre></div>
-</div>
-</li>
-<li><p>To change the governor to “performance” mode for each CPU:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span>performance<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-</pre></div>
-</div>
-</li>
-</ul>
 </section>
 <section id="observing-long-load-times-at-the-start-of-the-simulation">
 <h2>Observing long load times at the start of the simulation<a class="headerlink" href="#observing-long-load-times-at-the-start-of-the-simulation" title="Permalink to this heading">#</a></h2>
@@ -962,7 +935,6 @@ TypeError:<span class="w"> </span>expected<span class="w"> </span>Tensor<span cl
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#debugging-physics-simulation-stability-issues">Debugging physics simulation stability issues</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preventing-memory-leaks-in-the-simulator">Preventing memory leaks in the simulator</a></li>

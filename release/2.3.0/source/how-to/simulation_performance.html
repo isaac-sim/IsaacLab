@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="simulation_performance.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/how-to/simulation_performance.html" >main</option>
             <option value="../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/how-to/simulation_performance.html" >release/2.2.0</option>
-            <option value="simulation_performance.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/how-to/simulation_performance.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/how-to/simulation_performance.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/how-to/simulation_performance.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -653,6 +653,7 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#collision-geometries">Collision Geometries</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cpu-governor-settings-on-linux">CPU Governor Settings on Linux</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-performance-guides">Additional Performance Guides</a></li>
 </ul>
             </nav>
@@ -701,6 +702,19 @@ triggering a CPU fallback that can significantly impact performance.</p>
 <span class="pre">collision</span> <span class="pre">detection</span> <span class="pre">will</span> <span class="pre">fall</span> <span class="pre">back</span> <span class="pre">to</span> <span class="pre">CPU.</span> <span class="pre">Collisions</span> <span class="pre">with</span> <span class="pre">particles</span> <span class="pre">and</span> <span class="pre">deformables</span> <span class="pre">will</span> <span class="pre">not</span> <span class="pre">work</span> <span class="pre">with</span> <span class="pre">this</span> <span class="pre">mesh.</span></code>.
 Suitable workarounds include switching to a bounding cube approximation, or using a static triangle mesh collider
 if the geometry is not part of a dynamic rigid body.</p>
+</section>
+<section id="cpu-governor-settings-on-linux">
+<h2>CPU Governor Settings on Linux<a class="headerlink" href="#cpu-governor-settings-on-linux" title="Permalink to this heading">#</a></h2>
+<p>CPU governors dictate the operating clock frequency range and scaling of the CPU. This can be a limiting factor for Isaac Sim performance. For maximum performance, the CPU governor should be set to <code class="docutils literal notranslate"><span class="pre">performance</span></code>. To modify the CPU governor, run the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>linux-tools-common
+cpupower<span class="w"> </span>frequency-info<span class="w"> </span><span class="c1"># Check available governors</span>
+sudo<span class="w"> </span>cpupower<span class="w"> </span>frequency-set<span class="w"> </span>-g<span class="w"> </span>performance<span class="w"> </span><span class="c1"># Set governor with root permissions</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Not all governors are available on all systems. Governors enabling higher clock speed are typically more performance-centric and will yield better performance for Isaac Sim.</p>
+</div>
 </section>
 <section id="additional-performance-guides">
 <h2>Additional Performance Guides<a class="headerlink" href="#additional-performance-guides" title="Permalink to this heading">#</a></h2>
@@ -763,6 +777,7 @@ start hunting for performance gains.</p>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#collision-geometries">Collision Geometries</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cpu-governor-settings-on-linux">CPU Governor Settings on Linux</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-performance-guides">Additional Performance Guides</a></li>
 </ul>
   </nav></div>
