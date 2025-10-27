@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.47.2 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed the data type conversion in :class:`~isaaclab.sensors.tiled_camera.TiledCamera` to
+  support the correct data type when converting from numpy arrays to warp arrays on the CPU.
+
+
 0.47.1 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
 
