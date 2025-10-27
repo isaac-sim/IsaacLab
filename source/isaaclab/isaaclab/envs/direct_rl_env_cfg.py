@@ -223,7 +223,6 @@ class DirectRLEnvCfg:
       step will be performed after each time an environment is reset.
 
     .. deprecated:: 0.47.2
-
         This attribute is deprecated and will be removed in the future. Please use
         :attr:`num_rerenders_on_reset` instead.
 
