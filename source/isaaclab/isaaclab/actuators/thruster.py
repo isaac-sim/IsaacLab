@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2023, Autonomous Robots Lab, Norwegian University of Science and Technology.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-
 from __future__ import annotations
 
 import torch
