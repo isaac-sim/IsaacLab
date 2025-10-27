@@ -197,7 +197,7 @@ class ActuatorBase(ABC):
 
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
         # For effort_limit, use the tensor passed to constructor if cfg.effort_limit is None
-        effort_default = self.effort_limit_sim if self.cfg.effort_limit is not None else effort_limit
+        effort_default = effort_limit if self.cfg.effort_limit is None else self.effort_limit_sim
         self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
