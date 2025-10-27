@@ -196,6 +196,7 @@ class ManagerBasedEnv:
                 "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
                 " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
             )
+            self.cfg.num_rerenders_on_reset = 1
 
     def __del__(self):
         """Cleanup for the environment."""
@@ -360,15 +361,8 @@ class ManagerBasedEnv:
         self.scene.write_data_to_sim()
         self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors():
-            if self.cfg.num_rerenders_on_reset > 0:
-                for i in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
-            elif self.cfg.rerender_on_reset:
-                omni.log.warn(
-                    "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
-                    " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
-                )
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
         # trigger recorder terms for post-reset calls
@@ -428,15 +422,8 @@ class ManagerBasedEnv:
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors():
-            if self.cfg.num_rerenders_on_reset > 0:
-                for i in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
-            elif self.cfg.rerender_on_reset:
-                omni.log.warn(
-                    "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
-                    " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
-                )
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
         # trigger recorder terms for post-reset calls

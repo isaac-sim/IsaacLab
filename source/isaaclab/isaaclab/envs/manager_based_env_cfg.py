@@ -106,9 +106,7 @@ class ManagerBasedEnvCfg:
     """
 
     rerender_on_reset: bool = False
-    """[DEPRECATED] Use num_rerenders_on_reset instead.
-
-    Whether a render step is performed again after at least one environment has been reset.
+    """Whether a render step is performed again after at least one environment has been reset.
     Defaults to False, which means no render step will be performed after reset.
 
     * When this is False, data collected from sensors after performing reset will be stale and will not reflect the
@@ -116,6 +114,14 @@ class ManagerBasedEnvCfg:
     * When this is True, an extra render step will be performed to update the sensor data
       to reflect the latest states from the reset. This comes at a cost of performance as an additional render
       step will be performed after each time an environment is reset.
+
+    .. deprecated:: 0.47.2
+        
+        This attribute is deprecated and will be removed in the future. Please use
+        :attr:`num_rerenders_on_reset` instead.
+
+        To get the same behaviour as setting this parameter to ``True`` or ``False``, set
+        :attr:`num_rerenders_on_reset` to 1 or 0, respectively.
     """
 
     num_rerenders_on_reset: int = 0
