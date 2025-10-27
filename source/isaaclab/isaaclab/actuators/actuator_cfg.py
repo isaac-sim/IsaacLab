@@ -302,9 +302,6 @@ class ThrusterCfg:
     dt: float = MISSING
     """Simulation/integration timestep used by the thruster update [s]."""
 
-    num_motors: int = MISSING
-    """Number of motors/propulsors on the vehicle."""
-
     thrust_range: tuple[float, float] = MISSING
     """Per-motor thrust clamp range [N]: values are clipped to this interval."""
 

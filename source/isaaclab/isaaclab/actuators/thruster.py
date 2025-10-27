@@ -73,28 +73,28 @@ class Thruster:
         self._init_thruster_rps = init_thruster_rps
 
         # Range tensors, shaped (num_envs, 2, num_motors); [:,0,:]=min, [:,1,:]=max
-        self.num_motors = cfg.num_motors
+        self.num_motors = len(thruster_names)
         self.thrust_r = torch.tensor(cfg.thrust_range).to(self._device)
         self.tau_inc_r = torch.tensor(cfg.tau_inc_range).to(self._device)
         self.tau_dec_r = torch.tensor(cfg.tau_dec_range).to(self._device)
 
-        self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(self._num_envs, cfg.num_motors).to(self._device)
+        self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(self._num_envs, self.num_motors).to(self._device)
 
         self.max_thrust = self.cfg.thrust_range[1]
         self.min_thrust = self.cfg.thrust_range[0]
 
         # State & randomized per-motor parameters
-        self.tau_inc_s = math_utils.sample_uniform(*self.tau_inc_r, (self._num_envs, cfg.num_motors), self._device)
-        self.tau_dec_s = math_utils.sample_uniform(*self.tau_dec_r, (self._num_envs, cfg.num_motors), self._device)
+        self.tau_inc_s = math_utils.sample_uniform(*self.tau_inc_r, (self._num_envs, self.num_motors), self._device)
+        self.tau_dec_s = math_utils.sample_uniform(*self.tau_dec_r, (self._num_envs, self.num_motors), self._device)
 
         if cfg.use_rps:
             self.thrust_const_r = torch.tensor(cfg.thrust_const_range).to(device)
             self.thrust_const = math_utils.sample_uniform(
-                *self.thrust_const_r, (self._num_envs, cfg.num_motors), self._device
+                *self.thrust_const_r, (self._num_envs, self.num_motors), self._device
             )
 
         self.curr_thrust = (
-            torch.ones(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)
+            torch.ones(self._num_envs, self.num_motors, device=self._device, dtype=torch.float32)
             * self.thrust_const
             * self._init_thruster_rps**2
         )

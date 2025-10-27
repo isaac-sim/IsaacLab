@@ -20,7 +20,6 @@ from isaaclab.assets.articulation import MultirotorCfg
 ##
 
 LMF2_THRUSTER = ThrusterCfg(
-    num_motors=4,
     thrust_range=(0.1, 10.0),
     thrust_const_range=(9.26312e-06, 1.826312e-05),
     tau_inc_range=(0.05, 0.08),
