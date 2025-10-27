@@ -703,7 +703,7 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
 
     # check shape of the contact_pos_w tensor
     num_bodies = sensor.num_bodies
-    assert sensor._data.friction_forces_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+    assert sensor._data.friction_forces_w.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert torch.any(torch.abs(sensor._data.friction_forces_w) > 1e-5).item()
@@ -735,7 +735,7 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
 
     # check shape of the contact_pos_w tensor
     num_bodies = sensor.num_bodies
-    assert sensor._data.contact_pos_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+    assert sensor._data.contact_pos_w.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
         contact_position = sensor._data.pos_w + torch.tensor(
