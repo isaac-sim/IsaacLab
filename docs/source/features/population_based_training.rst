@@ -80,9 +80,8 @@ You must start **one process per policy** and point them to the **same workspace
 Minimal flags you need:
 
 * ``agent.pbt.enabled=True``
-* ``agent.pbt.workspace=<path/to/shared_folder>``
+* ``agent.pbt.directory=<path/to/shared_folder>``
 * ``agent.pbt.policy_idx=<0..num_policies-1>``
-* ``agent.pbt.num_policies=<N>``
 
 .. note::
    All processes must use the same ``agent.pbt.workspace`` so they can see each other's checkpoints.
@@ -93,8 +92,37 @@ Minimal flags you need:
 Tips
 ----
 
-* Keep checkpoints fast: reduce ``interval_steps`` only if you really need tighter PBT cadence.
-* It is recommended to run 6+ workers to see benefit of pbt
+* Keep checkpoints reasonable: reduce ``interval_steps`` only if you really need tighter PBT cadence.
+* Use larger ``threshold_std`` and ``threshold_abs`` for greater population diversity.
+* It is recommended to run 6+ workers to see benefit of pbt.
+
+
+Training Example
+----------------
+
+We provide a reference PPO config here for task:
+`Isaac-Dexsuite-Kuka-Allegro-Lift-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/dexsuite/config/kuka_allegro/agents/rl_games_ppo_cfg.yaml>`_.
+For the best logging experience, we recommend using wandb for the logging in the script.
+
+Launch *N* workers, where *n* indicates each worker index:
+
+.. code-block:: bash
+
+   # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
+   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
+     --seed=<n> \
+     --task=Isaac-Dexsuite-Kuka-Allegro-Lift-v0 \
+     --num_envs=8192 \
+     --headless \
+     --track \
+     --wandb-name=idx<n> \
+     --wandb-entity=<**entity**> \
+     --wandb-project-name=<**project**>
+     agent.pbt.enabled=True \
+     agent.pbt.num_policies=<N> \
+     agent.pbt.policy_idx=<n> \
+     agent.pbt.workspace=<**pbt_workspace_name**> \
+     agent.pbt.directory=<**/path/to/shared_folder**> \
 
 
 References

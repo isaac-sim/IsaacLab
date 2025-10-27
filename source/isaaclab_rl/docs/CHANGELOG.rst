@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.2 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Isaac-Ant-v0's sb3_ppo_cfg default value, so it trains under reasonable amount of time.
+
+
 0.4.1 (2025-09-09)
 ~~~~~~~~~~~~~~~~~~
 
