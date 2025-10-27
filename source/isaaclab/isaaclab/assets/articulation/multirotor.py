@@ -65,6 +65,8 @@ class Multirotor(Articulation):
         for actuator in self.actuators.values():
             if hasattr(actuator, "thruster_names"):
                 thruster_names.extend(actuator.thruster_names)
+            else:
+                raise ValueError("Non thruster actuator found in multirotor actuators. Not supported at the moment.")
 
         return thruster_names
 
@@ -74,7 +76,7 @@ class Multirotor(Articulation):
         return len(self.thruster_names)
 
     @property
-    def _allocation_matrix(self) -> torch.Tensor:
+    def allocation_matrix(self) -> torch.Tensor:
         """Allocation matrix for control allocation."""
         return torch.tensor(self.cfg.allocation_matrix, device=self.device, dtype=torch.float32)
 
@@ -347,7 +349,7 @@ class Multirotor(Articulation):
     def _combine_thrusts(self):
         """Combine individual thrusts into a wrench vector."""
         thrusts = self._thrust_target_sim
-        self._internal_wrench_target_sim = (self._allocation_matrix @ thrusts.T).T
+        self._internal_wrench_target_sim = (self.allocation_matrix @ thrusts.T).T
         # Apply forces to base link (body index 0) only
         self._internal_force_target_sim[:, 0, :] = self._internal_wrench_target_sim[:, :3]
         self._internal_torque_target_sim[:, 0, :] = self._internal_wrench_target_sim[:, 3:]
