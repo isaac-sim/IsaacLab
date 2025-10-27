@@ -25,10 +25,6 @@ if TYPE_CHECKING:
 class Thruster:
     """Low-level motor/thruster dynamics with separate rise/fall time constants.
 
-    Supports two models:
-      • Force domain (integrate thrust directly), or
-      • Speed domain (integrate rotor speed ω, then F = k_f * ω²) when ``cfg.use_rps=True``.
-
     Integration scheme is Euler or RK4. All internal buffers are shaped (num_envs, num_motors).
     Units: thrust [N], rates [N/s], time [s].
     """
@@ -87,11 +83,10 @@ class Thruster:
         self.tau_inc_s = math_utils.sample_uniform(*self.tau_inc_r, (self._num_envs, self.num_motors), self._device)
         self.tau_dec_s = math_utils.sample_uniform(*self.tau_dec_r, (self._num_envs, self.num_motors), self._device)
 
-        if cfg.use_rps:
-            self.thrust_const_r = torch.tensor(cfg.thrust_const_range).to(device)
-            self.thrust_const = math_utils.sample_uniform(
-                *self.thrust_const_r, (self._num_envs, self.num_motors), self._device
-            )
+        self.thrust_const_r = torch.tensor(cfg.thrust_const_range).to(device)
+        self.thrust_const = math_utils.sample_uniform(
+            *self.thrust_const_r, (self._num_envs, self.num_motors), self._device
+        )
 
         self.curr_thrust = (
             torch.ones(self._num_envs, self.num_motors, device=self._device, dtype=torch.float32)
@@ -106,19 +101,12 @@ class Thruster:
             self.mixing_factor_function = self.continuous_mixing_factor
 
         # Choose stepping kernel once (avoids per-step branching)
-        if self.cfg.integration_scheme not in ["euler", "rk4"]:
-            raise ValueError("integration scheme unknown")
-
-        if cfg.use_rps:
-            if self.cfg.integration_scheme == "euler":
-                self._step_thrust = self.compute_thrust_with_rpm_time_constant
-            elif self.cfg.integration_scheme == "rk4":
-                self._step_thrust = self.compute_thrust_with_rpm_time_constant_rk4
+        if self.cfg.integration_scheme == "euler":
+            self._step_thrust = self.compute_thrust_with_rpm_time_constant
+        elif self.cfg.integration_scheme == "rk4":
+            self._step_thrust = self.compute_thrust_with_rpm_time_constant_rk4
         else:
-            if self.cfg.integration_scheme == "euler":
-                self._step_thrust = self.compute_thrust_with_force_time_constant
-            elif self.cfg.integration_scheme == "rk4":
-                self._step_thrust = self.compute_thrust_with_force_time_constant_rk4
+            raise ValueError("integration scheme unknown")
 
     @property
     def num_thrusters(self) -> int:
@@ -198,13 +186,11 @@ class Thruster:
             (num_resets, self.num_motors),
             self._device,
         )
-
-        if self.cfg.use_rps:
-            self.thrust_const[env_ids] = math_utils.sample_uniform(
-                *self.thrust_const_r,
-                (num_resets, self.num_motors),
-                self._device,
-            )
+        self.thrust_const[env_ids] = math_utils.sample_uniform(
+            *self.thrust_const_r,
+            (num_resets, self.num_motors),
+            self._device,
+        )
 
     def reset(self, env_ids: Sequence[int]) -> None:
         """Reset all envs."""
@@ -254,27 +240,3 @@ class Thruster:
         rpm_error = desired_rpm - current_rpm
         current_rpm += self.rk4_integration(rpm_error, mixing_factor)
         return self.thrust_const * current_rpm**2
-
-
-    def compute_thrust_with_force_time_constant(
-        self,
-        des_thrust: torch.Tensor,
-        curr_thrust: torch.Tensor,
-        mixing_factor: torch.Tensor,
-    ) -> torch.Tensor:
-        
-        thrust_error = des_thrust - curr_thrust
-        curr_thrust[:] += self.motor_model_rate(thrust_error, mixing_factor) * self.cfg.dt
-        return curr_thrust
-
-
-    def compute_thrust_with_force_time_constant_rk4(
-        self,
-        des_thrust: torch.Tensor,
-        curr_thrust: torch.Tensor,
-        mixing_factor: torch.Tensor,
-    ) -> torch.Tensor:
-        
-        thrust_error = des_thrust - curr_thrust
-        curr_thrust[:] += self.rk4_integration(thrust_error, mixing_factor)
-        return curr_thrust

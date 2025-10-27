@@ -309,7 +309,7 @@ class ThrusterCfg:
     """Per-motor thrust slew-rate limit applied inside the first-order model [N/s]."""
 
     thrust_const_range: tuple[float, float] = MISSING
-    """Range for thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
+    """Range for thrust coefficient :math:`k_f` [N/(rps²)]."""
 
     tau_inc_range: tuple[float, float] = MISSING
     """Range of time constants when commanded output is **increasing** (rise dynamics) [s]."""
@@ -324,11 +324,6 @@ class ThrusterCfg:
 
     use_discrete_approximation: bool = True
     """If ``True``, use discrete mixing factor ``1/(dt + tau)``; if ``False``, use continuous ``1/tau``."""
-
-    use_rps: bool = True
-    """If ``True``, integrate in rotor-speed domain (ω) and compute thrust via ``F = k_f * ω**2``.
-    If ``False``, integrate thrust directly.
-    """
 
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
