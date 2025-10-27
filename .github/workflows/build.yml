@@ -161,6 +161,7 @@ jobs:
         fetch-depth: 0
         lfs: true
 
+<<<<<<< HEAD
     - name: Setup Python 3.11
       uses: actions/setup-python@v5
       with:
@@ -207,6 +208,24 @@ jobs:
         # Verify pytest is available
         Write-Host "Verifying pytest installation..."
         python -m pip show pytest
+=======
+    - name: Setup Isaac Sim Environment
+      shell: powershell
+      run: |
+        Write-Host "Setting up Isaac Sim environment for Windows..."
+
+        # Check if Isaac Sim is available
+        if (Test-Path "$env:ISAACLAB_PATH\_isaac_sim") {
+          Write-Host "Isaac Sim found at: $env:ISAACLAB_PATH\_isaac_sim"
+        } else {
+          Write-Host "Checking for Isaac Sim via conda/pip..."
+        }
+
+        # Install pytest and other test dependencies if not present
+        Write-Host "Ensuring test dependencies are installed..."
+        python -m pip install --upgrade pip
+        python -m pip install pytest pytest-timeout prettytable junitparser
+>>>>>>> 433bc2050f (Adds basic CI verification on Windows)
 
     - name: Run General Tests on Windows
       id: run-general-tests-windows
@@ -215,9 +234,12 @@ jobs:
       run: |
         Write-Host "Running general tests on Windows..."
 
+<<<<<<< HEAD
         # Activate virtual environment
         & "env_isaaclab\Scripts\Activate.ps1"
 
+=======
+>>>>>>> 433bc2050f (Adds basic CI verification on Windows)
         # Create reports directory
         New-Item -ItemType Directory -Force -Path "reports" | Out-Null
 
