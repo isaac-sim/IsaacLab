@@ -1470,7 +1470,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         assert not (torch.allclose(actuator_effort_limit, physx_effort_limit))
     else:
         # When effort_limit is None, actuator should use USD default values
-        expected_actuator_effort_limit = torch.full_like(physx_effort_limit, usd_default)
+        expected_actuator_effort_limit = torch.full_like(physx_effort_limit, usd_default_effort_limit)
         torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
 
     # when using explicit actuators, the limits are set to high unless user overrides
