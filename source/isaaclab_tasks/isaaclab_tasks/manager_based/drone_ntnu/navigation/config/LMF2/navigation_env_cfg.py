@@ -40,6 +40,7 @@ from isaaclab.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a flying robot."""
 
+    #TODO: @welfr this can actually be removed
     # ground terrain
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
