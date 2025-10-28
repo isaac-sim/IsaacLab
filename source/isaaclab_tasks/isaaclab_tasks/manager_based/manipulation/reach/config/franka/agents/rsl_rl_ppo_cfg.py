@@ -37,3 +37,55 @@ class FrankaReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+    variants = {
+        "policy": {
+            "large_network": RslRlPpoActorCriticCfg(
+                init_noise_std=1.0,
+                actor_hidden_dims=[512, 256, 128, 64],
+                critic_hidden_dims=[512, 256, 128, 64],
+                activation="elu",
+            ),
+            "medium_network": RslRlPpoActorCriticCfg(
+                init_noise_std=1.0,
+                actor_hidden_dims=[256, 128, 64],
+                critic_hidden_dims=[256, 128, 64],
+                activation="elu",
+            ),
+            "small_network": RslRlPpoActorCriticCfg(
+                init_noise_std=1.0,
+                actor_hidden_dims=[128, 64],
+                critic_hidden_dims=[128, 64],
+                activation="elu",
+            ),
+        },
+        "algorithm": {
+            "large_batch_lr": RslRlPpoAlgorithmCfg(
+                value_loss_coef=1.0,
+                use_clipped_value_loss=True,
+                clip_param=0.2,
+                entropy_coef=0.001,
+                num_learning_epochs=8,
+                num_mini_batches=2,
+                learning_rate=1.0e-3,
+                schedule="adaptive",
+                gamma=0.99,
+                lam=0.95,
+                desired_kl=0.01,
+                max_grad_norm=1.0,
+            ),
+            "small_batch_lr": RslRlPpoAlgorithmCfg(
+                value_loss_coef=1.0,
+                use_clipped_value_loss=True,
+                clip_param=0.2,
+                entropy_coef=0.001,
+                num_learning_epochs=8,
+                num_mini_batches=16,
+                learning_rate=1.0e-4,
+                schedule="adaptive",
+                gamma=0.99,
+                lam=0.95,
+                desired_kl=0.01,
+                max_grad_norm=1.0,
+            ),
+        },
+    }

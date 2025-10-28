@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.12.0 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Add new feature that support hydra group config override, and provide example at Isaac-Reach-Franka-v0 env
+
+
 0.11.1 (2025-09-24)
 ~~~~~~~~~~~~~~~~~~~~
 
