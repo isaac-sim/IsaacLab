@@ -28,9 +28,9 @@ Key highlights of this release include:
 * **Mimic - SkillGen**: SkillGen support has been added for the Mimic Imitation Learning pipeline,
   introducing cuRobo integration, integrating GPU motion planning with skill-segmented data generation.
   Note that cuRobo has proprietary licensing terms, please review the
-  [cuRobo license](https://github.com/isaac-sim/IsaacLab/blob/main/docs/licenses/dependencies/cuRobo-license.txt)
+  `cuRobo license <https://github.com/isaac-sim/IsaacLab/blob/main/docs/licenses/dependencies/cuRobo-license.txt>`_
   carefully before use.
-* **Mimic - Locomamipulation**: Added a new G1 humanoid environment combining RL-based locomotion with IK-based
+* **Mimic - Locomanipulation**: Added a new G1 humanoid environment combining RL-based locomotion with IK-based
   manipulation. A full robot navigation stack is integrated to augment demonstrations with randomization of
   tabletop pick/place locations, destination and ground obstacles. By segmenting tasks into pick-navigate-place
   phases, this method enables generation of large-scale loco-manipulation datasets from manipulation-only
