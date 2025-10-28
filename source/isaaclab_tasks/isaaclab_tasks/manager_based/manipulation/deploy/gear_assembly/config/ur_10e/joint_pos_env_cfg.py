@@ -178,7 +178,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.events = EventCfg()
 
         # overriderride command generator body
-        self.joint_action_scale = 0.025
+        self.joint_action_scale = 0.0025
         self.action_scale_joint_space = [self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale]
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
             asset_name="robot", joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], scale=self.joint_action_scale, use_zero_offset=True
