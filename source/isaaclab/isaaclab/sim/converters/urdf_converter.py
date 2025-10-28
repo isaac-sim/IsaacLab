@@ -34,7 +34,7 @@ class UrdfConverter(AssetConverterBase):
         From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.urdf`` to
         ``isaacsim.asset.importer.urdf``. This converter class now uses the latest extension from Isaac Sim.
 
-    .. _isaacsim.asset.importer.urdf: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
+    .. _isaacsim.asset.importer.urdf: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html
     """
 
     cfg: UrdfConverterCfg

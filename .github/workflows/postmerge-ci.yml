@@ -23,7 +23,7 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || 'latest-base-5.0' }}
+  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '5.1.0' }}
   ISAACLAB_IMAGE_NAME: ${{ vars.ISAACLAB_IMAGE_NAME || 'isaac-lab-base' }}
 
 jobs:
