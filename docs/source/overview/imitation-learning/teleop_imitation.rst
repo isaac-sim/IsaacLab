@@ -315,6 +315,15 @@ By inferencing using the generated model, we can visualize the results of the po
          --device cpu --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
+.. note::
+
+   **Expected Success Rates and Timings for Franka Cube Stack Task**
+
+   * Data generation success rate: ~50% (for both state + visuomotor)
+   * Data generation time: ~30 mins for state, ~4 hours for visuomotor (varies based on num envs the user runs)
+   * BC RNN training time: 1000 epochs + ~30 mins (for state), 600 epochs + ~6 hours (for visuomotor)
+   * BC RNN policy success rate: ~40-60% (for both state + visuomotor)
+
 
 Demo 1: Data Generation and Policy Training for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -676,8 +685,8 @@ To generate the locomanipulation dataset, use the following command:
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
-       --lift_step 70 \
-       --navigate_step 120 \
+       --lift_step 60 \
+       --navigate_step 130 \
        --enable_pinocchio \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
        --enable_cameras

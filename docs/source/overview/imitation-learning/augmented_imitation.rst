@@ -80,6 +80,8 @@ Example usage for the cube stacking task:
     --input_file datasets/mimic_dataset_1k.hdf5 \
     --output_dir datasets/mimic_dataset_1k_mp4
 
+.. _running-cosmos:
+
 Running Cosmos for Visual Augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
