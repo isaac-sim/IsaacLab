@@ -303,7 +303,7 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         # Extract inputs from second row
         inputs = controller_data[MotionControllerDataRowIndex.INPUTS.value]
 
-        if len(inputs) <= MotionControllerInputIndex.BUTTON_0.value:
+        if len(inputs) < len(MotionControllerInputIndex):
             return hand_joints
 
         # Extract specific inputs using enum

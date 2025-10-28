@@ -108,7 +108,10 @@ class OpenXRDevice(DeviceBase):
         self._previous_headpose = default_pose.copy()
 
         if self._xr_cfg.anchor_prim_path is not None:
-            self._xr_anchor_headset_path = f"{self._xr_cfg.anchor_prim_path}/XRAnchor"
+            anchor_path = self._xr_cfg.anchor_prim_path
+            if anchor_path.endswith("/"):
+                anchor_path = anchor_path[:-1]
+            self._xr_anchor_headset_path = f"{anchor_path}/XRAnchor"
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
