@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.47.3 (2025-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed advanced indexing issue in resetting prev action
+  in :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` .
+
+
 0.47.2 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
