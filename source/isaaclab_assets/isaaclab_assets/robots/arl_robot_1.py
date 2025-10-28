@@ -7,7 +7,7 @@
 
 The following configuration parameters are available:
 
-* :obj:`LMF2_CFG`: The LMF2 robot with (TODO add motor propeller combination)
+* :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1 with (TODO add motor propeller combination)
 """
 
 import isaaclab.sim as sim_utils
@@ -19,7 +19,7 @@ from isaaclab.assets.articulation import MultirotorCfg
 # Configuration - Actuators.
 ##
 
-LMF2_THRUSTER = ThrusterCfg(
+ARL_ROBOT_1_THRUSTER = ThrusterCfg(
     thrust_range=(0.1, 10.0),
     thrust_const_range=(9.26312e-06, 1.826312e-05),
     tau_inc_range=(0.05, 0.08),
@@ -32,10 +32,10 @@ LMF2_THRUSTER = ThrusterCfg(
 # Configuration - Articulation.
 ##
 
-LMF2_CFG = MultirotorCfg(
+ARL_ROBOT_1_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=(
-            f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/lmf2/lmf2.usd"
+            f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/arl_drone_1/arl_drone_1.usd"
         ),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -63,7 +63,7 @@ LMF2_CFG = MultirotorCfg(
             "front_right_prop": 200.0,
         },
     ),
-    actuators={"thrusters": LMF2_THRUSTER},
+    actuators={"thrusters": ARL_ROBOT_1_THRUSTER},
     rotor_directions=[1, -1, 1, -1],
     allocation_matrix=[
         [0.0, 0.0, 0.0, 0.0],

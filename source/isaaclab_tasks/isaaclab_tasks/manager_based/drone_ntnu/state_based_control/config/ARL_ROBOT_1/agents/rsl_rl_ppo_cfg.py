@@ -13,7 +13,7 @@ class StateBasedControlEnvPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1500
     save_interval = 50
-    experiment_name = "lmf2_state_based_control"
+    experiment_name = "arl_robot_1_state_based_control"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=0.5,
