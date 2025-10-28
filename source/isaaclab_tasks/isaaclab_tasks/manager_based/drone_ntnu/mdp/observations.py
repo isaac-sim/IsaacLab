@@ -130,10 +130,10 @@ def last_action_navigation(env: ManagerBasedEnv, action_name: str | None = None)
     )
     processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
     return processed_actions
+
 """
 Commands.
 """
-
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
 def generated_drone_commands(env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
