@@ -430,5 +430,10 @@
     "package": "msgpack",
     "license": "UNKNOWN",
     "comment": "Apache 2.0"
+  },
+  {
+    "package": "matplotlib-inline",
+    "license": "UNKNOWN",
+    "comment": "BSD-3"
   }
 ]
