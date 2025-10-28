@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 27, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 28, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/setup/installation/index.html" >main</option>
             <option value="../../../../2.1.0/source/setup/installation/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/setup/installation/index.html" >release/2.2.0</option>
+            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/setup/installation/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/setup/installation/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/setup/installation/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -716,8 +716,10 @@ The required Python version is as follows:</p>
 may work but have not been validated against all Omniverse tests.</p>
 <ul class="simple">
 <li><p>Use the <strong>latest NVIDIA production branch driver</strong>.</p></li>
-<li><p>On Linux, version <code class="docutils literal notranslate"><span class="pre">535.216.01</span></code> or later is recommended, especially when upgrading to
+<li><p>On Linux, version <code class="docutils literal notranslate"><span class="pre">580.65.06</span></code> or later is recommended, especially when upgrading to
 <strong>Ubuntu 22.04.5 with kernel 6.8.0-48-generic</strong> or newer.</p></li>
+<li><p>On Spark, version <code class="docutils literal notranslate"><span class="pre">580.95.05</span></code> is recommended.</p></li>
+<li><p>On Windows, version <code class="docutils literal notranslate"><span class="pre">580.88</span></code> is recommended.</p></li>
 <li><p>If you are using a new GPU or encounter driver issues, install the latest production branch
 driver from the <a class="reference external" href="https://www.nvidia.com/en-us/drivers/unix/">Unix Driver Archive</a>
 using the <code class="docutils literal notranslate"><span class="pre">.run</span></code> installer.</p></li>
@@ -737,8 +739,8 @@ to encoding performance limitations that have not yet been fully investigated.</
 JAX provides pre-built CUDA wheels only for Linux on x86_64, so on aarch64 systems (e.g., DGX Spark) it runs on CPU only by default.
 GPU support requires building JAX from source, which has not been validated in Isaac Lab.</p></li>
 <li><p>Livestream and Hub Workstation Cache are not supported on the DGX spark.</p></li>
-<li><p>Multi-node training is not currently supported.</p></li>
-<li><p><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html#generating-additional-demonstrations"><span class="std std-ref">Isaac Lab Mimic</span></a> data generation and policy inference for visuomotor envrionements are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.</p></li>
+<li><p>Multi-node training may require direct connections between Spark machines or additional network configurations.</p></li>
+<li><p><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html#generating-additional-demonstrations"><span class="std std-ref">Isaac Lab Mimic</span></a> data generation and policy inference for visuomotor environments are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.</p></li>
 <li><p><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html#running-cosmos"><span class="std std-ref">Running Cosmos Transfer1</span></a> is not currently supported on the DGX Spark.</p></li>
 </ol>
 </section>
@@ -955,7 +957,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 27, 2025.
+  Last updated on Oct 28, 2025.
   <br/>
 </p>
   </div>
