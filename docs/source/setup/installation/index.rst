@@ -62,8 +62,10 @@ Drivers other than those recommended on `Omniverse Technical Requirements <https
 may work but have not been validated against all Omniverse tests.
 
 - Use the **latest NVIDIA production branch driver**.
-- On Linux, version ``535.216.01`` or later is recommended, especially when upgrading to
+- On Linux, version ``580.65.06`` or later is recommended, especially when upgrading to
   **Ubuntu 22.04.5 with kernel 6.8.0-48-generic** or newer.
+- On Spark, version ``580.95.05`` is recommended.
+- On Windows, version ``580.88`` is recommended.
 - If you are using a new GPU or encounter driver issues, install the latest production branch
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.
@@ -87,9 +89,9 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
 
-#. Multi-node training is not currently supported.
+#. Multi-node training may require direct connections between Spark machines or additional network configurations.
 
-#. :ref:`Isaac Lab Mimic <generating-additional-demonstrations>` data generation and policy inference for visuomotor envrionements are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.
+#. :ref:`Isaac Lab Mimic <generating-additional-demonstrations>` data generation and policy inference for visuomotor environments are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 
