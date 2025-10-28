@@ -63,7 +63,7 @@
     <link rel="prev" title="Cluster Guide" href="cluster.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.2.1" />
+  <meta name="docsearch:version" content="2.3.0" />
     <meta name="docbuild:last-update" content="Oct 28, 2025"/>
   </head>
   
@@ -159,10 +159,11 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../release/2.3.0/source/deployment/cloudxr_teleoperation_cluster.html" >release/2.3.0</option>
             <option value="cloudxr_teleoperation_cluster.html" selected>main</option>
             <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/deployment/cloudxr_teleoperation_cluster.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/source/deployment/cloudxr_teleoperation_cluster.html" >release/2.3.0</option>
+            <option value="../../../v2.3.0/source/deployment/cloudxr_teleoperation_cluster.html" >v2.3.0</option>
             <option value="../../../v2.2.1/source/deployment/cloudxr_teleoperation_cluster.html" >v2.2.1</option>
             <option value="../../../v2.2.0/source/deployment/cloudxr_teleoperation_cluster.html" >v2.2.0</option>
             <option value="../../../v2.1.1/index.html" >v2.1.1</option>
@@ -313,7 +314,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -351,8 +352,8 @@
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
@@ -684,6 +685,10 @@
 <li><p><strong>Minimum requirement</strong>: Kubernetes cluster with a node that has at least 1 NVIDIA RTX PRO 6000 / L40 GPU or equivalent</p></li>
 <li><p><strong>Recommended requirement</strong>: Kubernetes cluster with a node that has at least 2 RTX PRO 6000 / L40 GPUs or equivalent</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using DGX Spark, check <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations">DGX Spark Limitations</a> for compatibility.</p>
+</div>
 </section>
 <section id="software-dependencies">
 <h2>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading">#</a></h2>
@@ -741,14 +746,14 @@
 </div>
 <ol class="arabic">
 <li><p>Download the Helm chart from NGC (get your NGC API key based on the <a class="reference external" href="https://docs.nvidia.com/ngc/ngc-overview/index.html#generating-api-key">public guide</a>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>fetch<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.2.0.tgz<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>fetch<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.3.0.tgz<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--username<span class="o">=</span><span class="s1">&#39;$oauthtoken&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--password<span class="o">=</span>&lt;your-ngc-api-key&gt;
 </pre></div>
 </div>
 </li>
 <li><p>Install and run the CloudXR Teleoperation for Isaac Lab pod in the default namespace, consuming all host GPUs:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.2.0.tgz<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.3.0.tgz<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span><span class="nv">fullnameOverride</span><span class="o">=</span>hello-isaac-teleop<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span><span class="nv">hostNetwork</span><span class="o">=</span><span class="s2">&quot;true&quot;</span>
 </pre></div>
@@ -768,7 +773,7 @@
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># command</span>
 helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>--values<span class="w"> </span>local_values.yml<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.2.0.tgz
+<span class="w">  </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.3.0.tgz
 </pre></div>
 </div>
 </div>

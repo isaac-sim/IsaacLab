@@ -60,7 +60,7 @@
     <link rel="search" title="Search" href="../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.2.1" />
+  <meta name="docsearch:version" content="2.3.0" />
     <meta name="docbuild:last-update" content="Oct 28, 2025"/>
   </head>
   
@@ -158,10 +158,11 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="pink_ik.html" selected>main</option>
             <option value="../../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../../v2.3.0/index.html" >v2.3.0</option>
             <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -312,7 +313,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -350,8 +351,8 @@
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
@@ -610,14 +611,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pink</span><span class="w"> </span><span class="kn">import</span> <span class="n">solve_ik</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pink.configuration</span><span class="w"> </span><span class="kn">import</span> <span class="n">Configuration</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pink.tasks</span><span class="w"> </span><span class="kn">import</span> <span class="n">FrameTask</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pinocchio.robot_wrapper</span><span class="w"> </span><span class="kn">import</span> <span class="n">RobotWrapper</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_matching_names_values</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.null_space_posture_task</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullSpacePostureTask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.pink_kinematics_configuration</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinkKinematicsConfiguration</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.pink_ik_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">PinkIKControllerCfg</span>
@@ -638,7 +637,9 @@
 <span class="sd">        Pink IK Solver: https://github.com/stephane-caron/pink</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="PinkIKController.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">PinkIKControllerCfg</span><span class="p">,</span> <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<div class="viewcode-block" id="PinkIKController.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">PinkIKControllerCfg</span><span class="p">,</span> <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">controlled_joint_indices</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the Pink IK Controller.</span>
 
 <span class="sd">        Args:</span>
@@ -647,14 +648,28 @@
 <span class="sd">            robot_cfg: The robot articulation configuration containing initial joint positions and robot</span>
 <span class="sd">                specifications.</span>
 <span class="sd">            device: The device to use for computations (e.g., &#39;cuda:0&#39;, &#39;cpu&#39;).</span>
+<span class="sd">            controlled_joint_indices: A list of joint indices in the USD asset controlled by the Pink IK controller.</span>
 
 <span class="sd">        Raises:</span>
-<span class="sd">            KeyError: When Pink joint names cannot be matched to robot configuration joint positions.</span>
+<span class="sd">            ValueError: When joint_names or all_joint_names are not provided in the configuration.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Initialize the robot model from URDF and mesh files</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">robot_wrapper</span> <span class="o">=</span> <span class="n">RobotWrapper</span><span class="o">.</span><span class="n">BuildFromURDF</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span><span class="p">,</span> <span class="n">root_joint</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span> <span class="o">=</span> <span class="n">Configuration</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">robot_wrapper</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">robot_wrapper</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">robot_wrapper</span><span class="o">.</span><span class="n">q0</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;joint_names must be provided in the configuration&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">all_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;all_joint_names must be provided in the configuration&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">controlled_joint_indices</span> <span class="o">=</span> <span class="n">controlled_joint_indices</span>
+
+        <span class="c1"># Validate consistency between controlled_joint_indices and configuration</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_consistency</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">controlled_joint_indices</span><span class="p">)</span>
+
+        <span class="c1"># Initialize the Kinematics model used by pink IK to control robot</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span> <span class="o">=</span> <span class="n">PinkKinematicsConfiguration</span><span class="p">(</span>
+            <span class="n">urdf_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">urdf_path</span><span class="p">,</span>
+            <span class="n">mesh_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_path</span><span class="p">,</span>
+            <span class="n">controlled_joint_names</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="c1"># Find the initial joint positions by matching Pink&#39;s joint names to robot_cfg.init_state.joint_pos,</span>
@@ -664,16 +679,11 @@
         <span class="n">joint_pos_dict</span> <span class="o">=</span> <span class="n">robot_cfg</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">joint_pos</span>
 
         <span class="c1"># Use resolve_matching_names_values to match Pink joint names to joint_pos values</span>
-        <span class="n">indices</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">resolve_matching_names_values</span><span class="p">(</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">resolve_matching_names_values</span><span class="p">(</span>
             <span class="n">joint_pos_dict</span><span class="p">,</span> <span class="n">pink_joint_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pink_joint_names</span><span class="p">):</span>
-            <span class="n">unmatched</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">pink_joint_names</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">]</span>
-            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
-                <span class="s2">&quot;Could not find a match for all Pink joint names in robot_cfg.init_state.joint_pos. &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;Unmatched: </span><span class="si">{</span><span class="n">unmatched</span><span class="si">}</span><span class="s2">, Expected: </span><span class="si">{</span><span class="n">pink_joint_names</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pink_joint_names</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_joint_positions</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
 
         <span class="c1"># Set the default targets for each task from the configuration</span>
         <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span><span class="p">:</span>
@@ -685,27 +695,75 @@
         <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">fixed_input_tasks</span><span class="p">:</span>
             <span class="n">task</span><span class="o">.</span><span class="n">set_target_from_configuration</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">)</span>
 
-        <span class="c1"># Map joint names from Isaac Lab to Pink&#39;s joint conventions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pink_joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">robot_wrapper</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">tolist</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span>  <span class="c1"># Skip the root and universal joints</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_joint_names</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span>
-        <span class="k">assert</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;cfg.joint_names cannot be None&quot;</span>
+        <span class="c1"># Create joint ordering mappings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_joint_ordering_mappings</span><span class="p">()</span></div>
 
-        <span class="c1"># Frame task link names</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">frame_task_link_names</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">variable_input_tasks</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">FrameTask</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">frame_task_link_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="o">.</span><span class="n">frame</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_consistency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">PinkIKControllerCfg</span><span class="p">,</span> <span class="n">controlled_joint_indices</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate consistency between controlled_joint_indices and controller configuration.</span>
 
-        <span class="c1"># Create reordering arrays for joint indices</span>
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The Pink IK controller configuration.</span>
+<span class="sd">            controlled_joint_indices: List of joint indices in Isaac Lab joint space.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If any consistency checks fail.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Check: Length consistency</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cfg.joint_names cannot be None&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">controlled_joint_indices</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Length mismatch: controlled_joint_indices has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">controlled_joint_indices</span><span class="p">)</span><span class="si">}</span><span class="s2"> elements &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;but cfg.joint_names has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">)</span><span class="si">}</span><span class="s2"> elements&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Check: Joint name consistency - verify that the indices point to the expected joint names</span>
+        <span class="n">actual_joint_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="o">.</span><span class="n">all_joint_names</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">controlled_joint_indices</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">actual_joint_names</span> <span class="o">!=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">:</span>
+            <span class="n">mismatches</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">actual_joint_names</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">:</span>
+                    <span class="n">mismatches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Index </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: index </span><span class="si">{</span><span class="n">controlled_joint_indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2"> points to &#39;</span><span class="si">{</span><span class="n">actual</span><span class="si">}</span><span class="s2">&#39; but expected &#39;</span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                    <span class="p">)</span>
+            <span class="k">if</span> <span class="n">mismatches</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Joint name mismatch between controlled_joint_indices and cfg.joint_names:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mismatches</span><span class="p">)</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_setup_joint_ordering_mappings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Setup joint ordering mappings between Isaac Lab and Pink conventions.&quot;&quot;&quot;</span>
+        <span class="n">pink_joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="o">.</span><span class="n">all_joint_names_pinocchio_order</span>
+        <span class="n">isaac_lab_joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">all_joint_names</span>
+
+        <span class="k">if</span> <span class="n">pink_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pink_joint_names should not be None&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">isaac_lab_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;isaac_lab_joint_names should not be None&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Create reordering arrays for all joints</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_to_pink_ordering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
-            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pink_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">pink_joint</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pink_joint_names</span><span class="p">]</span>
+            <span class="p">[</span><span class="n">isaac_lab_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pink_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">pink_joint</span> <span class="ow">in</span> <span class="n">pink_joint_names</span><span class="p">]</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pink_to_isaac_lab_ordering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
-            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">isaac_lab_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">isaac_lab_joint</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_joint_names</span><span class="p">]</span>
+            <span class="p">[</span><span class="n">pink_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">isaac_lab_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">isaac_lab_joint</span> <span class="ow">in</span> <span class="n">isaac_lab_joint_names</span><span class="p">]</span>
         <span class="p">)</span>
+        <span class="c1"># Create reordering arrays for controlled joints only</span>
+        <span class="n">pink_controlled_joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="o">.</span><span class="n">controlled_joint_names_pinocchio_order</span>
+        <span class="n">isaac_lab_controlled_joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">joint_names</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span></div>
+        <span class="k">if</span> <span class="n">pink_controlled_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pink_controlled_joint_names should not be None&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">isaac_lab_controlled_joint_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;isaac_lab_controlled_joint_names should not be None&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_to_pink_controlled_ordering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">isaac_lab_controlled_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pink_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">pink_joint</span> <span class="ow">in</span> <span class="n">pink_controlled_joint_names</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pink_to_isaac_lab_controlled_ordering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">pink_controlled_joint_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">isaac_lab_joint</span><span class="p">)</span> <span class="k">for</span> <span class="n">isaac_lab_joint</span> <span class="ow">in</span> <span class="n">isaac_lab_controlled_joint_names</span><span class="p">]</span>
+        <span class="p">)</span>
 
 <div class="viewcode-block" id="PinkIKController.update_null_space_joint_targets"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_null_space_joint_targets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">curr_joint_pos</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the null space joint targets.</span>
@@ -740,13 +798,16 @@
 <span class="sd">            The target joint positions as a tensor of shape (num_joints,) on the specified device.</span>
 <span class="sd">            If the IK solver fails, returns the current joint positions unchanged to maintain stability.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get the current controlled joint positions</span>
+        <span class="n">curr_controlled_joint_pos</span> <span class="o">=</span> <span class="p">[</span><span class="n">curr_joint_pos</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">controlled_joint_indices</span><span class="p">]</span>
+
         <span class="c1"># Initialize joint positions for Pink, change from isaac_lab to pink/pinocchio joint ordering.</span>
         <span class="n">joint_positions_pink</span> <span class="o">=</span> <span class="n">curr_joint_pos</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">isaac_lab_to_pink_ordering</span><span class="p">]</span>
 
         <span class="c1"># Update Pink&#39;s robot configuration with the current joint positions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">joint_positions_pink</span><span class="p">)</span>
 
-        <span class="c1"># pink.solve_ik can raise an exception if the solver fails</span>
+        <span class="c1"># Solve IK using Pink&#39;s solver</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">velocity</span> <span class="o">=</span> <span class="n">solve_ik</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">pink_configuration</span><span class="p">,</span>
@@ -755,7 +816,7 @@
                 <span class="n">solver</span><span class="o">=</span><span class="s2">&quot;osqp&quot;</span><span class="p">,</span>
                 <span class="n">safety_break</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fail_on_joint_limit_violation</span><span class="p">,</span>
             <span class="p">)</span>
-            <span class="n">Delta_q</span> <span class="o">=</span> <span class="n">velocity</span> <span class="o">*</span> <span class="n">dt</span>
+            <span class="n">joint_angle_changes</span> <span class="o">=</span> <span class="n">velocity</span> <span class="o">*</span> <span class="n">dt</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">AssertionError</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="c1"># Print warning and return the current joint positions as the target</span>
             <span class="c1"># Not using omni.log since its not available in CI during docs build</span>
@@ -769,21 +830,18 @@
                 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.ui.xr_widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">XRVisualization</span>
 
                 <span class="n">XRVisualization</span><span class="o">.</span><span class="n">push_event</span><span class="p">(</span><span class="s2">&quot;ik_error&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="n">e</span><span class="p">})</span>
-            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">curr_joint_pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-
-        <span class="c1"># Discard the first 6 values (for root and universal joints)</span>
-        <span class="n">pink_joint_angle_changes</span> <span class="o">=</span> <span class="n">Delta_q</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">curr_controlled_joint_pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
         <span class="c1"># Reorder the joint angle changes back to Isaac Lab conventions</span>
         <span class="n">joint_vel_isaac_lab</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
-            <span class="n">pink_joint_angle_changes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_to_isaac_lab_ordering</span><span class="p">],</span>
+            <span class="n">joint_angle_changes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pink_to_isaac_lab_controlled_ordering</span><span class="p">],</span>
             <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="c1"># Add the velocity changes to the current joint positions to get the target joint positions</span>
         <span class="n">target_joint_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
-            <span class="n">joint_vel_isaac_lab</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">curr_joint_pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="n">joint_vel_isaac_lab</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">curr_controlled_joint_pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">target_joint_pos</span></div></div>

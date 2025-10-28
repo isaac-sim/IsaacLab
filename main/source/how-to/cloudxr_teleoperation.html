@@ -59,11 +59,11 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Simulation Performance" href="simulation_performance.html" />
+    <link rel="next" title="Simulation Performance and Tuning" href="simulation_performance.html" />
     <link rel="prev" title="Mastering Omniverse for Robotics" href="master_omniverse.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.2.1" />
+  <meta name="docsearch:version" content="2.3.0" />
     <meta name="docbuild:last-update" content="Oct 28, 2025"/>
   </head>
   
@@ -159,10 +159,11 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../release/2.3.0/source/how-to/cloudxr_teleoperation.html" >release/2.3.0</option>
             <option value="cloudxr_teleoperation.html" selected>main</option>
             <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/how-to/cloudxr_teleoperation.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/source/how-to/cloudxr_teleoperation.html" >release/2.3.0</option>
+            <option value="../../../v2.3.0/source/how-to/cloudxr_teleoperation.html" >v2.3.0</option>
             <option value="../../../v2.2.1/source/how-to/cloudxr_teleoperation.html" >v2.2.1</option>
             <option value="../../../v2.2.0/source/how-to/cloudxr_teleoperation.html" >v2.2.0</option>
             <option value="../../../v2.1.1/source/how-to/cloudxr_teleoperation.html" >v2.1.1</option>
@@ -313,7 +314,7 @@
 <li class="toctree-l2"><a class="reference internal" href="curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -351,8 +352,8 @@
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
@@ -706,7 +707,7 @@ XR device back to Isaac Lab through CloudXR, where they can be used to control t
 teleoperation in Isaac Lab.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Support for additional devices is planned for future releases.</p>
+<p>See <a class="reference internal" href="#manus-vive-handtracking"><span class="std std-ref">Manus + Vive Hand Tracking</span></a> for more information on supported hand-tracking peripherals.</p>
 </div>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
@@ -722,8 +723,8 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <p>This guide will walk you through how to:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#run-isaac-lab-with-the-cloudxr-runtime"><span class="std std-ref">Run Isaac Lab with the CloudXR Runtime</span></a></p></li>
-<li><p><a class="reference internal" href="#use-apple-vision-pro"><span class="std std-ref">Use Apple Vision Pro for Teleoperation</span></a>, including how to <a class="reference internal" href="#build-apple-vision-pro"><span class="std std-ref">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</span></a> and
-<a class="reference internal" href="#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate an Isaac Lab Robot with Apple Vision Pro</span></a>.</p></li>
+<li><p><a class="reference internal" href="#use-apple-vision-pro"><span class="std std-ref">Use Apple Vision Pro for Teleoperation</span></a>, including how to <a class="reference internal" href="#build-apple-vision-pro"><span class="std std-ref">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</span></a>,
+<a class="reference internal" href="#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate an Isaac Lab Robot with Apple Vision Pro</span></a>, and <a class="reference internal" href="#manus-vive-handtracking"><span class="std std-ref">Manus + Vive Hand Tracking</span></a>.</p></li>
 <li><p><a class="reference internal" href="#develop-xr-isaac-lab"><span class="std std-ref">Develop for XR in Isaac Lab</span></a>, including how to <a class="reference internal" href="#run-isaac-lab-with-xr"><span class="std std-ref">Run Isaac Lab with XR Extensions Enabled</span></a>,
 <a class="reference internal" href="#configure-scene-placement"><span class="std std-ref">Configure XR Scene Placement</span></a>, and <a class="reference internal" href="#optimize-xr-performance"><span class="std std-ref">Optimize XR Performance</span></a>.</p></li>
 <li><p><a class="reference internal" href="#control-robot-with-xr"><span class="std std-ref">Control the Robot with XR Device Inputs</span></a>, including the <a class="reference internal" href="#openxr-device-architecture"><span class="std std-ref">OpenXR Device</span></a>,
@@ -739,18 +740,23 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <li><p>Isaac Lab workstation</p>
 <ul>
 <li><p>Ubuntu 22.04 or Ubuntu 24.04</p></li>
+<li><dl class="simple">
+<dt>Hardware requirements to sustain 45 FPS with a 120Hz physics simulation:</dt><dd><ul>
+<li><p>CPU: 16-Cores AMD Ryzen Threadripper Pro 5955WX or higher</p></li>
+<li><p>Memory: 64GB RAM</p></li>
+<li><p>GPU: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090) or higher</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>For details on driver requirements, please see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Technical Requirements</a> guide</p></li>
 <li><p><a class="reference external" href="https://docs.docker.com/desktop/install/linux-install/">Docker</a> 26.0.0+, <a class="reference external" href="https://docs.docker.com/compose/install/linux/#install-using-the-repository">Docker Compose</a> 2.25.0+, and the <a class="reference external" href="https://github.com/NVIDIA/nvidia-container-toolkit">NVIDIA Container Toolkit</a>. Refer to
 the Isaac Lab <a class="reference internal" href="../deployment/docker.html#deployment-docker"><span class="std std-ref">Docker Guide</span></a> for how to install.</p></li>
-<li><p>For details on driver requirements, please see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Technical Requirements</a> guide</p></li>
-<li><p>Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
-Threadripper or higher</p></li>
-<li><p>Required for best performance: 64GB RAM</p></li>
-<li><p>Required for best performance: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)</p></li>
 </ul>
 </li>
 <li><p>Apple Vision Pro</p>
 <ul>
-<li><p>visionOS 2.0+</p></li>
+<li><p>visionOS 26</p></li>
 <li><p>Apple M3 Pro chip with an 11-core CPU with at least 5 performance cores and 6 efficiency cores</p></li>
 <li><p>16GB unified memory</p></li>
 <li><p>256 GB SSD</p></li>
@@ -759,7 +765,8 @@ Threadripper or higher</p></li>
 <li><p>Apple Silicon based Mac (for building the Isaac XR Teleop Sample Client App for Apple Vision Pro
 with Xcode)</p>
 <ul>
-<li><p>macOS Sonoma 14.5 or later</p></li>
+<li><p>macOS Sequoia 15.6 or later</p></li>
+<li><p>Xcode 26.0</p></li>
 </ul>
 </li>
 <li><p>Wifi 6 capable router</p>
@@ -774,6 +781,10 @@ in the Apple Vision Pro being unable to find the Isaac Lab workstation on the ne
 </li>
 </ul>
 </div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using DGX Spark, check <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations">DGX Spark Limitations</a> for compatibility.</p>
+</div>
 </section>
 <section id="run-isaac-lab-with-the-cloudxr-runtime">
 <span id="id1"></span><h2>Run Isaac Lab with the CloudXR Runtime<a class="headerlink" href="#run-isaac-lab-with-the-cloudxr-runtime" title="Permalink to this heading">#</a></h2>
@@ -831,6 +842,14 @@ stop the containers with:</p>
 <span class="w">    </span>--env-file<span class="w"> </span>.env.cloudxr-runtime
 </pre></div>
 </div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p class="sd-card-text">If you encounter issues on restart, you can run the following command to clean up orphaned
+containers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>system<span class="w"> </span>prune<span class="w"> </span>-f
+</pre></div>
+</div>
+</div>
 </li>
 </ol>
 </div>
@@ -861,13 +880,22 @@ the container:</p>
 <span class="w">    </span>-p<span class="w"> </span><span class="m">48005</span>:48005/udp<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-p<span class="w"> </span><span class="m">48008</span>:48008/udp<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-p<span class="w"> </span><span class="m">48012</span>:48012/udp<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>nvcr.io/nvidia/cloudxr-runtime:5.0.0
+<span class="w">    </span>nvcr.io/nvidia/cloudxr-runtime:5.0.1
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p class="sd-card-text">If you choose a particular GPU instead of <code class="docutils literal notranslate"><span class="pre">all</span></code>, you need to make sure Isaac Lab also runs
 on that GPU.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p class="sd-card-text">If you encounter issues on running cloudxr-runtime container, you can run the following
+command to clean up the orphaned container:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>stop<span class="w"> </span>cloudxr-runtime
+docker<span class="w"> </span>rm<span class="w"> </span>cloudxr-runtime
+</pre></div>
+</div>
 </div>
 </li>
 <li><p class="sd-card-text">In a new terminal where you intend to run Isaac Lab, export the following environment
@@ -890,10 +918,23 @@ variables, which reference the directory created above:</p>
 </div>
 </details><p>With Isaac Lab and the CloudXR Runtime running:</p>
 <ol class="arabic">
-<li><p>In the Isaac Sim UI: locate the Panel named <strong>AR</strong>.</p>
+<li><p>In the Isaac Sim UI: locate the Panel named <strong>AR</strong> and choose the following options:</p>
+<ul class="simple">
+<li><p>Selected Output Plugin: <strong>OpenXR</strong></p></li>
+<li><p>OpenXR Runtime: <strong>System OpenXR Runtime</strong></p></li>
+</ul>
 <figure class="align-center" style="width: 50%">
 <img alt="Isaac Sim UI: AR Panel" src="../../_images/cloudxr_ar_panel.jpg" />
 </figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Isaac Sim lets you choose from several OpenXR runtime options:</p>
+<ul class="simple">
+<li><p><strong>System OpenXR Runtime</strong>: Use a runtime installed outside of Isaac Lab, such as the CloudXR Runtime set up via Docker in this tutorial.</p></li>
+<li><p><strong>CloudXR Runtime (5.0)</strong>: Use the built-in CloudXR Runtime.</p></li>
+<li><p><strong>Custom</strong>: Allow you to specify and run any custom OpenXR Runtime of your choice.</p></li>
+</ul>
+</div>
 </li>
 <li><p>Click <strong>Start AR</strong>.</p></li>
 </ol>
@@ -923,22 +964,25 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.<
 </pre></div>
 </div>
 </li>
-<li><p>Check out the version tag corresponding to your Isaac Lab version:</p>
+<li><p>Check out the App version that matches your Isaac Lab version:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><p>Isaac Lab Version</p></td>
-<td><p>Client Version Tag</p></td>
+<td><p>Client App Version</p></td>
 </tr>
-<tr class="row-even"><td><p>2.2.x</p></td>
+<tr class="row-even"><td><p>2.3</p></td>
+<td><p>v2.3.0</p></td>
+</tr>
+<tr class="row-odd"><td><p>2.2</p></td>
 <td><p>v2.2.0</p></td>
 </tr>
-<tr class="row-odd"><td><p>2.1.x</p></td>
+<tr class="row-even"><td><p>2.1</p></td>
 <td><p>v1.0.0</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>&lt;version_tag&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>&lt;client_app_version&gt;
 </pre></div>
 </div>
 </li>
@@ -949,6 +993,17 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.<
 <span id="teleoperate-apple-vision-pro"></span><h3>Teleoperate an Isaac Lab Robot with Apple Vision Pro<a class="headerlink" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro" title="Permalink to this heading">#</a></h3>
 <p>With the Isaac XR Teleop Sample Client installed on your Apple Vision Pro, you are ready to connect
 to Isaac Lab.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Before wearing the headset</strong>, you can first verify connectivity from your Mac:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test signaling port (replace &lt;isaac-lab-ip&gt; with your workstation IP)</span>
+nc<span class="w"> </span>-vz<span class="w"> </span>&lt;isaac-lab-ip&gt;<span class="w"> </span><span class="m">48010</span>
+</pre></div>
+</div>
+<p>Expected output: <code class="docutils literal notranslate"><span class="pre">Connection</span> <span class="pre">to</span> <span class="pre">&lt;ip&gt;</span> <span class="pre">port</span> <span class="pre">48010</span> <span class="pre">[tcp/*]</span> <span class="pre">succeeded!</span></code></p>
+<p>If the connection fails, check that the runtime container is running (<code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">ps</span></code>) and no stale
+runtime container is blocking ports.</p>
+</div>
 <p>On your Isaac Lab workstation:</p>
 <ol class="arabic">
 <li><p>Ensure that Isaac Lab and CloudXR are both running as described in
@@ -1020,7 +1075,7 @@ connected.</p></li>
 </figure>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The dots represent the tracked position of the hand joints. Latency or offset between the
+<p>The red dots represent the tracked position of the hand joints. Latency or offset between the
 motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
 controller.</p>
 </div>
@@ -1048,6 +1103,29 @@ and build teleoperation and imitation learning workflows with Isaac Lab.</p>
 This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
 Requires Isaac Sim 5.1 or later.</p>
 <p>Run the teleoperation example with Manus + Vive tracking:</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-text">Installation instructions</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Vive tracker integration is provided through the libsurvive library.</p>
+<p class="sd-card-text">To install, clone the repository, build the python package, and install the required udev rules.
+In your Isaac Lab virtual environment, run the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/collabora/libsurvive.git
+<span class="nb">cd</span><span class="w"> </span>libsurvive
+pip<span class="w"> </span>install<span class="w"> </span>scikit-build
+python<span class="w"> </span>setup.py<span class="w"> </span>install
+
+sudo<span class="w"> </span>cp<span class="w"> </span>./useful_files/81-vive.rules<span class="w"> </span>/etc/udev/rules.d/
+sudo<span class="w"> </span>udevadm<span class="w"> </span>control<span class="w"> </span>--reload-rules<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>udevadm<span class="w"> </span>trigger
+</pre></div>
+</div>
+<p class="sd-card-text">The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
+Install the plugin by following the build and installation steps in <a class="reference external" href="https://github.com/isaac-sim/isaac-teleop-device-plugins">isaac-teleop-device-plugins</a>.</p>
+</div>
+</details><p>In the same terminal from which you will launch Isaac Lab, set:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">ISAACSIM_HANDTRACKER_LIB</span><span class="o">=</span>&lt;path<span class="w"> </span>to<span class="w"> </span>isaac-teleop-device-plugins&gt;/build-manus-default/lib/libIsaacSimManusHandTracking.so
+</pre></div>
+</div>
+<p>Once the plugin is installed, run the teleoperation example:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--teleop_device<span class="w"> </span>manusvive<span class="w"> </span><span class="se">\</span>
@@ -1055,9 +1133,25 @@ Requires Isaac Sim 5.1 or later.</p>
 <span class="w">    </span>--enable_pinocchio
 </pre></div>
 </div>
-<p>Begin the session with your palms facing up.
-This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
-as the Vive trackers attached to the back of the hands occlude the optical hand tracking.</p>
+<p>The recommended workflow, is to start Isaac Lab, click <strong>Start AR</strong>, and then put on the Manus gloves, vive trackers, and
+headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
+connect to Isaac Lab.</p>
+<p>Isaac Lab automatically calibrates the Vive trackers using wrist pose data from the Apple Vision Pro during the initial
+frames of the session. If calibration fails, for example, if the red dots do not accurately follow the teleoperator’s
+hands, restart Isaac Lab and begin with your hands in a palm-up position to improve calibration reliability.</p>
+<p>For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.</p>
+<p>Ensure that while the task is being teleoperated, the hands remain stable and visible to the lighthouse at all times.
+See: <a class="reference external" href="https://www.vive.com/us/support/vive/category_howto/installing-the-base-stations.html">Installing the Base Stations</a>
+and <a class="reference external" href="https://www.vive.com/us/support/vive/category_howto/tips-for-setting-up-the-base-stations.html">Tips for Setting Up the Base Stations</a></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On first launch of the Manus Vive device, the Vive lighthouses may take a few seconds to calibrate. Keep the Vive trackers
+stable and visible to the lighthouse during this time. If the light houses are moved or if tracking fails or is unstable,
+calibration can be forced by deleting the calibration file at: <code class="docutils literal notranslate"><span class="pre">$XDG_RUNTIME_DIR/libsurvive/config.json</span></code>. If XDG_RUNTIME_DIR
+is not set, the default directory is <code class="docutils literal notranslate"><span class="pre">~/.config/libsurvive</span></code>.</p>
+<p>For more information consult the libsurvive documentation: <a class="reference external" href="https://github.com/collabora/libsurvive">libsurvive</a>.</p>
+</div>
 <p>For optimal performance, position the lighthouse above the hands, tilted slightly downward.
 One lighthouse is sufficient if both hands are visible.
 Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.</p>
@@ -1065,7 +1159,8 @@ Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling
 <p class="admonition-title">Note</p>
 <p>To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
 Use <code class="docutils literal notranslate"><span class="pre">lsusb</span> <span class="pre">-t</span></code> to identify different buses and connect devices accordingly.</p>
-<p>Vive trackers are automatically calculated to map to the left and right wrist joints.
+<p>Vive trackers are automatically calculated to map to the left and right wrist joints obtained from a stable
+OpenXR hand tracking wrist pose.
 This auto-mapping calculation supports up to 2 Vive trackers;
 if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.</p>
 </div>
@@ -1201,6 +1296,15 @@ the OpenXRDevice during initialization.</p>
 <li><p class="sd-card-text">Supports visualization of tracked hand joints</p></li>
 </ul>
 </div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-text">UnitreeG1Retargeter (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.UnitreeG1Retargeter</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<ul class="simple">
+<li><p class="sd-card-text">Retargets OpenXR hand tracking data to Unitree G1 using Inspire 5-finger hand end-effector commands</p></li>
+<li><p class="sd-card-text">Handles both left and right hands, converting hand poses to joint angles for the G1 robot’s hands</p></li>
+<li><p class="sd-card-text">Supports visualization of tracked hand joints</p></li>
+</ul>
+</div>
 </details><p>Retargeters can be combined to control different robot functions simultaneously.</p>
 </section>
 <section id="using-retargeters-with-hand-tracking">
@@ -1237,6 +1341,17 @@ the OpenXRDevice during initialization.</p>
         <span class="k">break</span>
 </pre></div>
 </div>
+<p>Here’s a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
+The wrist keypoint is used to control the hand end-effector, while the remaining hand keypoints are used for hand retargeting.</p>
+<figure class="align-center" style="width: 80%">
+<img alt="teleop_diagram" src="../../_images/teleop_diagram.jpg" />
+</figure>
+<p>For dex-retargeting, we are currently using the Dexpilot optimizer, which relies on the five fingertips and the palm for retargeting. It is essential
+that the links used for retargeting are defined exactly at the fingertips—not in the middle of the fingers—to ensure accurate optimization.Please refer
+to the image below for hand asset selection, find a suitable hand asset, or add fingertip links in IsaacLab as needed.</p>
+<figure class="align-center" style="width: 60%">
+<img alt="hand_asset" src="../../_images/hand_asset.jpg" />
+</figure>
 </section>
 <section id="adding-callbacks-for-xr-ui-events">
 <span id="control-robot-with-xr-callbacks"></span><h4>Adding Callbacks for XR UI Events<a class="headerlink" href="#adding-callbacks-for-xr-ui-events" title="Permalink to this heading">#</a></h4>
@@ -1539,14 +1654,13 @@ additional retargeters can be developed to map this data to various robot contro
 <section id="known-issues">
 <span id="xr-known-issues"></span><h2>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this heading">#</a></h2>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">[omni.kit.xr.system.openxr.plugin]</span> <span class="pre">Message</span> <span class="pre">received</span> <span class="pre">from</span> <span class="pre">CloudXR</span> <span class="pre">does</span> <span class="pre">not</span> <span class="pre">have</span> <span class="pre">a</span> <span class="pre">field</span> <span class="pre">called</span> <span class="pre">'type'</span></code></p>
-<p>This error message can be safely ignored. It is caused by a deprecated, non-backwards-compatible
-data message sent by the CloudXR Framework from Apple Vision Pro, and will be fixed in future
-CloudXR Framework versions.</p>
-</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">XR_ERROR_VALIDATION_FAILURE:</span> <span class="pre">xrWaitFrame(frameState-&gt;type</span> <span class="pre">==</span> <span class="pre">0)</span></code> when stopping AR Mode</p>
 <p>This error message can be safely ignored. It is caused by a race condition in the exit handler for
 AR Mode.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XR_ERROR_INSTANCE_LOST</span> <span class="pre">in</span> <span class="pre">xrPollEvent:</span> <span class="pre">Call</span> <span class="pre">to</span> <span class="pre">&quot;xrt_session_poll_events&quot;</span> <span class="pre">failed</span></code></p>
+<p>This error may occur if the CloudXR runtime exits before Isaac Lab. Restart the CloudXR
+runtime to resume teleoperation.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">[omni.usd]</span> <span class="pre">TF_PYTHON_EXCEPTION</span></code> when starting/stopping AR Mode</p>
 <p>This error message can be safely ignored. It is caused by a race condition in the enter/exit
@@ -1555,6 +1669,11 @@ handler for AR Mode.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">Invalid</span> <span class="pre">version</span> <span class="pre">string</span> <span class="pre">in</span> <span class="pre">_ParseVersionString</span></code></p>
 <p>This error message can be caused by shader assets authored with older versions of USD, and can
 typically be ignored.</p>
+</li>
+<li><p>The XR device connects successfully, but no video is displayed, even though the Isaac Lab viewport responds to tracking.</p>
+<p>This error occurs when the GPU index differs between the host and the container, causing CUDA
+to load on the wrong GPU. To fix this, set <code class="docutils literal notranslate"><span class="pre">NV_GPU_INDEX</span></code> in the runtime container to <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">2</span></code> to ensure the GPU selected by CUDA matches the host.</p>
 </li>
 </ul>
 </section>
@@ -1589,7 +1708,7 @@ typically be ignored.</p>
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Simulation Performance</p>
+        <p class="prev-next-title">Simulation Performance  and Tuning</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

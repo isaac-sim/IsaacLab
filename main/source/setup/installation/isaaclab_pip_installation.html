@@ -63,7 +63,7 @@
     <link rel="prev" title="Installation using Isaac Sim Source Code" href="source_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.2.1" />
+  <meta name="docsearch:version" content="2.3.0" />
     <meta name="docbuild:last-update" content="Oct 28, 2025"/>
   </head>
   
@@ -159,10 +159,11 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/setup/installation/isaaclab_pip_installation.html" >release/2.3.0</option>
             <option value="isaaclab_pip_installation.html" selected>main</option>
             <option value="../../../../release/2.1.0/source/setup/installation/isaaclab_pip_installation.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/setup/installation/isaaclab_pip_installation.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/setup/installation/isaaclab_pip_installation.html" >release/2.3.0</option>
+            <option value="../../../../v2.3.0/source/setup/installation/isaaclab_pip_installation.html" >v2.3.0</option>
             <option value="../../../../v2.2.1/source/setup/installation/isaaclab_pip_installation.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/setup/installation/isaaclab_pip_installation.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/setup/installation/isaaclab_pip_installation.html" >v2.1.1</option>
@@ -313,7 +314,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -351,8 +352,8 @@
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
@@ -827,6 +828,60 @@ its Python 3.11 enabled fork:</p>
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
 </pre></div>
 </div>
+<p>In case you used UV to create your virtual environment, please replace <code class="docutils literal notranslate"><span class="pre">pip</span></code> with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code>
+in the following commands.</p>
+</li>
+<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
+</pre></div>
+</div>
+</li>
+<li><p>Install a CUDA-enabled PyTorch build that matches your system architecture:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-x86_64" for="sd-tab-item-9">
+<i class="fa-brands fa-linux"></i> Linux (x86_64)</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="windows-x86_64" for="sd-tab-item-10">
+<i class="fa-brands fa-windows"></i> Windows (x86_64)</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-11">
+<i class="fa-brands fa-linux"></i> Linux (aarch64)</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After installing Isaac Lab on aarch64, you may encounter warnings such as:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ERROR: ld.so: object &#39;...torch.libs/libgomp-XXXX.so.1.0.0&#39; cannot be preloaded: ignored.
+</pre></div>
+</div>
+<p>This occurs when both the system and PyTorch <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> (GNU OpenMP) libraries are preloaded.
+Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch sometimes bundles its own.</p>
+<p>To fix this, unset any existing <code class="docutils literal notranslate"><span class="pre">LD_PRELOAD</span></code> and set it to use the system library only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">unset</span><span class="w"> </span>LD_PRELOAD
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_PRELOAD</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$LD_PRELOAD</span><span class="s2">:/lib/aarch64-linux-gnu/libgomp.so.1&quot;</span>
+</pre></div>
+</div>
+<p>This ensures the correct <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> library is preloaded for both Isaac Sim and Isaac Lab,
+removing the preload warnings during runtime.</p>
+</div>
+</div>
+</div>
+</li>
+<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install
+its Python 3.11 enabled fork:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
+</pre></div>
+</div>
 </li>
 </ul>
 </section>
@@ -869,7 +924,7 @@ instructions, it means that something is incorrectly configured. To
 debug and troubleshoot, please check Isaac Sim
 <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">documentation</a>
 and the
-<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com//latest/isaac_sim_forums.html">forums</a>.</p>
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html">Isaac Sim Forums</a>.</p>
 </section>
 <section id="running-isaac-lab-scripts">
 <h2>Running Isaac Lab Scripts<a class="headerlink" href="#running-isaac-lab-scripts" title="Permalink to this heading">#</a></h2>
