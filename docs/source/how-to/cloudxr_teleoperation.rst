@@ -528,6 +528,10 @@ and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive
 
    For more information consult the libsurvive documentation: `libsurvive <https://github.com/collabora/libsurvive>`_.
 
+For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+One lighthouse is sufficient if both hands are visible.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
+
 .. note::
 
    To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
