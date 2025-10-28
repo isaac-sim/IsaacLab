@@ -167,13 +167,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # switch robot to ur10 with local asset path
         self.scene.robot = UR10e_ROBOTIQ_GRIPPER_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
-                # usd_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets/ur10e_robotiq_140_variant.usd")
-                # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant.usd",
-                # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant_edited.usd",
-                usd_path = f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default.usd"
-            )
+            prim_path="{ENV_REGEX_NS}/Robot"
         )
 
 
