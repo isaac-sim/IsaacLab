@@ -910,7 +910,7 @@ def resolve_pose_relative_to_physx_parent(
     prim_path_regex: str,
     implements_apis: list[Usd.APISchemaBase] | Usd.APISchemaBase = UsdPhysics.RigidBodyAPI,
     *,
-    stage: Usd.Stage() | None = None,
+    stage: Usd.Stage | None = None,
 ) -> tuple[str, tuple[float, float, float], tuple[float, float, float, float]]:
     """For some applications, it can be important to identify the closest parent primitive which implements certain APIs
     in order to retrieve data from PhysX (for example, force information requires more than an XFormPrim). When an object is
@@ -929,6 +929,9 @@ def resolve_pose_relative_to_physx_parent(
         ).
     """
     target_prim = find_first_matching_prim(prim_path_regex, stage)
+
+    if target_prim is None:
+        raise RuntimeError(f"Path: {prim_path_regex} does not match any existing primitives.")
     # If target prim itself implements all required APIs, we can use it directly.
     if check_prim_implements_apis(target_prim, implements_apis):
         return prim_path_regex.replace(".*", "*"), None, None
