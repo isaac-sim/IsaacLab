@@ -15,7 +15,7 @@ from isaaclab.assets import (
 
 OBSTACLE_SCENE_CFG = ObstaclesSceneCfg(
                     env_size=(12.0, 8.0, 6.0),
-                    min_num_obstacles=0,
+                    min_num_obstacles=20,
                     max_num_obstacles=40,
                     ground_offset=3.0,
                     )
