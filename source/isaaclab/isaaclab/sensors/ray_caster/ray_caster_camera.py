@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh
 
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -147,7 +147,7 @@ class RayCasterCamera(RayCaster):
             env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
@@ -191,7 +191,7 @@ class RayCasterCamera(RayCaster):
             env_ids = self._ALL_INDICES
 
         # get current positions
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
         if positions is not None:
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w
@@ -204,7 +204,7 @@ class RayCasterCamera(RayCaster):
             self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w), quat_w_set)
 
         # update the data
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
@@ -266,7 +266,7 @@ class RayCasterCamera(RayCaster):
         self._frame[env_ids] += 1
 
         # compute poses from current view
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
@@ -405,7 +405,7 @@ class RayCasterCamera(RayCaster):
         """Obtains the pose of the view the camera is attached to in the world frame.
 
         .. deprecated v2.3.0:
-            This function will be removed in a future release in favor of implementation :meth:`sim_utils.obtain_world_pose_from_view`.
+            This function will be removed in a future release in favor of implementation :meth:`obtain_world_pose_from_view`.
 
         Returns:
             A tuple of the position (in meters) and quaternion (w, x, y, z).
@@ -415,10 +415,10 @@ class RayCasterCamera(RayCaster):
         # deprecation
         omni.log.warn(
             "The function '_compute_view_world_poses' will be deprecated in favor of the util method"
-            " 'sim_utils.obtain_world_pose_from_view'. Please use 'sim_utils.obtain_world_pose_from_view' instead...."
+            " 'obtain_world_pose_from_view'. Please use 'obtain_world_pose_from_view' instead...."
         )
 
-        return sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        return obtain_world_pose_from_view(self._view, env_ids, clone=True)
 
     def _compute_camera_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the camera in the world frame.
@@ -430,7 +430,7 @@ class RayCasterCamera(RayCaster):
 
             .. code-block:: python
 
-                pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+                pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
                 pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids],  self._offset_quat[env_ids])
 
         Returns:
@@ -440,10 +440,10 @@ class RayCasterCamera(RayCaster):
         # deprecation
         omni.log.warn(
             "The function '_compute_camera_world_poses' will be deprecated in favor of the combination of methods"
-            " 'sim_utils.obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms'. Please use"
-            " 'sim_utils.obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms' instead...."
+            " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms'. Please use"
+            " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms' instead...."
         )
 
         # get the pose of the view the camera is attached to
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
         return math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids])

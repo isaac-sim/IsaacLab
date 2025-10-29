@@ -9,12 +9,12 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:
@@ -115,13 +115,14 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         """Updates the ray information buffers."""
 
         # compute poses from current view
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
         # update the data
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
+        self._data.quat_w_ros[env_ids] = quat_w
 
         # note: full orientation is considered
         ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
@@ -137,13 +138,11 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         # increment frame count
         if env_ids is None:
-            env_ids_tensor = torch.arange(self._num_envs, device=self.device)
+            env_ids = torch.arange(self._num_envs, device=self.device)
         elif not isinstance(env_ids, torch.Tensor):
-            env_ids_tensor = torch.tensor(env_ids, device=self.device)
-        else:
-            env_ids_tensor = env_ids
+            env_ids = torch.tensor(env_ids, device=self.device)
 
-        self._frame[env_ids_tensor] += 1
+        self._frame[env_ids] += 1
 
         # Update the mesh positions and rotations
         mesh_idx = 0
@@ -153,7 +152,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = sim_utils.obtain_world_pose_from_view(view, None)
+            pos_w, ori_w = obtain_world_pose_from_view(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
@@ -163,7 +162,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 ori_w = math_utils.quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
             count = view.count
-            if not target_cfg.is_global:
+            if count != 1:  # Mesh is not global, i.e. we have different meshes for each env
                 count = count // self._num_envs
                 pos_w = pos_w.view(self._num_envs, count, 3)
                 ori_w = ori_w.view(self._num_envs, count, 4)
@@ -209,11 +208,14 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             )
 
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids_tensor] = torch.clip(
-                ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance
-            )
+            if self.cfg.depth_clipping_behavior == "max":
+                ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
+            elif self.cfg.depth_clipping_behavior == "zero":
+                ray_depth[ray_depth > self.cfg.max_distance] = 0.0
+            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
+
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids_tensor] = ray_normal.view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
         if self.cfg.update_mesh_ids:
-            self._data.image_mesh_ids[env_ids_tensor] = ray_mesh_ids.view(-1, *self.image_shape, 1)
+            self._data.image_mesh_ids[env_ids] = ray_mesh_ids.view(-1, *self.image_shape, 1)

@@ -167,7 +167,7 @@ def raycast_single_mesh(
     """
     # cast mesh id into array
     mesh_ids = wp.array2d(
-        [[mesh_id] * ray_starts.shape[0]], dtype=wp.uint64, device=wp.device_from_torch(ray_starts.device)
+        [[mesh_id] for _ in range(ray_starts.shape[0])], dtype=wp.uint64, device=wp.device_from_torch(ray_starts.device)
     )
     ray_hits, ray_distance, ray_normal, ray_face_id, ray_mesh_id = raycast_dynamic_meshes(
         ray_starts=ray_starts,
@@ -229,7 +229,7 @@ def raycast_dynamic_meshes(
             The returned tensor contains :obj:`int(-1)` for missed hits.
         The ray hit mesh id. Shape (B, N,).
             Will only return if :attr:`return_mesh_id` is True else returns None.
-            The returned tensor contains :obj:`0` for missed hits.
+            The returned tensor contains :obj:`-1` for missed hits.
     """
     # extract device and shape information
     shape = ray_starts.shape

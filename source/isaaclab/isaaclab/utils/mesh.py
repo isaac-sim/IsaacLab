@@ -8,6 +8,7 @@
 
 import numpy as np
 import trimesh
+from collections.abc import Callable
 
 from pxr import Usd, UsdGeom
 
@@ -22,9 +23,7 @@ def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
         mesh_prim: The mesh prim to read the vertices and faces from.
 
     Returns:
-        A tuple containing the vertices and faces of the mesh.
-        Shape of vertices is (n_vertices, 3).
-        Shape of faces is (n_faces, 3).
+        A trimesh.Trimesh object containing the mesh geometry.
     """
     if mesh_prim.GetTypeName() != "Mesh":
         raise ValueError(f"Prim at path '{mesh_prim.GetPath()}' is not a mesh.")
@@ -78,7 +77,7 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
     all_faces = []
 
     vertex_counter = 0
-    # Iterates over all triangles of the mesh.
+    # Iterates over all faces of the mesh to triangulate them.
     # could be very slow for large meshes
     for num_points in point_counts:
         # Triangulate n-gons (n>4) using fan triangulation
@@ -158,7 +157,7 @@ def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     return mesh
 
 
-_MESH_CONVERTERS_CALLBACKS: dict[str, callable] = {
+_MESH_CONVERTERS_CALLBACKS: dict[str, Callable[[Usd.Prim], trimesh.Trimesh]] = {
     "Plane": _create_plane_trimesh,
     "Cube": _create_cube_trimesh,
     "Sphere": _create_sphere_trimesh,

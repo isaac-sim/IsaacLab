@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
-import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.simulation_manager import SimulationManager
@@ -23,10 +22,11 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
+from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -52,15 +52,11 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
-    # Class variables to share meshes and mesh_views across instances
+    # Class variables to share meshes across instances
     meshes: ClassVar[dict[str, wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
 
     The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects."""
-    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
-    """A dictionary to store mesh views for raycasting, shared across all instances.
-
-    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
 
@@ -78,7 +74,7 @@ class RayCaster(SensorBase):
         sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
         if sensor_path_is_regex:
             raise RuntimeError(
-                f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
+                f"Invalid prim path for the ray-caster sensor: {cfg.prim_path}."
                 "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
             )
         # Initialize base class
@@ -238,7 +234,7 @@ class RayCaster(SensorBase):
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
 
-        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset[0][env_ids], self._offset[1][env_ids]
         )
@@ -401,4 +397,3 @@ class RayCaster(SensorBase):
         RayCaster._instance_count -= 1
         if RayCaster._instance_count == 0:
             RayCaster.meshes.clear()
-            RayCaster.mesh_views.clear()

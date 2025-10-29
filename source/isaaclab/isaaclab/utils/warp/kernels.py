@@ -137,14 +137,14 @@ def raycast_static_meshes_kernel(
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
 
+        wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
-        if mesh_query_ray_t.t < ray_distance[tid_env, tid_ray]:
-
+        # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison
+        # however, warp atomic_min is returning the wrong values on gpu currently.
+        # FIXME https://github.com/NVIDIA/warp/issues/1058
+        if mesh_query_ray_t.t == ray_distance[tid_env, tid_ray]:
             # convert back to world space and update the hit data
             ray_hits[tid_env, tid_ray] = start_pos + mesh_query_ray_t.t * direction
-
-            # update the hit distance
-            ray_distance[tid_env, tid_ray] = mesh_query_ray_t.t
 
             # update the normal and face id if requested
             if return_normal == 1:
@@ -155,7 +155,7 @@ def raycast_static_meshes_kernel(
                 ray_mesh_id[tid_env, tid_ray] = wp.int16(tid_mesh_id)
 
 
-@wp.kernel
+@wp.kernel(enable_backward=False)
 def raycast_dynamic_meshes_kernel(
     mesh: wp.array2d(dtype=wp.uint64),
     ray_starts: wp.array2d(dtype=wp.vec3),
@@ -203,7 +203,7 @@ def raycast_dynamic_meshes_kernel(
         ray_mesh_id: The output ray hit mesh ids. Shape is (B, N,), if ``return_mesh_id`` is True. Otherwise,
             this array is not used.
         mesh_positions: The input mesh positions in world frame. Shape is (W, 3).
-        mesh_rotations: The input mesh rotations in world frame. Shape is (W, 3, 3).
+        mesh_rotations: The input mesh rotations in world frame. Shape is (W, 4).
         max_dist: The maximum ray-cast distance. Defaults to 1e6.
         return_normal: Whether to return the ray hit normals. Defaults to False`.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
@@ -222,15 +222,15 @@ def raycast_dynamic_meshes_kernel(
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
 
+        wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
-        if mesh_query_ray_t.t < ray_distance[tid_env, tid_ray]:
-
+        # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison
+        # however, warp atomic_min is returning the wrong values on gpu currently.
+        # FIXME https://github.com/NVIDIA/warp/issues/1058
+        if mesh_query_ray_t.t == ray_distance[tid_env, tid_ray]:
             # convert back to world space and update the hit data
             hit_pos = start_pos + mesh_query_ray_t.t * direction
             ray_hits[tid_env, tid_ray] = wp.transform_point(mesh_pose, hit_pos)
-
-            # update the hit distance
-            ray_distance[tid_env, tid_ray] = mesh_query_ray_t.t
 
             # update the normal and face id if requested
             if return_normal == 1:

@@ -358,7 +358,7 @@ def test_intrinsic_matrix(setup_simulation, height, width):
 
 @pytest.mark.isaacsim_ci
 def test_throughput(setup_simulation):
-    """Checks that the single camera gets created properly with a rig."""
+    """Test camera throughput for different image sizes."""
     sim, dt, camera_cfg = setup_simulation
 
     # Create directory temp dir to dump the results
@@ -435,7 +435,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
     )
     prim_utils.create_prim("/World/Camera_warp", "Xform")
     camera_cfg_warp = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/Camera",
+        prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
@@ -493,7 +493,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
     # check image data
     for data_type in data_types:
         if data_type in camera_usd.data.output and data_type in camera_warp.data.output:
-            if data_type == "distance_to_camera":
+            if data_type == "distance_to_camera" or data_type == "distance_to_image_plane":
                 torch.testing.assert_close(
                     camera_usd.data.output[data_type],
                     camera_warp.data.output[data_type],
@@ -531,7 +531,7 @@ def test_output_equal_to_usdcamera_offset(setup_simulation):
     )
     prim_utils.create_prim("/World/Camera_warp", "Xform")
     camera_cfg_warp = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/Camera",
+        prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),

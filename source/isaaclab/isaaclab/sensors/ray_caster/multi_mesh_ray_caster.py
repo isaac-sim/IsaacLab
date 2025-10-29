@@ -15,11 +15,13 @@ import re
 import torch
 import trimesh
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import carb
 import omni.log
+import omni.physics.tensors.impl.api as physx
 import warp as wp
+from isaacsim.core.prims import XFormPrim
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import matrix_from_quat, quat_mul
@@ -27,6 +29,7 @@ from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_m
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
+from .prim_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -74,6 +77,11 @@ class MultiMeshRayCaster(RayCaster):
     """The configuration parameters."""
 
     mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+
+    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
+    """A dictionary to store mesh views for raycasting, shared across all instances.
+
+    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
 
     def __init__(self, cfg: MultiMeshRayCasterCfg):
         """Initializes the ray-caster object.
@@ -155,9 +163,12 @@ class MultiMeshRayCaster(RayCaster):
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
             target_prim_path = target_cfg.target_prim_expr
-            # check if mesh already casted into warp mesh and get the number of meshes per env
+            # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in multi_mesh_ids:
-                self._num_meshes_per_env[target_prim_path] = len(multi_mesh_ids[target_prim_path]) // self._num_envs
+                carb.log_warn(
+                    f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries"
+                    " in `mesh_prim_paths`? This mesh will be skipped."
+                )
                 continue
 
             # find all matching prim paths to provided expression of the target
@@ -279,8 +290,7 @@ class MultiMeshRayCaster(RayCaster):
                     mesh_idx += n_meshes_per_env
 
             if target_cfg.track_mesh_transforms:
-                mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
-                self.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
+                MultiMeshRayCaster.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
                     self._get_trackable_prim_view(target_prim_path)
                 )
 
@@ -352,7 +362,7 @@ class MultiMeshRayCaster(RayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = sim_utils.obtain_world_pose_from_view(view, None)
+            pos_w, ori_w = obtain_world_pose_from_view(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
@@ -388,6 +398,7 @@ class MultiMeshRayCaster(RayCaster):
         super().__del__()
         if RayCaster._instance_count == 0:
             MultiMeshRayCaster.mesh_offsets.clear()
+            MultiMeshRayCaster.mesh_views.clear()
 
 
 """

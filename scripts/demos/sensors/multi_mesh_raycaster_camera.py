@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Example on using the MultiMesh Raycaster sensor.
+"""Example on using the MultiMesh Raycaster Camera sensor.
 
 Usage:
-    `python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
+    `python scripts/demos/sensors/multi_mesh_raycaster_camera.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
 """
 
 import argparse
@@ -51,7 +51,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
+from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -64,46 +64,65 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     },
 )
 
-
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    ray_caster_cfg = MultiMeshRayCasterCfg(
+    ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
-        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(-0.70, -0.7, -0.25), rot=(0.268976, 0.268976, 0.653951, 0.653951)
+        ),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
                 target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
             ),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"
+            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"
+            ),
         ],
-        ray_alignment="world",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
+        pattern_cfg=patterns.PinholeCameraPatternCfg(
+            focal_length=24.0,
+            horizontal_aperture=20.955,
+            height=120,
+            width=240,
+        ),
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
     asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    ray_caster_cfg = MultiMeshRayCasterCfg(
+    ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
-        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0, -0.1, 1.5), rot=(0.0, 1.0, 0.0, 0.0)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
         ],
-        ray_alignment="world",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
+        pattern_cfg=patterns.PinholeCameraPatternCfg(
+            focal_length=24.0,
+            horizontal_aperture=20.955,
+            height=120,
+            width=240,
+        ),
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
@@ -149,16 +168,20 @@ elif args_cli.asset_type == "multi":
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )
-    ray_caster_cfg = MultiMeshRayCasterCfg(
+    ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         update_period=1 / 60,
-        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, 0.0, 0.6)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0, 0.0, 1.5), rot=(0.0, 1.0, 0.0, 0.0)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Object"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Object"),
         ],
-        ray_alignment="world",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
+        pattern_cfg=patterns.PinholeCameraPatternCfg(
+            focal_length=24.0,
+            horizontal_aperture=20.955,
+            height=120,
+            width=240,
+        ),
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
@@ -223,6 +246,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     sim_time = 0.0
     count = 0
 
+    triggered = True
+    countdown = 42
+
     # Simulate physics
     while simulation_app.is_running():
 
@@ -264,6 +290,16 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         count += 1
         # update buffers
         scene.update(sim_dt)
+
+        if not triggered:
+            if countdown > 0:
+                countdown -= 1
+                continue
+
+            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()  # noqa: F841
+            triggered = True
+        else:
+            continue
 
 
 def main():
