@@ -58,7 +58,34 @@ def get_obstacle_curriculum_state(
     min_difficulty: int = 2,
     max_difficulty: int = 10,
 ) -> dict:
-    """Get or initialize the obstacle curriculum state.
+    """Get or lazily initialize the obstacle curriculum state dictionary.
+
+    This helper function manages the obstacle curriculum state by initializing it
+    on first call and returning the existing state on subsequent calls. The state
+    is stored as a private attribute on the environment instance.
+
+    The curriculum state tracks per-environment difficulty levels used to control
+    the number of obstacles spawned in each environment. Difficulty progresses
+    based on agent performance (successful goal reaching vs. collisions).
+
+    Args:
+        env: The manager-based RL environment instance.
+        min_difficulty: Minimum difficulty level for obstacle density. Lower values
+            mean fewer obstacles. Defaults to 2.
+        max_difficulty: Maximum difficulty level for obstacle density. Higher values
+            mean more obstacles. Defaults to 10.
+
+    Returns:
+        Dictionary containing:
+            - "difficulty_levels": torch.Tensor of shape (num_envs,) with per-environment
+              difficulty levels, initialized to min_difficulty
+            - "min_difficulty": int, the minimum difficulty value
+            - "max_difficulty": int, the maximum difficulty value
+
+    Note:
+        This function stores state directly on the environment as `_obstacle_curriculum_state`.
+        It's designed to be called from both curriculum terms and reward functions to ensure
+        consistent access to the difficulty state.
     """
     
     if not hasattr(env, "_obstacle_curriculum_state"):

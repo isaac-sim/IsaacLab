@@ -56,6 +56,54 @@ def distance_to_goal_exp(
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     return torch.exp(-position_error_square / std**2)
 
+def distance_to_goal_exp_curriculum(
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        std: float = 1.0,
+        command_name: str = "target_pose"
+    ) -> torch.Tensor:
+    """Reward the distance to a goal position using an exponential kernel with curriculum-based scaling.
+
+    This reward extends the basic exponential distance reward by applying a scaling factor
+    that increases with the obstacle difficulty level. As the curriculum progresses and
+    obstacle density increases, the reward weight grows to compensate for the added difficulty.
+
+    The scaling weight is computed as: 1.0 + (difficulty_level / max_difficulty), meaning
+    the reward can scale from 1.0x (at minimum difficulty) to 2.0x (at maximum difficulty).
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        std: Standard deviation used in the exponential kernel; larger values
+            produce a gentler falloff. Defaults to 1.0.
+        command_name: Name of the command to read the target pose from the
+            environment's command manager. The function expects the command
+            tensor to contain positions in its first three columns.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) containing the per-environment weighted
+        reward values. Values are in [0, weight], where weight varies based on the
+        current curriculum difficulty level.
+
+    Note:
+        If no curriculum is active (i.e., `env._obstacle_difficulty_levels` doesn't exist),
+        the function behaves identically to :func:`distance_to_goal_exp` with weight=1.0.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+
+    # compute the error
+    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
+    # weight based on the current curriculum level
+    if hasattr(env, '_obstacle_difficulty_levels'):
+        weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
+    else:
+        weight = 1.0
+    return weight * torch.exp(-position_error_square / std**2)
 
 def ang_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
@@ -84,6 +132,59 @@ def ang_vel_xyz_exp(
     ang_vel_squared = torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
 
     return torch.exp(-ang_vel_squared / std**2)
+
+def velocity_to_goal_reward_curriculum(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_name: str = "target_pose"
+) -> torch.Tensor:
+    """Reward velocity alignment toward the goal with curriculum-based scaling.
+
+    This reward encourages the agent to move in the direction of the goal by computing
+    the dot product between the asset's velocity vector and the normalized direction
+    vector to the goal. A curriculum-based scaling factor is applied that increases
+    with obstacle difficulty.
+
+    The reward is positive when moving toward the goal, negative when moving away,
+    and zero when moving perpendicular to the goal direction. The magnitude scales
+    linearly with speed in the goal direction.
+
+    The scaling weight is computed as: 1.0 + (difficulty_level / max_difficulty),
+    allowing the reward to scale from 1.0x to 2.0x as difficulty increases.
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        command_name: Name of the command to read the target pose from the
+            environment's command manager. The function expects the command
+            tensor to contain positions in its first three columns.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) containing the per-environment weighted
+        reward values. Values can be positive (moving toward goal), negative
+        (moving away), or zero (perpendicular motion), scaled by the curriculum weight.
+
+    Note:
+        If no curriculum is active (i.e., `env._obstacle_difficulty_levels` doesn't exist),
+        the function uses weight=1.0 without curriculum scaling.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    # get the center of the environment
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    direction_to_goal = target_position_w - current_position
+    direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
+    # compute the reward as the dot product between the velocity and the direction to the goal
+    velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
+    # Use obstacle curriculum if it exists
+    if hasattr(env, '_obstacle_difficulty_levels'):
+        weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
+    else:
+        weight = 1.0
+    return weight * velocity_towards_goal
 
 
 def lin_vel_xyz_exp(
