@@ -17,7 +17,7 @@ from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 
 """
-Drone-navigation rewards.
+Drone control rewards.
 """
 
 
@@ -27,7 +27,24 @@ def distance_to_goal_exp(
     std: float = 1.0,
     command_name: str = "target_pose",
 ) -> torch.Tensor:
-    """Reward the distance to a goal position using an exponential kernel."""
+    """Reward the distance to a goal position using an exponential kernel.
+
+    This reward computes an exponential falloff of the squared Euclidean distance
+    between the commanded target position and the asset (robot) root position.
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        std: Standard deviation used in the exponential kernel; larger values
+            produce a gentler falloff.
+        command_name: Name of the command to read the target pose from the
+            environment's command manager. The function expects the command
+            tensor to contain positions in its first three columns.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) containing the per-environment reward
+        values in [0, 1], with 1.0 when the position error is zero.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
@@ -43,6 +60,22 @@ def distance_to_goal_exp(
 def ang_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
 ) -> torch.Tensor:
+    """Penalize angular velocity magnitude with an exponential kernel.
+
+    This reward computes exp(-||omega||^2 / std^2) where omega is the body-frame
+    angular velocity of the asset. It is useful for encouraging low rotational
+    rates.
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        std: Standard deviation used in the exponential kernel; controls
+            sensitivity to angular velocity magnitude.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) with values in (0, 1], where 1 indicates
+        zero angular velocity.
+    """
 
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -56,6 +89,20 @@ def ang_vel_xyz_exp(
 def lin_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
 ) -> torch.Tensor:
+    """Penalize linear velocity magnitude with an exponential kernel.
+
+    Computes exp(-||v||^2 / std^2) where v is the asset's linear velocity in
+    world frame. Useful for encouraging the agent to reduce translational speed.
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        std: Standard deviation used in the exponential kernel.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) with values in (0, 1], where 1 indicates
+        zero linear velocity.
+    """
 
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -69,6 +116,23 @@ def lin_vel_xyz_exp(
 def yaw_aligned(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 0.5
 ) -> torch.Tensor:
+    """Reward alignment of the vehicle's yaw to zero using an exponential kernel.
+
+    The function extracts the yaw (rotation about Z) from the world-frame root
+    quaternion and computes exp(-yaw^2 / std^2). This encourages heading
+    alignment to a zero-yaw reference.
+
+    Args:
+        env: The manager-based RL environment instance.
+        asset_cfg: SceneEntityCfg identifying the asset (defaults to "robot").
+        std: Standard deviation used in the exponential kernel; smaller values
+            make the reward more sensitive to yaw deviations.
+
+    Returns:
+        A 1-D tensor of shape (num_envs,) with values in (0, 1], where 1 indicates
+        perfect yaw alignment (yaw == 0).
+    """
+
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 

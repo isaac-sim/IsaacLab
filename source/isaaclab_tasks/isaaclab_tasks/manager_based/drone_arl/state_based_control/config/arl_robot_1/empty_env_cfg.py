@@ -7,9 +7,7 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 from isaaclab.utils import configclass
 
-from .state_based_control_env_cfg import (
-    StateBasedControlEmptyEnvCfg,
-)
+from .state_based_control_env_cfg import StateBasedControlEmptyEnvCfg
 
 ##
 # Pre-defined configs
