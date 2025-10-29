@@ -12,24 +12,24 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-StateBasedControl-ARL_ROBOT_1-v0",
+    id="Isaac-StateBasedControl-ARL-robot-1-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.empty_env_cfg:ARL_ROBOT_1_EmptyEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_rough_ppo_cfg.yaml",
+        "env_cfg_entry_point": f"{__name__}.empty_env_cfg:EmptyEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:StateBasedControlEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
 )
 
 gym.register(
-    id="Isaac-StateBasedControl-ARL_ROBOT_1-Play-v0",
+    id="Isaac-StateBasedControl-ARL-robot-1-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.empty_env_cfg:ARL_ROBOT_1_EmptyEnvCfg_PLAY",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_rough_ppo_cfg.yaml",
+        "env_cfg_entry_point": f"{__name__}.empty_env_cfg:EmptyEnvCfg_PLAY",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:StateBasedControlEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
