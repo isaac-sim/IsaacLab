@@ -36,7 +36,7 @@ jobs:
   check-links:
     name: Check for Broken Links
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
           cat ./lychee-output.md
           echo ""
           echo "========================================"
-          
+
           # Also add to GitHub step summary for easy viewing
           echo "## Link Checker Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -118,5 +118,3 @@ jobs:
         echo "❌ Broken links were found in the documentation!"
         echo "Please review the link checker report above and fix all broken links."
         exit 1
-
-
