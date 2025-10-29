@@ -148,34 +148,34 @@ UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_inner_finger_joint"] = 0.0
 UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_inner_finger_pad_joint"] = 0.0
 UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_outer_.*_joint"] = 0.0
 # the major actuator joint for gripper
-UR10e_ROBOTIQ_GRIPPER_CFG.actuators["finger_joint"] = ImplicitActuatorCfg(
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_drive"] = ImplicitActuatorCfg(
     joint_names_expr=["finger_joint"],
-    effort_limit_sim=1.0,
-    velocity_limit_sim=100.0,
-    stiffness=20.0,
-    damping=8.94,
+    effort_limit_sim=10.0,
+    velocity_limit_sim=1.0,
+    stiffness=11.25,
+    damping=0.1,
     friction=0.0,
-    armature=0.0,  # 0.57
+    armature=0.0,
 )
 # the auxiliary actuator joint for gripper
-UR10e_ROBOTIQ_GRIPPER_CFG.actuators["others_1"] = ImplicitActuatorCfg(
-    joint_names_expr=['right_outer_knuckle_joint', 'left_outer_finger_joint'],
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_finger"] = ImplicitActuatorCfg(
+    joint_names_expr=[".*_inner_finger_joint"],
     effort_limit_sim=1.0,
-    velocity_limit_sim=100.0,
+    velocity_limit_sim=1.0,
+    stiffness=0.2,
+    damping=0.001,
+    friction=0.0,
+    armature=0.0,
+)
+# the passive joints for gripper
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_passive"] = ImplicitActuatorCfg(
+    joint_names_expr=[".*_inner_finger_pad_joint", ".*_outer_finger_joint", "right_outer_knuckle_joint"],
+    effort_limit_sim=1.0,
+    velocity_limit_sim=1.0,
     stiffness=0.0,
     damping=0.0,
     friction=0.0,
-    armature=0.0,  # 0.57
-)
-# the passive joints for gripper
-UR10e_ROBOTIQ_GRIPPER_CFG.actuators["others_2"] = ImplicitActuatorCfg(
-    joint_names_expr=['right_outer_finger_joint', 'left_inner_finger_joint', 'right_inner_finger_joint', 'left_inner_finger_pad_joint', 'right_inner_finger_pad_joint'],
-    effort_limit_sim=1.0,
-    velocity_limit_sim=100.0,
-    stiffness=400.0,
-    damping=20.0,
-    friction=0.0,
-    armature=0.0,  # 0.57
+    armature=0.0,
 )
 
 UR10e_2f140_CFG = ArticulationCfg(
