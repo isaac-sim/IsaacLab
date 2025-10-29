@@ -1,4 +1,4 @@
-# Copyright (c) 2022-20 , The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025 , The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -38,24 +38,7 @@ from isaaclab.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 ##
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
-    """Configuration for the terrain scene with a flying robot."""
-
-    #TODO: @welfr this can actually be removed
-    # ground terrain
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        terrain_generator=None,
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.3, 0.3, 0.3)),
-        debug_vis=False,
-    )
+    """Scene configuration for drone navigation with obstacles."""
     
     # obstacles
     object_collection = generate_obstacle_collection(OBSTACLE_SCENE_CFG)
@@ -67,20 +50,18 @@ class MySceneCfg(InteractiveSceneCfg):
     depth_camera = MultiMeshRayCasterCameraCfg(
     prim_path="{ENV_REGEX_NS}/Robot/base_link",
     mesh_prim_paths=[
-        "/World/ground",
-    ] + [
-        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}", 
-            is_global=False,
-            track_mesh_transforms=True
-        ) for wall_name, _ in OBSTACLE_SCENE_CFG.wall_cfgs.items()
-    ] + [
-        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{i}",
-            is_global=False,
-            track_mesh_transforms=True
-        ) for i in range(OBSTACLE_SCENE_CFG.max_num_obstacles)
-    ],
+                        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}", 
+                            is_global=False,
+                            track_mesh_transforms=True
+                        ) for wall_name, _ in OBSTACLE_SCENE_CFG.wall_cfgs.items()
+                    ] + [
+                        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+                            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{i}",
+                            is_global=False,
+                            track_mesh_transforms=True
+                        ) for i in range(OBSTACLE_SCENE_CFG.max_num_obstacles)
+                    ],
     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1., 0., 0.0, 0.0), convention="world"),
     update_period=0.1,
     pattern_cfg=PinholeCameraPatternCfg(
