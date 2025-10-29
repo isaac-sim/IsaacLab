@@ -27,7 +27,19 @@ from isaaclab.envs.utils.io_descriptors import (
     record_shape,
 )
 
-_vae_model = None #TODO @mihirk @welfr this is bad, need fix
+class VAEModelManager:
+    """Manager for the VAE model."""
+    _model = None
+    
+    @classmethod
+    def get_model(cls, device):
+        """Get or load the VAE model."""
+        if cls._model is None:
+            import os
+            model_path = os.path.join(os.path.dirname(__file__), "vae_model.pt")
+            cls._model = torch.jit.load(model_path, map_location=device)
+            cls._model.eval()
+        return cls._model
 
 def image_latents(
     env: ManagerBasedEnv,
@@ -83,13 +95,9 @@ def image_latents(
             images[images < 0.02] = -1.0  # set very close values to -1
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
-    global _vae_model
-    if _vae_model is None:
-        # load the model from the pt file in the same directory as this file
-        import os
-        model_path = os.path.join(os.path.dirname(__file__), "vae_model.pt")
-        _vae_model = torch.jit.load(model_path, map_location=env.device)
-        _vae_model.eval()
+
+    _vae_model = VAEModelManager.get_model(env.device)
+        
     with torch.no_grad():
         latents = _vae_model(images.squeeze(-1).half())
         
