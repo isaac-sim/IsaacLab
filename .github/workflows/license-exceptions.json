@@ -432,6 +432,11 @@
     "comment": "Apache 2.0"
   },
   {
+    "package": "onnx-ir",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
     "package": "matplotlib-inline",
     "license": "UNKNOWN",
     "comment": "BSD-3"
