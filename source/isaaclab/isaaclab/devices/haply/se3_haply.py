@@ -15,9 +15,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import websockets
+try:
+    import websockets
 
-WEBSOCKETS_AVAILABLE = True
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
 
 from ..device_base import DeviceBase, DeviceCfg
 
@@ -117,6 +120,11 @@ class HaplyDevice(DeviceBase):
 
         self._prev_buttons = {"a": False, "b": False, "c": False}
 
+        # Connection monitoring
+        self.consecutive_timeouts = 0
+        self.max_consecutive_timeouts = 10  # ~10 seconds at 1s timeout
+        self.timeout_warning_issued = False
+
         # Start WebSocket connection
         self.running = True
         self._start_websocket_thread()
@@ -138,9 +146,21 @@ class HaplyDevice(DeviceBase):
 
     def __del__(self):
         """Cleanup on deletion."""
+        self.close()
+
+    def close(self):
+        """Shutdown the device and close WebSocket connection."""
+        if not hasattr(self, "running") or not self.running:
+            return
+
         self.running = False
+
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
+
+        # Wait for thread to finish
+        time.sleep(0.2)
+        self.device_ready = False
         print("[INFO] Haply device disconnected")
 
     def __str__(self) -> str:
@@ -156,7 +176,11 @@ class HaplyDevice(DeviceBase):
         return msg
 
     def reset(self):
-        """Reset the device internal state."""
+        """Reset the device internal state.
+
+        Note: Reset order matches initialization order for consistency.
+        """
+        # Reset force feedback
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
         self._prev_buttons = {"a": False, "b": False, "c": False}
@@ -186,17 +210,16 @@ class HaplyDevice(DeviceBase):
             # Return zero command if device not ready
             return torch.zeros(10, dtype=torch.float32, device=self._sim_device)
 
-        # Get latest cached data
+        # Get latest cached data and apply sensitivity
         with self.data_lock:
-            position = self.cached_data["position"].copy()
-            quaternion = self.cached_data["quaternion"].copy()
-            buttons = self.cached_data["buttons"].copy()
+            position = self.cached_data["position"] * self.pos_sensitivity
+            quaternion = self.cached_data["quaternion"]
+            button_a = self.cached_data["buttons"].get("a", False)
+            button_b = self.cached_data["buttons"].get("b", False)
+            button_c = self.cached_data["buttons"].get("c", False)
 
-        position = position * self.pos_sensitivity
-
-        # Check for button press events (rising edge) and call callbacks
-        for button_key in ["a", "b", "c"]:
-            current_state = buttons.get(button_key, False)
+        # Check for button press events
+        for button_key, current_state in [("a", button_a), ("b", button_b), ("c", button_c)]:
             prev_state = self._prev_buttons.get(button_key, False)
 
             if current_state and not prev_state:
@@ -205,12 +228,11 @@ class HaplyDevice(DeviceBase):
 
             self._prev_buttons[button_key] = current_state
 
-        # Convert button states to floats
         button_states = np.array(
             [
-                1.0 if buttons.get("a", False) else 0.0,
-                1.0 if buttons.get("b", False) else 0.0,
-                1.0 if buttons.get("c", False) else 0.0,
+                1.0 if button_a else 0.0,
+                1.0 if button_b else 0.0,
+                1.0 if button_c else 0.0,
             ],
             dtype=np.float32,
         )
@@ -251,7 +273,7 @@ class HaplyDevice(DeviceBase):
 
         data_fresh = self._is_data_fresh()
         device_connected = (
-            current_data.get("inverse3_connected", False) or current_data.get("versegrip_connected", False)
+            current_data.get("inverse3_connected", False) and current_data.get("versegrip_connected", False)
         ) and data_fresh
 
         return {
@@ -291,9 +313,14 @@ class HaplyDevice(DeviceBase):
 
                     while self.running:
                         try:
-                            # Receive data from WebSocket
                             response = await asyncio.wait_for(ws.recv(), timeout=1.0)
                             data = json.loads(response)
+
+                            # Reset timeout counter on successful data reception
+                            self.consecutive_timeouts = 0
+                            if self.timeout_warning_issued:
+                                print("[INFO] Haply connection restored")
+                                self.timeout_warning_issued = False
 
                             inverse3_devices = data.get("inverse3", [])
                             verse_grip_devices = data.get("wireless_verse_grip", [])
@@ -376,6 +403,23 @@ class HaplyDevice(DeviceBase):
                             await asyncio.sleep(1.0 / self.data_rate)
 
                         except asyncio.TimeoutError:
+                            self.consecutive_timeouts += 1
+
+                            # Check if timeout
+                            if (
+                                self.consecutive_timeouts >= self.max_consecutive_timeouts
+                                and not self.timeout_warning_issued
+                            ):
+                                print(
+                                    "[WARNING] No data received from Haply device for"
+                                    f" {self.consecutive_timeouts} seconds. Check device connection and Haply SDK"
+                                    " status."
+                                )
+                                self.timeout_warning_issued = True
+                                with self.data_lock:
+                                    self.cached_data["inverse3_connected"] = False
+                                    self.cached_data["versegrip_connected"] = False
+
                             continue
                         except Exception as e:
                             print(f"[ERROR] Error in WebSocket receive loop: {e}")
@@ -384,6 +428,8 @@ class HaplyDevice(DeviceBase):
             except Exception as e:
                 print(f"[ERROR] WebSocket connection error: {e}")
                 self.connected = False
+                self.consecutive_timeouts = 0
+                self.timeout_warning_issued = False
 
                 if self.running:
                     print("[INFO] Reconnecting in 2 seconds...")

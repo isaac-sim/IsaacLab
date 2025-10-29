@@ -50,12 +50,6 @@ parser.add_argument(
     default=1.0,
     help="Position sensitivity scaling factor.",
 )
-parser.add_argument(
-    "--enable_force_feedback",
-    action="store_true",
-    default=False,
-    help="Enable force feedback (experimental).",
-)
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -76,6 +70,15 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
+
+# Workspace mapping constants
+HAPLY_Z_OFFSET = 0.2  # Haply physical start height offset (m)
+POSITION_SCALE = 1.65  # Scaling factor for position control
+WORKSPACE_LIMITS = {
+    "x": (0.2, 0.9),  # Robot workspace X limits (m)
+    "y": (-0.50, 0.50),  # Robot workspace Y limits (m)
+    "z": (1.05, 1.85),  # Robot workspace Z limits (m)
+}
 
 
 def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot_initial_pos):
@@ -103,16 +106,15 @@ def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot
 
     haply_delta = haply_pos - haply_initial_pos
 
-    # Coordinate system mapping:
-    robot_offset = np.array([-haply_delta[1], haply_delta[0], haply_delta[2] - 0.2])
-    position_scale = 1.65
-    robot_offset_scaled = robot_offset * position_scale
+    # Coordinate system mapping: Haply (X, Y, Z) -> Robot (-Y, X, Z-offset)
+    robot_offset = np.array([-haply_delta[1], haply_delta[0], haply_delta[2] - HAPLY_Z_OFFSET])
+    robot_offset_scaled = robot_offset * POSITION_SCALE
     robot_pos = robot_initial_pos + robot_offset_scaled
 
-    # Workspace limits
-    robot_pos[0] = np.clip(robot_pos[0], 0.2, 0.9)
-    robot_pos[1] = np.clip(robot_pos[1], -0.50, 0.50)
-    robot_pos[2] = np.clip(robot_pos[2], 1.05, 1.85)
+    # Apply workspace limits for safety
+    robot_pos[0] = np.clip(robot_pos[0], WORKSPACE_LIMITS["x"][0], WORKSPACE_LIMITS["x"][1])
+    robot_pos[1] = np.clip(robot_pos[1], WORKSPACE_LIMITS["y"][0], WORKSPACE_LIMITS["y"][1])
+    robot_pos[2] = np.clip(robot_pos[2], WORKSPACE_LIMITS["z"][0], WORKSPACE_LIMITS["z"][1])
 
     robot_quat = np.array([haply_quat[3], haply_quat[0], haply_quat[1], haply_quat[2]])
 
@@ -145,7 +147,6 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
 
     robot: Articulation = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.init_state.pos = (0.1, 0.0, 1.05)
-    # Enable contact sensors for force feedback
     robot.spawn.activate_contact_sensors = True
 
     cube = RigidObjectCfg(
@@ -313,8 +314,8 @@ def run_simulator(
 
         joint_pos_target = robot.data.joint_pos[0].clone()
 
-        # Update the joint
-        joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # arm joints
+        # Update joints
+        joint_pos_target[arm_joint_indices[:-1]] = joint_pos_des[0, :-1]  # joints 0-5 from IK
         joint_pos_target[6] = ee_rotation_angle  # end-effector rotation
         joint_pos_target[[-2, -1]] = gripper_target  # gripper
 
@@ -327,14 +328,12 @@ def run_simulator(
         scene.update(sim_dt)
         count += 1
 
-        if args_cli.enable_force_feedback:
-            left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
-            right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
-            total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
-            feedback_force = torch.clamp(total_contact_force, -2.0, 2.0)
-            haply_device.set_force_feedback(
-                feedback_force[0].item(), feedback_force[1].item(), feedback_force[2].item()
-            )
+        # Force feedback
+        left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
+        right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
+        total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
+        feedback_force = torch.clamp(total_contact_force, -2.0, 2.0)
+        haply_device.set_force_feedback(feedback_force[0].item(), feedback_force[1].item(), feedback_force[2].item())
 
 
 def main():
@@ -365,7 +364,10 @@ def main():
 
     sim.reset()
 
-    run_simulator(sim, scene, haply_device)
+    try:
+        run_simulator(sim, scene, haply_device)
+    finally:
+        haply_device.close()
 
 
 if __name__ == "__main__":
