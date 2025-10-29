@@ -26,7 +26,7 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
@@ -161,13 +161,6 @@ jobs:
         fetch-depth: 0
         lfs: true
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    - name: Setup Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
     - name: Setup Isaac Sim and Isaac Lab Environment
       shell: powershell
       run: |
@@ -176,7 +169,20 @@ jobs:
         # Check if virtual environment exists, create if not
         if (-not (Test-Path "env_isaaclab")) {
           Write-Host "Creating Python 3.11 virtual environment..."
-          python -m venv env_isaaclab
+
+          # Use the pre-installed Python 3.11 on the self-hosted runner
+          $python311Path = "C:\Python311\python.exe"
+
+          if (Test-Path $python311Path) {
+            Write-Host "Using Python 3.11 from: $python311Path"
+            & $python311Path -m venv env_isaaclab
+          } elseif (Get-Command py -ErrorAction SilentlyContinue) {
+            Write-Host "Using Python launcher (py -3.11) to create virtual environment..."
+            py -3.11 -m venv env_isaaclab
+          } else {
+            Write-Host "WARNING: Python 3.11 not found at expected location. Using default python..."
+            python -m venv env_isaaclab
+          }
         } else {
           Write-Host "Virtual environment already exists"
         }
@@ -190,12 +196,14 @@ jobs:
         python -m pip install --upgrade pip
 
         # Check if Isaac Sim is installed
-        $isaacsimInstalled = python -c "import isaacsim; print('installed')" 2>$null
-        if ($isaacsimInstalled -ne "installed") {
+        Write-Host "Checking if Isaac Sim is already installed..."
+        $isaacsimCheck = python -c "try:`n    import isaacsim`n    print('installed')`nexcept:`n    print('not_installed')" 2>&1
+
+        if ($isaacsimCheck -match "installed") {
+          Write-Host "Isaac Sim already installed"
+        } else {
           Write-Host "Installing Isaac Sim from NVIDIA PyPI..."
           pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
-        } else {
-          Write-Host "Isaac Sim already installed"
         }
 
         # Install/update PyTorch with CUDA support
@@ -209,56 +217,6 @@ jobs:
         # Verify pytest is available
         Write-Host "Verifying pytest installation..."
         python -m pip show pytest
-=======
-    - name: Setup Isaac Sim Environment
-=======
-    - name: Setup Isaac Sim and Isaac Lab Environment
->>>>>>> e14e983263 (Installing Isaac SIM deps)
-      shell: powershell
-      run: |
-        Write-Host "Setting up Isaac Sim and Isaac Lab environment for Windows..."
-
-        # Check if virtual environment exists, create if not
-        if (-not (Test-Path "env_isaaclab")) {
-          Write-Host "Creating Python 3.11 virtual environment..."
-          python3.11 -m venv env_isaaclab
-        } else {
-          Write-Host "Virtual environment already exists"
-        }
-
-        # Activate virtual environment
-        Write-Host "Activating virtual environment..."
-        & "env_isaaclab\Scripts\Activate.ps1"
-
-        # Upgrade pip
-        Write-Host "Upgrading pip..."
-        python -m pip install --upgrade pip
-<<<<<<< HEAD
-        python -m pip install pytest pytest-timeout prettytable junitparser
->>>>>>> 433bc2050f (Adds basic CI verification on Windows)
-=======
-
-        # Check if Isaac Sim is installed
-        $isaacsimInstalled = python -c "import isaacsim; print('installed')" 2>$null
-        if ($isaacsimInstalled -ne "installed") {
-          Write-Host "Installing Isaac Sim from NVIDIA PyPI..."
-          pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
-        } else {
-          Write-Host "Isaac Sim already installed"
-        }
-
-        # Install/update PyTorch with CUDA support
-        Write-Host "Installing PyTorch with CUDA 12.8..."
-        pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-
-        # Install Isaac Lab dependencies
-        Write-Host "Installing Isaac Lab..."
-        & ".\isaaclab.bat" -i
-
-        # Verify pytest is available
-        Write-Host "Verifying pytest installation..."
-        python -m pip show pytest
->>>>>>> e14e983263 (Installing Isaac SIM deps)
 
     - name: Run General Tests on Windows
       id: run-general-tests-windows
@@ -267,18 +225,9 @@ jobs:
       run: |
         Write-Host "Running general tests on Windows..."
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Activate virtual environment
         & "env_isaaclab\Scripts\Activate.ps1"
 
-=======
->>>>>>> 433bc2050f (Adds basic CI verification on Windows)
-=======
-        # Activate virtual environment
-        & "env_isaaclab\Scripts\Activate.ps1"
-
->>>>>>> e14e983263 (Installing Isaac SIM deps)
         # Create reports directory
         New-Item -ItemType Directory -Force -Path "reports" | Out-Null
 
