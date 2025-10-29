@@ -159,15 +159,15 @@ class Thruster:
         """
         if env_ids is None:
             env_ids = slice(None)
-    
+
         if isinstance(env_ids, slice):
             num_resets = self._num_envs
         else:
             num_resets = len(env_ids)
-        
+
         self.tau_inc_s[env_ids] = math_utils.sample_uniform(
             *self.tau_inc_r,
-            (num_resets, self.num_motors), 
+            (num_resets, self.num_motors),
             self._device,
         )
         self.tau_dec_s[env_ids] = math_utils.sample_uniform(
@@ -180,18 +180,14 @@ class Thruster:
             (num_resets, self.num_motors),
             self._device,
         )
-        self.curr_thrust[env_ids] = (
-            self.thrust_const[env_ids] * self._init_thruster_rps[env_ids]**2
-        )
+        self.curr_thrust[env_ids] = self.thrust_const[env_ids] * self._init_thruster_rps[env_ids] ** 2
 
     def reset(self, env_ids: Sequence[int]) -> None:
         """Reset all envs."""
         self.reset_idx(env_ids)
 
-
     def motor_model_rate(self, error: torch.Tensor, mixing_factor: torch.Tensor):
         return torch.clamp(mixing_factor * (error), -self.max_rate, self.max_rate)
-
 
     def rk4_integration(self, error: torch.Tensor, mixing_factor: torch.Tensor):
         k1 = self.motor_model_rate(error, mixing_factor)
@@ -200,13 +196,11 @@ class Thruster:
         k4 = self.motor_model_rate(error + self.cfg.dt * k3, mixing_factor)
         return (self.cfg.dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
-
     def discrete_mixing_factor(self, time_constant: torch.Tensor):
         return 1.0 / (self.cfg.dt + time_constant)
 
     def continuous_mixing_factor(self, time_constant: torch.Tensor):
         return 1.0 / time_constant
-
 
     def compute_thrust_with_rpm_time_constant(
         self,
@@ -219,7 +213,6 @@ class Thruster:
         rpm_error = desired_rpm - current_rpm
         current_rpm += self.motor_model_rate(rpm_error, mixing_factor) * self.cfg.dt
         return self.thrust_const * current_rpm**2
-
 
     def compute_thrust_with_rpm_time_constant_rk4(
         self,

@@ -22,7 +22,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
-import isaaclab_tasks.manager_based.drone_ntnu.mdp as mdp
+import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
 
 
 ##

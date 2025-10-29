@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the NTNU robots.
+"""Configuration for the ARL robots.
 
 The following configuration parameters are available:
 
@@ -34,7 +34,7 @@ ARL_ROBOT_1_THRUSTER = ThrusterCfg(
 
 ARL_ROBOT_1_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/arl_robot_1/arl_robot_1.usd",
+        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/robot_model/arl_robot_1/arl_robot_1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

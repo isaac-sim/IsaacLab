@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Drone NTNU state-based control environments."""
+"""Drone ARL environments."""

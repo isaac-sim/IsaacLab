@@ -7,9 +7,7 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.drone_ntnu.state_based_control.config.ARL_ROBOT_1.state_based_control_env_cfg import (
-    StateBasedControlEmptyEnvCfg,
-)
+from .state_based_control_env_cfg import StateBasedControlEmptyEnvCfg
 
 ##
 # Pre-defined configs
@@ -17,7 +15,7 @@ from isaaclab_tasks.manager_based.drone_ntnu.state_based_control.config.ARL_ROBO
 
 
 @configclass
-class ARL_ROBOT_1_EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
+class EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -27,7 +25,7 @@ class ARL_ROBOT_1_EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
 
 
 @configclass
-class ARL_ROBOT_1_EmptyEnvCfg_PLAY(ARL_ROBOT_1_EmptyEnvCfg):
+class EmptyEnvCfg_PLAY(EmptyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
