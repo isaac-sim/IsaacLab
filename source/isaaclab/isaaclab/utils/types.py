@@ -38,6 +38,7 @@ class ArticulationActions:
     to all the joints of the articulation. We use a slice to make the indexing more efficient.
     """
 
+
 @dataclass
 class ArticulationThrustActions:
     """Data container to store articulation's thruster actions.

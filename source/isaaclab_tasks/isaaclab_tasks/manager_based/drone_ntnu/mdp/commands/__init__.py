@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Various action terms that can be used in the environment."""
+"""Various command terms that can be used in the environment."""
 
-from .commands_cfg import (
-    DroneUniformPoseCommandCfg,
-)
+from .commands_cfg import DroneUniformPoseCommandCfg
 from .drone_pose_command import DroneUniformPoseCommand

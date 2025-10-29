@@ -20,12 +20,13 @@ from isaaclab.managers import SceneEntityCfg
 Drone-navigation rewards.
 """
 
+
 def distance_to_goal_exp(
-        env: ManagerBasedRLEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        std: float = 1.0,
-        command_name: str = "target_pose"
-    ) -> torch.Tensor:
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    std: float = 1.0,
+    command_name: str = "target_pose",
+) -> torch.Tensor:
     """Reward the distance to a goal position using an exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -125,7 +126,7 @@ def upright_posture_reward(
     upright_reward = torch.exp(-orientation_error_square / std**2)
     return upright_reward
 
-def ang_vel_reward(
+def ang_vel_xyz_exp(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     std: float = 1.0
@@ -133,26 +134,37 @@ def ang_vel_reward(
 
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    
+
     # compute squared magnitude of angular velocity (all axes)
     ang_vel_squared = torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
-    
-    angular_vel_reward = torch.exp(-ang_vel_squared / std**2)
-    return angular_vel_reward
 
-def yaw_reward(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    std: float = 0.5
+    return torch.exp(-ang_vel_squared / std**2)
+
+
+def lin_vel_xyz_exp(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
+) -> torch.Tensor:
+
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # compute squared magnitude of linear velocity (all axes)
+    lin_vel_squared = torch.sum(torch.square(asset.data.root_lin_vel_w), dim=1)
+
+    return torch.exp(-lin_vel_squared / std**2)
+
+
+def yaw_aligned(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 0.5
 ) -> torch.Tensor:
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    
+
     # extract yaw from current orientation
-    _, _, current_yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
-    
+    _, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+
     # normalize yaw to [-pi, pi] (target is 0)
-    yaw_error = torch.atan2(torch.sin(current_yaw), torch.cos(current_yaw))
-    
+    yaw = math_utils.wrap_to_pi(yaw)
+
     # return exponential reward (1 when yaw=0, approaching 0 when rotated)
-    return torch.exp(-yaw_error**2 / std**2)
+    return torch.exp(-(yaw**2) / std**2)

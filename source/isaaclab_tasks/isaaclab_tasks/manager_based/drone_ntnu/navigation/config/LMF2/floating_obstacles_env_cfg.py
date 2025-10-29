@@ -10,20 +10,21 @@ from isaaclab_tasks.manager_based.drone_ntnu.navigation.config.LMF2.navigation_e
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.lmf2 import LMF2_CFG
+from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 
 @configclass
-class LMF2FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
+class ARL_ROBOT_1_FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         # switch robot to lmf2
-        self.scene.robot = LMF2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
 
 @configclass
-class LMF2FloatingObstacleEnvCfg_PLAY(LMF2FloatingObstacleEnvCfg):
+class ARL_ROBOT_1_FloatingObstacleEnvCfg_PLAY(ARL_ROBOT_1_FloatingObstacleEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

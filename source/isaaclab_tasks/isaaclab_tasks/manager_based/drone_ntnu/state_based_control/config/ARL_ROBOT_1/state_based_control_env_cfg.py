@@ -1,4 +1,4 @@
-# Copyright (c) 2022-20 , The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,6 +16,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+
 # from isaaclab.sim import PinholeCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -43,9 +44,11 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
     )
 
+
 ##
 # MDP settings
 ##
+
 
 @configclass
 class CommandsCfg:
@@ -66,23 +69,25 @@ class CommandsCfg:
         ),
     )
 
+
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
     thrust_command = mdp.ThrustActionCfg(
         asset_name="robot",
-        scale=3.0, 
+        scale=3.0,
         offset=3.0,
         preserve_order=False,
         use_default_offset=False,
-        clip= {
-            "back_left_prop": (0.0, 6.0),  
-            "back_right_prop": (0.0, 6.0), 
-            "front_left_prop": (0.0, 6.0), 
-            "front_right_prop": (0.0, 6.0),  
-        }
+        clip={
+            "back_left_prop": (0.0, 6.0),
+            "back_right_prop": (0.0, 6.0),
+            "front_left_prop": (0.0, 6.0),
+            "front_right_prop": (0.0, 6.0),
+        },
     )
+
 
 @configclass
 class ObservationsCfg:
@@ -93,14 +98,10 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_link_position = ObsTerm(
-            func=mdp.generated_drone_commands,
-            params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
-            noise=Unoise(n_min=-0.001, n_max=0.001)
-        )
-        base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.001, n_max=0.001))
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.001, n_max=0.001))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.001, n_max=0.001))
+        base_link_position = ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
 
         def __post_init__(self):
@@ -109,6 +110,7 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+
 
 @configclass
 class EventCfg:
@@ -143,39 +145,36 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-    goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp, weight=10.0,
-                             params={
-                                 "asset_cfg": SceneEntityCfg("robot"), 
-                                 "std": 7.0,
-                                 "command_name": "target_pose",
-                                     })
-    goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp, weight=25.0,
-                             params={
-                                 "asset_cfg": SceneEntityCfg("robot"), 
-                                 "std": 1.5,
-                                 "command_name": "target_pose",
-                                 })
-    upright_posture = RewTerm(func=mdp.upright_posture_reward, weight=1.0,
-                              params={
-                                  "asset_cfg": SceneEntityCfg("robot"),
-                                  "std": 5.0 #0.5 
-                                  })
-    yaw_aligned = RewTerm(func=mdp.yaw_reward, weight=2.0,
-                          params={
-                              "asset_cfg": SceneEntityCfg("robot"),
-                              "std": 1.
-                          })
-    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=4.5,
-                              params={
-                                  "asset_cfg": SceneEntityCfg("robot"), 
-                                  "command_name": "target_pose",
-                                  })
-    ang_vel_smooth = RewTerm(func=mdp.ang_vel_reward, weight=10.0, 
-                             params={
-                                 "asset_cfg": SceneEntityCfg("robot"),
-                                 "std": 10.0  #1.0
-                                 })
-    
+
+    distance_to_goal_exp = RewTerm(
+        func=mdp.distance_to_goal_exp,
+        weight=25.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "std": 1.5,
+            "command_name": "target_pose",
+        },
+    )
+    flat_orientation_l2 = RewTerm(
+        func=mdp.flat_orientation_l2,
+        weight=1.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    yaw_aligned = RewTerm(
+        func=mdp.yaw_aligned,
+        weight=2.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
+    )
+    lin_vel_xyz_exp = RewTerm(
+        func=mdp.lin_vel_xyz_exp,
+        weight=2.5,
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
+    )
+    ang_vel_xyz_exp = RewTerm(
+        func=mdp.ang_vel_xyz_exp,
+        weight=10.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
+    )
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     action_magnitude_l2 = RewTerm(func=mdp.action_l2, weight=-0.05)
 
@@ -184,20 +183,23 @@ class RewardsCfg:
         weight=-5.0,
     )
 
-    
+
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
+
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     crash = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": -3.0})
+
 
 ##
 # Environment configuration
 ##
 
+
 @configclass
 class StateBasedControlEmptyEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
@@ -214,7 +216,7 @@ class StateBasedControlEmptyEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 10
-        self.episode_length_s = 10.0
+        self.episode_length_s = 5.0
         # simulation settings
         self.sim.dt = 0.01
         self.sim.render_interval = self.decimation
