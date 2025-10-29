@@ -153,7 +153,7 @@ def reset_object_collections(
         view_states: Flat tensor (N, 13) with [x, y, z, qx, qy, qz, qw, lin(3), ang(3)] in world frame.
         view_ids: 1D tensor of indices into ``view_states`` to update.
         noise: If True, apply pose and velocity noise before writing.
-    
+
     Returns:
         None: This function updates ``view_states`` and the underlying PhysX view in-place.
     """
