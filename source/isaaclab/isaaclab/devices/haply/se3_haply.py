@@ -203,12 +203,10 @@ class HaplyDevice(DeviceBase):
                     where (x, y, z) is position, (qx, qy, qz, qw) is quaternion orientation,
                     and buttons are 1.0 (pressed) or 0.0 (not pressed)
         """
-        with self._connected_lock:
-            if not self.connected:
+        with self.data_lock:
+            if not (self.cached_data["inverse3_connected"] and self.cached_data["versegrip_connected"]):
                 raise RuntimeError("Haply devices not connected. Both Inverse3 and VerseGrip must be connected.")
 
-        # Get latest cached data
-        with self.data_lock:
             position = self.cached_data["position"] * self.pos_sensitivity
             quaternion = self.cached_data["quaternion"]
             button_a = self.cached_data["buttons"].get("a", False)
@@ -282,11 +280,12 @@ class HaplyDevice(DeviceBase):
 
                             self.consecutive_timeouts = 0
                             if self.timeout_warning_issued:
-                                print("[INFO] Haply connection restored")
                                 self.timeout_warning_issued = False
 
-                            inverse3_data = data.get("inverse3", [{}])[0]
-                            verse_grip_data = data.get("wireless_verse_grip", [{}])[0]
+                            inverse3_list = data.get("inverse3", [])
+                            verse_grip_list = data.get("wireless_verse_grip", [])
+                            inverse3_data = inverse3_list[0] if inverse3_list else {}
+                            verse_grip_data = verse_grip_list[0] if verse_grip_list else {}
 
                             if first_message:
                                 first_message = False
@@ -303,13 +302,16 @@ class HaplyDevice(DeviceBase):
                                     print("[WARNING] VerseGrip not found")
 
                             with self.data_lock:
+                                inverse3_connected = False
+                                versegrip_connected = False
+
                                 if inverse3_data and "state" in inverse3_data:
                                     cursor_pos = inverse3_data["state"].get("cursor_position", {})
                                     if cursor_pos:
                                         self.cached_data["position"] = np.array(
                                             [cursor_pos.get(k, 0.0) for k in ("x", "y", "z")], dtype=np.float32
                                         )
-                                        self.cached_data["inverse3_connected"] = True
+                                        inverse3_connected = True
 
                                 if verse_grip_data and "state" in verse_grip_data:
                                     state = verse_grip_data["state"]
@@ -325,13 +327,14 @@ class HaplyDevice(DeviceBase):
                                             ],
                                             dtype=np.float32,
                                         )
-                                    self.cached_data["versegrip_connected"] = True
+                                    versegrip_connected = True
 
-                            # Update connected status (both devices must be connected)
+                                self.cached_data["inverse3_connected"] = inverse3_connected
+                                self.cached_data["versegrip_connected"] = versegrip_connected
+                                both_connected = inverse3_connected and versegrip_connected
+
                             with self._connected_lock:
-                                self.connected = (
-                                    self.cached_data["inverse3_connected"] and self.cached_data["versegrip_connected"]
-                                )
+                                self.connected = both_connected
 
                             # Send force feedback
                             if self.inverse3_device_id:
@@ -370,6 +373,9 @@ class HaplyDevice(DeviceBase):
 
             except Exception as e:
                 print(f"[ERROR] WebSocket connection error: {e}")
+                with self.data_lock:
+                    self.cached_data["inverse3_connected"] = False
+                    self.cached_data["versegrip_connected"] = False
                 with self._connected_lock:
                     self.connected = False
                 self.consecutive_timeouts = 0
