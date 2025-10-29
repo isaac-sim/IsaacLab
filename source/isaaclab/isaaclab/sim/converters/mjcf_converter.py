@@ -31,7 +31,7 @@ class MjcfConverter(AssetConverterBase):
         From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.mjcf`` to
         ``isaacsim.asset.importer.mjcf``. This converter class now uses the latest extension from Isaac Sim.
 
-    .. _isaacsim.asset.importer.mjcf: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
+    .. _isaacsim.asset.importer.mjcf:  https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
     """
 
     cfg: MjcfConverterCfg

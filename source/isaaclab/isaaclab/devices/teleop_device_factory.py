@@ -16,6 +16,10 @@ from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3G
 from isaaclab.devices.haply import HaplyDevice, HaplyDeviceCfg
 from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from isaaclab.devices.openxr.retargeters import (
+    G1LowerBodyStandingRetargeter,
+    G1LowerBodyStandingRetargeterCfg,
+    G1TriHandUpperBodyRetargeter,
+    G1TriHandUpperBodyRetargeterCfg,
     GR1T2Retargeter,
     GR1T2RetargeterCfg,
     GripperRetargeter,
@@ -24,6 +28,8 @@ from isaaclab.devices.openxr.retargeters import (
     Se3AbsRetargeterCfg,
     Se3RelRetargeter,
     Se3RelRetargeterCfg,
+    UnitreeG1Retargeter,
+    UnitreeG1RetargeterCfg,
 )
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -52,6 +58,9 @@ RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
     Se3RelRetargeterCfg: Se3RelRetargeter,
     GripperRetargeterCfg: GripperRetargeter,
     GR1T2RetargeterCfg: GR1T2Retargeter,
+    G1TriHandUpperBodyRetargeterCfg: G1TriHandUpperBodyRetargeter,
+    G1LowerBodyStandingRetargeterCfg: G1LowerBodyStandingRetargeter,
+    UnitreeG1RetargeterCfg: UnitreeG1Retargeter,
 }
 
 

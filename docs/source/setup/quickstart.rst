@@ -70,7 +70,7 @@ Next, install a CUDA-enabled PyTorch 2.7.0 build.
 
    .. code-block:: bash
 
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+      pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -96,7 +96,7 @@ and now we can install the Isaac Sim packages.
 
 .. code-block:: none
 
-    pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
+    pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 

@@ -142,6 +142,16 @@ for the lift-cube environment:
     | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |
+    |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |
+    |                         |                              | controlled via Inverse Kinematics).                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose         |
@@ -163,6 +173,9 @@ for the lift-cube environment:
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |g1_pick_place| image:: ../_static/tasks/manipulation/g1_pick_place.jpg
+.. |g1_pick_place_fixed| image:: ../_static/tasks/manipulation/g1_pick_place_fixed_base.jpg
+.. |g1_pick_place_lm| image:: ../_static/tasks/manipulation/g1_pick_place_locomanipulation.jpg
 .. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
 .. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
 .. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
@@ -184,6 +197,9 @@ for the lift-cube environment:
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
 .. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |g1_pick_place-link| replace:: `Isaac-PickPlace-G1-InspireFTP-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`__
+.. |g1_pick_place_fixed-link| replace:: `Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`__
+.. |g1_pick_place_lm-link| replace:: `Isaac-PickPlace-Locomanipulation-G1-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/locomanipulation_g1_env_cfg.py>`__
 .. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 .. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 .. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
@@ -196,6 +212,7 @@ for the lift-cube environment:
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
 .. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
 .. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
+
 
 Contact-rich Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -970,6 +987,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
     * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-PickPlace-G1-InspireFTP-Abs-v0
       -
       - Manager Based
       -
