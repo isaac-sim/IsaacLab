@@ -44,7 +44,7 @@ Install the correct version of torch and torchvision:
 
 .. code-block:: bash
 
-    pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 Install Isaac Sim 5.0:
 
