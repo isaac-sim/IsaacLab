@@ -123,18 +123,18 @@ def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot
     robot_offset = np.array([-haply_delta[1], haply_delta[0], haply_delta[2]])
     
     # Apply scaling (smaller = more precise control, easier for IK)
-    position_scale = 0.5  # Conservative scaling for stable control
+    position_scale = 1.1  # 1:1 mapping for full range control
     robot_offset_scaled = robot_offset * position_scale
     
     # Final position = initial position + scaled offset
     robot_pos = robot_initial_pos + robot_offset_scaled
     
-    # Apply workspace limits (safety: keep robot above table)
-    # Table is at Z=1.05, so minimum safe Z is 1.20 (15cm above table)
+    # Apply workspace limits (safety: keep robot in reachable workspace)
+    # Table is at Z=1.05, robot base at Z=1.05
     robot_pos_before_limit = robot_pos.copy()
-    robot_pos[0] = np.clip(robot_pos[0], 0.30, 0.70)  # X limits: front-back range
-    robot_pos[1] = np.clip(robot_pos[1], -0.50, 0.50)  # Y limits: left-right range
-    robot_pos[2] = np.clip(robot_pos[2], 1.20, 1.70)  # Z limits: height above table
+    robot_pos[0] = np.clip(robot_pos[0], 0.2, 0.8)  # X limits: front-back range (50cm)
+    robot_pos[1] = np.clip(robot_pos[1], -0.40, 0.40)  # Y limits: left-right range (80cm)
+    robot_pos[2] = np.clip(robot_pos[2], 1.15, 1.85)  # Z limits: 10cm above table to 80cm above table
     if debug:
         print(f"[MAPPING] haply_pos: {haply_pos}")
         print(f"[MAPPING] haply_initial_pos: {haply_initial_pos}")
@@ -142,10 +142,16 @@ def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot
         print(f"[MAPPING] robot_offset (after coord transform): {robot_offset}")
         print(f"[MAPPING] robot_offset_scaled (x{position_scale}): {robot_offset_scaled}")
         print(f"[MAPPING] robot_initial_pos: {robot_initial_pos}")
-        print(f"[MAPPING] robot_pos (before Z limit): {robot_pos_before_limit}")
-        print(f"[MAPPING] robot_pos (final): {robot_pos}")
-        if abs(robot_pos[2] - robot_pos_before_limit[2]) > 0.001:
-            print(f"[WARNING] ⚠️  Z clamped: {robot_pos_before_limit[2]:.3f} → {robot_pos[2]:.3f}")
+        print(f"[MAPPING] robot_pos (before limit): {robot_pos_before_limit}")
+        print(f"[MAPPING] robot_pos (final, after limit): {robot_pos}")
+        if not np.allclose(robot_pos, robot_pos_before_limit, atol=0.001):
+            print(f"[WARNING] ⚠️  Position CLAMPED!")
+            if abs(robot_pos[0] - robot_pos_before_limit[0]) > 0.001:
+                print(f"  X: {robot_pos_before_limit[0]:.3f} → {robot_pos[0]:.3f}")
+            if abs(robot_pos[1] - robot_pos_before_limit[1]) > 0.001:
+                print(f"  Y: {robot_pos_before_limit[1]:.3f} → {robot_pos[1]:.3f}")
+            if abs(robot_pos[2] - robot_pos_before_limit[2]) > 0.001:
+                print(f"  Z: {robot_pos_before_limit[2]:.3f} → {robot_pos[2]:.3f} ⚠️")
     
     # Quaternion format conversion: Haply [qx,qy,qz,qw] -> Isaac [qw,qx,qy,qz]
     robot_quat = np.array([haply_quat[3], haply_quat[0], haply_quat[1], haply_quat[2]])
@@ -181,7 +187,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
     # Franka Panda robot with high PD gains for responsive teleoperation
     # HIGH_PD_CFG provides: stiffness=400, damping=80, gravity=disabled
     robot: Articulation = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot.init_state.pos = (0.0, 0.0, 1.05)  # Base at table height
+    robot.init_state.pos = (0.1, 0.0, 1.05)  # Base at table height
     # Enable contact sensors for force feedback
     robot.spawn.activate_contact_sensors = True
 
@@ -260,16 +266,16 @@ def run_simulator(
     print(f"[INFO] Robot EE position after initialization: {robot_initial_pos}")
 
     # Read Haply's ACTUAL current position as the zero reference
-    print(f"[INFO] Reading Haply initial position...")
-    initial_haply_data = haply_device.advance()
-    haply_initial_pos = initial_haply_data[:3].cpu().numpy()
-    print(f"[INFO] Haply initial position (read from device): {haply_initial_pos}")
+
+    haply_initial_pos = [0,0,0]
+    print(f"[INFO] Haply initial position: {haply_initial_pos}")
     
     print(f"\n[INFO] ========== Coordinate Mapping Configuration ==========")
     print(f"[INFO] Robot EE initial position: {robot_initial_pos}")
     print(f"[INFO] Haply initial position: {haply_initial_pos}")
-    print(f"[INFO] Position scale: 0.5x (moderate scaling for responsive control)")
-    print(f"[INFO] Formula: robot_pos = robot_initial + (haply_pos - haply_zero) * 0.5")
+    print(f"[INFO] Position scale: 1.0x (1:1 direct mapping)")
+    print(f"[INFO] Formula: robot_pos = robot_initial + (haply_pos - [0,0,0]) * 1.0")
+    print(f"[INFO] IK Mode: POSITION ONLY (orientation is free)")
     print(f"[INFO] When Haply is at physical start (0,0,0.2), robot stays at base")
     print(f"[INFO] Table Z: 1.05m")
     print(f"[INFO] ===============================================")
@@ -277,14 +283,11 @@ def run_simulator(
     
     # Create Differential IK Controller for Franka
     ik_controller_cfg = DifferentialIKControllerCfg(
-        command_type="pose",  # Control both position and orientation
+        command_type="position",  # ONLY control position (not orientation) - easier for IK!
         use_relative_mode=False,  # Use absolute target pose
         ik_method="dls",  # Damped Least Squares
         ik_params={
-            "lambda_val": 0.05,  # Damping factor: balance between responsiveness and stability
-            # 0.01 = very responsive but unstable for large movements
-            # 0.05 = balanced (recommended)
-            # 0.1+ = too conservative
+            "lambda_val": 0.05,  # Damping factor
         },
     )
     
@@ -304,8 +307,13 @@ def run_simulator(
         device=sim.device
     )
     
-    # Set IK controller parameters
-    ik_controller.set_command(command=torch.zeros(scene.num_envs, 7, device=sim.device))
+    # Set IK controller parameters (position-only mode: 3D xyz)
+    # For position mode, we need to provide current EE orientation (to maintain it)
+    initial_ee_quat = robot.data.body_quat_w[:, ee_body_idx]
+    ik_controller.set_command(
+        command=torch.zeros(scene.num_envs, 3, device=sim.device),
+        ee_quat=initial_ee_quat
+    )
     
     # Button state tracking
     prev_button_a = False
@@ -423,10 +431,16 @@ def run_simulator(
             # Get Jacobian for arm joints
             jacobian = robot.root_physx_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
             
-            # Compute IK
+            # Set target position for IK (position-only mode, orientation stays fixed)
+            ik_controller.set_command(
+                command=target_pos_tensor,
+                ee_quat=ee_quat_w  # Keep current orientation
+            )
+            
+            # Compute IK (position-only mode keeps orientation fixed)
             joint_pos_des = ik_controller.compute(
-                target_pos_tensor,
-                target_quat_tensor,
+                ee_pos_w,
+                ee_quat_w,
                 jacobian,
                 current_joint_pos
             )
