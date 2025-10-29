@@ -114,7 +114,6 @@ def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot
     robot_pos[1] = np.clip(robot_pos[1], -0.50, 0.50)
     robot_pos[2] = np.clip(robot_pos[2], 1.05, 1.85)
 
-    # Quaternion: Haply [qx,qy,qz,qw] -> Isaac [qw,qx,qy,qz]
     robot_quat = np.array([haply_quat[3], haply_quat[0], haply_quat[1], haply_quat[2]])
 
     return robot_pos, robot_quat

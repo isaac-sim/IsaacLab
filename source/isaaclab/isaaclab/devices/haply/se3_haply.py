@@ -155,17 +155,10 @@ class HaplyDevice(DeviceBase):
         msg += "\tVerseGrip: Provides orientation (quaternion) and buttons (a, b, c)"
         return msg
 
-    """
-    Operations
-    """
-
     def reset(self):
         """Reset the device internal state."""
-        # Reset force feedback
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-
-        # Reset button state tracking
         self._prev_buttons = {"a": False, "b": False, "c": False}
 
     def add_callback(self, key: str, func: Callable):
@@ -199,7 +192,6 @@ class HaplyDevice(DeviceBase):
             quaternion = self.cached_data["quaternion"].copy()
             buttons = self.cached_data["buttons"].copy()
 
-        # Apply sensitivity scaling
         position = position * self.pos_sensitivity
 
         # Check for button press events (rising edge) and call callbacks
@@ -207,13 +199,10 @@ class HaplyDevice(DeviceBase):
             current_state = buttons.get(button_key, False)
             prev_state = self._prev_buttons.get(button_key, False)
 
-            # Detect rising edge (button just pressed)
             if current_state and not prev_state:
-                # Call the callback if registered
                 if button_key in self._additional_callbacks:
                     self._additional_callbacks[button_key]()
 
-            # Update previous state
             self._prev_buttons[button_key] = current_state
 
         # Convert button states to floats
@@ -273,10 +262,6 @@ class HaplyDevice(DeviceBase):
             "data_fresh": data_fresh,
         }
 
-    """
-    Internal helpers
-    """
-
     def _is_data_fresh(self) -> bool:
         """Check if data is fresh (connection is normal)."""
         return (time.time() - self.last_data_time) < self.connection_timeout
@@ -310,11 +295,9 @@ class HaplyDevice(DeviceBase):
                             response = await asyncio.wait_for(ws.recv(), timeout=1.0)
                             data = json.loads(response)
 
-                            # Get devices list from the data
                             inverse3_devices = data.get("inverse3", [])
                             verse_grip_devices = data.get("wireless_verse_grip", [])
 
-                            # Get the first device from each list
                             inverse3_data = inverse3_devices[0] if inverse3_devices else {}
                             verse_grip_data = verse_grip_devices[0] if verse_grip_devices else {}
 
@@ -336,7 +319,6 @@ class HaplyDevice(DeviceBase):
 
                             # Update cached data
                             with self.data_lock:
-                                # Update position from Inverse3
                                 if inverse3_data and "state" in inverse3_data:
                                     cursor_pos = inverse3_data["state"].get("cursor_position", {})
                                     if cursor_pos:
@@ -354,7 +336,6 @@ class HaplyDevice(DeviceBase):
                                 if verse_grip_data and "state" in verse_grip_data:
                                     state = verse_grip_data["state"]
 
-                                    # Update buttons
                                     buttons_raw = state.get("buttons", {})
                                     self.cached_data["buttons"] = {
                                         "a": buttons_raw.get("a", False),
@@ -362,7 +343,6 @@ class HaplyDevice(DeviceBase):
                                         "c": buttons_raw.get("c", False),
                                     }
 
-                                    # Update quaternion
                                     orientation = state.get("orientation", {})
                                     if orientation:
                                         self.cached_data["quaternion"] = np.array(
@@ -382,7 +362,6 @@ class HaplyDevice(DeviceBase):
 
                             # Send force feedback command
                             if self.inverse3_device_id:
-                                # Get current force feedback
                                 with self.force_lock:
                                     current_force = self.feedback_force.copy()
 
@@ -394,7 +373,6 @@ class HaplyDevice(DeviceBase):
                                 }
                                 await ws.send(json.dumps(request_msg))
 
-                            # Control data rate
                             await asyncio.sleep(1.0 / self.data_rate)
 
                         except asyncio.TimeoutError:
