@@ -37,8 +37,8 @@ parser.add_argument(
     choices=["parallel", "ladder", "leapfrog"],
     help=(
         "the mode type for adversarial training,                     note on ladder training with teams that are"
-        " composed of heterogeneous agents, the two teams must place the robots in the same order in their environment  "
-        "                   for ladder to work"
+        " composed of heterogeneous agents, the two teams must place the robots in the same order in their environment "
+        "                    for ladder to work"
     ),
 )
 parser.add_argument(
