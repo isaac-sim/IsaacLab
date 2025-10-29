@@ -1,0 +1,165 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Check Documentation Links
+
+on:
+  # Run on pull requests that modify documentation
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/check-links.yml'
+  # Run on pushes to main branches
+  push:
+    branches:
+      - main
+      - devel
+      - 'release/**'
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/check-links.yml'
+  # Allow manual trigger
+  workflow_dispatch:
+  # Run weekly to catch external links that break over time
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-links:
+    name: Check for Broken Links
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Restore lychee cache
+      uses: actions/cache@v4
+      with:
+        path: .lycheecache
+        key: cache-lychee-${{ github.sha }}
+        restore-keys: cache-lychee-
+
+    - name: Run Link Checker
+      uses: lycheeverse/lychee-action@v2
+      with:
+        # Check all markdown files and documentation
+        args: >-
+          --verbose
+          --no-progress
+          --cache
+          --max-cache-age 1d
+          --exclude-path './docs/_build'
+          --exclude-path './apps/warp-*'
+          --exclude-path './logs'
+          --exclude-path './outputs'
+          --exclude-loopback
+          --exclude '^file://'
+          --exclude '^mailto:'
+          --exclude 'localhost'
+          --exclude '127\.0\.0\.1'
+          --exclude 'example\.com'
+          --exclude 'your-organization'
+          --exclude 'YOUR_'
+          --exclude 'yourdomain'
+          --exclude 'user@'
+          --exclude 'helm\.ngc\.nvidia\.com'
+          --exclude 'slurm\.schedmd\.com'
+          --max-retries 3
+          --retry-wait-time 5
+          --timeout 30
+          --accept 200,201,202,203,204,206,301,302,303,307,308,429
+          --scheme https
+          --scheme http
+          '*.md'
+          '**/*.md'
+          'docs/**/*.rst'
+          'docs/**/*.html'
+        # Output results to a file
+        output: ./lychee-output.md
+        # Fail action on broken links
+        fail: true
+        # Optional: Use GitHub token for authenticated requests (higher rate limit)
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Parse and format results
+      if: always()
+      run: |
+        if [ -f ./lychee-output.md ]; then
+          echo "## Link Checker Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat ./lychee-output.md >> $GITHUB_STEP_SUMMARY
+          
+          # Also output to console
+          echo "========================================"
+          echo "Link Checker Results:"
+          echo "========================================"
+          cat ./lychee-output.md
+          echo "========================================"
+        else
+          echo "No output file generated"
+        fi
+
+    - name: Upload link checker report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: link-checker-report
+        path: lychee-output.md
+        retention-days: 30
+
+    - name: Comment PR with results
+      if: failure() && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let report = '';
+          
+          try {
+            if (fs.existsSync('./lychee-output.md')) {
+              report = fs.readFileSync('./lychee-output.md', 'utf8');
+            }
+          } catch (err) {
+            report = 'Could not read link checker report.';
+          }
+          
+          const body = `## ⚠️ Broken Links Detected
+
+          The link checker has found broken or invalid links in the documentation.
+
+          ### Results:
+          ${report}
+
+          Please fix these broken links before merging. You can run the link checker locally using:
+          \`\`\`bash
+          docker run --rm -v $(pwd):/workdir lycheeverse/lychee --verbose --no-progress '*.md' '**/*.md' 'docs/**/*.rst' 'docs/**/*.html'
+          \`\`\`
+
+          Or install lychee locally: https://github.com/lycheeverse/lychee#installation
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+
+    - name: Fail job if broken links found
+      if: failure()
+      run: |
+        echo "❌ Broken links were found in the documentation!"
+        echo "Please review the link checker report above and fix all broken links."
+        exit 1
+
