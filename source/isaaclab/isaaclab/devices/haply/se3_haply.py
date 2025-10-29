@@ -118,7 +118,9 @@ class HaplyDevice(DeviceBase):
 
         self._additional_callbacks = dict()
 
+        # Button state tracking
         self._prev_buttons = {"a": False, "b": False, "c": False}
+        self._button_lock = threading.Lock()
 
         # Connection monitoring
         self.consecutive_timeouts = 0
@@ -166,6 +168,9 @@ class HaplyDevice(DeviceBase):
             self._websocket_thread.join(timeout=2.0)
             if self._websocket_thread.is_alive():
                 print("[WARNING] WebSocket thread did not terminate gracefully within 2 seconds")
+                print("[WARNING] Setting thread as daemon to prevent process hang")
+                # Convert to daemon thread to prevent hanging on exit if thread won't terminate
+                self._websocket_thread.daemon = True
 
         self.device_ready = False
         print("[INFO] Haply device disconnected")
@@ -190,7 +195,10 @@ class HaplyDevice(DeviceBase):
         # Reset force feedback
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-        self._prev_buttons = {"a": False, "b": False, "c": False}
+
+        # Reset button state tracking
+        with self._button_lock:
+            self._prev_buttons = {"a": False, "b": False, "c": False}
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to button events.
@@ -225,15 +233,16 @@ class HaplyDevice(DeviceBase):
             button_b = self.cached_data["buttons"].get("b", False)
             button_c = self.cached_data["buttons"].get("c", False)
 
-        # Check for button press events
-        for button_key, current_state in [("a", button_a), ("b", button_b), ("c", button_c)]:
-            prev_state = self._prev_buttons.get(button_key, False)
+        # Check for button press events (rising edge detection with thread-safe state tracking)
+        with self._button_lock:
+            for button_key, current_state in [("a", button_a), ("b", button_b), ("c", button_c)]:
+                prev_state = self._prev_buttons.get(button_key, False)
 
-            if current_state and not prev_state:
-                if button_key in self._additional_callbacks:
-                    self._additional_callbacks[button_key]()
+                if current_state and not prev_state:
+                    if button_key in self._additional_callbacks:
+                        self._additional_callbacks[button_key]()
 
-            self._prev_buttons[button_key] = current_state
+                self._prev_buttons[button_key] = current_state
 
         button_states = np.array(
             [
