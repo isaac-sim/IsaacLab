@@ -127,6 +127,7 @@ class HaplyDevice(DeviceBase):
 
         # Start WebSocket connection
         self.running = True
+        self._websocket_thread = None
         self._start_websocket_thread()
 
         # Wait for initial connection
@@ -153,13 +154,19 @@ class HaplyDevice(DeviceBase):
         if not hasattr(self, "running") or not self.running:
             return
 
+        print("[INFO] Closing Haply device...")
         self.running = False
 
+        # Reset force feedback before closing
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
 
-        # Wait for thread to finish
-        time.sleep(0.2)
+        # Explicitly wait for WebSocket thread to finish
+        if self._websocket_thread is not None and self._websocket_thread.is_alive():
+            self._websocket_thread.join(timeout=2.0)
+            if self._websocket_thread.is_alive():
+                print("[WARNING] WebSocket thread did not terminate gracefully within 2 seconds")
+
         self.device_ready = False
         print("[INFO] Haply device disconnected")
 
@@ -272,6 +279,8 @@ class HaplyDevice(DeviceBase):
             current_data = self.cached_data.copy()
 
         data_fresh = self._is_data_fresh()
+        # Both Inverse3 and VerseGrip must be connected for full teleoperation
+        # (position from Inverse3, orientation and buttons from VerseGrip)
         device_connected = (
             current_data.get("inverse3_connected", False) and current_data.get("versegrip_connected", False)
         ) and data_fresh
@@ -296,8 +305,8 @@ class HaplyDevice(DeviceBase):
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self._websocket_loop())
 
-        thread = threading.Thread(target=websocket_thread, daemon=True)
-        thread.start()
+        self._websocket_thread = threading.Thread(target=websocket_thread, daemon=False)
+        self._websocket_thread.start()
         print(f"[INFO] Haply WebSocket thread started for {self.websocket_uri}")
 
     async def _websocket_loop(self):
@@ -336,13 +345,19 @@ class HaplyDevice(DeviceBase):
                                     self.inverse3_device_id = inverse3_data.get("device_id")
                                     print(f"[INFO] Inverse3 device ID: {self.inverse3_device_id}")
                                 else:
-                                    print("[WARNING] No Inverse3 device found")
+                                    print(
+                                        "[WARNING] No Inverse3 device found. Full teleoperation requires both Inverse3"
+                                        " and VerseGrip."
+                                    )
 
                                 if verse_grip_data:
                                     self.verse_grip_device_id = verse_grip_data.get("device_id")
                                     print(f"[INFO] VerseGrip device ID: {self.verse_grip_device_id}")
                                 else:
-                                    print("[WARNING] No VerseGrip device found")
+                                    print(
+                                        "[WARNING] No VerseGrip device found. Full teleoperation requires both Inverse3"
+                                        " and VerseGrip."
+                                    )
 
                             # Update cached data
                             with self.data_lock:
