@@ -1,4 +1,4 @@
 [submodule "source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/robot_model"]
-    path = source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/robot_model
-    url = https://github.com/ntnu-arl/robot_model.git
+	path = source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/robot_model
+	url = https://github.com/ntnu-arl/robot_model.git
 
