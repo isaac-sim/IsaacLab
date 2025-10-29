@@ -1,0 +1,76 @@
+params:
+  seed: 42
+
+  # environment wrapper clipping
+  env:
+    clip_actions: 1.0
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [512, 256, 128]
+      activation: elu
+      d2rl: False
+
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False # flag which sets whether to load the checkpoint
+  load_path: '' # path to the checkpoint to load
+
+  config:
+    name: anymal_c_rough_direct
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: True
+    normalize_input: False
+    normalize_value: True
+    value_bootstrap: True
+    num_actors: -1  # configured from the script (based on num_envs)
+    reward_shaper:
+      scale_value: 0.6
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 1e-3
+    lr_schedule: adaptive
+    schedule_type: legacy
+    kl_threshold: 0.01
+    score_to_win: 20000
+    max_epochs: 1500
+    save_best_after: 100
+    save_frequency: 50
+    grad_norm: 1.0
+    entropy_coef: 0.005
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 24
+    minibatch_size: 24576
+    mini_epochs: 5
+    critic_coef: 2.0
+    clip_value: True
+    seq_length: 4
+    bounds_loss_coef: 0.0
