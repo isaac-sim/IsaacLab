@@ -53,6 +53,22 @@ def terrain_levels_vel(
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
 
+def get_obstacle_curriculum_state(
+    env: ManagerBasedRLEnv,
+    min_difficulty: int = 2,
+    max_difficulty: int = 10,
+) -> dict:
+    """Get or initialize the obstacle curriculum state.
+    """
+    
+    if not hasattr(env, "_obstacle_curriculum_state"):
+        env._obstacle_curriculum_state = {
+            "difficulty_levels": torch.ones(env.num_envs, device=env.device) * min_difficulty,
+            "min_difficulty": min_difficulty,
+            "max_difficulty": max_difficulty,
+        }
+    return env._obstacle_curriculum_state
+
 def obstacle_density_curriculum(
     env: ManagerBasedRLEnv, 
     env_ids: Sequence[int], 
@@ -61,19 +77,16 @@ def obstacle_density_curriculum(
     max_difficulty: int = 10,
     min_difficulty: int = 2,
 ) -> float:
-    """Curriculum that adjusts obstacle density based on performance."""
-    # Initialize
-    if not hasattr(env, "_obstacle_difficulty_levels"):
-        #TODO: not the best to store in env
-        env._obstacle_difficulty_levels = torch.ones(env.num_envs, device=env.device) * min_difficulty
-        env._min_obstacle_difficulty = min_difficulty 
-        env._max_obstacle_difficulty = max_difficulty
-        env._obstacle_difficulty = float(min_difficulty)
+    """Curriculum that adjusts obstacle density based on performance.
     
-    # Extract robot
+    The difficulty state is managed centrally via get_obstacle_curriculum_state().
+    This ensures consistent access across curriculum, reward, and event terms.
+    """
+    # Get or initialize curriculum state
+    curriculum_state = get_obstacle_curriculum_state(env, min_difficulty, max_difficulty)
+    
+    # Extract robot and command
     asset: Articulation = env.scene[asset_cfg.name]
-    
-    # Performance metric
     command = env.command_manager.get_command(command_name)
 
     target_position_w = command[:, :3].clone()
@@ -83,12 +96,15 @@ def obstacle_density_curriculum(
     # Decide difficulty changes
     crashed = env.termination_manager.terminated[env_ids]
     move_up = position_error < 1.5  # Success
-    move_down = crashed
-    move_down *= ~move_up
+    move_down = crashed & ~move_up
         
-    env._obstacle_difficulty_levels[env_ids] += 1 * move_up - 1 * move_down
-    env._obstacle_difficulty_levels[env_ids] = torch.clip(env._obstacle_difficulty_levels[env_ids], 
-                                                          min=env._min_obstacle_difficulty, 
-                                                          max=env._max_obstacle_difficulty - 1)
+    # Update difficulty levels
+    difficulty_levels = curriculum_state["difficulty_levels"]
+    difficulty_levels[env_ids] += move_up.long() - move_down.long()
+    difficulty_levels[env_ids] = torch.clamp(
+        difficulty_levels[env_ids],
+        min=curriculum_state["min_difficulty"],
+        max=curriculum_state["max_difficulty"] - 1
+    )
     
-    return env._obstacle_difficulty_levels.float().mean()
+    return difficulty_levels.float().mean().item()
