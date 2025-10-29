@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.47.4 (2025-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added docstrings notes to clarify the friction coefficient modeling in Isaac Sim 4.5 and 5.0.
+
+
 0.47.3 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
