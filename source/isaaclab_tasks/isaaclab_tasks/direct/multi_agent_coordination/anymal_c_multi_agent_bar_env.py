@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -187,7 +192,7 @@ class AnymalCMultiAgentBarEnvCfg(DirectMARLEnvCfg):
     lin_vel_reward_scale = 1.0
     yaw_rate_reward_scale = 1.0
 
-    bar_z_min_pos = .6
+    bar_z_min_pos = 0.6
 
     anymal_min_z_pos = 0.1
     max_bar_roll_angle_rad = 1
@@ -196,9 +201,7 @@ class AnymalCMultiAgentBarEnvCfg(DirectMARLEnvCfg):
 class AnymalCMultiAgentBar(DirectMARLEnv):
     cfg: AnymalCMultiAgentBarEnvCfg
 
-    def __init__(
-        self, cfg: AnymalCMultiAgentBarEnvCfg, render_mode: str | None = None, **kwargs
-    ):
+    def __init__(self, cfg: AnymalCMultiAgentBarEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
         # Joint position command (deviation from default joint positions)
 
@@ -372,9 +375,7 @@ class AnymalCMultiAgentBar(DirectMARLEnv):
         self._draw_markers(bar_commands)
 
         # xy linear velocity tracking
-        lin_vel_error = torch.sum(
-            torch.square(bar_commands[:, :2] - self.object.data.root_com_lin_vel_b[:, :2]), dim=1
-        )
+        lin_vel_error = torch.sum(torch.square(bar_commands[:, :2] - self.object.data.root_com_lin_vel_b[:, :2]), dim=1)
         lin_vel_error_mapped = torch.exp(-lin_vel_error)
 
         # yaw rate tracking
@@ -391,7 +392,7 @@ class AnymalCMultiAgentBar(DirectMARLEnv):
         for key, value in rewards.items():
             self._episode_sums[key] += value
 
-        return {"robot_0":reward, "robot_1":reward}
+        return {"robot_0": reward, "robot_1": reward}
 
     def _get_anymal_fallen(self):
         agent_dones = []
@@ -463,5 +464,3 @@ class AnymalCMultiAgentBar(DirectMARLEnv):
             self._episode_sums[key][env_ids] = 0.0
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
-
-

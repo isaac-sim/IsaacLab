@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -26,23 +31,28 @@ parser.add_argument("--exp_name", type=str, default="test", help="Name of the Ex
 parser.add_argument("--num_env_steps", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--dir", type=str, default=None, help="folder with trained models")
 parser.add_argument("--debug", action="store_true", help="whether to run in debug mode for visualization")
-parser.add_argument("--adversarial_training_mode", default="parallel", choices=["parallel", "ladder", "leapfrog"], help="the mode type for adversarial training,\
-                     note on ladder training with teams that are composed of heterogenous agents, the two teams must place the robots in the same order in their environment \
-                    for ladder to work")
-parser.add_argument("--adversarial_training_iterations", default=50_000_000, type=int,help="the number of iterations to swap training for adversarial modes like ladder and leapfrog")
+parser.add_argument(
+    "--adversarial_training_mode",
+    default="parallel",
+    choices=["parallel", "ladder", "leapfrog"],
+    help=(
+        "the mode type for adversarial training,                     note on ladder training with teams that are"
+        " composed of heterogeneous agents, the two teams must place the robots in the same order in their environment  "
+        "                   for ladder to work"
+    ),
+)
+parser.add_argument(
+    "--adversarial_training_iterations",
+    default=50_000_000,
+    type=int,
+    help="the number of iterations to swap training for adversarial modes like ladder and leapfrog",
+)
 
 parser.add_argument(
     "--algorithm",
     type=str,
     default="happo",
-    choices=[
-        "happo",
-        "hatrpo",
-        "haa2c",
-        "mappo",
-        "mappo_unshare",
-        "happo_adv"
-    ],
+    choices=["happo", "hatrpo", "haa2c", "mappo", "mappo_unshare", "happo_adv"],
     help="Algorithm name. Choose from: happo, hatrpo, haa2c, mappo, and mappo_unshare.",
 )
 
@@ -121,7 +131,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_args["headless"] = args["headless"]
     env_args["debug"] = args["debug"]
 
-
     # create runner
 
     runner = RUNNER_REGISTRY[args["algo"]](args, algo_args, env_args)
@@ -130,5 +139,5 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
 if __name__ == "__main__":
-    main() # type: ignore
+    main()  # type: ignore
     simulation_app.close()

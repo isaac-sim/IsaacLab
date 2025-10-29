@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -6,13 +11,14 @@
 """Train an algorithm."""
 
 import argparse
+import pprint
 
 # import numpy as np
 import sys
 import torch
 from tqdm import tqdm
+
 from isaaclab.app import AppLauncher
-import pprint
 
 parser = argparse.ArgumentParser(description="Train an RL agent with HARL.")
 parser.add_argument(
@@ -139,24 +145,24 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         envs_completed += curr_envs_completed
 
         if curr_envs_completed > 0:
-            for k,v in runner.env.log_info.items():
+            for k, v in runner.env.log_info.items():
                 if k not in log_infos:
                     log_infos[k] = 0.0
-                log_infos[k] += (v * curr_envs_completed)
+                log_infos[k] += v * curr_envs_completed
 
         masks = torch.ones((args["num_envs"], runner.num_agents, 1), dtype=torch.float32, device="cuda:0")
         masks[dones_env] = 0.0
         rnn_states[dones_env] = torch.zeros(
-            ((dones_env).sum(), runner.num_agents, runner.recurrent_n, runner.rnn_hidden_size), # type: ignore
+            ((dones_env).sum(), runner.num_agents, runner.recurrent_n, runner.rnn_hidden_size),  # type: ignore
             dtype=torch.float32,
             device="cuda:0",
-        ) # type: ignore
+        )  # type: ignore
 
-        num_steps = args["num_envs"] * runner.env.unwrapped.sim._number_of_steps 
+        num_steps = args["num_envs"] * runner.env.unwrapped.sim._number_of_steps
         pbar.update(num_steps - pbar.n)
         if num_steps >= args["num_env_steps"]:
             break
-        
+
     runner.env.close()
 
     for k in log_infos.keys():

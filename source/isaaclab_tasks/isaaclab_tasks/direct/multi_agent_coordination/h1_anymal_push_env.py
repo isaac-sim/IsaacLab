@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -203,6 +208,7 @@ class HeterogeneousPushMultiAgentEnvCfg(DirectMARLEnvCfg):
         50.0,  # right_elbow
     ]
 
+
 def define_markers() -> VisualizationMarkers:
     marker_cfg = VisualizationMarkersCfg(
         prim_path="/Visuals/myMarkers",
@@ -228,6 +234,7 @@ def define_markers() -> VisualizationMarkers:
         },
     )
     return VisualizationMarkers(marker_cfg)
+
 
 class HeterogeneousPushMultiAgentEnv(DirectMARLEnv):
     cfg: HeterogeneousPushMultiAgentEnvCfg
@@ -637,6 +644,7 @@ class HeterogeneousPushMultiAgentEnv(DirectMARLEnv):
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
         extras = dict()
+
 
 @torch.jit.script
 def compute_intermediate_values(
