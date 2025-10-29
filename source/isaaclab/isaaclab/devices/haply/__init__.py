@@ -8,4 +8,3 @@
 from .se3_haply import HaplyDevice, HaplyDeviceCfg
 
 __all__ = ["HaplyDevice", "HaplyDeviceCfg"]
-
