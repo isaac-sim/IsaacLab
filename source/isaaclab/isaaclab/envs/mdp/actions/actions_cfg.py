@@ -6,6 +6,8 @@
 from dataclasses import MISSING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
+from isaaclab.controllers.lee_acceleration_control_cfg import LeeAccControllerCfg
+from isaaclab.controllers.lee_position_control_cfg import LeePosControllerCfg
 from isaaclab.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
@@ -450,5 +452,5 @@ class NavigationActionCfg(ActionTermCfg):
     action_dim: dict[str, int] = {"vel": 3, "pos": 4, "acc": 4}
     """Dimension of the action space for each command type."""
 
-    controller_cfg: LeeVelControllerCfg = MISSING
+    controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING
     """The configuration for the Lee velocity controller."""

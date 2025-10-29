@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
     from . import actions_cfg
 
+from isaaclab.controllers.lee_acceleration_control import LeeAccController
+from isaaclab.controllers.lee_position_control import LeePosController
 from isaaclab.controllers.lee_velocity_control import LeeVelController
 
 
@@ -179,9 +181,18 @@ class NavigationAction(ThrustAction):
             )
 
         # Initialize controller
-        self._lvc = LeeVelController(
-            cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
-        )
+        if self.cfg.command_type == "vel":
+            self._lc = LeeVelController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
+        elif self.cfg.command_type == "pos":
+            self._lc = LeePosController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
+        elif self.cfg.command_type == "acc":
+            self._lc = LeeAccController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
 
     @property
     def action_dim(self) -> int:
@@ -217,7 +228,7 @@ class NavigationAction(ThrustAction):
         processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
 
         # Compute wrench command using controller
-        wrench_command = self._lvc.compute(processed_actions)
+        wrench_command = self._lc.compute(processed_actions)
 
         # Convert wrench to thrust commands using allocation matrix
         thrust_commands = (torch.pinverse(self._asset.allocation_matrix) @ wrench_command.T).T
@@ -229,4 +240,4 @@ class NavigationAction(ThrustAction):
         # Call parent reset
         super().reset(env_ids)
         # Reset controller internal states
-        self._lvc.reset_idx(env_ids)
+        self._lc.reset_idx(env_ids)
