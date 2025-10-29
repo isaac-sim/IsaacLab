@@ -152,6 +152,9 @@ Guidelines for modifications:
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Jacob Haight
+* Isaac Peterson
+* Christopher Allred
 
 ## Acknowledgements
 
