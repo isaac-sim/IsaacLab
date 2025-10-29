@@ -56,7 +56,7 @@ dependency versions for Isaac Sim.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
-| `main` branch                 | Isaac Sim 4.5 / 5.0       |
+| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |
