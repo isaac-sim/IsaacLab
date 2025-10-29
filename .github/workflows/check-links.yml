@@ -92,69 +92,25 @@ jobs:
         # Optional: Use GitHub token for authenticated requests (higher rate limit)
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Parse and format results
+    - name: Print results to logs
       if: always()
       run: |
+        echo "========================================"
+        echo "Link Checker Results:"
+        echo "========================================"
         if [ -f ./lychee-output.md ]; then
+          cat ./lychee-output.md
+          echo ""
+          echo "========================================"
+          
+          # Also add to GitHub step summary for easy viewing
           echo "## Link Checker Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat ./lychee-output.md >> $GITHUB_STEP_SUMMARY
-          
-          # Also output to console
-          echo "========================================"
-          echo "Link Checker Results:"
-          echo "========================================"
-          cat ./lychee-output.md
-          echo "========================================"
         else
           echo "No output file generated"
+          echo "========================================"
         fi
-
-    - name: Upload link checker report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: link-checker-report
-        path: lychee-output.md
-        retention-days: 30
-
-    - name: Comment PR with results
-      if: failure() && github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          let report = '';
-          
-          try {
-            if (fs.existsSync('./lychee-output.md')) {
-              report = fs.readFileSync('./lychee-output.md', 'utf8');
-            }
-          } catch (err) {
-            report = 'Could not read link checker report.';
-          }
-          
-          const body = `## ⚠️ Broken Links Detected
-
-          The link checker has found broken or invalid links in the documentation.
-
-          ### Results:
-          ${report}
-
-          Please fix these broken links before merging. You can run the link checker locally using:
-          \`\`\`bash
-          docker run --rm -v $(pwd):/workdir lycheeverse/lychee --verbose --no-progress '*.md' '**/*.md' 'docs/**/*.rst' 'docs/**/*.html'
-          \`\`\`
-
-          Or install lychee locally: https://github.com/lycheeverse/lychee#installation
-          `;
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: body
-          });
 
     - name: Fail job if broken links found
       if: failure()
@@ -162,4 +118,5 @@ jobs:
         echo "❌ Broken links were found in the documentation!"
         echo "Please review the link checker report above and fix all broken links."
         exit 1
+
 
