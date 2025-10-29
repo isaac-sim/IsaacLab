@@ -28,13 +28,14 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
     for wall_name, wall_cfg in cfg.wall_cfgs.items():
         # Walls get their specific size and default center
         default_center = [0.0, 0.0, 0.0]  # Will be set properly at reset
+        color = float(np.random.randint(0, 256, size=1, dtype=np.uint8))/ 255.0
 
         rigid_objects[wall_name] = RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}",
             spawn=sim_utils.CuboidCfg(
                 size=wall_cfg.size,
                 visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(0.5, 0.5, 0.5), metallic=0.2
+                    diffuse_color=(0.5, 0.5, color), metallic=0.2
                 ),
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     solver_position_iteration_count=4,
