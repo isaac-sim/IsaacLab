@@ -13,9 +13,22 @@ import torch
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 class DroneUniformPoseCommand(UniformPoseCommand):
+    """Drone-specific UniformPoseCommand extensions.
 
-    """
-    Implementation drone specific functions.
+    This class customizes the generic :class:`UniformPoseCommand` for drone (multirotor)
+    use-cases. Main differences and additions:
+
+    - Transforms pose commands from the drone's base frame to the world frame before use.
+    - Accounts for per-environment origin offsets (``scene.env_origins``) when computing
+        position errors so tasks running on shifted/sub-terrain environments compute
+        meaningful errors.
+    - Computes and exposes simple metrics used by higher-level code: ``position_error``
+        and ``orientation_error`` (stored in ``self.metrics``).
+    - Provides a debug visualization callback that renders the goal pose (with
+        sub-terrain shift) and current body pose using the existing visualizers.
+
+    The implementation overrides :meth:`_update_metrics` and :meth:`_debug_vis_callback`
+    from the base class to implement these drone-specific behaviors.
     """
 
     def _update_metrics(self):
@@ -28,7 +41,7 @@ class DroneUniformPoseCommand(UniformPoseCommand):
         )
         # compute the error
         pos_error, rot_error = compute_pose_error(
-            ## Sub-terrain shift for correct position error calculation @grzemal
+            # Sub-terrain shift for correct position error calculation @grzemal
             self.pose_command_b[:, :3] + self._env.scene.env_origins,
             self.pose_command_w[:, 3:],
             self.robot.data.body_pos_w[:, self.body_idx],
@@ -44,8 +57,10 @@ class DroneUniformPoseCommand(UniformPoseCommand):
             return
         # update the markers
         # -- goal pose
-        ## Sub-terrain shift for visualization purposes @grzemal
-        self.goal_pose_visualizer.visualize(self.pose_command_b[:, :3] + self._env.scene.env_origins, self.pose_command_b[:, 3:])
+        # Sub-terrain shift for visualization purposes @grzemal
+        self.goal_pose_visualizer.visualize(
+            self.pose_command_b[:, :3] + self._env.scene.env_origins, self.pose_command_b[:, 3:]
+        )
         # -- current body pose
         body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])

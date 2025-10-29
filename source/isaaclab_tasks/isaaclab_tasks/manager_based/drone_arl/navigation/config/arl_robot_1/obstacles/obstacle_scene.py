@@ -13,6 +13,13 @@ from isaaclab.assets import (
     RigidObjectCollectionCfg,
 )
 
+"""Obstacle scene generation and reset functionality for drone navigation environments.
+
+This module provides utilities for generating dynamic 3D obstacle courses with walls and
+floating obstacles. The obstacle configurations support curriculum learning where difficulty
+can be progressively increased by adjusting the number of active obstacles.
+"""
+
 OBSTACLE_SCENE_CFG = ObstaclesSceneCfg(
                     env_size=(12.0, 8.0, 6.0),
                     min_num_obstacles=20,
@@ -21,6 +28,28 @@ OBSTACLE_SCENE_CFG = ObstaclesSceneCfg(
                     )
 
 def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectionCfg:
+    """Generate a rigid object collection configuration for walls and obstacles.
+
+    Creates a complete scene with boundary walls and a variety of floating obstacles
+    (panels, cubes, rods, etc.) based on the provided configuration. Each obstacle is
+    assigned random colors and configured with appropriate physics properties.
+
+    Wall objects are configured with very high mass (10^7 kg) and high damping to remain
+    stationary during collisions. Obstacle objects have moderate mass (100 kg) to move in the right position if reset
+    in collision.
+
+    Args:
+        cfg: Configuration object specifying obstacle types, sizes, quantities, and
+            positioning constraints.
+
+    Returns:
+        A RigidObjectCollectionCfg containing all wall and obstacle configurations,
+        ready to be added to a scene.
+
+    Note:
+        All obstacles are initially placed at origin [0, 0, 0]. Actual positions are
+        set during environment reset via :func:`reset_obstacles_with_individual_ranges`.
+    """
     max_num_obstacles = cfg.max_num_obstacles
     
     rigid_objects = {}
@@ -102,7 +131,41 @@ def reset_obstacles_with_individual_ranges(
     max_num_obstacles: int = 10,
     ground_offset: float = 0.1,
 ) -> None:
-    """Reset walls and obstacles without collision checking (fast)."""
+    """Reset obstacle and wall positions for specified environments without collision checking.
+
+    This function repositions all walls and a curriculum-determined subset of obstacles
+    within the specified environment bounds.
+
+    Walls are positioned at fixed locations based on their configuration ratios. Obstacles
+    are randomly placed within their designated zones, with the number of active obstacles
+    determined by the curriculum difficulty level. Inactive obstacles are moved far below
+    the scene (-1000m in Z) to effectively remove them from the environment.
+
+    The curriculum scaling works as:
+        num_obstacles = min + (difficulty / max_difficulty) * (max - min)
+
+    Args:
+        env: The manager-based RL environment instance.
+        env_ids: Tensor of environment indices to reset.
+        asset_cfg: Scene entity configuration identifying the obstacle collection.
+        obstacle_configs: Dictionary mapping obstacle type names to their BoxCfg
+            configurations, specifying size and placement ranges.
+        wall_configs: Dictionary mapping wall names to their BoxCfg configurations.
+        env_size: Tuple of (length, width, height) defining the environment bounds in meters.
+        use_curriculum: If True, number of obstacles scales with curriculum difficulty.
+            If False, spawns max_num_obstacles in every environment. Defaults to True.
+        min_num_obstacles: Minimum number of obstacles to spawn per environment.
+            Defaults to 1.
+        max_num_obstacles: Maximum number of obstacles to spawn per environment.
+            Defaults to 10.
+        ground_offset: Z-axis offset to prevent obstacles from spawning at z=0.
+            Defaults to 0.1 meters.
+
+    Note:
+        This function expects the environment to have `_obstacle_difficulty_levels` and
+        `_max_obstacle_difficulty` attributes when `use_curriculum=True`. These are
+        typically set by :func:`obstacle_density_curriculum`.
+    """
     obstacles: RigidObjectCollection = env.scene[asset_cfg.name]
     
     num_objects = obstacles.num_objects
@@ -191,7 +254,17 @@ def reset_obstacles_with_individual_ranges(
         obs_cfg = obstacle_types[config_idx]
         
         min_ratio = torch.tensor(obs_cfg.center_ratio_min, device=env.device)
-        max_ratio = torch.tensor(obs_cfg.center_ratio_max, device=env.device)
+        max_ratio = torch.tensor(obs_cfg.center_ratio_max, device=env.device)    Defines the size and placement constraints for rectangular obstacles within
+        the environment. The center position is specified as ratios of the environment
+        size, allowing for flexible scaling.
+        
+        Attributes:
+            size: Tuple of (length, width, height) in meters.
+            center_ratio_min: Minimum position as ratio of env_size (0.0 to 1.0) for
+                each axis. Used for random placement bounds.
+            center_ratio_max: Maximum position as ratio of env_size (0.0 to 1.0) for
+                each axis. For fixed positions, set equal to center_ratio_min.
+        """
         
         # sample obejct positions
         num_active_envs = envs_need_obstacle.sum().item()

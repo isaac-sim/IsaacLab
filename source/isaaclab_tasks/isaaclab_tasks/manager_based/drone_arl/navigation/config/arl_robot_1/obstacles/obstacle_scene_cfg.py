@@ -12,6 +12,19 @@ class ObstaclesSceneCfg():
     env_size: tuple[float, float, float] = MISSING
     @configclass
     class BoxCfg():
+        """Configuration for a box-shaped obstacle or wall.
+    
+        Defines the size and placement constraints for rectangular obstacles within
+        the environment. The center position is specified as ratios of the environment
+        size, allowing for flexible scaling.
+        
+        Attributes:
+            size: Tuple of (length, width, height) in meters.
+            center_ratio_min: Minimum position as ratio of env_size (0.0 to 1.0) for
+                each axis. Used for random placement bounds.
+            center_ratio_max: Maximum position as ratio of env_size (0.0 to 1.0) for
+                each axis. For fixed positions, set equal to center_ratio_min.
+        """
         size: tuple[float, float, float] = MISSING
         center_ratio_min: tuple[float, float, float] = MISSING
         center_ratio_max: tuple[float, float, float] = MISSING
