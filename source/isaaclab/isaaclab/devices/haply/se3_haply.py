@@ -7,16 +7,16 @@
 
 import asyncio
 import json
+import numpy as np
 import threading
 import time
+import torch
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Dict
-
-import numpy as np
-import torch
+from typing import Any
 
 import websockets
+
 WEBSOCKETS_AVAILABLE = True
 
 from ..device_base import DeviceBase, DeviceCfg
@@ -25,7 +25,7 @@ from ..device_base import DeviceBase, DeviceCfg
 @dataclass
 class HaplyDeviceCfg(DeviceCfg):
     """Configuration for Haply device.
-    
+
     Attributes:
         websocket_uri: WebSocket URI for Haply SDK connection
         pos_sensitivity: Position sensitivity scaling factor
@@ -55,8 +55,8 @@ class HaplyDevice(DeviceBase):
     * Position: 3D position (x, y, z) in meters from Inverse3
     * Orientation: Quaternion (x, y, z, w) from VerseGrip
     * Buttons: Three buttons (a, b, c) from VerseGrip with state (pressed/not pressed)
-    
-    Note: All button logic (e.g., gripper control, reset, mode switching) should be 
+
+    Note: All button logic (e.g., gripper control, reset, mode switching) should be
     implemented in the application layer using the raw button states from advance().
 
     Note:
@@ -79,10 +79,7 @@ class HaplyDevice(DeviceBase):
         super().__init__(retargeters)
 
         if not WEBSOCKETS_AVAILABLE:
-            raise ImportError(
-                "websockets module is required for Haply device. "
-                "Install with: pip install websockets"
-            )
+            raise ImportError("websockets module is required for Haply device. Install with: pip install websockets")
 
         # Store configuration
         self.websocket_uri = cfg.websocket_uri
@@ -116,10 +113,8 @@ class HaplyDevice(DeviceBase):
         self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.force_lock = threading.Lock()
 
-        # Dictionary for additional callbacks
         self._additional_callbacks = dict()
-        
-        # Button state tracking for edge detection
+
         self._prev_buttons = {"a": False, "b": False, "c": False}
 
         # Start WebSocket connection
@@ -169,7 +164,7 @@ class HaplyDevice(DeviceBase):
         # Reset force feedback
         with self.force_lock:
             self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-        
+
         # Reset button state tracking
         self._prev_buttons = {"a": False, "b": False, "c": False}
 
@@ -206,29 +201,30 @@ class HaplyDevice(DeviceBase):
 
         # Apply sensitivity scaling
         position = position * self.pos_sensitivity
-        
-        # Note: quaternion is kept as-is since it's a unit quaternion
 
         # Check for button press events (rising edge) and call callbacks
         for button_key in ["a", "b", "c"]:
             current_state = buttons.get(button_key, False)
             prev_state = self._prev_buttons.get(button_key, False)
-            
+
             # Detect rising edge (button just pressed)
             if current_state and not prev_state:
                 # Call the callback if registered
                 if button_key in self._additional_callbacks:
                     self._additional_callbacks[button_key]()
-            
+
             # Update previous state
             self._prev_buttons[button_key] = current_state
 
         # Convert button states to floats
-        button_states = np.array([
-            1.0 if buttons.get("a", False) else 0.0,
-            1.0 if buttons.get("b", False) else 0.0,
-            1.0 if buttons.get("c", False) else 0.0,
-        ], dtype=np.float32)
+        button_states = np.array(
+            [
+                1.0 if buttons.get("a", False) else 0.0,
+                1.0 if buttons.get("b", False) else 0.0,
+                1.0 if buttons.get("c", False) else 0.0,
+            ],
+            dtype=np.float32,
+        )
 
         # Construct command tensor: [position(3), quaternion(4), buttons(3)]
         command = np.concatenate([position, quaternion, button_states])
@@ -250,7 +246,7 @@ class HaplyDevice(DeviceBase):
                 "z": float(force_z),
             }
 
-    def get_device_state(self) -> Dict[str, Any]:
+    def get_device_state(self) -> dict[str, Any]:
         """Get current raw device state.
 
         Returns:
@@ -266,8 +262,7 @@ class HaplyDevice(DeviceBase):
 
         data_fresh = self._is_data_fresh()
         device_connected = (
-            current_data.get("inverse3_connected", False)
-            or current_data.get("versegrip_connected", False)
+            current_data.get("inverse3_connected", False) or current_data.get("versegrip_connected", False)
         ) and data_fresh
 
         return {
@@ -304,9 +299,7 @@ class HaplyDevice(DeviceBase):
 
         while self.running:
             try:
-                async with websockets.connect(
-                    self.websocket_uri, ping_interval=None, ping_timeout=None
-                ) as ws:
+                async with websockets.connect(self.websocket_uri, ping_interval=None, ping_timeout=None) as ws:
                     print("[INFO] Connected to Haply WebSocket")
                     self.connected = True
                     first_message = True
@@ -394,12 +387,10 @@ class HaplyDevice(DeviceBase):
                                     current_force = self.feedback_force.copy()
 
                                 request_msg = {
-                                    "inverse3": [
-                                        {
-                                            "device_id": self.inverse3_device_id,
-                                            "commands": {"set_cursor_force": {"values": current_force}},
-                                        }
-                                    ]
+                                    "inverse3": [{
+                                        "device_id": self.inverse3_device_id,
+                                        "commands": {"set_cursor_force": {"values": current_force}},
+                                    }]
                                 }
                                 await ws.send(json.dumps(request_msg))
 
@@ -421,4 +412,3 @@ class HaplyDevice(DeviceBase):
                     await asyncio.sleep(2.0)
                 else:
                     break
-
