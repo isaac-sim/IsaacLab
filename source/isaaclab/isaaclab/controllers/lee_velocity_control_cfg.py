@@ -30,11 +30,14 @@ class LeeVelControllerCfg:
 
     K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((3.3, 3.3, 1.3), (2.7, 2.7, 1.7))
     """Velocity error proportional gain range about body axes [unitless]."""
-    
+
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))
     """Orientation (rotation) error proportional gain range about body axes [unitless]."""
 
-    K_angvel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075))
+    K_angvel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = (
+        (0.5, 0.5, 0.09),
+        (0.4, 0.4, 0.075),
+    )
     """Body angular-velocity error proportional gain range (roll, pitch, yaw) [unitless]."""
 
     max_inclination_angle_rad: float = 1.0471975511965976

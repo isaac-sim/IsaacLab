@@ -18,6 +18,7 @@ import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.assets import Multirotor
+
     from .lee_velocity_control_cfg import LeeVelControllerCfg
 
 
@@ -71,27 +72,29 @@ class LeeVelController:
         self.desired_quat = torch.zeros_like(self.robot.data.root_quat_w)
         self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.buffer_tensor = torch.zeros((num_envs, 3, 3), device=device)
-    
+
     def compute(self, command):
-        
+
         self.wrench_command_b[:] = 0.0
         acc = self.compute_acceleration(setpoint_velocity=command[:, 0:3])
-        forces = (acc - self.gravity) * self.mass.view(-1,1)
+        forces = (acc - self.gravity) * self.mass.view(-1, 1)
         self.wrench_command_b[:, 2] = torch.sum(
             forces * math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2], dim=1
         )
-        
+
         robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
-        robot_euler_w = math_utils.wrap_to_pi(robot_euler_w) 
-        
-        self.desired_quat = calculate_desired_orientation_for_position_velocity_control(forces, robot_euler_w[:, 2],self.buffer_tensor)
+        robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
+
+        self.desired_quat = calculate_desired_orientation_for_position_velocity_control(
+            forces, robot_euler_w[:, 2], self.buffer_tensor
+        )
         self.euler_angle_rates_w[:, :2] = 0.0
         self.euler_angle_rates_w[:, 2] = command[:, 3]
         self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates_w, self.buffer_tensor)
         self.wrench_command_b[:, 3:6] = self.compute_body_torque(self.desired_quat, self.desired_body_angvel_w)
-        
+
         return self.wrench_command_b
-        
+
     def reset(self):
         """Reset controller state for all environments."""
         self.reset_idx(env_ids=None)
@@ -112,18 +115,16 @@ class LeeVelController:
             return
         self.K_vel_current[env_ids] = math_utils.rand_range(self.K_vel_range[env_ids, 0], self.K_vel_range[env_ids, 1])
         self.K_rot_current[env_ids] = math_utils.rand_range(self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1])
-        self.K_angvel_current[env_ids] = math_utils.rand_range(self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1])
+        self.K_angvel_current[env_ids] = math_utils.rand_range(
+            self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1]
+        )
 
     def compute_acceleration(self, setpoint_velocity):
         robot_vehicle_orientation = vehicle_frame_quat_from_quat(self.robot.data.root_quat_w)
-        setpoint_velocity_world_frame = math_utils.quat_apply(
-            robot_vehicle_orientation, setpoint_velocity
-        )
+        setpoint_velocity_world_frame = math_utils.quat_apply(robot_vehicle_orientation, setpoint_velocity)
         velocity_error = setpoint_velocity_world_frame - self.robot.data.root_lin_vel_w
 
-        accel_command = (
-            self.K_vel_current * velocity_error
-        )
+        accel_command = self.K_vel_current * velocity_error
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
@@ -152,9 +153,8 @@ class LeeVelController:
         torque = -self.K_rot_current * rotation_error - self.K_angvel_current * angvel_error + feed_forward_body_rates
         return torque
 
-def calculate_desired_orientation_for_position_velocity_control(
-    forces_command, yaw_setpoint, rotation_matrix_desired
-):
+
+def calculate_desired_orientation_for_position_velocity_control(forces_command, yaw_setpoint, rotation_matrix_desired):
     b3_c = torch.div(forces_command, torch.norm(forces_command, dim=1).unsqueeze(1))
     temp_dir = torch.zeros_like(forces_command)
     temp_dir[:, 0] = torch.cos(yaw_setpoint)
@@ -171,6 +171,7 @@ def calculate_desired_orientation_for_position_velocity_control(
     quat_desired = torch.stack((q[:, 0], q[:, 1], q[:, 2], q[:, 3]), dim=1)
 
     return quat_desired
+
 
 @torch.jit.script
 def euler_to_body_rate(curr_euler_rate, des_euler_rate, mat_euler_to_body_rate):
@@ -189,6 +190,7 @@ def euler_to_body_rate(curr_euler_rate, des_euler_rate, mat_euler_to_body_rate):
 
     return torch.bmm(mat_euler_to_body_rate, des_euler_rate.unsqueeze(2)).squeeze(2)
 
+
 @torch.jit.script
 def copysign(a, b):
     # type: (float, Tensor) -> Tensor
@@ -201,9 +203,7 @@ def get_euler_xyz_tensor(q):
     qx, qy, qz, qw = 1, 2, 3, 0
     # roll (x-axis rotation)
     sinr_cosp = 2.0 * (q[:, qw] * q[:, qx] + q[:, qy] * q[:, qz])
-    cosr_cosp = (
-        q[:, qw] * q[:, qw] - q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] + q[:, qz] * q[:, qz]
-    )
+    cosr_cosp = q[:, qw] * q[:, qw] - q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] + q[:, qz] * q[:, qz]
     roll = torch.atan2(sinr_cosp, cosr_cosp)
 
     # pitch (y-axis rotation)
@@ -212,14 +212,11 @@ def get_euler_xyz_tensor(q):
 
     # yaw (z-axis rotation)
     siny_cosp = 2.0 * (q[:, qw] * q[:, qz] + q[:, qx] * q[:, qy])
-    cosy_cosp = (
-        q[:, qw] * q[:, qw] + q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] - q[:, qz] * q[:, qz]
-    )
+    cosy_cosp = q[:, qw] * q[:, qw] + q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] - q[:, qz] * q[:, qz]
     yaw = torch.atan2(siny_cosp, cosy_cosp)
 
-    return torch.stack(
-        [roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)], dim=-1
-    )
+    return torch.stack([roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)], dim=-1)
+
 
 @torch.jit.script
 def quat_from_euler_xyz_tensor(euler_xyz_tensor: torch.Tensor) -> torch.Tensor:
@@ -243,7 +240,5 @@ def quat_from_euler_xyz_tensor(euler_xyz_tensor: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def vehicle_frame_quat_from_quat(body_quat: torch.Tensor) -> torch.Tensor:
-    body_euler = get_euler_xyz_tensor(body_quat) * torch.tensor(
-        [0.0, 0.0, 1.0], device=body_quat.device
-    )
+    body_euler = get_euler_xyz_tensor(body_quat) * torch.tensor([0.0, 0.0, 1.0], device=body_quat.device)
     return quat_from_euler_xyz_tensor(body_euler)

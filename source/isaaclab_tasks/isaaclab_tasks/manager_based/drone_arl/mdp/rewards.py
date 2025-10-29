@@ -56,12 +56,13 @@ def distance_to_goal_exp(
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     return torch.exp(-position_error_square / std**2)
 
+
 def distance_to_goal_exp_curriculum(
-        env: ManagerBasedRLEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        std: float = 1.0,
-        command_name: str = "target_pose"
-    ) -> torch.Tensor:
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    std: float = 1.0,
+    command_name: str = "target_pose",
+) -> torch.Tensor:
     """Reward the distance to a goal position using an exponential kernel with curriculum-based scaling.
 
     This reward extends the basic exponential distance reward by applying a scaling factor
@@ -99,11 +100,12 @@ def distance_to_goal_exp_curriculum(
     # compute the error
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     # weight based on the current curriculum level
-    if hasattr(env, '_obstacle_difficulty_levels'):
+    if hasattr(env, "_obstacle_difficulty_levels"):
         weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
     else:
         weight = 1.0
     return weight * torch.exp(-position_error_square / std**2)
+
 
 def ang_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
@@ -133,10 +135,9 @@ def ang_vel_xyz_exp(
 
     return torch.exp(-ang_vel_squared / std**2)
 
+
 def velocity_to_goal_reward_curriculum(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    command_name: str = "target_pose"
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), command_name: str = "target_pose"
 ) -> torch.Tensor:
     """Reward velocity alignment toward the goal with curriculum-based scaling.
 
@@ -180,7 +181,7 @@ def velocity_to_goal_reward_curriculum(
     # compute the reward as the dot product between the velocity and the direction to the goal
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
     # Use obstacle curriculum if it exists
-    if hasattr(env, '_obstacle_difficulty_levels'):
+    if hasattr(env, "_obstacle_difficulty_levels"):
         weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
     else:
         weight = 1.0

@@ -18,6 +18,7 @@ import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.assets import Multirotor
+
     from .lee_acceleration_control_cfg import LeeAccControllerCfg
 
 
@@ -69,26 +70,28 @@ class LeeAccController:
         self.desired_quat = torch.zeros_like(self.robot.data.root_quat_w)
         self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.buffer_tensor = torch.zeros((num_envs, 3, 3), device=device)
-    
+
     def compute(self, command):
-        
+
         self.wrench_command_b[:] = 0.0
         acc = command[:, 0:3].clone()
-        forces = (acc - self.gravity) * self.mass.view(-1,1)
+        forces = (acc - self.gravity) * self.mass.view(-1, 1)
         self.wrench_command_b[:, 2] = torch.sum(
             forces * math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2], dim=1
         )
-        
+
         robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
-        robot_euler_w = math_utils.wrap_to_pi(robot_euler_w) 
-        
-        self.desired_quat[:] = calculate_desired_orientation_for_position_velocity_control(forces, robot_euler_w[:, 2],self.buffer_tensor)
+        robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
+
+        self.desired_quat[:] = calculate_desired_orientation_for_position_velocity_control(
+            forces, robot_euler_w[:, 2], self.buffer_tensor
+        )
         self.euler_angle_rates_w[:] = 0.0
         self.desired_body_angvel_w[:] = 0.0
         self.wrench_command_b[:, 3:6] = self.compute_body_torque(self.desired_quat, self.desired_body_angvel_w)
-        
+
         return self.wrench_command_b
-        
+
     def reset(self):
         """Reset controller state for all environments."""
         self.reset_idx(env_ids=None)
@@ -108,7 +111,9 @@ class LeeAccController:
         if not self.cfg.randomize_params:
             return
         self.K_rot_current[env_ids] = math_utils.rand_range(self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1])
-        self.K_angvel_current[env_ids] = math_utils.rand_range(self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1])
+        self.K_angvel_current[env_ids] = math_utils.rand_range(
+            self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1]
+        )
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
         """PD attitude control in body frame with feedforward Coriolis term.
@@ -136,9 +141,8 @@ class LeeAccController:
         torque = -self.K_rot_current * rotation_error - self.K_angvel_current * angvel_error + feed_forward_body_rates
         return torque
 
-def calculate_desired_orientation_for_position_velocity_control(
-    forces_command, yaw_setpoint, rotation_matrix_desired
-):
+
+def calculate_desired_orientation_for_position_velocity_control(forces_command, yaw_setpoint, rotation_matrix_desired):
     b3_c = torch.div(forces_command, torch.norm(forces_command, dim=1).unsqueeze(1))
     temp_dir = torch.zeros_like(forces_command)
     temp_dir[:, 0] = torch.cos(yaw_setpoint)

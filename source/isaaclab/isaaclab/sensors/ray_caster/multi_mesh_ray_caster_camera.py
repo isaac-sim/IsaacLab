@@ -190,7 +190,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # update output buffers
         if "distance_to_image_plane" in self.cfg.data_types:
             # note: data is in camera frame so we only take the first component (z-axis of camera frame)
-            
+
             distance_to_image_plane = (
                 math_utils.quat_apply(
                     math_utils.quat_inv(self._data.quat_w_world[env_ids]).repeat(1, self.num_rays),
@@ -205,10 +205,9 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
                 distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
-                -1
-                , *self.image_shape, 1
+                -1, *self.image_shape, 1
             )
-            
+
         if "distance_to_camera" in self.cfg.data_types:
             self._data.output["distance_to_camera"][env_ids_tensor] = torch.clip(
                 ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance

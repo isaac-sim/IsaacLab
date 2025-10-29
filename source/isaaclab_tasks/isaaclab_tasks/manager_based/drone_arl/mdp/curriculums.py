@@ -24,7 +24,10 @@ if TYPE_CHECKING:
 
 
 def terrain_levels_vel(
-    env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), command_name: str = "target_pose"
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_name: str = "target_pose",
 ) -> torch.Tensor:
     """Curriculum based on the distance the drone is from the target position at the end of the episode.
 
@@ -52,6 +55,7 @@ def terrain_levels_vel(
     terrain.update_drone_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
+
 
 def get_obstacle_curriculum_state(
     env: ManagerBasedRLEnv,
@@ -87,7 +91,7 @@ def get_obstacle_curriculum_state(
         It's designed to be called from both curriculum terms and reward functions to ensure
         consistent access to the difficulty state.
     """
-    
+
     if not hasattr(env, "_obstacle_curriculum_state"):
         env._obstacle_curriculum_state = {
             "difficulty_levels": torch.ones(env.num_envs, device=env.device) * min_difficulty,
@@ -96,22 +100,23 @@ def get_obstacle_curriculum_state(
         }
     return env._obstacle_curriculum_state
 
+
 def obstacle_density_curriculum(
-    env: ManagerBasedRLEnv, 
-    env_ids: Sequence[int], 
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     command_name: str = "target_pose",
     max_difficulty: int = 10,
     min_difficulty: int = 2,
 ) -> float:
     """Curriculum that adjusts obstacle density based on performance.
-    
+
     The difficulty state is managed centrally via get_obstacle_curriculum_state().
     This ensures consistent access across curriculum, reward, and event terms.
     """
     # Get or initialize curriculum state
     curriculum_state = get_obstacle_curriculum_state(env, min_difficulty, max_difficulty)
-    
+
     # Extract robot and command
     asset: Articulation = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
@@ -119,19 +124,17 @@ def obstacle_density_curriculum(
     target_position_w = command[:, :3].clone()
     current_position = asset.data.root_pos_w - env.scene.env_origins
     position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
-    
+
     # Decide difficulty changes
     crashed = env.termination_manager.terminated[env_ids]
     move_up = position_error < 1.5  # Success
     move_down = crashed & ~move_up
-        
+
     # Update difficulty levels
     difficulty_levels = curriculum_state["difficulty_levels"]
     difficulty_levels[env_ids] += move_up.long() - move_down.long()
     difficulty_levels[env_ids] = torch.clamp(
-        difficulty_levels[env_ids],
-        min=curriculum_state["min_difficulty"],
-        max=curriculum_state["max_difficulty"] - 1
+        difficulty_levels[env_ids], min=curriculum_state["min_difficulty"], max=curriculum_state["max_difficulty"] - 1
     )
-    
+
     return difficulty_levels.float().mean().item()

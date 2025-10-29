@@ -20,8 +20,9 @@ if TYPE_CHECKING:
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
-    
+
 from isaaclab.controllers.lee_velocity_control import LeeVelController
+
 
 class ThrustAction(ActionTerm):
     """Thrust action term that applies the processed actions as thrust commands."""
@@ -159,6 +160,7 @@ class ThrustAction(ActionTerm):
         """Reset the action term."""
         self._raw_actions[env_ids] = 0.0
 
+
 class NavigationAction(ThrustAction):
     """Navigation action term that applies velocity commands to multirotors."""
 
@@ -166,26 +168,19 @@ class NavigationAction(ThrustAction):
     """The configuration of the action term."""
 
     def __init__(self, cfg: actions_cfg.NavigationActionCfg, env: ManagerBasedEnv) -> None:
-        
+
         # Initialize parent class (this handles all the thruster setup)
         super().__init__(cfg, env)
-        
+
         # Validate command type
         if self.cfg.command_type not in ["vel", "pos", "acc"]:
-            raise ValueError(f"Unsupported command_type {self.cfg.command_type}. Supported types are 'vel', 'pos', 'acc'.")
-        elif self.cfg.command_type == "pos":
-            raise NotImplementedError("Position command type is not implemented yet.")
-        elif self.cfg.command_type == "vel":
-            pass
-        elif self.cfg.command_type == "acc":
-            raise NotImplementedError("Acceleration command type is not implemented yet.")
+            raise ValueError(
+                f"Unsupported command_type {self.cfg.command_type}. Supported types are 'vel', 'pos', 'acc'."
+            )
 
         # Initialize controller
         self._lvc = LeeVelController(
-            cfg=self.cfg.controller_cfg, 
-            asset=self._asset, 
-            num_envs=self.num_envs, 
-            device=self.device
+            cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
         )
 
     @property
@@ -209,30 +204,24 @@ class NavigationAction(ThrustAction):
         max_speed = 2.0  # [m/s]
         max_yawrate = torch.pi / 3.0  # [rad/s]
         max_inclination_angle = torch.pi / 4.0  # [rad]
-        
+
         clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
 
         processed_actions[:, 0] = (
-            clamped_action[:, 0]
-            * torch.cos(max_inclination_angle * clamped_action[:, 1])
-            * max_speed
-            / 2.0
+            clamped_action[:, 0] * torch.cos(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
         )
         processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
         processed_actions[:, 2] = (
-            clamped_action[:, 0]
-            * torch.sin(max_inclination_angle * clamped_action[:, 1])
-            * max_speed
-            / 2.0
+            clamped_action[:, 0] * torch.sin(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
         )
         processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
 
         # Compute wrench command using controller
         wrench_command = self._lvc.compute(processed_actions)
-        
+
         # Convert wrench to thrust commands using allocation matrix
         thrust_commands = (torch.pinverse(self._asset.allocation_matrix) @ wrench_command.T).T
-        
+
         # Apply thrust commands using thruster IDs
         self._asset.set_thrust_target(thrust_commands, thruster_ids=self._thruster_ids)
 

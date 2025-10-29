@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
-
-from isaaclab_tasks.manager_based.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import NavigationVelocityFloatingObstacleEnvCfg
-
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
+
+from isaaclab.utils import configclass
+
+from isaaclab_tasks.manager_based.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
+    NavigationVelocityFloatingObstacleEnvCfg,
+)
 
 
 @configclass
@@ -31,10 +33,9 @@ class FloatingObstacleEnvCfg_PLAY(FloatingObstacleEnvCfg):
 
         self.curriculum.obstacle_levels.params["max_difficulty"] = 40
         self.curriculum.obstacle_levels.params["min_difficulty"] = 39
-        
+
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-        

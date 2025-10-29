@@ -49,9 +49,9 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         .. note::
             Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
         """
-        
+
         is_global: bool = False
-        
+
     class_type: type = MultiMeshRayCaster
 
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING

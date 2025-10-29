@@ -18,19 +18,17 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, Multirotor
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import Camera, RayCasterCamera, TiledCamera, MultiMeshRayCasterCamera
+from isaaclab.sensors import Camera, MultiMeshRayCasterCamera, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
-from isaaclab.envs.utils.io_descriptors import (
-    generic_io_descriptor,
-    record_shape,
-)
+from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 
 """
 State.
 """
+
 
 def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Roll and pitch of the base in the simulation world frame."""
@@ -49,19 +47,23 @@ def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
 Sensors
 """
 
+
 class VAEModelManager:
     """Manager for the VAE model."""
+
     _model = None
-    
+
     @classmethod
     def get_model(cls, device):
         """Get or load the VAE model."""
         if cls._model is None:
             import os
+
             model_path = os.path.join(os.path.dirname(__file__), "vae_model.pt")
             cls._model = torch.jit.load(model_path, map_location=device)
             cls._model.eval()
         return cls._model
+
 
 def image_latents(
     env: ManagerBasedEnv,
@@ -95,7 +97,7 @@ def image_latents(
 
     # obtain the input image
     images = sensor.data.output[data_type]
-    
+
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
@@ -116,10 +118,10 @@ def image_latents(
             images = (images + 1.0) * 0.5
 
     _vae_model = VAEModelManager.get_model(env.device)
-        
+
     with torch.no_grad():
         latents = _vae_model(images.squeeze(-1).half())
-        
+
     return latents
 
 
@@ -143,29 +145,27 @@ def last_action_navigation(env: ManagerBasedEnv, action_name: str | None = None)
 
     clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
     processed_actions[:, 0] = (
-        clamped_action[:, 0]
-        * torch.cos(max_inclination_angle * clamped_action[:, 1])
-        * max_speed
-        / 2.0
+        clamped_action[:, 0] * torch.cos(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
     )
     processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
     processed_actions[:, 2] = (
-        clamped_action[:, 0]
-        * torch.sin(max_inclination_angle * clamped_action[:, 1])
-        * max_speed
-        / 2.0
+        clamped_action[:, 0] * torch.sin(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
     )
     processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
     return processed_actions
+
 
 """
 Commands.
 """
 
+
 @generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
-def generated_drone_commands(env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def generated_drone_commands(
+    env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
-    asset: Multirotor = env.scene[asset_cfg.name]    
+    asset: Multirotor = env.scene[asset_cfg.name]
     current_position_w = asset.data.root_pos_w - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
     current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)

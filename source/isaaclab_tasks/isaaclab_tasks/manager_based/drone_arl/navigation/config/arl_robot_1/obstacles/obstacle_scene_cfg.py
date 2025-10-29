@@ -1,23 +1,31 @@
-from isaaclab.utils import configclass
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from dataclasses import MISSING
 
+from isaaclab.utils import configclass
+
+
 @configclass
-class ObstaclesSceneCfg():
+class ObstaclesSceneCfg:
     """Configuration for a terrain with floating obstacles."""
 
     min_num_obstacles: int = 1
     max_num_obstacles: int = 40
     ground_offset: float = 3.0
-    
+
     env_size: tuple[float, float, float] = MISSING
+
     @configclass
-    class BoxCfg():
+    class BoxCfg:
         """Configuration for a box-shaped obstacle or wall.
-    
+
         Defines the size and placement constraints for rectangular obstacles within
         the environment. The center position is specified as ratios of the environment
         size, allowing for flexible scaling.
-        
+
         Attributes:
             size: Tuple of (length, width, height) in meters.
             center_ratio_min: Minimum position as ratio of env_size (0.0 to 1.0) for
@@ -25,6 +33,7 @@ class ObstaclesSceneCfg():
             center_ratio_max: Maximum position as ratio of env_size (0.0 to 1.0) for
                 each axis. For fixed positions, set equal to center_ratio_min.
         """
+
         size: tuple[float, float, float] = MISSING
         center_ratio_min: tuple[float, float, float] = MISSING
         center_ratio_max: tuple[float, float, float] = MISSING
@@ -35,7 +44,7 @@ class ObstaclesSceneCfg():
     panel_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
     panel_obs_cfg.center_ratio_max = (0.85, 0.95, 0.95)
 
-    small_wall_obs_cfg  = BoxCfg()
+    small_wall_obs_cfg = BoxCfg()
     small_wall_obs_cfg.size = (0.1, 0.5, 0.5)
     small_wall_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
     small_wall_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
@@ -54,8 +63,7 @@ class ObstaclesSceneCfg():
     rod_obs_cfg.size = (0.1, 0.1, 2.0)
     rod_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
     rod_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
-    
-    
+
     # Wall configurations
     left_wall_cfg = BoxCfg()
     left_wall_cfg.size = (12.0, 0.2, 6.0)
@@ -103,4 +111,3 @@ class ObstaclesSceneCfg():
         "small_cube": small_cube_obs_cfg,
         "rod": rod_obs_cfg,
     }
-    

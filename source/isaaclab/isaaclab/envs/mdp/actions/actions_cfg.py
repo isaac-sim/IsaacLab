@@ -378,7 +378,6 @@ class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
 
 
-
 ##
 # Drone actions.
 ##
@@ -395,13 +394,13 @@ class ThrustActionCfg(ActionTermCfg):
 
     asset_name: str = MISSING
     """Name or regex expression of the asset that the action will be mapped to."""
-    
+
     scale: float | dict[str, float] = 1.0
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-    
+
     offset: float | dict[str, float] = 0.0
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-    
+
     preserve_order: bool = False
     """Whether to preserve the order of the asset names in the action output. Defaults to False."""
 
@@ -425,13 +424,13 @@ class NavigationActionCfg(ActionTermCfg):
 
     asset_name: str = MISSING
     """Name or regex expression of the asset that the action will be mapped to."""
-    
+
     scale: float | dict[str, float] = 1.0
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-    
+
     offset: float | dict[str, float] = 0.0
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-    
+
     preserve_order: bool = False
     """Whether to preserve the order of the asset names in the action output. Defaults to False."""
 
@@ -442,14 +441,14 @@ class NavigationActionCfg(ActionTermCfg):
     If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
     from the articulation asset.
     """
-    
+
     command_type: str = "vel"
-    """Type of command to apply: "vel" for velocity commands, "pos" for position commands. 
+    """Type of command to apply: "vel" for velocity commands, "pos" for position commands.
     "acc" for acceleration commands. Defaults to "vel".
     """
-    
+
     action_dim: dict[str, int] = {"vel": 3, "pos": 4, "acc": 4}
     """Dimension of the action space for each command type."""
-    
+
     controller_cfg: LeeVelControllerCfg = MISSING
     """The configuration for the Lee velocity controller."""
