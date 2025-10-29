@@ -114,7 +114,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_args["config"] = env_cfg
     hms_time = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     env_args["video_settings"] = {
-        "video": True if args["video"] else False,
+        "video": bool(args["video"]),
         "video_length": args["video_length"],
         "video_interval": args["video_interval"],
         "log_dir": os.path.join(

@@ -24,7 +24,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensor, ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -36,7 +36,6 @@ from isaaclab.utils.math import quat_from_angle_axis
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 from isaaclab_assets.robots.unitree import H1_CFG  # isort: skip
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
 
 def normalize_angle(x):
