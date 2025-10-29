@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+0.11.6 (2025-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refined further the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
+0.11.5 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed scikit-learn dependency because we are no longer using this package.
+
+
+0.11.4 (2025-10-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
+0.11.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed how the Sim rendering settings are modified by the Cosmos-Mimic env cfg.
+
+
+0.11.2 (2025-10-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXRteleoperation devices to the Galbot stack environments.
+
+
 0.11.1 (2025-09-24)
 ~~~~~~~~~~~~~~~~~~~~
 
