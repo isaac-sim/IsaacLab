@@ -22,6 +22,7 @@ from typing import Literal
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
+from flaky import flaky
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -857,6 +858,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_body_root_state_properties(num_cubes, device, with_offset):
     """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:

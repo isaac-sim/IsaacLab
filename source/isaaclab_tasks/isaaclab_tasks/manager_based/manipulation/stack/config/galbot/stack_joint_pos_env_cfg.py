@@ -5,6 +5,9 @@
 
 
 from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab.devices import DevicesCfg
+from isaaclab.devices.openxr import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -12,7 +15,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -190,6 +193,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
             max_depenetration_velocity=5.0,
             disable_gravity=False,
         )
+        cube_collision_properties = CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0)
 
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
@@ -199,6 +203,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                collision_props=cube_collision_properties,
             ),
         )
         self.scene.cube_2 = RigidObjectCfg(
@@ -208,6 +213,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                collision_props=cube_collision_properties,
             ),
         )
         self.scene.cube_3 = RigidObjectCfg(
@@ -217,6 +223,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
+                collision_props=cube_collision_properties,
             ),
         )
 
@@ -238,6 +245,27 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                     ),
                 ),
             ],
+        )
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        Se3AbsRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT,
+                            zero_out_xy_rotation=True,
+                            use_wrist_rotation=False,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        GripperRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
         )
 
 
@@ -262,7 +290,7 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link/SurfaceGripper",
-            max_grip_distance=0.02,
+            max_grip_distance=0.0075,
             shear_force_limit=5000.0,
             coaxial_force_limit=5000.0,
             retry_interval=0.05,
@@ -276,3 +304,24 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         )
 
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        Se3AbsRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            zero_out_xy_rotation=True,
+                            use_wrist_rotation=False,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        GripperRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )
