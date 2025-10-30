@@ -80,6 +80,8 @@ Example usage for the cube stacking task:
     --input_file datasets/mimic_dataset_1k.hdf5 \
     --output_dir datasets/mimic_dataset_1k_mp4
 
+.. _running-cosmos:
+
 Running Cosmos for Visual Augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -100,6 +102,9 @@ We provide an example augmentation output from `Cosmos Transfer1 <https://github
    :alt: Cosmos Transfer1 augmentation output
 
 We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to the `installation instructions <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/INSTALL.md#environment-setup>`_, the `checkpoint download instructions <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#download-checkpoints>`_ and `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
+
+.. note::
+    This workflow has been tested with commit ``e4055e39ee9c53165e85275bdab84ed20909714a`` of the Cosmos Transfer1 repository, and it is the recommended version to use. After cloning the Cosmos Transfer1 repository, checkout to this specific commit by running ``git checkout e4055e39ee9c53165e85275bdab84ed20909714a``.
 
 .. rubric:: Hyperparameters
 
