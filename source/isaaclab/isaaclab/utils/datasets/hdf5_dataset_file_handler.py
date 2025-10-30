@@ -154,6 +154,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
             episode_group_name = f"demo_{self._demo_count}"
 
         # create episode group with the specified name
+        if episode_group_name in self._hdf5_data_group:
+            raise ValueError(f"Episode group '{episode_group_name}' already exists in the dataset")
         h5_episode_group = self._hdf5_data_group.create_group(episode_group_name)
 
         # store number of steps taken
