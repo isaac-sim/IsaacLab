@@ -27,7 +27,7 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 from isaaclab.newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab.newton.assets.articulation.articulation_data import ArticulationData
-from isaaclab.newton.assets.core.kernels import (
+from isaaclab.newton.kernels import (
     generate_mask_from_ids,
     populate_empty_array,
     update_batched_array_with_array_masked,

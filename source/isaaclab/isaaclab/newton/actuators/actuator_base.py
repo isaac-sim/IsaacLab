@@ -12,7 +12,7 @@ import warp as wp
 
 import isaaclab.utils.string as string_utils
 from isaaclab.newton.actuators.kernels import clip_efforts_with_limits
-from isaaclab.newton.assets.core.kernels import (
+from isaaclab.newton.kernels import (
     populate_empty_array,
     update_joint_array_with_value,
     update_joint_array_with_value_array,

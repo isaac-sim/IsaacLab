@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from newton.selection import ArticulationView as NewtonArticulationView
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.newton.assets.core.kernels import (
+from isaaclab.newton.kernels import (
     vec13f,
     combine_pose_and_velocity_to_state,
     combine_pose_and_velocity_to_state_batched,
