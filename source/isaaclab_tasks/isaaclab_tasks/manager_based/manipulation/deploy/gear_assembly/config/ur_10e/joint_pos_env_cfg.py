@@ -17,6 +17,9 @@ import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembly_env_cfg import GearAssemblyEnvCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.events as gear_assembly_events
 
@@ -173,9 +176,57 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                 # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant.usd",
                 # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant_edited.usd",
                 # usd_path = f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default.usd"
-            )
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    disable_gravity=True,
+                    max_depenetration_velocity=5.0,
+                    linear_damping=0.0,
+                    angular_damping=0.0,
+                    max_linear_velocity=1000.0,
+                    max_angular_velocity=3666.0,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1,
+                    max_contact_impulse=1e32,
+                ),
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1
+                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    contact_offset=0.005,
+                    rest_offset=0.0
+                ),
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos={
+                    "shoulder_pan_joint": 2.7228e+00,
+                    "shoulder_lift_joint": -8.3962e-01,
+                    "elbow_joint": 1.3684e+00,
+                    "wrist_1_joint": -2.1048e+00,
+                    "wrist_2_joint": -1.5691e+00,
+                    "wrist_3_joint": -1.9896e+00,
+                    "finger_joint": 0.0,
+                    ".*_inner_finger_joint": 0.0,
+                    ".*_inner_finger_pad_joint": 0.0,
+                    ".*_outer_.*_joint": 0.0,
+                },
+                pos=(0.0, 0.0, 0.0),
+                # TODO: @ashwinvk. Why is this not the default?
+                rot=(0.0, 0.0, 0.0, 1.0),
+            ),
         )
 
+        # default values for gripper actuators cause these joints to be not stiff enough
+        self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
+            joint_names_expr=[".*_inner_finger_joint"],
+            effort_limit_sim=1.0,
+            velocity_limit_sim=1.0,
+            stiffness=2.0,
+            damping=0.01,
+            friction=0.0,
+            armature=0.0,
+        )
 
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         self.observations.policy.joint_vel.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
