@@ -468,6 +468,10 @@ class RecorderManager(ManagerBase):
                 demo_ids = demo_ids.tolist()
             if len(demo_ids) != len(env_ids):
                 raise ValueError(f"Length of demo_ids ({len(demo_ids)}) must match length of env_ids ({len(env_ids)})")
+            # Check for duplicate demo_ids
+            if len(set(demo_ids)) != len(demo_ids):
+                duplicates = [x for i, x in enumerate(demo_ids) if demo_ids.index(x) != i]
+                raise ValueError(f"demo_ids must be unique. Found duplicates: {list(set(duplicates))}")
 
         # Export episode data through dataset exporter
         need_to_flush = False
