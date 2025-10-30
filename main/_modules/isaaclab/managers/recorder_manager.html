@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 29, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 30, 2025"/>
   </head>
   
   
@@ -1034,12 +1034,16 @@
         <span class="n">ep_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get_ep_meta</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">ep_meta</span></div>
 
-<div class="viewcode-block" id="RecorderManager.export_episodes"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.export_episodes">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_episodes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="RecorderManager.export_episodes"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.export_episodes">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_episodes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">demo_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Concludes and exports the episodes for the given environment ids.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            env_ids: The environment ids. Defaults to None, in which case</span>
 <span class="sd">                all environments are considered.</span>
+<span class="sd">            demo_ids: Custom identifiers for the exported episodes.</span>
+<span class="sd">                If provided, episodes will be named &quot;demo_{demo_id}&quot; in the dataset.</span>
+<span class="sd">                Should have the same length as env_ids if both are provided.</span>
+<span class="sd">                If None, uses the default sequential naming scheme. Defaults to None.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Do nothing if no active recorder terms are provided</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1049,6 +1053,17 @@
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">))</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+        <span class="c1"># Handle demo_ids processing</span>
+        <span class="k">if</span> <span class="n">demo_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">demo_ids</span> <span class="o">=</span> <span class="n">demo_ids</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Length of demo_ids (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">)</span><span class="si">}</span><span class="s2">) must match length of env_ids (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+            <span class="c1"># Check for duplicate demo_ids</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">):</span>
+                <span class="n">duplicates</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">demo_ids</span><span class="p">)</span> <span class="k">if</span> <span class="n">demo_ids</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">!=</span> <span class="n">i</span><span class="p">]</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;demo_ids must be unique. Found duplicates: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">duplicates</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Export episode data through dataset exporter</span>
         <span class="n">need_to_flush</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1060,7 +1075,7 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span><span class="o">.</span><span class="n">add_env_args</span><span class="p">(</span><span class="n">ep_meta</span><span class="p">)</span>
 
-        <span class="k">for</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">env_ids</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">is_empty</span><span class="p">():</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">pre_export</span><span class="p">()</span>
 
@@ -1076,7 +1091,9 @@
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">target_dataset_file_handler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span>
                 <span class="k">if</span> <span class="n">target_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">target_dataset_file_handler</span><span class="o">.</span><span class="n">write_episode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">])</span>
+                    <span class="c1"># Use corresponding demo_id if provided, otherwise None</span>
+                    <span class="n">current_demo_id</span> <span class="o">=</span> <span class="n">demo_ids</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">demo_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+                    <span class="n">target_dataset_file_handler</span><span class="o">.</span><span class="n">write_episode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">],</span> <span class="n">current_demo_id</span><span class="p">)</span>
                     <span class="n">need_to_flush</span> <span class="o">=</span> <span class="kc">True</span>
                 <span class="c1"># Update episode count</span>
                 <span class="k">if</span> <span class="n">episode_succeeded</span><span class="p">:</span>
@@ -1179,7 +1196,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 29, 2025.
+  Last updated on Oct 30, 2025.
   <br/>
 </p>
   </div>

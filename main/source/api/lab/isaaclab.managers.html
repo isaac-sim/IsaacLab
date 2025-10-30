@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 29, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 30, 2025"/>
   </head>
   
   
@@ -3830,7 +3830,7 @@ in the <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg" ti
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.RecorderManager.get_ep_meta" title="isaaclab.managers.RecorderManager.get_ep_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ep_meta</span></code></a>()</p></td>
 <td><p>Get the episode metadata.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.RecorderManager.export_episodes" title="isaaclab.managers.RecorderManager.export_episodes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_episodes</span></code></a>([env_ids])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.RecorderManager.export_episodes" title="isaaclab.managers.RecorderManager.export_episodes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_episodes</span></code></a>([env_ids, demo_ids])</p></td>
 <td><p>Concludes and exports the episodes for the given environment ids.</p></td>
 </tr>
 </tbody>
@@ -4057,12 +4057,18 @@ information on the name matching.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.managers.RecorderManager.export_episodes">
-<span class="sig-name descname"><span class="pre">export_episodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/managers/recorder_manager.html#RecorderManager.export_episodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.RecorderManager.export_episodes" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">export_episodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">demo_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/managers/recorder_manager.html#RecorderManager.export_episodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.RecorderManager.export_episodes" title="Permalink to this definition">#</a></dt>
 <dd><p>Concludes and exports the episodes for the given environment ids.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids. Defaults to None, in which case
-all environments are considered.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env_ids</strong> – The environment ids. Defaults to None, in which case
+all environments are considered.</p></li>
+<li><p><strong>demo_ids</strong> – Custom identifiers for the exported episodes.
+If provided, episodes will be named “demo_{demo_id}” in the dataset.
+Should have the same length as env_ids if both are provided.
+If None, uses the default sequential naming scheme. Defaults to None.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -4451,7 +4457,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 29, 2025.
+  Last updated on Oct 30, 2025.
   <br/>
 </p>
   </div>
