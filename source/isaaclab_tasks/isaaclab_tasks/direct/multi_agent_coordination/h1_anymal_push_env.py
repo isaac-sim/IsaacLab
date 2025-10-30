@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import copy
@@ -508,10 +503,7 @@ class HeterogeneousPushMultiAgentEnv(DirectMARLEnv):
             [torch.ones((3 * self._commands.shape[0], 3), device=self.device), scale1, scale2], dim=0
         )
 
-        # obj_vel = self.object.data.root_com_lin_vel_b.clone()
-        # obj_vel[:, 2] = 0
-
-        obj_vel = self.object.data.root_com_lin_vel_b
+        obj_vel = self.object.data.root_com_lin_vel_b.clone()
         obj_vel[:, 2] = 0
 
         offset = torch.tensor([0, 2, 0], device=self.device)
