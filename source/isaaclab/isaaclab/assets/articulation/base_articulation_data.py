@@ -60,326 +60,277 @@ class BaseArticulationData(ABC):
     # Defaults - Initial state.
     ##
 
-    default_root_state: torch.Tensor | wp.array = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
+    @property
+    @abstractmethod
+    def default_root_state(self) -> torch.Tensor | wp.array:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
 
-    The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-    velocities are of its center of mass frame.
+        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
+        velocities are of its center of mass frame.
 
-    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-    """
+        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+        """
+        raise NotImplementedError
 
-    default_joint_pos: torch.Tensor | wp.array = None
-    """Default joint positions of all joints. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def default_joint_pos(self) -> torch.Tensor | wp.array:
+        """Default joint positions of all joints. Shape is (num_instances, num_joints).
 
-    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-    """
+        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+        """
+        raise NotImplementedError
 
-    default_joint_vel: torch.Tensor | wp.array = None
-    """Default joint velocities of all joints. Shape is (num_instances, num_joints).
 
-    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-    """
+    @property
+    @abstractmethod
+    def default_joint_vel(self) -> torch.Tensor | wp.array:
+        """Default joint velocities of all joints. Shape is (num_instances, num_joints).
 
-    ##
-    # Defaults - Physical properties.
-    ##
+        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+        """
+        raise NotImplementedError
 
-    default_mass: torch.Tensor | wp.array = None
-    """Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_inertia: torch.Tensor | wp.array = None
-    """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
-
-    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links' actor frame.
-    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
-    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_joint_stiffness: torch.Tensor | wp.array = None
-    """Default joint stiffness of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.stiffness`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-
-    .. attention::
-        The default stiffness is the value configured by the user or the value parsed from the USD schema.
-        It should not be confused with :attr:`joint_stiffness`, which is the value set into the simulation.
-    """
-
-    default_joint_damping: torch.Tensor | wp.array = None
-    """Default joint damping of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.damping`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-
-    .. attention::
-        The default stiffness is the value configured by the user or the value parsed from the USD schema.
-        It should not be confused with :attr:`joint_damping`, which is the value set into the simulation.
-    """
-
-    default_joint_armature: torch.Tensor | wp.array = None
-    """Default joint armature of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.armature`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_friction_coeff: torch.Tensor | wp.array = None
-    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_dynamic_friction_coeff: torch.Tensor | wp.array = None
-    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_viscous_friction_coeff: torch.Tensor | wp.array = None
-    """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_pos_limits: torch.Tensor | wp.array = None
-    """Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).
-
-    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
-    """
-    default_fixed_tendon_stiffness: torch.Tensor | wp.array = None
-    """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_damping: torch.Tensor | wp.array = None
-    """Default tendon damping of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_limit_stiffness: torch.Tensor | wp.array = None
-    """Default tendon limit stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_rest_length: torch.Tensor | wp.array = None
-    """Default tendon rest length of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_offset: torch.Tensor | wp.array = None
-    """Default tendon offset of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_pos_limits: torch.Tensor | wp.array = None
-    """Default tendon position limits of all fixed tendons. Shape is (num_instances, num_fixed_tendons, 2).
-
-    The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
-    initialization.
-    """
-
-    default_spatial_tendon_stiffness: torch.Tensor | wp.array = None
-    """Default tendon stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_damping: torch.Tensor | wp.array = None
-    """Default tendon damping of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_limit_stiffness: torch.Tensor | wp.array = None
-    """Default tendon limit stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_offset: torch.Tensor | wp.array = None
-    """Default tendon offset of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
 
     ##
     # Joint commands -- Set into simulation.
     ##
 
-    joint_pos_target: torch.Tensor | wp.array = None
-    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def joint_pos_target(self) -> torch.Tensor | wp.array:
+        """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
 
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
-    """
+        For an implicit actuator model, the targets are directly set into the simulation.
+        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+        which are then set into the simulation.
+        """
+        raise NotImplementedError
 
-    joint_vel_target: torch.Tensor | wp.array = None
-    """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def joint_vel_target(self) -> torch.Tensor | wp.array:
+        """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
 
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
-    """
+        For an implicit actuator model, the targets are directly set into the simulation.
+        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+        which are then set into the simulation.
+        """ 
+        raise NotImplementedError
 
-    joint_effort_target: torch.Tensor | wp.array = None
-    """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def joint_effort_target(self) -> torch.Tensor | wp.array:
+        """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
 
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
-    """
+        For an implicit actuator model, the targets are directly set into the simulation.
+        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+        which are then set into the simulation.
+        """
+        raise NotImplementedError
 
     ##
     # Joint commands -- Explicit actuators.
     ##
 
-    computed_torque: torch.Tensor | wp.array = None
-    """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def computed_torque(self) -> torch.Tensor | wp.array:
+        """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
 
-    This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-    It is exposed for users who want to inspect the computations inside the actuator model.
-    For instance, to penalize the learning agent for a difference between the computed and applied torques.
-    """
+        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
+        It is exposed for users who want to inspect the computations inside the actuator model.
+        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        """
+        raise NotImplementedError
 
-    applied_torque: torch.Tensor | wp.array = None
-    """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def applied_torque(self) -> torch.Tensor | wp.array:
+        """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
 
-    These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-    actuator model.
-    """
+        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
+        actuator model.
+        """
+        raise NotImplementedError
 
     ##
     # Joint properties.
     ##
 
-    joint_stiffness: torch.Tensor | wp.array = None
-    """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def joint_stiffness(self) -> torch.Tensor | wp.array:
+        """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
 
-    In the case of explicit actuators, the value for the corresponding joints is zero.
-    """
+        In the case of explicit actuators, the value for the corresponding joints is zero.
+        """
+        raise NotImplementedError
 
-    joint_damping: torch.Tensor | wp.array = None
-    """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
+    @property
+    @abstractmethod
+    def joint_damping(self) -> torch.Tensor | wp.array:
+        """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
 
-    In the case of explicit actuators, the value for the corresponding joints is zero.
-    """
+        In the case of explicit actuators, the value for the corresponding joints is zero.
+        """
+        raise NotImplementedError
 
-    joint_armature: torch.Tensor | wp.array = None
-    """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
+    @property
+    @abstractmethod
+    def joint_armature(self) -> torch.Tensor | wp.array:
+        """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
-    joint_friction_coeff: torch.Tensor | wp.array = None
-    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_dynamic_friction_coeff: torch.Tensor | wp.array = None
-    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    @property
+    @abstractmethod
+    def joint_friction_coeff(self) -> torch.Tensor | wp.array:
+        """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
-    joint_viscous_friction_coeff: torch.Tensor | wp.array = None
-    """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    @property
+    @abstractmethod
+    def joint_dynamic_friction_coeff(self) -> torch.Tensor | wp.array:
+        """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
-    joint_pos_limits: torch.Tensor | wp.array = None
-    """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
+    @property
+    @abstractmethod
+    def joint_viscous_friction_coeff(self) -> torch.Tensor | wp.array:
+        """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
-    The limits are in the order :math:`[lower, upper]`.
-    """
+    @property
+    @abstractmethod
+    def joint_pos_limits(self) -> torch.Tensor | wp.array:
+        """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
 
-    joint_vel_limits: torch.Tensor | wp.array = None
-    """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
+        The limits are in the order :math:`[lower, upper]`.
+        """
+        raise NotImplementedError
 
-    joint_effort_limits: torch.Tensor | wp.array = None
-    """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
+    @property
+    @abstractmethod
+    def joint_vel_limits(self) -> torch.Tensor | wp.array:
+        """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def joint_effort_limits(self) -> torch.Tensor | wp.array:
+        """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
     ##
     # Joint properties - Custom.
     ##
 
-    soft_joint_pos_limits: torch.Tensor | wp.array = None
-    r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
+    @property
+    @abstractmethod
+    def soft_joint_pos_limits(self) -> torch.Tensor | wp.array:
+        r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
 
-    The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
-    a sub-region of the :attr:`joint_pos_limits` based on the
-    :attr:`~isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor` parameter.
+        The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
+        a sub-region of the :attr:`joint_pos_limits` based on the
+        :attr:`~isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor` parameter.
 
-    Consider the joint position limits :math:`[lower, upper]` and the soft joint position limits
-    :math:`[soft_lower, soft_upper]`. The soft joint position limits are computed as:
+        Consider the joint position limits :math:`[lower, upper]` and the soft joint position limits
+        :math:`[soft_lower, soft_upper]`. The soft joint position limits are computed as:
 
-    .. math::
+        .. math::
 
-        soft\_lower = (lower + upper) / 2 - factor * (upper - lower) / 2
-        soft\_upper = (lower + upper) / 2 + factor * (upper - lower) / 2
+            soft\_lower = (lower + upper) / 2 - factor * (upper - lower) / 2
+            soft\_upper = (lower + upper) / 2 + factor * (upper - lower) / 2
 
-    The soft joint position limits help specify a safety region around the joint limits. It isn't used by the
-    simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
-    """
+        The soft joint position limits help specify a safety region around the joint limits. It isn't used by the
+        simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
+        """
+        raise NotImplementedError
 
-    soft_joint_vel_limits: torch.Tensor | wp.array = None
-    """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
+    @property
+    @abstractmethod
+    def soft_joint_vel_limits(self) -> torch.Tensor | wp.array:
+        """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
 
-    These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-    has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
-    """
+        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
+        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+        """
+        raise NotImplementedError
 
-    gear_ratio: torch.Tensor | wp.array = None
-    """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
+    @property
+    @abstractmethod
+    def gear_ratio(self) -> torch.Tensor | wp.array:
+        """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
 
     ##
     # Fixed tendon properties.
     ##
 
-    fixed_tendon_stiffness: torch.Tensor | wp.array = None
-    """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_stiffness(self) -> torch.Tensor | wp.array:
+        """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        raise NotImplementedError
 
-    fixed_tendon_damping: torch.Tensor | wp.array = None
-    """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_damping(self) -> torch.Tensor | wp.array:
+        """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        raise NotImplementedError
 
-    fixed_tendon_limit_stiffness: torch.Tensor | wp.array = None
-    """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_limit_stiffness(self) -> torch.Tensor | wp.array:
+        """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        raise NotImplementedError
 
-    fixed_tendon_rest_length: torch.Tensor | wp.array = None
-    """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_rest_length(self) -> torch.Tensor | wp.array:
+        """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        raise NotImplementedError
 
-    fixed_tendon_offset: torch.Tensor | wp.array = None
-    """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_offset(self) -> torch.Tensor | wp.array:
+        """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        raise NotImplementedError
 
-    fixed_tendon_pos_limits: torch.Tensor | wp.array = None
-    """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+    @property
+    @abstractmethod
+    def fixed_tendon_pos_limits(self) -> torch.Tensor | wp.array:
+        """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+        raise NotImplementedError
 
     ##
     # Spatial tendon properties.
     ##
 
-    spatial_tendon_stiffness: torch.Tensor | wp.array = None
-    """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+    @property
+    @abstractmethod
+    def spatial_tendon_stiffness(self) -> torch.Tensor | wp.array:
+        """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        raise NotImplementedError
 
-    spatial_tendon_damping: torch.Tensor | wp.array = None
-    """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+    @property
+    @abstractmethod
+    def spatial_tendon_damping(self) -> torch.Tensor | wp.array:
+        """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        raise NotImplementedError
 
-    spatial_tendon_limit_stiffness: torch.Tensor | wp.array = None
-    """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+    @property
+    @abstractmethod
+    def spatial_tendon_limit_stiffness(self) -> torch.Tensor | wp.array:
+        """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        raise NotImplementedError
 
-    spatial_tendon_offset: torch.Tensor | wp.array = None
-    """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+    @property
+    @abstractmethod
+    def spatial_tendon_offset(self) -> torch.Tensor | wp.array:
+        """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        raise NotImplementedError
 
     ##
     # Root state properties.
@@ -459,6 +410,16 @@ class BaseArticulationData(ABC):
     ##
     # Body state properties.
     ##
+
+    @property
+    def body_mass(self) -> wp.array | torch.Tensor:
+        """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
+        raise NotImplementedError
+
+    @property
+    def body_inertia(self) -> wp.array | torch.Tensor:
+        """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -967,12 +928,6 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    def default_joint_limits(self) -> torch.Tensor | wp.array:
-        """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
     def joint_velocity_limits(self) -> torch.Tensor | wp.array:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
         raise NotImplementedError
@@ -985,18 +940,6 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    def default_joint_friction(self) -> torch.Tensor | wp.array:
-        """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
     def fixed_tendon_limit(self) -> torch.Tensor | wp.array:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def default_fixed_tendon_limit(self) -> torch.Tensor | wp.array:
-        """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
         raise NotImplementedError

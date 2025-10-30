@@ -7,14 +7,15 @@
 # pyright: reportPrivateUsage=false
 
 from __future__ import annotations
+
 import torch
+import warp as wp
 import logging
 import warnings
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import warp as wp
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
 from pxr import UsdPhysics
@@ -26,17 +27,29 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 from isaaclab.newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab.newton.assets.articulation.articulation_data import ArticulationData
-from isaaclab.newton.assets.core.joint_properties.joint import Joint
-from isaaclab.newton.assets.core.body_properties.body import Body
-from isaaclab.newton.assets.core.root_properties.root import Root
 from isaaclab.newton.assets.core.kernels import (
     generate_mask_from_ids,
     populate_empty_array,
     update_batched_array_with_array_masked,
-    update_array_with_value,
     vec13f,
+    update_array_with_value,
+    update_array_with_value_masked,
+    update_array_with_array_masked,
+    update_batched_array_with_value_masked,
+    update_batched_array_with_batched_array_masked,
+    update_wrench_array_with_force,
+    update_wrench_array_with_torque,
+    update_joint_limits,
+    update_joint_limits_value_vec2f,
+    transform_CoM_pose_to_link_frame_masked_root,
+    project_link_velocity_to_com_frame_masked_root,
+    split_state_to_pose,
+    split_state_to_velocity,
+    update_soft_joint_pos_limits,
 )
-from isaaclab.newton import Frontend
+from isaaclab.newton import Frontend, QuaternionFormat
+from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -108,7 +121,7 @@ class Articulation(BaseArticulation):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    def __init__(self, cfg: ArticulationCfg, frontend: Frontend = Frontend.TORCH):
+    def __init__(self, cfg: ArticulationCfg, frontend: Frontend = Frontend.TORCH, quaternion_format: QuaternionFormat | None = None):
         """Initialize the articulation.
 
         Args:
@@ -116,6 +129,7 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
         self._frontend = frontend
+        self._quaternion_format = quaternion_format
 
     """
     Properties
@@ -137,7 +151,7 @@ class Articulation(BaseArticulation):
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self._joint.num_joints
+        return self._root_view.joint_dof_count
 
     @property
     def num_fixed_tendons(self) -> int:
@@ -152,12 +166,12 @@ class Articulation(BaseArticulation):
     @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
-        return self._body.num_bodies
+        return self._root_view.link_count
 
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        return self._joint.joint_names
+        return self._root_view.joint_dof_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -174,7 +188,7 @@ class Articulation(BaseArticulation):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        return self._body.body_names
+        return self._root_view.body_names
 
     @property
     def root_view(self) -> NewtonArticulationView:
@@ -199,11 +213,20 @@ class Articulation(BaseArticulation):
             if ids is not None:
                 mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
                 mask[ids] = True
-            mask = wp.from_torch(mask, dtype=wp.bool)
-        # use ellipses object to skip initial indices.
-        self._root.reset(mask)
-        self._joint.reset(mask)
-        self._body.reset(mask)
+                mask = wp.from_torch(mask, dtype=wp.bool)
+        if mask is None:
+            mask = self._data.ALL_ENV_MASK
+        # reset external wrench
+        wp.launch(
+            update_batched_array_with_value_masked,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[
+                wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                self._data._sim_bind_body_external_wrench,
+                mask,
+                self._data.ALL_ENV_MASK,
+            ],
+        )
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -225,6 +248,14 @@ class Articulation(BaseArticulation):
     """
     Frontend conversions - Torch to Warp.
     """
+
+    def _convert_quaternion_format(self, quaternion: torch.Tensor) -> torch.Tensor:
+        return quaternion.clone().roll(-1, dims=-1) if self._quaternion_format == QuaternionFormat.WXYZ else quaternion
+
+    def _convert_pose_to_quaternion_format(self, pose: torch.Tensor) -> torch.Tensor:
+        pose_ = pose.clone()
+        pose_[..., 3:7] = self._convert_quaternion_format(pose[..., 3:7])
+        return pose_
 
     def _torch_to_warp_single_index(
         self,
@@ -355,10 +386,10 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the body mask, names, and indices.
         """
         if self._frontend == Frontend.TORCH:
-            mask, names, indices = self._body.find_bodies(name_keys, preserve_order)
+            mask, names, indices = self._find_bodies(name_keys, preserve_order)
             return wp.to_torch(mask), names, indices
         else:
-            return self._body.find_bodies(name_keys, preserve_order)
+            return self._find_bodies(name_keys, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -378,10 +409,10 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the joint mask, names, and indices.
         """
         if self._frontend == Frontend.TORCH:
-            mask, names, indices = self._joint.find_joints(name_keys, joint_subset, preserve_order)
+            mask, names, indices = self._find_joints(name_keys, joint_subset, preserve_order)
             return wp.to_torch(mask), names, indices
         else:
-            return self._joint.find_joints(name_keys, joint_subset, preserve_order)
+            return self._find_joints(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -425,6 +456,7 @@ class Articulation(BaseArticulation):
     Operations - State Writers.
     """
 
+    @deprecated("write_root_link_pose_to_sim", "write_root_com_velocity_to_sim", since="3.0.0", remove_in="4.0.0")
     def write_root_state_to_sim(
         self,
         root_state: wp.array | torch.Tensor,
@@ -444,9 +476,16 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
-        # Write to Newton using warp
-        self._root.write_root_state_to_sim(root_state, env_mask=env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        # split the state into pose and velocity
+        pose, velocity = self._split_state(root_state)
+        # write the pose and velocity to the simulation
+        self.write_root_link_pose_to_sim(pose, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim(velocity, env_mask=env_mask)
 
+    @deprecated("write_root_com_state_to_sim", "write_root_com_velocity_to_sim", since="3.0.0", remove_in="4.0.0")
     def write_root_com_state_to_sim(
         self,
         root_state: wp.array | torch.Tensor,
@@ -466,9 +505,13 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
-        # Write to Newton using warp
-        self._root.write_root_com_state_to_sim(root_state, env_mask=env_mask)
+        # split the state into pose and velocity
+        pose, velocity = self._split_state(root_state)
+        # write the pose and velocity to the simulation
+        self.write_root_com_pose_to_sim(pose, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim(velocity, env_mask=env_mask)
 
+    @deprecated("write_root_link_pose_to_sim", "write_root_link_velocity_to_sim", since="3.0.0", remove_in="4.0.0")
     def write_root_link_state_to_sim(
         self,
         root_state: wp.array | torch.Tensor,
@@ -488,8 +531,11 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
-        # Write to Newton using warp
-        self._root.write_root_link_state_to_sim(root_state, env_mask=env_mask)
+        # split the state into pose and velocity
+        pose, velocity = self._split_state(root_state)
+        # write the pose and velocity to the simulation
+        self.write_root_link_pose_to_sim(pose, env_mask=env_mask)
+        self.write_root_link_velocity_to_sim(velocity, env_mask=env_mask)
 
     def write_root_pose_to_sim(
         self,
@@ -506,11 +552,7 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
-            root_pose, env_mask = self._torch_to_warp_single_index(root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
-        # Write to Newton using warp
-        self._root.write_root_link_pose_to_sim(root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim(root_pose, env_ids, env_mask)
 
     def write_root_link_pose_to_sim(
         self,
@@ -530,9 +572,20 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
+            pose = self._convert_pose_to_quaternion_format(pose)
             pose, env_mask = self._torch_to_warp_single_index(pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
-        # Write to Newton using warp
-        self._root.write_root_link_pose_to_sim(pose, env_mask=env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        # set into simulation
+        self._update_array_with_array_masked(
+            pose,
+            self._data._sim_bind_root_link_pose_w,
+            env_mask,
+            self.num_instances
+        )
+        # invalidate the root com pose
+        self._data._root_com_pose_w.timestamp = -1.0
 
     def write_root_com_pose_to_sim(
         self,
@@ -552,9 +605,13 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
+            root_pose = self._convert_pose_to_quaternion_format(root_pose)
             root_pose, env_mask = self._torch_to_warp_single_index(root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         # Write to Newton using warp
-        self._root.write_root_com_pose_to_sim(root_pose, env_mask=env_mask)
+        self._write_root_com_pose_to_sim(root_pose, env_mask)
 
     def write_root_velocity_to_sim(
         self,
@@ -572,11 +629,7 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
-            root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
-        # Write to Newton using warp
-        self._root.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim(root_velocity, env_ids, env_mask)
 
     def write_root_com_velocity_to_sim(
         self,
@@ -597,8 +650,20 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
-        # Write to Newton using warp
-        self._root.write_root_com_velocity_to_sim(root_velocity, env_mask=env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        # set into simulation
+        self._update_array_with_array_masked(
+            root_velocity,
+            self._data._sim_bind_root_com_vel_w,
+            env_mask,
+            self.num_instances
+        )
+        # invalidate the derived velocities
+        self._data._root_link_vel_w.timestamp = -1.0
+        self._data._root_link_vel_b.timestamp = -1.0
+        self._data._root_com_vel_b.timestamp = -1.0
 
     def write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
@@ -614,8 +679,14 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
-        # Write to Newton using warp
-        self._root.write_root_link_velocity_to_sim(root_velocity, env_mask=env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        # set into simulation
+        self._write_root_link_velocity_to_sim(root_velocity, env_mask)
+        # invalidate the derived velocities
+        self._data._root_link_vel_b.timestamp = -1.0
+        self._data._root_com_vel_b.timestamp = -1.0
 
     def write_joint_state_to_sim(
         self,
@@ -640,8 +711,26 @@ class Articulation(BaseArticulation):
         if self._frontend == Frontend.TORCH:
             position, _, _ = self._torch_to_warp_dual_index(position, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
             velocity, env_mask, joint_mask = self._torch_to_warp_dual_index(velocity, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # set into simulation
-        self._joint.write_joint_state_to_sim(position, velocity, joint_mask, env_mask)
+        self._update_batched_array_with_batched_array_masked(
+            position,
+            self._data._sim_bind_joint_pos,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
+        self._update_batched_array_with_batched_array_masked(
+            velocity,
+            self._data._sim_bind_joint_vel,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
 
     def write_joint_position_to_sim(
         self,
@@ -663,8 +752,19 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             position, env_mask, joint_mask = self._torch_to_warp_dual_index(position, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # set into simulation
-        self._joint.write_joint_position_to_sim(position, joint_mask, env_mask)
+        self._update_batched_array_with_batched_array_masked(
+            position,
+            self._data._sim_bind_joint_pos,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
 
     def write_joint_velocity_to_sim(
         self,
@@ -686,8 +786,19 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             velocity, env_mask, joint_mask = self._torch_to_warp_dual_index(velocity, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # set into simulation
-        self._joint.write_joint_velocity_to_sim(velocity, joint_mask, env_mask)
+        self._update_batched_array_with_batched_array_masked(
+            velocity,
+            self._data._sim_bind_joint_vel,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
 
     """
     Operations - Simulation Parameters Writers.
@@ -716,7 +827,30 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             control_mode, env_mask, joint_mask = self._torch_to_warp_dual_index(control_mode, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_control_mode_to_sim(control_mode, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(control_mode, int):
+            self._update_batched_array_with_value_masked(
+                control_mode,
+                self._data._sim_bind_joint_control_mode_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                control_mode,
+                self._data._sim_bind_joint_control_mode_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim(
         self,
@@ -738,7 +872,30 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             stiffness, env_mask, joint_mask = self._torch_to_warp_dual_index(stiffness, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_stiffness_to_sim(stiffness, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(stiffness, float):
+            self._update_batched_array_with_value_masked(
+                stiffness,
+                self._data._sim_bind_joint_stiffness_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                stiffness,
+                self._data._sim_bind_joint_stiffness_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_damping_to_sim(
         self,
@@ -760,7 +917,30 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             damping, env_mask, joint_mask = self._torch_to_warp_dual_index(damping, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_damping_to_sim(damping, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(damping, float):
+            self._update_batched_array_with_value_masked(
+                damping,
+                self._data._sim_bind_joint_damping_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                damping,
+                self._data._sim_bind_joint_damping_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim(
         self,
@@ -785,7 +965,15 @@ class Articulation(BaseArticulation):
         if self._frontend == Frontend.TORCH:
             upper_limits, _, _ = self._torch_to_warp_dual_index(upper_limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
             lower_limits, env_mask, joint_mask = self._torch_to_warp_dual_index(lower_limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_position_limit_to_sim(upper_limits, lower_limits, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        self._write_joint_position_limit_to_sim(upper_limits, lower_limits, joint_mask, env_mask)
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim(
         self,
@@ -810,10 +998,36 @@ class Articulation(BaseArticulation):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        # Warn if using Mujoco solver
+        if isinstance(NewtonManager._solver, SolverMuJoCo):
+            warnings.warn("write_joint_velocity_limit_to_sim is ignored by the solver when using Mujoco.")
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             limits, env_mask, joint_mask = self._torch_to_warp_dual_index(limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_velocity_limit_to_sim(limits, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(limits, float):
+            self._update_batched_array_with_value_masked(
+                limits,
+                self._data._sim_bind_joint_vel_limits_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                limits,
+                self._data._sim_bind_joint_vel_limits_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -838,7 +1052,30 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             limits, env_mask, joint_mask = self._torch_to_warp_dual_index(limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_effort_limit_to_sim(limits, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(limits, float):
+            self._update_batched_array_with_value_masked(
+                limits,
+                self._data._sim_bind_joint_effort_limits_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                limits,
+                self._data._sim_bind_joint_effort_limits_sim,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_armature_to_sim(
         self,
@@ -863,7 +1100,30 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             armature, env_mask, joint_mask = self._torch_to_warp_dual_index(armature, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_armature_to_sim(armature, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(armature, float):
+            self._update_batched_array_with_value_masked(
+                armature,
+                self._data._sim_bind_joint_armature,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                armature,
+                self._data._sim_bind_joint_armature,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -894,7 +1154,118 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             joint_friction_coeff, env_mask, joint_mask = self._torch_to_warp_dual_index(joint_friction_coeff, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.write_joint_friction_coefficient_to_sim(joint_friction_coeff, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(joint_friction_coeff, float):
+            self._update_batched_array_with_value_masked(
+                joint_friction_coeff,
+                self._data._sim_bind_joint_friction_coeff,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                joint_friction_coeff,
+                self._data._sim_bind_joint_friction_coeff,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
+    def write_joint_dynamic_friction_coefficient_to_sim(
+        self,
+        joint_dynamic_friction_coeff: wp.array | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
+        if self._frontend == Frontend.TORCH:
+            joint_dynamic_friction_coeff, env_mask, joint_mask = self._torch_to_warp_dual_index(joint_dynamic_friction_coeff, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into simulation
+        if isinstance(joint_dynamic_friction_coeff, float):
+            self._update_batched_array_with_value_masked(
+                joint_dynamic_friction_coeff,
+                self._data._joint_dynamic_friction,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                joint_dynamic_friction_coeff,
+                self._data._joint_dynamic_friction,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
+    @deprecated("write_joint_friction_coefficient_to_sim", since="2.1.0", remove_in="4.0.0")
+    def write_joint_friction_to_sim(
+        self,
+        joint_friction_coeff: wp.array | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        r"""Write joint friction coefficients into the simulation.
+
+        The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+        from the parent body to the child body to the maximal friction force that may be applied by the solver
+        to resist the joint motion.
+
+        Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
+        is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
+        transmitted from the parent body to the child body. The simulated friction effect is therefore
+        similar to static and Coulomb friction.
+
+        Args:
+            joint_friction_coeff: Joint friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            joint_mask: The joint mask. Shape is (num_joints).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        self.write_joint_friction_coefficient_to_sim(joint_friction_coeff, joint_ids, env_ids, joint_mask, env_mask)
+
+    @deprecated("write_joint_position_limit_to_sim", since="2.1.0", remove_in="4.0.0")
+    def write_joint_limits_to_sim(
+        self,
+        upper_limits: wp.array | float,
+        lower_limits: wp.array | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint position limits into the simulation.
+
+        Args:
+            upper_limits: Joint upper limits. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            lower_limits: Joint lower limits. Shape is (num_instances, num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            joint_mask: The joint mask. Shape is (num_joints).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        self.write_joint_position_limit_to_sim(upper_limits, lower_limits, joint_ids, env_ids, joint_mask, env_mask)
+
 
     """
     Operations - Setters.
@@ -943,7 +1314,13 @@ class Articulation(BaseArticulation):
                 forces, env_mask, body_mask = self._torch_to_warp_dual_index(forces, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
             if torques is not None:
                 torques, env_mask, body_mask = self._torch_to_warp_dual_index(torques, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
-        self._body.set_external_force_and_torque(forces, torques, body_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
+        # set into simulation
+        self._set_external_force_and_torque(forces, torques, body_mask, env_mask)
 
     def set_joint_position_target(
         self,
@@ -968,7 +1345,22 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.set_joint_position_target(target, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into the actuator target buffer
+        wp.launch(
+            update_batched_array_with_batched_array_masked,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                target,
+                self._data._sim_bind_joint_target,
+                env_mask,
+                joint_mask,
+            ],
+        )
 
     def set_joint_velocity_target(
         self,
@@ -993,7 +1385,19 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.set_joint_velocity_target(target, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into the actuator target buffer
+        self._update_batched_array_with_batched_array_masked(
+            target,
+            self._data._sim_bind_joint_target,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
 
     def set_joint_effort_target(
         self,
@@ -1018,7 +1422,19 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if self._frontend == Frontend.TORCH:
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        self._joint.set_joint_effort_target(target, joint_mask, env_mask)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # set into the actuator effort target buffer
+        self._update_batched_array_with_batched_array_masked(
+            target,
+            self._data._actuator_effort_target,
+            env_mask,
+            joint_mask,
+            (self.num_instances, self.num_joints)
+        )
 
     """
     Operations - Tendons.
@@ -1111,6 +1527,36 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         raise NotImplementedError("Fixed tendon position limit is not supported in Newton.")
+
+    @deprecated("set_fixed_tendon_position_limit", since="2.1.0", remove_in="4.0.0")
+    def set_fixed_tendon_limit(
+        self,
+        limit: wp.array,
+        fixed_tendon_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon limit efforts into internal buffers.
+
+        This function does not apply the tendon limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+         Args:
+            limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            fixed_tendon_ids: The fixed tendon indices to set the limit for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the limit for. Defaults to None (all environments).
+            fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        self.set_fixed_tendon_position_limit(
+            limit,
+            fixed_tendon_ids=fixed_tendon_ids,
+            env_ids=env_ids,
+            fixed_tendon_mask=fixed_tendon_mask,
+            env_mask=env_mask,
+        )
+        
 
     def set_fixed_tendon_rest_length(
         self,
@@ -1325,12 +1771,11 @@ class Articulation(BaseArticulation):
         )
 
         # container for data access
-        self._data = ArticulationData(self._root_view, self.device, frontend=self._frontend)
-
-        # create backend setters for the data containers
-        self._joint = Joint(self._root_view, self._data.joint_data, self.cfg.soft_joint_pos_limit_factor, self.device)
-        self._body = Body(self._root_view, self._data.body_data, self.device)
-        self._root = Root(self._root_view, self._data.root_data, self.device)
+        if self._frontend == Frontend.TORCH and self._quaternion_format is None:
+            self._quaternion_format = QuaternionFormat.WXYZ
+        if self._frontend == Frontend.WARP and self._quaternion_format is None:
+            self._quaternion_format = QuaternionFormat.XYZW
+        self._data = ArticulationData(self._root_view, self.device, frontend=self._frontend, quaternion_format=self._quaternion_format)
 
         # process configuration
         self._create_buffers()
@@ -1348,13 +1793,26 @@ class Articulation(BaseArticulation):
         # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
         # constraints or contact required to run the simulation.
         # TODO: Do this is warp directly?
-        generated_pose = wp.to_torch(self._data.root_data.default_root_pose).clone()
+        generated_pose = wp.to_torch(self._data._default_root_pose).clone()
         generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[
             :, :2
         ]
         self._root_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
         self._root_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
+    def _create_buffers(self, *args, **kwargs):
+        if self._frontend == Frontend.TORCH:
+            self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+        wp.launch(
+            update_soft_joint_pos_limits,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self.data._sim_bind_joint_pos_limits_lower,
+                self.data._sim_bind_joint_pos_limits_upper,
+                self.data._soft_joint_pos_limits,
+                self.cfg.soft_joint_pos_limit_factor,
+            ],
+        )
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
@@ -1366,23 +1824,17 @@ class Articulation(BaseArticulation):
             self.cfg.init_state.rot[0],
         )
         # update the default root pose
-        wp.launch(
-            update_array_with_value,
-            dim=(self.num_instances,),
-            inputs=[
-                wp.transformf(*default_root_pose),
-                self._data.root_data.default_root_pose,
-            ],
+        self._update_array_with_value(
+            wp.transformf(*default_root_pose),
+            self._data._default_root_pose,
+            self.num_instances
         )
         # default velocity
         default_root_velocity = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
-        wp.launch(
-            update_array_with_value,
-            dim=(self.num_instances,),
-            inputs=[
-                wp.spatial_vectorf(*default_root_velocity),
-                self._data.root_data.default_root_vel,
-            ],
+        self._update_array_with_value(
+            wp.spatial_vectorf(*default_root_velocity),
+            self._data._default_root_vel,
+            self.num_instances
         )
         # -- joint pos
         # joint pos
@@ -1390,12 +1842,12 @@ class Articulation(BaseArticulation):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         # Compute the mask once and use it for all joint operations
-        self._joint._JOINT_MASK.fill_(False)
+        self._data.JOINT_MASK.fill_(False)
         wp.launch(
             generate_mask_from_ids,
             dim=(self.num_joints,),
             inputs=[
-                self._joint._JOINT_MASK,
+                self._data.JOINT_MASK,
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
         )
@@ -1409,15 +1861,12 @@ class Articulation(BaseArticulation):
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
         )
-        wp.launch(
-            update_batched_array_with_array_masked,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                tmp_joint_data,
-                self._data.joint_data.default_joint_pos,
-                self._joint._ALL_ENV_MASK,
-                self._joint._JOINT_MASK,
-            ],
+        self._update_batched_array_with_array_masked(
+            tmp_joint_data,
+            self._data._default_joint_pos,
+            self._data.ALL_ENV_MASK,
+            self._data.JOINT_MASK,
+            (self.num_instances, self.num_joints)
         )
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
@@ -1432,15 +1881,12 @@ class Articulation(BaseArticulation):
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
         )
-        wp.launch(
-            update_batched_array_with_array_masked,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                tmp_joint_data,
-                self._data.joint_data.default_joint_vel,
-                self._joint._ALL_ENV_MASK,
-                self._joint._JOINT_MASK,
-            ],
+        self._update_batched_array_with_array_masked(
+            tmp_joint_data,
+            self._data._default_joint_vel,
+            self._data.ALL_ENV_MASK,
+            self._data.JOINT_MASK,
+            (self.num_instances, self.num_joints)
         )
 
     """
@@ -1469,7 +1915,7 @@ class Articulation(BaseArticulation):
             # type annotation for type checkers
             actuator_cfg: ActuatorBaseCfg
             # create actuator group
-            joint_mask, joint_names, joint_indices = self.find_joints(actuator_cfg.joint_names_expr)
+            joint_mask, joint_names, _ = self._find_joints(actuator_cfg.joint_names_expr)
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
@@ -1482,8 +1928,8 @@ class Articulation(BaseArticulation):
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_mask=joint_mask,
-                env_mask=self._joint._ALL_ENV_MASK,
-                joint_data=self._data.joint_data,
+                env_mask=self._data.ALL_ENV_MASK,
+                data=self._data,
                 device=self.device,
             )
             # log information on actuator groups
@@ -1499,24 +1945,41 @@ class Articulation(BaseArticulation):
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
-                self._joint.write_joint_stiffness_to_sim(self.data.joint_stiffness, joint_mask=actuator._joint_mask)
-                self._joint.write_joint_damping_to_sim(self.data.joint_damping, joint_mask=actuator._joint_mask)
+                self._update_batched_array_with_batched_array_masked(
+                    self._data._actuator_stiffness,
+                    self._data._sim_bind_joint_stiffness_sim,
+                    self._data.ALL_ENV_MASK,
+                    actuator._joint_mask,
+                    (self.num_instances, self.num_joints)
+                )
+                self._update_batched_array_with_batched_array_masked(
+                    self._data._actuator_damping,
+                    self._data._sim_bind_joint_damping_sim,
+                    self._data.ALL_ENV_MASK,
+                    actuator._joint_mask,
+                    (self.num_instances, self.num_joints)
+                )
                 # Sets the control mode for the implicit actuators
-                self._joint.write_joint_control_mode_to_sim(self.data.joint_control_mode, joint_mask=actuator._joint_mask)
-
+                self._update_batched_array_with_batched_array_masked(
+                    self._data._actuator_control_mode,
+                    self._data._sim_bind_joint_control_mode_sim,
+                    self._data.ALL_ENV_MASK,
+                    actuator._joint_mask,
+                    (self.num_instances, self.num_joints)
+                )
                 # When using implicit actuators, we bind the commands sent from the user to the simulation.
                 # We only run the actuator model to compute the estimated joint efforts.
-                self.data._joint_data._joint_target = self.data._joint_data.joint_target_sim
-                self.data._joint_data._joint_effort_target = self.data._joint_data.joint_effort_sim
+                self.data._actuator_target = self.data._sim_bind_joint_target
+                self.data._actuator_effort_target = self.data._sim_bind_joint_effort
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self._joint.write_joint_stiffness_to_sim(0.0, joint_mask=actuator._joint_mask)
-                self._joint.write_joint_damping_to_sim(0.0, joint_mask=actuator._joint_mask)
+                self._update_batched_array_with_value_masked(0.0, self._data._sim_bind_joint_stiffness_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
+                self._update_batched_array_with_value_masked(0.0, self._data._sim_bind_joint_damping_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 # Set the control mode to None when using explicit actuators
-                self._joint.write_joint_control_mode_to_sim(0, joint_mask=actuator._joint_mask)
+                self._update_batched_array_with_value_masked(0, self._data._sim_bind_joint_control_mode_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 # Bind the applied effort to the simulation effort
-                self.data._joint_data._applied_effort = self.data.joint_effort_sim
+                self.data._applied_effort = self.data._sim_bind_joint_effort
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1569,8 +2032,8 @@ class Articulation(BaseArticulation):
             ),
             dim=2,
         )[0].to(self.device)
-        out_of_range = wp.to_torch(self._data.joint_data.default_joint_pos)[0] < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.joint_data.default_joint_pos)[0] > joint_pos_limits[:, 1]
+        out_of_range = wp.to_torch(self._data._default_joint_pos)[0] < joint_pos_limits[:, 0]
+        out_of_range |= wp.to_torch(self._data._default_joint_pos)[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -1642,14 +2105,396 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Tendons are not implemented yet")
 
-    def _create_buffers(self, *args, **kwargs):
-        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+    ##
+    # Internal Warp helpers.
+    ##
 
-    def set_fixed_tendon_limit(self, *args, **kwargs):
-        pass
-    def write_joint_dynamic_friction_coefficient_to_sim(self, *args, **kwargs):
-        pass
-    def write_joint_friction_to_sim(self, *args, **kwargs):
-        pass
-    def write_joint_limits_to_sim(self, *args, **kwargs):
-        pass
+    def _update_array_with_value(self, source: float | int | wp.vec2f | wp.vec3f | wp.quatf | wp.transformf | wp.spatial_vectorf, target: wp.array, dim: int):
+        """Update an array with a value.
+
+        Args:
+            source: The source value.
+            target: The target array. Shape is (dim,). Must be pre-allocated, is modified in place.
+            dim: The dimension of the array.
+        """
+        wp.launch(
+            update_array_with_value,
+            dim=(dim,),
+            inputs=[
+                source,
+                target,
+            ],
+        )
+
+    def _update_array_with_value_masked(self, source: float | int | wp.vec2f | wp.vec3f | wp.quatf | wp.transformf | wp.spatial_vectorf, target: wp.array, mask: wp.array, dim: int):
+        """Update an array with a value using a mask.
+
+        Args:
+            source: The source value.
+            target: The target array. Shape is (dim,). Must be pre-allocated, is modified in place.
+            mask: The mask to use. Shape is (dim,).
+            dim: The dimension of the array.
+        """
+        wp.launch(
+            update_array_with_value_masked,
+            dim=(dim,),
+            inputs=[
+                source,
+                target,
+                mask,
+            ],
+        )
+    
+    def _update_array_with_array_masked(self, source: wp.array, target: wp.array, mask: wp.array, dim: int):
+        """Update an array with an array using a mask.
+
+        Args:
+            source: The source array. Shape is (dim,).
+            target: The target array. Shape is (dim,). Must be pre-allocated, is modified in place.
+            mask: The mask to use. Shape is (dim,).
+        """
+        wp.launch(
+            update_array_with_array_masked,
+            dim=(dim,),
+            inputs=[
+                source,
+                target,
+                mask,
+            ],
+        )
+
+    def _update_batched_array_with_array_masked(self, source: wp.array, target: wp.array, mask_1: wp.array, mask_2: wp.array, dim: tuple[int, int]):
+        """Update a batched array with an array using a mask.
+
+        Args:
+            source: The source array. Shape is (dim[1],).
+            target: The target array. Shape is (dim[0], dim[1]). Must be pre-allocated, is modified in place.
+            mask_1: The mask to use. Shape is (dim[0],).
+            mask_2: The mask to use. Shape is (dim[1],).
+            dim: The dimension of the arrays.
+        """
+        wp.launch(
+            update_batched_array_with_array_masked,
+            dim=dim,
+            inputs=[
+                source,
+                target,
+                mask_1,
+                mask_2,
+            ],
+        )
+
+    def _update_batched_array_with_batched_array_masked(self, source: wp.array, target: wp.array, mask_1: wp.array, mask_2: wp.array, dim: tuple[int, int]):
+        """Update a batched array with a batched array using a mask.
+
+        Args:
+            source: The source array. Shape is (dim[0], dim[1]).
+            target: The target array. Shape is (dim[0], dim[1]). Must be pre-allocated, is modified in place.
+            mask_1: The mask to use. Shape is (dim[0],).
+            mask_2: The mask to use. Shape is (dim[1],).
+            dim: The dimension of the arrays.
+        """
+        wp.launch(
+            update_batched_array_with_batched_array_masked,
+            dim=dim,
+            inputs=[
+                source,
+                target,
+                mask_1,
+                mask_2,
+            ],
+        )
+
+    def _update_batched_array_with_value_masked(self, source: float | int | wp.vec2f | wp.vec3f | wp.quatf | wp.transformf | wp.spatial_vectorf, target: wp.array, mask_1: wp.array, mask_2: wp.array, dim: tuple[int, int]):
+        """Update a batched array with a value using a mask.
+
+        Args:
+            source: The source value.
+            target: The target array. Shape is (dim[0], dim[1]). Must be pre-allocated, is modified in place.
+            mask_1: The mask to use. Shape is (dim[0],).
+            mask_2: The mask to use. Shape is (dim[1],).
+            dim: The dimension of the arrays.
+        """
+        wp.launch(
+            update_batched_array_with_value_masked,
+            dim=dim,
+            inputs=[
+                source,
+                target,
+                mask_1,
+                mask_2,
+            ],
+        )
+
+    def _find_bodies(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[wp.array, list[str], list[int]]:
+        """Find bodies in the articulation based on the name keys.
+
+        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the body mask, names, and indices.
+        """
+        indices, names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        self._data.BODY_MASK.fill_(False)
+        mask = wp.clone(self._data.BODY_MASK)
+        wp.launch(
+            generate_mask_from_ids,
+            dim=(len(indices),),
+            inputs=[
+                mask,
+                wp.array(indices, dtype=wp.int32, device=self._device),
+            ],
+        )
+        return mask, names, indices
+
+    def _find_joints(
+        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
+    ) -> tuple[wp.array, list[str], list[int]]:
+        """Find joints in the articulation based on the name keys.
+
+        Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
+        on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the joint names.
+            joint_subset: A subset of joints to search for. Defaults to None, which means all joints
+                in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the joint mask, names, and indices.
+        """
+        if joint_subset is None:
+            joint_subset = self.joint_names
+        # find joints
+        indices, names = string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
+        self._data.JOINT_MASK.fill_(False)
+        mask = wp.clone(self._data.JOINT_MASK)
+        wp.launch(
+            generate_mask_from_ids,
+            dim=(len(indices),),
+            inputs=[
+                mask,
+                wp.array(indices, dtype=wp.int32, device=self._device),
+            ],
+        )
+        return mask, names, indices
+
+    def _set_external_force_and_torque(self, forces: wp.array | None, torques: wp.array | None, body_mask: wp.array, env_mask: wp.array):
+        """Set external force and torque to apply on the asset's bodies in their local frame.
+
+        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
+        time (for instance, during the policy control). This function allows us to store the external force and torque
+        into buffers which are then applied to the simulation at every step.
+
+        .. caution::
+            If the function is called with empty forces and torques, then this function disables the application
+            of external wrench to the simulation.
+
+            .. code-block:: python
+
+                # example of disabling external wrench
+                asset.set_external_force_and_torque(forces=wp.zeros(0, 3), torques=wp.zeros(0, 3))
+
+        .. note::
+            This function does not apply the external wrench to the simulation. It only fills the buffers with
+            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
+            right before the simulation step.
+
+        Args:
+            forces: External forces in bodies' local frame. Shape is (num_instances, num_bodies, 3).
+            torques: External torques in bodies' local frame. Shape is (num_instances, num_bodies, 3).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        if (forces is not None) or (torques is not None):
+            self.has_external_wrench = True
+            if forces is not None:
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        forces,
+                        self._data._sim_bind_body_external_wrench,
+                        env_mask,
+                        body_mask,
+                    ],
+                )
+            if torques is not None:
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        torques,
+                        self._data._sim_bind_body_external_wrench,
+                        env_mask,
+                        body_mask,
+                    ],
+                )
+
+    def _write_joint_position_limit_to_sim(
+        self,
+        upper_limits: wp.array | float,
+        lower_limits: wp.array | float,
+        joint_mask: wp.array,
+        env_mask: wp.array,
+    ) -> None:
+        """Write joint position limits into the simulation.
+
+        Args:
+            upper_limits: Joint upper limits. Shape is (num_instances, num_joints).
+            lower_limits: Joint lower limits. Shape is (num_instances, num_joints).
+            joint_mask: The joint mask. Shape is (num_joints).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        # note: This function isn't setting the values for actuator models. (#128)
+        # resolve indices
+
+        if isinstance(upper_limits, float) and isinstance(lower_limits, float):
+            # update default joint pos to stay within the new limits
+            self._update_batched_array_with_value_masked(
+                wp.vec2f(upper_limits, lower_limits),
+                self._data.default_joint_pos,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+            # set into simulation
+            wp.launch(
+                update_joint_limits_value_vec2f,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    wp.vec2f(upper_limits, lower_limits),
+                    self.cfg.soft_joint_pos_limit_factor,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
+                    self._data.soft_joint_pos_limits,
+                    env_mask,
+                    joint_mask,
+                ],
+            )
+        elif isinstance(upper_limits, wp.array) and isinstance(lower_limits, wp.array):
+            # update default joint pos to stay within the new limits
+            self._update_batched_array_with_batched_array_masked(
+                lower_limits,
+                upper_limits,
+                self._data.default_joint_pos,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints)
+            )
+            # set into simulation
+            wp.launch(
+                update_joint_limits,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    lower_limits,
+                    upper_limits,
+                    self.cfg.soft_joint_pos_limit_factor,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
+                    self._data.soft_joint_pos_limits,
+                    env_mask,
+                    joint_mask,
+                ],
+            )
+
+    def _write_root_com_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array) -> None:
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The orientation is the orientation of the principle axes of inertia.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
+        # update the root com pose (internal buffer)
+        self._update_array_with_array_masked(
+            root_pose,
+            self._data.root_com_pose_w.data,
+            env_mask,
+            self.num_instances
+        )
+        # set link frame poses
+        wp.launch(
+            transform_CoM_pose_to_link_frame_masked_root,
+            dim=self.num_instances,
+            inputs=[
+                self._data._compute_root_com_pose_w(),
+                self._data._sim_bind_body_com_pos_b,
+                self._data._sim_bind_root_link_pose_w,
+                env_mask,
+            ],
+        )
+
+    def _write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array) -> None:
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
+        # update the root link velocity (internal buffer)
+        self._update_array_with_array_masked(
+            root_velocity,
+            self._data.root_link_vel_w.data,
+            env_mask,
+            self.num_instances
+        )
+        # set into internal buffers
+        wp.launch(
+            project_link_velocity_to_com_frame_masked_root,
+            dim=self.num_instances,
+            inputs=[
+                root_velocity,
+                self._data._sim_bind_root_link_pose_w,
+                self._data._sim_bind_body_com_pos_b,
+                self._data._sim_bind_root_com_vel_w,
+                env_mask,
+            ],
+        )
+
+    @warn_overhead_cost("N/A", "Launches a kernel to split the state into pose and velocity. Consider setting the pose and velocity independently instead.")
+    def _split_state(
+        self,
+        state: wp.array,
+    ) -> tuple[wp.array, wp.array]:
+        """Split the state into pose and velocity.
+
+        Args:
+            state: State in simulation frame. Shape is (num_instances, 13).
+        
+        Returns:
+            A tuple of pose and velocity. Shape is (num_instances, 7) and (num_instances, 6) respectively.
+        """
+        tmp_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self._device)
+        tmp_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self._device)
+
+        wp.launch(
+            split_state_to_pose,
+            dim=self.num_instances,
+            inputs=[
+                state,
+                tmp_pose,
+            ],
+        )
+        wp.launch(
+            split_state_to_velocity,
+            dim=self.num_instances,
+            inputs=[
+                state,
+                tmp_velocity,
+            ],
+        )
+        return tmp_pose, tmp_velocity

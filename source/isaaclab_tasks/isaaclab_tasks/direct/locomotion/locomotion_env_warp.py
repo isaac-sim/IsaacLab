@@ -403,22 +403,6 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = wp.to_torch(self.episode_length_buf)
 
-        # Get the values from the robot data
-        print("joint_pos_limits_lower", wp.to_torch(self.robot.data.joint_pos_limits_lower)[0])
-        print("joint_pos_limits_upper", wp.to_torch(self.robot.data.joint_pos_limits_upper)[0])
-        print("joint_stiffness_sim", wp.to_torch(self.robot.data.joint_stiffness_sim)[0])
-        print("joint_damping_sim", wp.to_torch(self.robot.data.joint_damping_sim)[0])
-        print("joint_armature", wp.to_torch(self.robot.data.joint_armature)[0])
-        print("joint_friction_coeff", wp.to_torch(self.robot.data.joint_friction_coeff)[0])
-        print("joint_vel_limits_sim", wp.to_torch(self.robot.data.joint_vel_limits)[0])
-        print("joint_effort_limits_sim", wp.to_torch(self.robot.data.joint_effort_limits)[0])
-        print("joint_control_mode_sim", wp.to_torch(self.robot.data.joint_control_mode_sim)[0])
-        print("joint_pos", wp.to_torch(self.robot.data.joint_pos)[0])
-        print("joint_vel", wp.to_torch(self.robot.data.joint_vel)[0])
-        print("joint_effort", wp.to_torch(self.robot.data.joint_effort_sim)[0])
-        print("joint_target", wp.to_torch(self.robot.data.joint_target_sim)[0])
-        print("soft_joint_pos_limits", wp.to_torch(self.robot.data.soft_joint_pos_limits)[0])
-
     def _setup_scene(self) -> None:
         self.robot = Articulation(self.cfg.robot, frontend=Frontend.WARP)
         # add ground plane

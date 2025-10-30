@@ -298,9 +298,9 @@ def combine_frame_transforms_partial(
     Combine a frame transform with a position.
 
     Args:
-        pose_1: The frame transform. Shape is (1, 7).
-        position_2: The position. Shape is (1, 3).
-        resulting_pose: The resulting pose. Shape is (1, 7). (modified)
+        pose_1: The frame transform. Shape is (num_instances, 7).
+        position_2: The position. Shape is (num_instances, 3).
+        resulting_pose: The resulting pose. Shape is (num_instances, 7). (modified)
     """
     index = wp.tid()
     resulting_pose[index] = combine_transforms(
@@ -310,6 +310,27 @@ def combine_frame_transforms_partial(
         wp.quatf(0.0, 0.0, 0.0, 1.0),
     )
 
+@wp.kernel
+def combine_frame_transforms_partial_root(
+    pose_1: wp.array(dtype=wp.transformf),
+    position_2: wp.array2d(dtype=wp.vec3f),
+    resulting_pose: wp.array(dtype=wp.transformf),
+):
+    """
+    Combine a frame transform with a position.
+
+    Args:
+        pose_1: The frame transform. Shape is (num_instances, 7).
+        position_2: The position. Shape is (num_instances, 3).
+        resulting_pose: The resulting pose. Shape is (num_instances, 7). (modified)
+    """
+    index = wp.tid()
+    resulting_pose[index] = combine_transforms(
+        wp.transform_get_translation(pose_1[index]),
+        wp.transform_get_rotation(pose_1[index]),
+        position_2[index][0],
+        wp.quatf(0.0, 0.0, 0.0, 1.0),
+    )
 
 @wp.kernel
 def combine_frame_transforms_partial_batch(
@@ -381,8 +402,8 @@ def combine_frame_transforms_batch(
 
 
 @wp.kernel
-def project_vec_from_quat_single(
-    vec: wp.vec3f, quat: wp.array(dtype=wp.quatf), resulting_vec: wp.array(dtype=wp.vec3f)
+def project_vec_from_pose_single(
+    vec: wp.vec3f, pose: wp.array(dtype=wp.transformf), resulting_vec: wp.array(dtype=wp.vec3f)
 ):
     """
     Project a vector from a quaternion.
@@ -393,7 +414,7 @@ def project_vec_from_quat_single(
         resulting_vec: The resulting vector. Shape is (3,). (modified)
     """
     index = wp.tid()
-    resulting_vec[index] = wp.quat_rotate(quat[index], vec)
+    resulting_vec[index] = wp.quat_rotate(wp.transform_get_rotation(pose[index]), vec)
 
 
 @wp.func
@@ -444,9 +465,9 @@ def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
 
 
 @wp.kernel
-def compute_heading(forward_vec_b: wp.vec3f, quat_w: wp.array(dtype=wp.quatf), heading: wp.array(dtype=wp.float32)):
+def compute_heading(forward_vec_b: wp.vec3f, pose_w: wp.array(dtype=wp.transformf), heading: wp.array(dtype=wp.float32)):
     index = wp.tid()
-    heading[index] = heading_vec_b(quat_w[index], forward_vec_b)
+    heading[index] = heading_vec_b(wp.transform_get_rotation(pose_w[index]), forward_vec_b)
 
 
 """
@@ -559,5 +580,32 @@ def transform_CoM_pose_to_link_frame_masked(
             wp.transform_get_translation(com_pose_w[index]),
             wp.transform_get_rotation(com_pose_w[index]),
             wp.transform_get_translation(com_pose_link_frame[index]),
+            wp.quatf(0.0, 0.0, 0.0, 1.0),
+        )
+
+@wp.kernel
+def transform_CoM_pose_to_link_frame_masked_root(
+    com_pose_w: wp.array(dtype=wp.transformf),
+    com_pos_link_frame: wp.array2d(dtype=wp.vec3f),
+    link_pose_w: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
+):
+    """
+    Transform a CoM pose to a link frame.
+
+
+
+    Args:
+        com_pose_w: The CoM pose in the world frame. Shape is (num_instances, 7).
+        com_pos_link_frame: The CoM position in the link frame. Shape is (num_instances, num_bodies, 3).
+        link_pose_w: The link pose in the world frame. Shape is (num_instances, 7). (modified)
+        env_mask: The mask of the environments to transform the CoM pose to the link frame for. Shape is (num_instances,).
+    """
+    index = wp.tid()
+    if env_mask[index]:
+        link_pose_w[index] = combine_transforms(
+            wp.transform_get_translation(com_pose_w[index]),
+            wp.transform_get_rotation(com_pose_w[index]),
+            com_pos_link_frame[index][0],
             wp.quatf(0.0, 0.0, 0.0, 1.0),
         )

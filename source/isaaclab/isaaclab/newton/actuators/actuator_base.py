@@ -21,7 +21,7 @@ from isaaclab.newton.assets.core.kernels import (
 from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
-    from isaaclab.newton.assets.core.joint_properties.joint_data import JointData
+    from isaaclab.newton.assets.articulation.articulation_data import ArticulationData
 
 
 class ActuatorBase(ABC):
@@ -52,8 +52,8 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    joint_data: JointData
-    """The data of the articulation."""
+    data: ArticulationData
+    """The data for the articulation."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -68,7 +68,7 @@ class ActuatorBase(ABC):
         joint_names: list[str],
         joint_mask: wp.array,
         env_mask: wp.array,
-        joint_data: JointData,
+        data: ArticulationData,
         device: str,
     ):
         """Initialize the actuator.
@@ -98,7 +98,7 @@ class ActuatorBase(ABC):
         self._num_envs = env_mask.shape[0]
         self._num_joints = joint_mask.shape[0]
         # Get the data from the articulation
-        self.joint_data = joint_data
+        self.data = data
 
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
@@ -111,15 +111,15 @@ class ActuatorBase(ABC):
         # case 3: if actuator_cfg_value is None: we use usd_value
 
         to_check = [
-            ("velocity_limit_sim", self.joint_data.joint_vel_limits),
-            ("effort_limit_sim", self.joint_data.joint_effort_limits),
-            ("stiffness", self.joint_data.joint_stiffness),
-            ("damping", self.joint_data.joint_damping),
-            ("armature", self.joint_data.joint_armature),
-            ("friction", self.joint_data.joint_friction_coeff),
-            ("dynamic_friction", self.joint_data.joint_dynamic_friction),
-            ("viscous_friction", self.joint_data.joint_viscous_friction),
-            ("control_mode", self.joint_data.joint_control_mode),
+            ("velocity_limit_sim", self.data._sim_bind_joint_vel_limits_sim),
+            ("effort_limit_sim", self.data._sim_bind_joint_effort_limits_sim),
+            ("stiffness", self.data._actuator_stiffness),
+            ("damping", self.data._actuator_damping),
+            ("armature", self.data._sim_bind_joint_armature),
+            ("friction", self.data._sim_bind_joint_friction_coeff),
+            ("dynamic_friction", self.data._joint_dynamic_friction),
+            ("viscous_friction", self.data._joint_viscous_friction),
+            ("control_mode", self.data._actuator_control_mode),
         ]
         for param_name, newton_val in to_check:
             cfg_val = getattr(self.cfg, param_name)
@@ -281,7 +281,7 @@ class ActuatorBase(ABC):
             clip_efforts_with_limits,
             dim=(self._num_envs, self._num_joints),
             inputs=[
-                self.joint_data.joint_effort_limits,
+                self.data._sim_bind_joint_effort_limits_sim,
                 effort,
                 clipped_effort,
                 self._env_mask,

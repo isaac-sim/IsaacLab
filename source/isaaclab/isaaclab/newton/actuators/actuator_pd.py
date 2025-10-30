@@ -133,19 +133,19 @@ class ImplicitActuator(ActuatorBase):
             compute_pd_actuator,
             dim=(self._num_envs, self._num_joints),
             inputs=[
-                self.joint_data.joint_target,
-                self.joint_data.joint_effort_target,
-                self.joint_data.joint_pos,
-                self.joint_data.joint_vel,
-                self.joint_data.joint_stiffness,
-                self.joint_data.joint_damping,
-                self.joint_data.joint_control_mode,
-                self.joint_data.computed_effort,
+                self.data._actuator_target,
+                self.data._actuator_effort_target,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_vel,
+                self.data._actuator_stiffness,
+                self.data._actuator_damping,
+                self.data._actuator_control_mode,
+                self.data._computed_effort,
                 self._env_mask,
                 self._joint_mask,
             ],
         )
-        self._clip_effort(self.joint_data.computed_effort, self.joint_data.applied_effort)
+        self._clip_effort(self.data._computed_effort, self.data._applied_effort)
 
 
 """
@@ -194,19 +194,19 @@ class IdealPDActuator(ActuatorBase):
             compute_pd_actuator,
             dim=(self._num_envs, self._num_joints),
             inputs=[
-                self.joint_data.joint_target,
-                self.joint_data.joint_effort_target,
-                self.joint_data.joint_pos,
-                self.joint_data.joint_vel,
-                self.joint_data.joint_stiffness,
-                self.joint_data.joint_damping,
-                self.joint_data.joint_control_mode,
-                self.joint_data.computed_effort,
+                self.data._actuator_target,
+                self.data._actuator_effort_target,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_vel,
+                self.data._actuator_stiffness,
+                self.data._actuator_damping,
+                self.data._actuator_control_mode,
+                self.data._computed_effort,
                 self._env_mask,
                 self._joint_mask,
             ],
         )
-        self._clip_effort(self.joint_data.computed_effort, self.joint_data.applied_effort)
+        self._clip_effort(self.data._computed_effort, self.data._applied_effort)
 
 
 class DCMotor(IdealPDActuator):
@@ -282,9 +282,9 @@ class DCMotor(IdealPDActuator):
             dim=(self._num_envs, self._num_joints),
             inputs=[
                 self._saturation_effort,
-                self.joint_data.joint_effort_limits,
-                self.joint_data.joint_vel_limits,
-                self.joint_data.joint_vel,
+                self.data._sim_bind_joint_effort_limits_sim,
+                self.data._sim_bind_joint_vel_limits_sim,
+                self.data._sim_bind_joint_vel,
                 effort,
                 clipped_effort,
                 self._env_mask,

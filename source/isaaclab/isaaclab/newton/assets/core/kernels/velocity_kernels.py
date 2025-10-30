@@ -269,6 +269,31 @@ def project_com_velocity_to_link_frame_batch_masked(
             com_position[env_idx, body_idx],
         )
 
+@wp.kernel
+def project_com_velocity_to_link_frame_root(
+    com_velocity: wp.array(dtype=wp.spatial_vectorf),
+    link_pose: wp.array(dtype=wp.transformf),
+    com_position: wp.array2d(dtype=wp.vec3f),
+    link_velocity: wp.array(dtype=wp.spatial_vectorf),
+):
+    """
+    Project a velocity from the com frame to the link frame.
+
+    Velocities are given in the following format: (wx, wy, wz, vx, vy, vz).
+
+    .. caution:: Velocities are given with angular velocity first and linear velocity second.
+
+    .. note:: Only :arg:`com_position` is needed as in Newton, the CoM orientation is always aligned with the
+    link frame.
+
+    Args:
+        com_velocity: The com velocity in the world frame. Shape is (num_links, 6).
+        link_pose: The link pose in the world frame. Shape is (num_links, 7).
+        com_position: The com position in link frame. Shape is (num_links, 3).
+        link_velocity: The link velocity. Shape is (num_links, 6). (modified)
+    """
+    index = wp.tid()
+    link_velocity[index] = velocity_projector(com_velocity[index], link_pose[index], com_position[index][0])
 
 @wp.kernel
 def project_link_velocity_to_com_frame(
@@ -328,6 +353,39 @@ def project_link_velocity_to_com_frame_masked(
             link_velocity[index],
             link_pose[index],
             com_position[index],
+        )
+
+@wp.kernel
+def project_link_velocity_to_com_frame_masked_root(
+    link_velocity: wp.array(dtype=wp.spatial_vectorf),
+    link_pose: wp.array(dtype=wp.transformf),
+    com_position: wp.array2d(dtype=wp.vec3f),
+    com_velocity: wp.array(dtype=wp.spatial_vectorf),
+    mask: wp.array(dtype=wp.bool),
+):
+    """
+    Project a velocity from the link frame to the com frame.
+
+    Velocities are given in the following format: (wx, wy, wz, vx, vy, vz).
+
+    .. caution:: Velocities are given with angular velocity first and linear velocity second.
+
+    .. note:: Only :arg:`com_position` is needed as in Newton, the CoM orientation is always aligned with the
+    link frame.
+
+    Args:
+        link_velocity: The link velocity in the world frame. Shape is (num_links, 6).
+        link_pose: The link pose in the world frame. Shape is (num_links, 7).
+        com_position: The com position in link frame. Shape is (num_instances, num_bodies, 3).
+        com_velocity: The com velocity in the world frame. Shape is (num_links, 6). (modified)
+        mask: The mask of the links to project the velocity to. Shape is (num_links,).
+    """
+    index = wp.tid()
+    if mask[index]:
+        com_velocity[index] = velocity_projector_inv(
+            link_velocity[index],
+            link_pose[index],
+            com_position[index][0],
         )
 
 
