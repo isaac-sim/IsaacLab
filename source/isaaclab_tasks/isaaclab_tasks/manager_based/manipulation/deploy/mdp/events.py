@@ -371,9 +371,9 @@ def randomize_gears_and_base_pose(
     # Prepare assets: base + all possible gears (only those present in scene will be processed)
     base_asset_name = "factory_gear_base"
     possible_gear_assets = [
-        # "factory_gear_small",
+        "factory_gear_small",
         "factory_gear_medium",
-        # "factory_gear_large",
+        "factory_gear_large",
         # "table",
     ]
 
