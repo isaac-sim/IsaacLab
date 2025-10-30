@@ -162,8 +162,8 @@ UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_finger"] = ImplicitActuatorCfg(
     joint_names_expr=[".*_inner_finger_joint"],
     effort_limit_sim=1.0,
     velocity_limit_sim=1.0,
-    stiffness=11.25,
-    damping=0.1,
+    stiffness=2.0,
+    damping=0.01,
     friction=0.0,
     armature=0.0,
 )
