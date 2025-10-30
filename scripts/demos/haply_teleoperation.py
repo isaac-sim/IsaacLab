@@ -314,8 +314,8 @@ def run_simulator(
         joint_pos_target = robot.data.joint_pos[0].clone()
 
         # Update joints
-        joint_pos_target[arm_joint_indices[:-1]] = joint_pos_des[0, :-1]  # joints 0-5 from IK
-        joint_pos_target[6] = ee_rotation_angle  # end-effector rotation
+        joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # panda_joint1-6 from IK
+        joint_pos_target[6] = ee_rotation_angle  # panda_joint7 - end-effector rotation
         joint_pos_target[[-2, -1]] = gripper_target  # gripper
 
         robot.set_joint_position_target(joint_pos_target.unsqueeze(0))
