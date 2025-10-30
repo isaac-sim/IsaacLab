@@ -162,9 +162,9 @@ class SurfaceGripper(AssetBase):
 
         This function is called every simulation step.
         The data fetched from the gripper view is a list of strings containing 3 possible states:
-            - "Open" --> 0
-            - "Closing" --> 1
-            - "Closed" --> 2
+            - "Open"
+            - "Closing"
+            - "Closed"
 
         To make this more neural network friendly, we convert the list of strings to a list of floats:
             - "Open" --> -1.0
@@ -175,8 +175,10 @@ class SurfaceGripper(AssetBase):
             We need to do this conversion for every single step of the simulation because the gripper can lose contact
             with the object if some conditions are met: such as if a large force is applied to the gripped object.
         """
-        state_list: list[int] = self._gripper_view.get_surface_gripper_status()
-        self._gripper_state = torch.tensor(state_list, dtype=torch.float32, device=self._device) - 1.0
+        state_list: list[str] = self._gripper_view.get_surface_gripper_status()
+        mapping = {"Open": -1.0, "Closing": 0.0, "Closed": 1.0}
+        state_values: list[float] = list(map(lambda s: mapping[s], state_list))
+        self._gripper_state = torch.tensor(state_values, dtype=torch.float32, device=self._device)
 
     def write_data_to_sim(self) -> None:
         """Write the gripper command to the SurfaceGripperView.
