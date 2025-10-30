@@ -2,6 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -11,17 +13,6 @@ from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-
-
-@dataclass
-class Se3AbsRetargeterCfg(RetargeterCfg):
-    """Configuration for absolute position retargeter."""
-
-    zero_out_xy_rotation: bool = True
-    use_wrist_rotation: bool = False
-    use_wrist_position: bool = True
-    enable_visualization: bool = False
-    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class Se3AbsRetargeter(RetargeterBase):
@@ -164,3 +155,15 @@ class Se3AbsRetargeter(RetargeterBase):
             quat = Rotation.from_matrix(self._visualization_rot).as_quat()
             rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
             self._goal_marker.visualize(translations=trans, orientations=rot)
+
+
+@dataclass
+class Se3AbsRetargeterCfg(RetargeterCfg):
+    """Configuration for absolute position retargeter."""
+
+    zero_out_xy_rotation: bool = True
+    use_wrist_rotation: bool = False
+    use_wrist_position: bool = True
+    enable_visualization: bool = False
+    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = Se3AbsRetargeter

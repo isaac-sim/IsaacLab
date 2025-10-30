@@ -2,6 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -9,13 +11,6 @@ from typing import Final
 
 from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
-
-@dataclass
-class GripperRetargeterCfg(RetargeterCfg):
-    """Configuration for gripper retargeter."""
-
-    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class GripperRetargeter(RetargeterBase):
@@ -90,3 +85,11 @@ class GripperRetargeter(RetargeterBase):
             self._previous_gripper_command = True
 
         return self._previous_gripper_command
+
+
+@dataclass
+class GripperRetargeterCfg(RetargeterCfg):
+    """Configuration for gripper retargeter."""
+
+    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = GripperRetargeter
