@@ -77,7 +77,7 @@ Guidelines for modifications:
 * Isaac Peterson
 * Iretiayo Akinola
 * Jack Zeng
-* Jacob Haight
+* Jacob Hate
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
