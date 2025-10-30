@@ -17,7 +17,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=52,
-                ncon_per_env=15,
+                nconmax=15,
                 ls_iterations=10,
                 cone="pyramidal",
                 impratio=1,

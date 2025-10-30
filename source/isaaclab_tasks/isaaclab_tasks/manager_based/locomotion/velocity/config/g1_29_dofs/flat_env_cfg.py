@@ -24,7 +24,7 @@ class G1_29_DOFs_FlatEnvCfg(G1_29_DOFs_RoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=210,
-                ncon_per_env=35,
+                nconmax=35,
                 ls_iterations=10,
                 ls_parallel=True,
                 cone="pyramidal",

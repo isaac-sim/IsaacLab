@@ -30,7 +30,7 @@ class UR10ReachEnvCfg(ReachEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=20,
-                ncon_per_env=20,
+                nconmax=20,
                 ls_iterations=10,
                 cone="pyramidal",
                 impratio=1,
