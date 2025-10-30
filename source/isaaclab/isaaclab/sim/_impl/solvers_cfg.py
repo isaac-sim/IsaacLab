@@ -38,7 +38,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     njmax: int = 300
     """Number of constraints per environment (world)."""
 
-    ncon_per_world: int | None = None
+    nconmax: int | None = None
     """Number of contact points per environment (world)."""
 
     iterations: int = 100

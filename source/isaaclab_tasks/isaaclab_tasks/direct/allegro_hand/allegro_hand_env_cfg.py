@@ -34,7 +34,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         solver="newton",
         integrator="implicit",
         njmax=70,
-        ncon_per_world=70,
+        nconmax=70,
         impratio=10.0,
         cone="elliptic",
         update_data_interval=2,
