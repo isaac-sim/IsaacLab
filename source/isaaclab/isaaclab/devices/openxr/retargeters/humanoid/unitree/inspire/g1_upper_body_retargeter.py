@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 import torch
@@ -17,15 +19,6 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 # This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import UnitreeG1DexRetargeting
-
-
-@dataclass
-class UnitreeG1RetargeterCfg(RetargeterCfg):
-    """Configuration for the UnitreeG1 retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class UnitreeG1Retargeter(RetargeterBase):
@@ -152,3 +145,13 @@ class UnitreeG1Retargeter(RetargeterBase):
         quat = PoseUtils.quat_from_matrix(rot_mat)
 
         return np.concatenate([pos.numpy(), quat.numpy()])
+
+
+@dataclass
+class UnitreeG1RetargeterCfg(RetargeterCfg):
+    """Configuration for the UnitreeG1 retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = UnitreeG1Retargeter

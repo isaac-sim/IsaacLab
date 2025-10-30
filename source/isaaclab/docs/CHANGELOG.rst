@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.47.5 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved retargeter and device declaration out of factory and into the devices/retargeters themselves.
+
+
 0.47.4 (2025-10-30)
 ~~~~~~~~~~~~~~~~~~~
 

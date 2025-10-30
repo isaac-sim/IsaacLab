@@ -935,18 +935,15 @@ The retargeting system is designed to be extensible. You can create custom retar
            # Return control commands in appropriate format
            return torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # Example output
 
-3. Register your retargeter with the factory by adding it to the ``RETARGETER_MAP``:
+3. Register your retargeter by setting ``retargeter_type`` on the config class:
 
 .. code-block:: python
 
    # Import your retargeter at the top of your module
    from my_package.retargeters import MyCustomRetargeter, MyCustomRetargeterCfg
 
-   # Add your retargeter to the factory
-   from isaaclab.devices.teleop_device_factory import RETARGETER_MAP
-
-   # Register your retargeter type with its constructor
-   RETARGETER_MAP[MyCustomRetargeterCfg] = MyCustomRetargeter
+   # Link the config to the implementation for factory construction
+   MyCustomRetargeterCfg.retargeter_type = MyCustomRetargeter
 
 4. Now you can use your custom retargeter in teleop device configurations:
 
