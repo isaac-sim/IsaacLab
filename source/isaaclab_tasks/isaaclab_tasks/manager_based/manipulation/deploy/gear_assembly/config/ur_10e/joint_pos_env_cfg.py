@@ -223,6 +223,9 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     rest_offset=0.0
                 ),
             ),
+            # Joint positions based on IK from center of distribution for randomized gear positions
+            # This is done so that the start for the differential IK search after randomizing
+            # is close to the optimal grasp pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
                     "shoulder_pan_joint": 2.7228e+00,
@@ -237,8 +240,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     ".*_outer_.*_joint": 0.0,
                 },
                 pos=(0.0, 0.0, 0.0),
-                # TODO: @ashwinvk. Why is this not the default?
-                rot=(0.0, 0.0, 0.0, 1.0),
+                rot=(1.0, 0.0, 0.0, 0.0),
             ),
         )
 
