@@ -78,32 +78,6 @@ For instance, to run a standalone script with verbose logging, you can use the f
 For more fine-grained control, you can modify the logging channels through the ``omni.log`` module.
 For more information, please refer to its `documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html>`__.
 
-Using CPU Scaling Governor for performance
-------------------------------------------
-
-By default on many systems, the CPU frequency governor is set to
-“powersave” mode, which sets the CPU to lowest static frequency. To
-increase the maximum performance, we recommend setting the CPU frequency
-governor to “performance” mode. For more details, please check the the
-link
-`here <https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/power_management_guide/cpufreq_governors>`__.
-
-.. warning::
-    We advice not to set the governor to “performance” mode on a system with poor
-    cooling (such as laptops), since it may cause the system to overheat.
-
--  To view existing ``scaling_governor`` value per CPU:
-
-   .. code:: bash
-
-      cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-
--  To change the governor to “performance” mode for each CPU:
-
-   .. code:: bash
-
-      echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-
 
 Observing long load times at the start of the simulation
 --------------------------------------------------------
