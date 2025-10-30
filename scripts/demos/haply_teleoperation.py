@@ -53,7 +53,6 @@ parser.add_argument(
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-# launch the simulator first
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
@@ -72,12 +71,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 # Workspace mapping constants
-HAPLY_Z_OFFSET = 0.2  # Haply physical start height offset (m)
-POSITION_SCALE = 1.65  # Scaling factor for position control
+HAPLY_Z_OFFSET = 0.2
+POSITION_SCALE = 1.65
 WORKSPACE_LIMITS = {
-    "x": (0.2, 0.9),  # Robot workspace X limits (m)
-    "y": (-0.50, 0.50),  # Robot workspace Y limits (m)
-    "z": (1.05, 1.85),  # Robot workspace Z limits (m)
+    "x": (0.2, 0.9),
+    "y": (-0.50, 0.50),
+    "z": (1.05, 1.85),
 }
 
 
@@ -217,6 +216,7 @@ def run_simulator(
         ik_params={"lambda_val": 0.05},
     )
 
+    # IK joints control arms, buttons control ee rotation and gripper open/close
     arm_joint_names = [
         "panda_joint1",
         "panda_joint2",
@@ -224,7 +224,6 @@ def run_simulator(
         "panda_joint4",
         "panda_joint5",
         "panda_joint6",
-        "panda_joint7",
     ]
     arm_joint_indices = [robot.joint_names.index(name) for name in arm_joint_names]
 
