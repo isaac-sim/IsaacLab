@@ -141,7 +141,7 @@ def save_images_grid(
     if isinstance(axes, np.ndarray):
         axes = axes.flatten()
     else:
-        axes = np.array([axes]
+        axes = np.array([axes])
 
     # plot images
     for idx, (img, ax) in enumerate(zip(images, axes)):
