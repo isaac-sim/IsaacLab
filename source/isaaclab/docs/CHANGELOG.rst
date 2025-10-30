@@ -1,13 +1,30 @@
 Changelog
 ---------
 
-0.47.4 (2025-10-28)
+0.47.5 (2025-10-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Added docstrings notes to clarify the friction coefficient modeling in Isaac Sim 4.5 and 5.0.
+
+
+0.47.4 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enhanced :meth:`~isaaclab.managers.RecorderManager.export_episodes` method to support customizable sequence of demo IDs:
+
+  - Added argument ``demo_ids`` to :meth:`~isaaclab.managers.RecorderManager.export_episodes` to accept a sequence of integers
+    for custom episode identifiers.
+
+* Enhanced :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` method to support customizable episode identifiers:
+
+  - Added argument ``demo_id`` to :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` to accept a custom integer
+    for episode identifier.
 
 
 0.47.3 (2025-10-22)
