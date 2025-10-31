@@ -71,8 +71,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 # Workspace mapping constants
-HAPLY_Z_OFFSET = 0.2
-POSITION_SCALE = 1.65
+HAPLY_Z_OFFSET = 0.35
 WORKSPACE_LIMITS = {
     "x": (0.2, 0.9),
     "y": (-0.50, 0.50),
@@ -80,7 +79,12 @@ WORKSPACE_LIMITS = {
 }
 
 
-def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot_initial_pos):
+def apply_haply_to_robot_mapping(
+    haply_pos: np.ndarray | torch.Tensor,
+    haply_quat: np.ndarray | torch.Tensor,
+    haply_initial_pos: np.ndarray | list,
+    robot_initial_pos: np.ndarray | torch.Tensor,
+) -> tuple[np.ndarray, np.ndarray]:
     """Apply coordinate mapping from Haply workspace to Franka Panda end-effector.
 
     Uses absolute position control: robot position = robot_initial_pos + haply_pos (transformed)
@@ -107,8 +111,7 @@ def apply_haply_to_robot_mapping(haply_pos, haply_quat, haply_initial_pos, robot
 
     # Coordinate system mapping: Haply (X, Y, Z) -> Robot (-Y, X, Z-offset)
     robot_offset = np.array([-haply_delta[1], haply_delta[0], haply_delta[2] - HAPLY_Z_OFFSET])
-    robot_offset_scaled = robot_offset * POSITION_SCALE
-    robot_pos = robot_initial_pos + robot_offset_scaled
+    robot_pos = robot_initial_pos + robot_offset
 
     # Apply workspace limits for safety
     robot_pos[0] = np.clip(robot_pos[0], WORKSPACE_LIMITS["x"][0], WORKSPACE_LIMITS["x"][1])
@@ -207,7 +210,7 @@ def run_simulator(
 
     # Initialize the position of franka
     robot_initial_pos = robot.data.body_pos_w[0, ee_body_idx].cpu().numpy()
-    haply_initial_pos = [0, 0, 0]
+    haply_initial_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
     ik_controller_cfg = DifferentialIKControllerCfg(
         command_type="position",
@@ -297,8 +300,11 @@ def run_simulator(
         prev_button_c = button_c
 
         # Compute IK
-        target_pos, target_quat = apply_haply_to_robot_mapping(
-            haply_pos, haply_quat, haply_initial_pos, robot_initial_pos
+        target_pos, _ = apply_haply_to_robot_mapping(
+            haply_pos,
+            haply_quat,
+            haply_initial_pos,
+            robot_initial_pos,
         )
 
         target_pos_tensor = torch.tensor(target_pos, dtype=torch.float32, device=sim.device).unsqueeze(0)
@@ -327,15 +333,17 @@ def run_simulator(
         scene.update(sim_dt)
         count += 1
 
-        # Force feedback
+        # get contact forces and apply force feedback
         left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
         right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
         total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
-        feedback_force = torch.clamp(total_contact_force, -2.0, 2.0)
-        haply_device.set_force_feedback(feedback_force[0].item(), feedback_force[1].item(), feedback_force[2].item())
+        haply_device.set_force_feedback(
+            total_contact_force[0].item(), total_contact_force[1].item(), total_contact_force[2].item()
+        )
 
 
 def main():
+    """Main function to set up and run the Haply teleoperation demo."""
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=1 / 200)
     sim = sim_utils.SimulationContext(sim_cfg)
 
@@ -351,6 +359,7 @@ def main():
         websocket_uri=args_cli.websocket_uri,
         pos_sensitivity=args_cli.pos_sensitivity,
         sim_device=args_cli.device,
+        limit_force=2.0,
     )
 
     try:

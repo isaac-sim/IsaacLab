@@ -77,6 +77,22 @@ class DeviceBase(ABC):
         """
         raise NotImplementedError
 
+    def set_force_feedback(self, force_x: float, force_y: float, force_z: float) -> Any:
+        """Set device force feedback.
+
+        This is an optional method that devices can override to provide
+        force feedback to the user. The default implementation does nothing.
+
+        Args:
+            force_x: Force in X direction (N)
+            force_y: Force in Y direction (N)
+            force_z: Force in Z direction (N)
+
+        Note:
+            Not all devices support feedback.
+        """
+        return
+
     def _get_raw_data(self) -> Any:
         """Internal method to get the raw data from the device.
 

@@ -32,11 +32,13 @@ class HaplyDeviceCfg(DeviceCfg):
         websocket_uri: WebSocket URI for Haply SDK connection
         pos_sensitivity: Position sensitivity scaling factor
         data_rate: Data exchange rate in Hz
+        limit_force: Maximum force magnitude in Newtons (safety limit)
     """
 
     websocket_uri: str = "ws://localhost:10001"
     pos_sensitivity: float = 1.0
     data_rate: float = 200.0
+    limit_force: float = 2.0
 
 
 class HaplyDevice(DeviceBase):
@@ -86,6 +88,7 @@ class HaplyDevice(DeviceBase):
         self.pos_sensitivity = cfg.pos_sensitivity
         self.data_rate = cfg.data_rate
         self._sim_device = cfg.sim_device
+        self.limit_force = cfg.limit_force
 
         # Device status (True only when both Inverse3 and VerseGrip are connected)
         self.connected = False
@@ -207,7 +210,7 @@ class HaplyDevice(DeviceBase):
             if not (self.cached_data["inverse3_connected"] and self.cached_data["versegrip_connected"]):
                 raise RuntimeError("Haply devices not connected. Both Inverse3 and VerseGrip must be connected.")
 
-            position = (self.cached_data["position"] * self.pos_sensitivity).copy()
+            position = self.cached_data["position"].copy() * self.pos_sensitivity
             quaternion = self.cached_data["quaternion"].copy()
             button_a = self.cached_data["buttons"].get("a", False)
             button_b = self.cached_data["buttons"].get("b", False)
@@ -237,20 +240,24 @@ class HaplyDevice(DeviceBase):
 
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
-    def set_force_feedback(self, force_x: float, force_y: float, force_z: float):
+    def set_force_feedback(self, force_x: float, force_y: float, force_z: float) -> None:
         """Set force feedback to be sent to Haply Inverse3 device.
+
+        Overrides DeviceBase.set_force_feedback() to provide force feedback for Haply Inverse3.
+        Forces are clipped to [-limit_force, limit_force] range for safety.
 
         Args:
             force_x: Force in X direction (N)
             force_y: Force in Y direction (N)
             force_z: Force in Z direction (N)
         """
+        # Clip forces to safe range
+        fx = np.clip(force_x, -self.limit_force, self.limit_force)
+        fy = np.clip(force_y, -self.limit_force, self.limit_force)
+        fz = np.clip(force_z, -self.limit_force, self.limit_force)
+
         with self.force_lock:
-            self.feedback_force = {
-                "x": float(force_x),
-                "y": float(force_y),
-                "z": float(force_z),
-            }
+            self.feedback_force = {"x": fx, "y": fy, "z": fz}
 
     def _start_websocket_thread(self):
         """Start WebSocket connection thread."""

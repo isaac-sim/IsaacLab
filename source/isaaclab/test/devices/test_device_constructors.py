@@ -400,6 +400,7 @@ def test_haply_constructors(mock_environment, mocker):
     haply.websocket_uri = config.websocket_uri
     haply.pos_sensitivity = config.pos_sensitivity
     haply.data_rate = config.data_rate
+    haply.limit_force = config.limit_force
     haply.connected = True
     haply.inverse3_device_id = "test_inverse3_123"
     haply.verse_grip_device_id = "test_versegrip_456"
@@ -429,11 +430,17 @@ def test_haply_constructors(mock_environment, mocker):
     assert isinstance(result, torch.Tensor)
     assert result.shape == (10,)  # (pos_x, pos_y, pos_z, qx, qy, qz, qw, btn_a, btn_b, btn_c)
 
-    # Test set_force_feedback
-    haply.set_force_feedback(1.0, 2.0, 3.0)
+    # Test set_force_feedback (within limit range)
+    haply.set_force_feedback(1.0, 1.5, -0.5)
     assert haply.feedback_force["x"] == 1.0
-    assert haply.feedback_force["y"] == 2.0
-    assert haply.feedback_force["z"] == 3.0
+    assert haply.feedback_force["y"] == 1.5
+    assert haply.feedback_force["z"] == -0.5
+
+    # Test force limiting (default limit is 2.0 N)
+    haply.set_force_feedback(5.0, -10.0, 1.5)
+    assert haply.feedback_force["x"] == 2.0
+    assert haply.feedback_force["y"] == -2.0
+    assert haply.feedback_force["z"] == 1.5
 
     # Test reset functionality
     haply.reset()
