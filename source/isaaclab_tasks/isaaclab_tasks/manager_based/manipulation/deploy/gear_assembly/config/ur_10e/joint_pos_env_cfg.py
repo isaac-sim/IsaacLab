@@ -67,7 +67,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.3, 0.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -79,7 +79,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.3, 0.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -91,7 +91,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.3, 0.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -103,7 +103,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.3, 0.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -114,8 +114,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (40.0, 40.0),
+            "dynamic_friction_range": (40.0, 40.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -126,7 +126,7 @@ class EventCfg:
         mode="reset",
         params={
             # "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            "gear_types": ["gear_medium"]
+            "gear_types": ["gear_small"]
         },
     )
 
