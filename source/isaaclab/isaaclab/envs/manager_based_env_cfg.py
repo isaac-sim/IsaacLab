@@ -115,7 +115,7 @@ class ManagerBasedEnvCfg:
       to reflect the latest states from the reset. This comes at a cost of performance as an additional render
       step will be performed after each time an environment is reset.
 
-    .. deprecated:: 0.47.2
+    .. deprecated:: 2.3.1
         This attribute is deprecated and will be removed in the future. Please use
         :attr:`num_rerenders_on_reset` instead.
 
