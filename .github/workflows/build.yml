@@ -211,7 +211,9 @@ jobs:
         # Install/update PyTorch with CUDA support
         Write-Host "Installing PyTorch with CUDA 12.8..."
         python -m pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-        python -m pip install numpy==1.26.0 opencv-python-headless==4.11.0.86
+
+        # Accept Isaac Sim pip EULA
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
 
         # Install Isaac Lab dependencies
         Write-Host "Installing Isaac Lab..."
@@ -219,8 +221,6 @@ jobs:
 
         # Verify pytest is available
         Write-Host "Verifying pytest installation..."
-        python -m pip show pytest
-
         python -m pip show pytest
 
     - name: Run General Tests on Windows
