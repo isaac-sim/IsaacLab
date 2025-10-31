@@ -8,6 +8,7 @@
 import gymnasium as gym
 import inspect
 import os
+import sys
 import torch
 
 import carb
@@ -18,6 +19,27 @@ from isaacsim.core.version import get_version
 from isaaclab.envs.utils.spaces import sample_space
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+
+def requires_pinocchio(task_name: str) -> bool:
+    """Check if a task requires pinocchio (Pink IK controller).
+
+    Args:
+        task_name: The task name to check.
+
+    Returns:
+        True if the task requires pinocchio, False otherwise.
+    """
+    # List of task name patterns that require pinocchio
+    pinocchio_patterns = [
+        "GR1T2",  # All GR1T2 environments use Pink IK
+        "G1",  # All G1 environments use Pink IK
+        "Pink-IK",  # Explicit Pink IK in name
+        "UpperBodyIK",  # Upper body IK environments
+        "Locomanipulation",  # Locomanipulation environments use Pink IK
+    ]
+
+    return any(pattern in task_name for pattern in pinocchio_patterns)
 
 
 def setup_environment(

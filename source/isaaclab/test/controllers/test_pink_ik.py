@@ -38,6 +38,9 @@ import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 
 def load_test_config(env_name):
     """Load test configuration based on environment type."""

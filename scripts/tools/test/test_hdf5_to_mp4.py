@@ -49,6 +49,7 @@ def temp_hdf5_file():
     except PermissionError:
         # On Windows, wait a bit and retry
         import time
+
         time.sleep(0.1)
         os.remove(temp_file.name)
 

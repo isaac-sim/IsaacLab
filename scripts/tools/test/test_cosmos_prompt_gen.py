@@ -40,6 +40,7 @@ def temp_templates_file():
     except PermissionError:
         # On Windows, wait a bit and retry
         import time
+
         time.sleep(0.1)
         os.remove(temp_file.name)
 
@@ -56,6 +57,7 @@ def temp_output_file():
     except PermissionError:
         # On Windows, wait a bit and retry
         import time
+
         time.sleep(0.1)
         os.remove(temp_file.name)
 
@@ -100,6 +102,7 @@ class TestCosmosPromptGen:
             except PermissionError:
                 # On Windows, wait a bit and retry
                 import time
+
                 time.sleep(0.1)
                 os.remove(temp_file.name)
 

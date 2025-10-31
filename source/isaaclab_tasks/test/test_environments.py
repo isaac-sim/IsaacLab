@@ -21,8 +21,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import sys
+
 import pytest
-from env_test_utils import _run_environments, setup_environment
+from env_test_utils import _run_environments, requires_pinocchio, setup_environment
 
 import isaaclab_tasks  # noqa: F401
 
@@ -31,5 +33,15 @@ import isaaclab_tasks  # noqa: F401
 @pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
 @pytest.mark.isaacsim_ci
 def test_environments(task_name, num_envs, device):
+    # Skip tasks with Mimic or Skillgen in the name on Windows
+    if "Mimic" in task_name or "Skillgen" in task_name:
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (Mimic/Skillgen not supported)")
+
+    # Skip tasks that require pinocchio on Windows
+    if requires_pinocchio(task_name):
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (requires pinocchio which is not supported)")
+
     # run environments without stage in memory
     _run_environments(task_name, device, num_envs, create_stage_in_memory=False)

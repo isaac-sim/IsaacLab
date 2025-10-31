@@ -25,6 +25,9 @@ import pytest
 from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 # class TestLocalFrameTask:
 #     """Test suite for LocalFrameTask class."""
 

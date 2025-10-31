@@ -4,10 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
+import sys
 from collections.abc import Generator
 from typing import Any
 
 import pytest
+
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
 
 SEED: int = 42
 random.seed(SEED)
