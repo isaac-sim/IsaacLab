@@ -177,7 +177,7 @@ class SurfaceGripper(AssetBase):
         """
         state_list: list[str] = self._gripper_view.get_surface_gripper_status()
         mapping = {"Open": -1.0, "Closing": 0.0, "Closed": 1.0}
-        state_values: list[float] = list(map(lambda s: mapping[s], state_list))
+        state_values: list[float] = list(map(lambda s: mapping.get(s, 0.0), state_list))
         self._gripper_state = torch.tensor(state_values, dtype=torch.float32, device=self._device)
 
     def write_data_to_sim(self) -> None:
