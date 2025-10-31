@@ -65,7 +65,7 @@ The three following files contain the core functionality of the Ray integration.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
-    :emphasize-lines: 18-54
+    :emphasize-lines: 18-59
 
 .. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
   :icon: code
