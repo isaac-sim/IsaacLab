@@ -211,7 +211,7 @@ class HaplyDevice(DeviceBase):
                 raise RuntimeError("Haply devices not connected. Both Inverse3 and VerseGrip must be connected.")
 
             position = self.cached_data["position"].copy() * self.pos_sensitivity
-            quaternion = self.cached_data["quaternion"].copy() * self.orientation_sensitivity
+            quaternion = self.cached_data["quaternion"].copy()
             button_a = self.cached_data["buttons"].get("a", False)
             button_b = self.cached_data["buttons"].get("b", False)
             button_c = self.cached_data["buttons"].get("c", False)
