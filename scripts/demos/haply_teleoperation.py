@@ -370,10 +370,7 @@ def main():
 
     sim.reset()
 
-    try:
-        run_simulator(sim, scene, haply_device)
-    finally:
-        haply_device.close()
+    run_simulator(sim, scene, haply_device)
 
 
 if __name__ == "__main__":
