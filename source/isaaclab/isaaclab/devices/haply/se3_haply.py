@@ -50,7 +50,7 @@ class HaplyDevice(DeviceBase):
 
     - Position tracking from Inverse3 device
     - Orientation and button inputs from VerseGrip device
-    - Bidirectional force feedback to Inverse3
+    - Directional force feedback to Inverse3
     - Real-time data streaming at configurable rates
 
     The device provides raw data:

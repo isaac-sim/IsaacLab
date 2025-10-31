@@ -10,7 +10,7 @@ This script demonstrates how to use a Haply device (Inverse3 + VerseGrip) to
 teleoperate a robotic arm in Isaac Lab. The Haply provides:
 - Position tracking from the Inverse3 device
 - Orientation and button inputs from the VerseGrip device
-- Bidirectional force feedback
+- Force feedback
 
 .. code-block:: bash
 
@@ -87,29 +87,25 @@ WORKSPACE_LIMITS = {
 
 def apply_haply_to_robot_mapping(
     haply_pos: np.ndarray | torch.Tensor,
-    haply_quat: np.ndarray | torch.Tensor,
     haply_initial_pos: np.ndarray | list,
     robot_initial_pos: np.ndarray | torch.Tensor,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """Apply coordinate mapping from Haply workspace to Franka Panda end-effector.
 
     Uses absolute position control: robot position = robot_initial_pos + haply_pos (transformed)
 
     Args:
         haply_pos: Current Haply absolute position [x, y, z] in meters
-        haply_quat: Current Haply quaternion [qx, qy, qz, qw] from VerseGrip
         haply_initial_pos: Haply's zero reference position [x, y, z]
         robot_initial_pos: Base offset for robot end-effector
 
     Returns:
         robot_pos: Target position for robot EE in world frame [x, y, z]
-        robot_quat: Target quaternion in Isaac format [qw, qx, qy, qz]
+
     """
     # Convert to numpy
     if isinstance(haply_pos, torch.Tensor):
         haply_pos = haply_pos.cpu().numpy()
-    if isinstance(haply_quat, torch.Tensor):
-        haply_quat = haply_quat.cpu().numpy()
     if isinstance(robot_initial_pos, torch.Tensor):
         robot_initial_pos = robot_initial_pos.cpu().numpy()
 
@@ -124,9 +120,7 @@ def apply_haply_to_robot_mapping(
     robot_pos[1] = np.clip(robot_pos[1], WORKSPACE_LIMITS["y"][0], WORKSPACE_LIMITS["y"][1])
     robot_pos[2] = np.clip(robot_pos[2], WORKSPACE_LIMITS["z"][0], WORKSPACE_LIMITS["z"][1])
 
-    robot_quat = np.array([haply_quat[3], haply_quat[0], haply_quat[1], haply_quat[2]])
-
-    return robot_pos, robot_quat
+    return robot_pos
 
 
 @configclass
@@ -280,7 +274,6 @@ def run_simulator(
         haply_data = haply_device.advance()
 
         haply_pos = haply_data[:3]
-        haply_quat = haply_data[3:7]
         button_a = haply_data[7].item() > 0.5
         button_b = haply_data[8].item() > 0.5
         button_c = haply_data[9].item() > 0.5
@@ -303,9 +296,8 @@ def run_simulator(
         prev_button_c = button_c
 
         # Compute IK
-        target_pos, _ = apply_haply_to_robot_mapping(
+        target_pos = apply_haply_to_robot_mapping(
             haply_pos,
-            haply_quat,
             haply_initial_pos,
             robot_initial_pos,
         )
