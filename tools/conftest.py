@@ -37,69 +37,128 @@ def capture_test_output_with_timeout(cmd, timeout, env):
             cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0, universal_newlines=False
         )
 
-        # Set up file descriptors for non-blocking reads
-        stdout_fd = process.stdout.fileno()
-        stderr_fd = process.stderr.fileno()
+        # Platform detection
+        is_windows = sys.platform == "win32"
 
-        # Set non-blocking mode (Unix systems only)
-        try:
+        if is_windows:
+            # Windows: Use threading to read stdout/stderr concurrently
+            import queue
+            import threading
+
+            stdout_queue = queue.Queue()
+            stderr_queue = queue.Queue()
+
+            def read_output(pipe, queue_obj, output_stream):
+                """Read from pipe and put in queue while streaming to console."""
+                try:
+                    while True:
+                        chunk = pipe.read(1024)
+                        if not chunk:
+                            break
+                        queue_obj.put(chunk)
+                        # Stream to console in real-time
+                        output_stream.buffer.write(chunk)
+                        output_stream.buffer.flush()
+                except Exception:
+                    pass
+
+            # Start threads for reading stdout and stderr
+            stdout_thread = threading.Thread(target=read_output, args=(process.stdout, stdout_queue, sys.stdout))
+            stderr_thread = threading.Thread(target=read_output, args=(process.stderr, stderr_queue, sys.stderr))
+            stdout_thread.daemon = True
+            stderr_thread.daemon = True
+            stdout_thread.start()
+            stderr_thread.start()
+
+            start_time = time.time()
+
+            # Wait for process to complete or timeout
+            while process.poll() is None:
+                if time.time() - start_time > timeout:
+                    process.kill()
+                    # Give threads time to finish reading
+                    stdout_thread.join(timeout=2)
+                    stderr_thread.join(timeout=2)
+                    # Collect remaining data from queues
+                    while not stdout_queue.empty():
+                        stdout_data += stdout_queue.get_nowait()
+                    while not stderr_queue.empty():
+                        stderr_data += stderr_queue.get_nowait()
+                    return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+                time.sleep(0.1)
+
+            # Process finished, wait for threads to complete reading
+            stdout_thread.join(timeout=5)
+            stderr_thread.join(timeout=5)
+
+            # Collect all data from queues
+            while not stdout_queue.empty():
+                stdout_data += stdout_queue.get_nowait()
+            while not stderr_queue.empty():
+                stderr_data += stderr_queue.get_nowait()
+
+            return process.returncode, stdout_data, stderr_data, False
+
+        else:
+            # Unix/Linux: Use select for non-blocking I/O
+            stdout_fd = process.stdout.fileno()
+            stderr_fd = process.stderr.fileno()
+
+            # Set non-blocking mode
             import fcntl
 
             for fd in [stdout_fd, stderr_fd]:
                 flags = fcntl.fcntl(fd, fcntl.F_GETFL)
                 fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-        except ImportError:
-            # fcntl not available on Windows, use a simpler approach
-            pass
 
-        start_time = time.time()
+            start_time = time.time()
 
-        while process.poll() is None:
-            # Check for timeout
-            if time.time() - start_time > timeout:
-                process.kill()
+            while process.poll() is None:
+                # Check for timeout
+                if time.time() - start_time > timeout:
+                    process.kill()
+                    try:
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=5)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=1)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+
+                # Check for available output using select
                 try:
-                    remaining_stdout, remaining_stderr = process.communicate(timeout=5)
-                    stdout_data += remaining_stdout
-                    stderr_data += remaining_stderr
-                except subprocess.TimeoutExpired:
-                    process.terminate()
-                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
-                    stdout_data += remaining_stdout
-                    stderr_data += remaining_stderr
-                return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+                    ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
 
-            # Check for available output
-            try:
-                ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
+                    for fd in ready_fds:
+                        with contextlib.suppress(OSError):
+                            if fd == stdout_fd:
+                                chunk = process.stdout.read(1024)
+                                if chunk:
+                                    stdout_data += chunk
+                                    # Print to stdout in real-time
+                                    sys.stdout.buffer.write(chunk)
+                                    sys.stdout.buffer.flush()
+                            elif fd == stderr_fd:
+                                chunk = process.stderr.read(1024)
+                                if chunk:
+                                    stderr_data += chunk
+                                    # Print to stderr in real-time
+                                    sys.stderr.buffer.write(chunk)
+                                    sys.stderr.buffer.flush()
+                except OSError:
+                    # select failed, fall back to simple polling
+                    time.sleep(0.1)
+                    continue
 
-                for fd in ready_fds:
-                    with contextlib.suppress(OSError):
-                        if fd == stdout_fd:
-                            chunk = process.stdout.read(1024)
-                            if chunk:
-                                stdout_data += chunk
-                                # Print to stdout in real-time
-                                sys.stdout.buffer.write(chunk)
-                                sys.stdout.buffer.flush()
-                        elif fd == stderr_fd:
-                            chunk = process.stderr.read(1024)
-                            if chunk:
-                                stderr_data += chunk
-                                # Print to stderr in real-time
-                                sys.stderr.buffer.write(chunk)
-                                sys.stderr.buffer.flush()
-            except OSError:
-                # select failed, fall back to simple polling
-                time.sleep(0.1)
-                continue
+            # Get any remaining output
+            remaining_stdout, remaining_stderr = process.communicate()
+            stdout_data += remaining_stdout
+            stderr_data += remaining_stderr
 
-        # Get any remaining output
-        remaining_stdout, remaining_stderr = process.communicate()
-        stdout_data += remaining_stdout
-        stderr_data += remaining_stderr
-
-        return process.returncode, stdout_data, stderr_data, False
+            return process.returncode, stdout_data, stderr_data, False
 
     except Exception as e:
         return -1, str(e).encode(), b"", False
