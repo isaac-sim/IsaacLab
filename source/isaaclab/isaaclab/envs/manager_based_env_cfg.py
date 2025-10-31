@@ -115,6 +115,22 @@ class ManagerBasedEnvCfg:
       to reflect the latest states from the reset. This comes at a cost of performance as an additional render
       step will be performed after each time an environment is reset.
 
+    .. deprecated:: 2.3.1
+        This attribute is deprecated and will be removed in the future. Please use
+        :attr:`num_rerenders_on_reset` instead.
+
+        To get the same behaviour as setting this parameter to ``True`` or ``False``, set
+        :attr:`num_rerenders_on_reset` to 1 or 0, respectively.
+    """
+
+    num_rerenders_on_reset: int = 0
+    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.
+
+    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
+      latest states in simulation caused by the reset.
+    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
+      to reflect the latest states from the reset. This comes at a cost of performance as additional render
+      steps will be performed after each time an environment is reset.
     """
 
     wait_for_textures: bool = True
