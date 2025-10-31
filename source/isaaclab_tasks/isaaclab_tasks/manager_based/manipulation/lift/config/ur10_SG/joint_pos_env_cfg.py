@@ -13,7 +13,7 @@ from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvC
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.universal_robots import UR10_SHORT_SUCTION_CFG
+from isaaclab_assets.robots.universal_robots import UR10_SHORT_SUCTION_CFG, UR10_LONG_SUCTION_CFG
 
 @configclass
 class UR10SGCubeLiftEnvCfg(LiftEnvCfg):
@@ -97,3 +97,24 @@ class UR10SGCubeLiftEnvCfg_PLAY(UR10SGCubeLiftEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
+
+@configclass
+class UR10SGLongCubeLiftEnvCfg(UR10SGCubeLiftEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        # Set UR10 as robot
+        self.scene.robot = UR10_LONG_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+@configclass
+class UR10SGLongCubeLiftEnvCfg_PLAY(UR10SGLongCubeLiftEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+        # make a smaller scene for play
+        self.scene.num_envs = 50
+        self.scene.env_spacing = 2.5
+        # disable randomization for play
+        self.observations.policy.enable_corruption = False
+
