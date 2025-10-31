@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import importlib
+import json
 import torch
 
 import pytest
@@ -381,8 +382,6 @@ def test_haply_constructors(mock_environment, mocker):
     }
 
     # Configure websocket mock to return JSON data
-    import json
-
     mock_environment["websocket"].recv = mocker.AsyncMock(return_value=json.dumps(ws_response))
     mock_environment["websocket"].send = mocker.AsyncMock()
 
@@ -399,6 +398,7 @@ def test_haply_constructors(mock_environment, mocker):
     haply._sim_device = config.sim_device
     haply.websocket_uri = config.websocket_uri
     haply.pos_sensitivity = config.pos_sensitivity
+    haply.orientation_sensitivity = config.orientation_sensitivity
     haply.data_rate = config.data_rate
     haply.limit_force = config.limit_force
     haply.connected = True

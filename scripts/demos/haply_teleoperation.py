@@ -21,7 +21,7 @@ teleoperate a robotic arm in Isaac Lab. The Haply provides:
     ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
 
     # With sensitivity adjustment
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --sensitivity 2.0
+    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0 --orientation_sensitivity 1.0
 
 Prerequisites:
     1. Install websockets package: pip install websockets
@@ -49,6 +49,12 @@ parser.add_argument(
     type=float,
     default=1.0,
     help="Position sensitivity scaling factor.",
+)
+parser.add_argument(
+    "--orientation_sensitivity",
+    type=float,
+    default=1.0,
+    help="Orientation sensitivity scaling factor.",
 )
 
 AppLauncher.add_app_launcher_args(parser)
@@ -127,7 +133,6 @@ def apply_haply_to_robot_mapping(
 class FrankaHaplySceneCfg(InteractiveSceneCfg):
     """Configuration for Franka scene with Haply teleoperation and contact sensors."""
 
-    # Ground plane
     ground = AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
         spawn=sim_utils.GroundPlaneCfg(),
@@ -232,14 +237,12 @@ def run_simulator(
 
     # Initialize IK controller
     ik_controller = DifferentialIKController(cfg=ik_controller_cfg, num_envs=scene.num_envs, device=sim.device)
-
     initial_ee_quat = robot.data.body_quat_w[:, ee_body_idx]
     ik_controller.set_command(command=torch.zeros(scene.num_envs, 3, device=sim.device), ee_quat=initial_ee_quat)
 
     prev_button_a = False
     prev_button_b = False
     prev_button_c = False
-
     gripper_target = 0.04
 
     # Initialize the rotation of franka end-effector
@@ -313,6 +316,7 @@ def run_simulator(
         ee_pos_w = robot.data.body_pos_w[:, ee_body_idx]
         ee_quat_w = robot.data.body_quat_w[:, ee_body_idx]
 
+        # get jacobian to IK controller
         jacobian = robot.root_physx_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
         ik_controller.set_command(command=target_pos_tensor, ee_quat=ee_quat_w)
         joint_pos_des = ik_controller.compute(ee_pos_w, ee_quat_w, jacobian, current_joint_pos)
@@ -354,21 +358,15 @@ def main():
     scene = InteractiveScene(scene_cfg)
 
     # Create Haply device
-    print(f"[INFO] Connecting to Haply device at {args_cli.websocket_uri}...")
     haply_cfg = HaplyDeviceCfg(
         websocket_uri=args_cli.websocket_uri,
         pos_sensitivity=args_cli.pos_sensitivity,
+        orientation_sensitivity=args_cli.orientation_sensitivity,
         sim_device=args_cli.device,
         limit_force=2.0,
     )
-
-    try:
-        haply_device = HaplyDevice(cfg=haply_cfg)
-        print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
-    except Exception as e:
-        print(f"[ERROR] Failed to connect: {e}")
-        simulation_app.close()
-        return
+    haply_device = HaplyDevice(cfg=haply_cfg)
+    print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
 
     sim.reset()
 

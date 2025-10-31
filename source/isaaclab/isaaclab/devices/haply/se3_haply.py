@@ -37,6 +37,7 @@ class HaplyDeviceCfg(DeviceCfg):
 
     websocket_uri: str = "ws://localhost:10001"
     pos_sensitivity: float = 1.0
+    orientation_sensitivity: float = 1.0
     data_rate: float = 200.0
     limit_force: float = 2.0
 
@@ -86,6 +87,7 @@ class HaplyDevice(DeviceBase):
         # Store configuration
         self.websocket_uri = cfg.websocket_uri
         self.pos_sensitivity = cfg.pos_sensitivity
+        self.orientation_sensitivity = cfg.orientation_sensitivity
         self.data_rate = cfg.data_rate
         self._sim_device = cfg.sim_device
         self.limit_force = cfg.limit_force
@@ -142,26 +144,24 @@ class HaplyDevice(DeviceBase):
                 raise RuntimeError(f"Failed to connect both Inverse3 and VerseGrip devices within {timeout}s. ")
 
     def __del__(self):
-        """Cleanup on deletion."""
-        self.close()
-
-    def close(self):
-        """Shutdown the device and close WebSocket connection."""
+        """Cleanup on deletion: shutdown WebSocket connection and background thread."""
         if not hasattr(self, "running") or not self.running:
             return
 
         self.running = False
 
         # Reset force feedback before closing
-        with self.force_lock:
-            self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
+        if hasattr(self, "force_lock") and hasattr(self, "feedback_force"):
+            with self.force_lock:
+                self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
 
         # Explicitly wait for WebSocket thread to finish
-        if self._websocket_thread is not None and self._websocket_thread.is_alive():
-            self._websocket_thread.join(timeout=2.0)
+        if hasattr(self, "_websocket_thread") and self._websocket_thread is not None:
             if self._websocket_thread.is_alive():
-                print("[WARNING] WebSocket thread did not terminate within 2s, setting as daemon")
-                self._websocket_thread.daemon = True
+                self._websocket_thread.join(timeout=2.0)
+                if self._websocket_thread.is_alive():
+                    print("[WARNING] WebSocket thread did not terminate within 2s, setting as daemon")
+                    self._websocket_thread.daemon = True
 
         print("[INFO] Haply device disconnected")
 
@@ -211,7 +211,7 @@ class HaplyDevice(DeviceBase):
                 raise RuntimeError("Haply devices not connected. Both Inverse3 and VerseGrip must be connected.")
 
             position = self.cached_data["position"].copy() * self.pos_sensitivity
-            quaternion = self.cached_data["quaternion"].copy()
+            quaternion = self.cached_data["quaternion"].copy() * self.orientation_sensitivity
             button_a = self.cached_data["buttons"].get("a", False)
             button_b = self.cached_data["buttons"].get("b", False)
             button_c = self.cached_data["buttons"].get("c", False)
