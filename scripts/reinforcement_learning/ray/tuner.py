@@ -217,16 +217,16 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     print("[WARNING]: Not saving checkpoints, just running experiment...")
     print("[INFO]: Model parameters and metrics will be preserved.")
     print("[WARNING]: For homogeneous cluster resources only...")
+
+    # Initialize Ray
+    util.ray_init(
+        ray_address=args.ray_address,
+        log_to_driver=True,
+    )
+
     # Get available resources
     resources = util.get_gpu_node_resources()
     print(f"[INFO]: Available resources {resources}")
-
-    if not ray.is_initialized():
-        ray.init(
-            address=args.ray_address,
-            log_to_driver=True,
-            num_gpus=len(resources),
-        )
 
     print(f"[INFO]: Using config {cfg}")
 

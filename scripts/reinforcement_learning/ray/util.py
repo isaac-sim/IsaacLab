@@ -320,6 +320,8 @@ def ray_init(ray_address: str = "auto", runtime_env: dict[str, Any] | None = Non
             f" runtime_env={runtime_env}"
         )
         ray.init(address=ray_address, runtime_env=runtime_env, log_to_driver=log_to_driver)
+    else:
+        print("[WARNING]: Attempting to initialize Ray but it is already initialized!")
 
 
 def get_gpu_node_resources(
@@ -343,7 +345,7 @@ def get_gpu_node_resources(
         or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        ray_init()
+        raise RuntimeError("Ray must be initialized before calling get_gpu_node_resources().")
     nodes = ray.nodes()
     node_resources = []
     total_cpus = 0
