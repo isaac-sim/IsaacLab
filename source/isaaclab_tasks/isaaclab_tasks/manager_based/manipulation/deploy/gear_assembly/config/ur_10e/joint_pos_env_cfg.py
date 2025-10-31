@@ -247,10 +247,10 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # default values for gripper actuators cause these joints to be not stiff enough
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
-            effort_limit_sim=1.0,
+            effort_limit_sim=50.0,
             velocity_limit_sim=1.0,
-            stiffness=2.0,
-            damping=0.01,
+            stiffness=10.0,
+            damping=0.05,
             friction=0.0,
             armature=0.0,
         )
