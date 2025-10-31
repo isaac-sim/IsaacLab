@@ -1,3 +1,10 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from isaaclab_assets.robots.universal_robots import UR10_LONG_SUCTION_CFG, UR10_SHORT_SUCTION_CFG
+
 from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
@@ -13,7 +20,7 @@ from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvC
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.universal_robots import UR10_SHORT_SUCTION_CFG, UR10_LONG_SUCTION_CFG
+
 
 @configclass
 class UR10SGCubeLiftEnvCfg(LiftEnvCfg):
@@ -35,10 +42,7 @@ class UR10SGCubeLiftEnvCfg(LiftEnvCfg):
 
         # Set actions for the specific robot type (UR10)
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", 
-            joint_names=[".*_joint"], 
-            scale=0.5, 
-            use_default_offset=True
+            asset_name="robot", joint_names=[".*_joint"], scale=0.5, use_default_offset=True
         )
         self.actions.gripper_action = mdp.SurfaceGripperBinaryActionCfg(
             asset_name="surface_gripper",
@@ -98,6 +102,7 @@ class UR10SGCubeLiftEnvCfg_PLAY(UR10SGCubeLiftEnvCfg):
         # disable randomization for play
         self.observations.policy.enable_corruption = False
 
+
 @configclass
 class UR10SGLongCubeLiftEnvCfg(UR10SGCubeLiftEnvCfg):
     def __post_init__(self):
@@ -106,6 +111,7 @@ class UR10SGLongCubeLiftEnvCfg(UR10SGCubeLiftEnvCfg):
 
         # Set UR10 as robot
         self.scene.robot = UR10_LONG_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
 
 @configclass
 class UR10SGLongCubeLiftEnvCfg_PLAY(UR10SGLongCubeLiftEnvCfg):
@@ -117,4 +123,3 @@ class UR10SGLongCubeLiftEnvCfg_PLAY(UR10SGLongCubeLiftEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-
