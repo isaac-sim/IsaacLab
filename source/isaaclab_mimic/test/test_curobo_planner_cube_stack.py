@@ -10,9 +10,13 @@
 from __future__ import annotations
 
 import random
+import sys
 from typing import Any
 
 import pytest
+
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
 
 SEED: int = 42
 random.seed(SEED)

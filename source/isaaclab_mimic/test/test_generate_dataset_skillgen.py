@@ -12,9 +12,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import os
 import subprocess
+import sys
 import tempfile
 
 import pytest
+
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 

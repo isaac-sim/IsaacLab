@@ -15,11 +15,13 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import sys
 import torch
 
 import carb
 import omni.usd
 import pytest
+from env_test_utils import requires_pinocchio
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -75,6 +77,16 @@ def test_dextrous_env_determinism(task_name, device):
 
 def _test_environment_determinism(task_name: str, device: str):
     """Check deterministic environment creation."""
+    # Skip tasks with Mimic or Skillgen in the name on Windows
+    if "Mimic" in task_name or "Skillgen" in task_name:
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (Mimic/Skillgen not supported)")
+
+    # Skip tasks that require pinocchio on Windows
+    if requires_pinocchio(task_name):
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (requires pinocchio which is not supported)")
+
     # fix number of steps
     num_envs = 32
     num_steps = 100

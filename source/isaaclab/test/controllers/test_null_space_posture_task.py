@@ -30,6 +30,9 @@ from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
 
+# Skip all tests in this module on Windows
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 
 class TestNullSpacePostureTaskSimplifiedRobot:
     """Test cases for NullSpacePostureTask with simplified robot configuration."""
