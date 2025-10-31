@@ -208,7 +208,7 @@ def run_simulator(
     joint_vel = robot.data.default_joint_vel.clone()
     robot.write_joint_state_to_sim(joint_pos, joint_vel)
 
-    for i in range(10):
+    for _ in range(10):
         scene.write_data_to_sim()
         sim.step()
         scene.update(sim_dt)
