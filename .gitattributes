@@ -12,3 +12,4 @@
 *.hdf5 filter=lfs diff=lfs merge=lfs -text
 
 *.bat text eol=crlf
+docs/make.bat text eol=crlf
