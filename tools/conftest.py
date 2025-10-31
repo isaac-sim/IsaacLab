@@ -50,7 +50,7 @@ def capture_test_output_with_timeout(cmd, timeout, env):
 
             def read_output(pipe, queue_obj, output_stream):
                 """Read from pipe and put in queue while streaming to console."""
-                try:
+                with contextlib.suppress(Exception):
                     while True:
                         chunk = pipe.read(1024)
                         if not chunk:
@@ -59,8 +59,6 @@ def capture_test_output_with_timeout(cmd, timeout, env):
                         # Stream to console in real-time
                         output_stream.buffer.write(chunk)
                         output_stream.buffer.flush()
-                except Exception:
-                    pass
 
             # Start threads for reading stdout and stderr
             stdout_thread = threading.Thread(target=read_output, args=(process.stdout, stdout_queue, sys.stdout))

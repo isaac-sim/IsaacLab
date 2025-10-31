@@ -8,7 +8,6 @@
 import gymnasium as gym
 import inspect
 import os
-import sys
 import torch
 
 import carb
