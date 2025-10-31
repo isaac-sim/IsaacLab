@@ -246,6 +246,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                     ],
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
+                    fixed_anchor_height=True,
                 ),
             }
         )

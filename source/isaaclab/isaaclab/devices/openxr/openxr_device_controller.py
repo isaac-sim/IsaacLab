@@ -64,7 +64,12 @@ class MotionControllerTrackingTarget(Enum):
 class OpenXRDeviceMotionControllerCfg(OpenXRDeviceCfg):
     """Configuration for Motion Controller OpenXR devices."""
 
-    pass
+    fixed_anchor_height: bool = False
+    """Specifies whether to keep the anchor at a constant height instead of bobbing up and down when following robot joint.
+
+    If True, the anchor will be kept at a constant starting height instead of bobbing up and down when following robot joint.
+    If False, the anchor will bob up and down when following robot joint.
+    """
 
 
 class OpenXRDeviceMotionController(OpenXRDevice):
@@ -81,6 +86,9 @@ class OpenXRDeviceMotionController(OpenXRDevice):
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
         super().__init__(cfg, retargeters)
+        
+        # Store the motion controller config
+        self._cfg = cfg
 
         self._xr_core = XRCore.get_singleton()
         if self._xr_core is None:
@@ -267,12 +275,13 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         if self.__anchor_prim_initial_quat is None:
             self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
 
-        # For comfort, we keep the anchor at a constant height instead of bobbing up and down when following robot joint.
-        # We will need to update this value when robot crouches/stands.
-        if self.__anchor_prim_initial_height is None:
-            self.__anchor_prim_initial_height = rt_pos[2]
+        if self._cfg.fixed_anchor_height:
+            # For comfort, we keep the anchor at a constant height instead of bobbing up and down when following robot joint.
+            # We will need to update this value when robot crouches/stands.
+            if self.__anchor_prim_initial_height is None:
+                self.__anchor_prim_initial_height = rt_pos[2]
 
-        rt_pos[2] = self.__anchor_prim_initial_height
+            rt_pos[2] = self.__anchor_prim_initial_height
 
         pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
 
