@@ -206,6 +206,8 @@ jobs:
           pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
         }
 
+        python -m pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+
         # Install/update PyTorch with CUDA support
         Write-Host "Installing PyTorch with CUDA 12.8..."
         python -m pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
