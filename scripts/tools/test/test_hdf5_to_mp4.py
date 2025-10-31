@@ -19,6 +19,8 @@ from scripts.tools.hdf5_to_mp4 import get_num_demos, main, write_demo_to_mp4
 def temp_hdf5_file():
     """Create temporary HDF5 file with test data."""
     temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)
+    temp_file.close()  # Close file handle before opening with h5py
+
     with h5py.File(temp_file.name, "w") as h5f:
         # Create test data structure
         for demo_id in range(2):  # Create 2 demos
@@ -42,7 +44,13 @@ def temp_hdf5_file():
 
     yield temp_file.name
     # Cleanup
-    os.remove(temp_file.name)
+    try:
+        os.remove(temp_file.name)
+    except PermissionError:
+        # On Windows, wait a bit and retry
+        import time
+        time.sleep(0.1)
+        os.remove(temp_file.name)
 
 
 @pytest.fixture
