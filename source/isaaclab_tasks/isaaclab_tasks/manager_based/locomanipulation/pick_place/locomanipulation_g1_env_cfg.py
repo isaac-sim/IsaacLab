@@ -3,16 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, OpenXRDeviceMotionControllerCfg, XrCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import (
+    G1LowerBodyStandingMotionControllerRetargeterCfg,
+    G1LowerBodyStandingRetargeterCfg,
+)
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
+    G1TriHandUpperBodyMotionControllerRetargeterCfg,
     G1TriHandUpperBodyRetargeterCfg,
 )
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -188,9 +191,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.35),
+        anchor_pos=(0.0, 0.0, -0.45),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
+
+    # Flag to indicate if XR is enabled (set by teleop script)
+    xr_enabled: bool = False
 
     def __post_init__(self):
         """Post initialization."""
@@ -206,6 +212,8 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+
+        self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -224,6 +232,21 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                     ],
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
+                ),
+                "motion_controllers": OpenXRDeviceMotionControllerCfg(
+                    retargeters=[
+                        G1TriHandUpperBodyMotionControllerRetargeterCfg(
+                            enable_visualization=True,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        G1LowerBodyStandingMotionControllerRetargeterCfg(
+                            sim_device=self.sim.device,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                    fixed_anchor_height=True,
                 ),
             }
         )
