@@ -208,7 +208,7 @@ jobs:
 
         # Install/update PyTorch with CUDA support
         Write-Host "Installing PyTorch with CUDA 12.8..."
-        pip install -U torch==2.7.0 torchvision==0.22.0 numpy==1.26.4 opencv-python-headless==4.11.0.86 --index-url https://download.pytorch.org/whl/cu128
+        pip install -U torch==2.7.0 torchvision==0.22.0 numpy==1.26.2 opencv-python-headless==4.11.0.86 --index-url https://download.pytorch.org/whl/cu128
 
         # Install Isaac Lab dependencies
         Write-Host "Installing Isaac Lab..."
