@@ -37,21 +37,13 @@ from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
 
-class DirectRLEnv(gym.Env):
+class DirectRLEnv(gym.vector.VectorEnv):
     """The superclass for the direct workflow to design environments.
 
     This class implements the core functionality for reinforcement learning (RL)
     environments. It is designed to be used with any RL library. The class is designed
     to be used with vectorized environments, i.e., the environment is expected to be run
     in parallel with multiple sub-environments.
-
-    While the environment itself is implemented as a vectorized environment, we do not
-    inherit from :class:`gym.vector.VectorEnv`. This is mainly because the class adds
-    various methods (for wait and asynchronous updates) which are not required.
-    Additionally, each RL library typically has its own definition for a vectorized
-    environment. Thus, to reduce complexity, we directly use the :class:`gym.Env` over
-    here and leave it up to library-defined wrappers to take care of wrapping this
-    environment for their agents.
 
     Note:
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
@@ -62,8 +54,6 @@ class DirectRLEnv(gym.Env):
 
     """
 
-    is_vector_env: ClassVar[bool] = True
-    """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
         "isaac_sim_version": get_version(),

@@ -15,7 +15,7 @@ from .forge_env_cfg import ForgeTaskGearMeshCfg, ForgeTaskNutThreadCfg, ForgeTas
 
 gym.register(
     id="Isaac-Forge-PegInsert-Direct-v0",
-    entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
+    vector_entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ForgeTaskPegInsertCfg,
@@ -25,7 +25,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Forge-GearMesh-Direct-v0",
-    entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
+    vector_entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ForgeTaskGearMeshCfg,
@@ -35,7 +35,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Forge-NutThread-Direct-v0",
-    entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
+    vector_entry_point="isaaclab_tasks.direct.forge:ForgeEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ForgeTaskNutThreadCfg,
