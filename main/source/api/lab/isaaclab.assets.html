@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 30, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 01, 2025"/>
   </head>
   
   
@@ -5532,6 +5532,8 @@ is used.</p>
 <p>This quantity is configured through the actuator model’s <a class="reference internal" href="isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.friction" title="isaaclab.actuators.ActuatorBaseCfg.friction"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.actuators.ActuatorBaseCfg.friction</span></code></a>
 parameter. If the parameter’s value is None, the value parsed from the USD schema, at the time of initialization,
 is used.</p>
+<p>Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+it is modeled as an effort (torque or force).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5541,6 +5543,8 @@ is used.</p>
 <p>This quantity is configured through the actuator model’s <a class="reference internal" href="isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.dynamic_friction" title="isaaclab.actuators.ActuatorBaseCfg.dynamic_friction"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.actuators.ActuatorBaseCfg.dynamic_friction</span></code></a>
 parameter. If the parameter’s value is None, the value parsed from the USD schema, at the time of initialization,
 is used.</p>
+<p>Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+it is modeled as an effort (torque or force).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5698,12 +5702,16 @@ actuator model.</p>
 <dt class="sig sig-object py" id="isaaclab.assets.ArticulationData.joint_friction_coeff">
 <span class="sig-name descname"><span class="pre">joint_friction_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.assets.ArticulationData.joint_friction_coeff" title="Permalink to this definition">#</a></dt>
 <dd><p>Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).</p>
+<p>Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+it is modeled as an effort (torque or force).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.assets.ArticulationData.joint_dynamic_friction_coeff">
 <span class="sig-name descname"><span class="pre">joint_dynamic_friction_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.assets.ArticulationData.joint_dynamic_friction_coeff" title="Permalink to this definition">#</a></dt>
 <dd><p>Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).</p>
+<p>Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+it is modeled as an effort (torque or force).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -7808,7 +7816,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 30, 2025.
+  Last updated on Nov 01, 2025.
   <br/>
 </p>
   </div>

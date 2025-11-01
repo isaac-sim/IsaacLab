@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -49,7 +49,7 @@
     <script src="../../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../../_static/clipboard.min.js"></script>
     <script src="../../../../_static/copybutton.js"></script>
     <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 30, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 01, 2025"/>
   </head>
   
   
@@ -788,6 +788,9 @@
 <span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`</span>
 <span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
 <span class="sd">    is used.</span>
+
+<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">    it is modeled as an effort (torque or force).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_dynamic_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
@@ -796,6 +799,9 @@
 <span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`</span>
 <span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
 <span class="sd">    is used.</span>
+
+<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">    it is modeled as an effort (torque or force).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_viscous_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
@@ -939,10 +945,18 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint armature provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
     <span class="n">joint_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">    it is modeled as an effort (torque or force).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">joint_dynamic_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).</span>
+
+<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">    it is modeled as an effort (torque or force).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">joint_viscous_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
@@ -1774,7 +1788,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 30, 2025.
+  Last updated on Nov 01, 2025.
   <br/>
 </p>
   </div>
