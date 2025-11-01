@@ -100,6 +100,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
 * Narendra Dahile
