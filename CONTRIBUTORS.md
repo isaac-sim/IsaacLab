@@ -143,6 +143,7 @@ Guidelines for modifications:
 * Xinpeng Liu
 * Yang Jin
 * Yanzi Zhu
+* Yasunori Toshimitsu
 * Yijie Guo
 * Yohan Choi
 * Yujian Zhang
