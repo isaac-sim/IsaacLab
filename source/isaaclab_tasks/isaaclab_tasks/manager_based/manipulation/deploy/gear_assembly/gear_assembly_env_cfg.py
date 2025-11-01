@@ -199,7 +199,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel,
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=ResetSampledNoiseModelCfg(
-            noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
+            noise_cfg=UniformNoiseCfg(n_min=-0.002, n_max=0.002, operation="add")
         ))
         gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
