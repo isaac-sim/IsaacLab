@@ -73,29 +73,29 @@ class EventCfg:
         },
     )
 
-    # medium_gear_physics_material = EventTerm(
-    #     func=mdp.randomize_rigid_body_material,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-    #         "static_friction_range": (0.75, 0.75),
-    #         "dynamic_friction_range": (0.75, 0.75),
-    #         "restitution_range": (0.0, 0.0),
-    #         "num_buckets": 16,
-    #     },
-    # )
+    medium_gear_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 16,
+        },
+    )
 
-    # large_gear_physics_material = EventTerm(
-    #     func=mdp.randomize_rigid_body_material,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-    #         "static_friction_range": (0.75, 0.75),
-    #         "dynamic_friction_range": (0.75, 0.75),
-    #         "restitution_range": (0.0, 0.0),
-    #         "num_buckets": 16,
-    #     },
-    # )
+    large_gear_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 16,
+        },
+    )
 
     gear_base_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -126,7 +126,7 @@ class EventCfg:
         mode="reset",
         params={
             # "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            "gear_types": ["gear_small"]
+            "gear_types": ["gear_medium"]
         },
     )
 
