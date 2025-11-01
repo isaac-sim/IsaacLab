@@ -293,12 +293,12 @@ Visualizing results
 ^^^^^^^^^^^^^^^^^^^
 
 .. tip::
-   
+
    **Important: Testing Multiple Checkpoint Epochs**
-   
-   When evaluating policy performance, it is common for different training epochs to yield significantly different results. 
-   If you don't see the expected performance, **always test policies from various epochs** (not just the final checkpoint) 
-   to find the best-performing model. Model performance can vary substantially across training, and the final epoch 
+
+   When evaluating policy performance, it is common for different training epochs to yield significantly different results.
+   If you don't see the expected performance, **always test policies from various epochs** (not just the final checkpoint)
+   to find the best-performing model. Model performance can vary substantially across training, and the final epoch
    is not always optimal.
 
 By inferencing using the generated model, we can visualize the results of the policy:
@@ -326,7 +326,7 @@ By inferencing using the generated model, we can visualize the results of the po
 
 .. tip::
 
-   **If you don't see expected performance results:** Test policies from multiple checkpoint epochs, not just the final one. 
+   **If you don't see expected performance results:** Test policies from multiple checkpoint epochs, not just the final one.
    Policy performance can vary significantly across training epochs, and intermediate checkpoints often outperform the final model.
 
 .. note::
@@ -530,7 +530,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. tip::
 
-   **If you don't see expected performance results:** It is critical to test policies from various checkpoint epochs. 
+   **If you don't see expected performance results:** It is critical to test policies from various checkpoint epochs.
    Performance can vary significantly between epochs, and the best-performing checkpoint is often not the final one.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif
@@ -664,7 +664,7 @@ Visualize the trained policy performance:
 
 .. tip::
 
-   **If you don't see expected performance results:** Always test policies from various checkpoint epochs. 
+   **If you don't see expected performance results:** Always test policies from various checkpoint epochs.
    Different epochs can produce significantly different results, so evaluate multiple checkpoints to find the optimal model.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
@@ -878,7 +878,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. tip::
 
-   **If you don't see expected performance results:** Test policies from various checkpoint epochs, not just the final one. 
+   **If you don't see expected performance results:** Test policies from various checkpoint epochs, not just the final one.
    Policy performance can vary substantially across training, and intermediate checkpoints often yield better results.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif

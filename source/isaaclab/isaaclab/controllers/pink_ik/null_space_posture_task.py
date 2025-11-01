@@ -77,6 +77,9 @@ class NullSpacePostureTask(Task):
 
     """
 
+    # Regularization factor for pseudoinverse computation to ensure numerical stability
+    PSEUDOINVERSE_DAMPING_FACTOR: float = 1e-9
+
     def __init__(
         self,
         cost: float,
@@ -242,16 +245,13 @@ class NullSpacePostureTask(Task):
         # Use fast pseudoinverse computation with direct LAPACK/BLAS calls
         m, n = J_combined.shape
 
-        # Determine damping factor for numerical stability
-        damping = 1e-9
-
         # Wide matrix (typical for robotics): use left pseudoinverse
         # J^+ = J^T @ inv(J @ J^T + λ²I)
         # This is faster because we invert an m×m matrix instead of n×n
 
         # Compute J @ J^T using BLAS (faster than numpy)
         JJT = blas.dgemm(1.0, J_combined, J_combined.T)
-        np.fill_diagonal(JJT, JJT.diagonal() + damping**2)
+        np.fill_diagonal(JJT, JJT.diagonal() + self.PSEUDOINVERSE_DAMPING_FACTOR**2)
 
         # Use LAPACK's Cholesky factorization (dpotrf = Positive definite TRiangular Factorization)
         L, info = lapack.dpotrf(JJT, lower=1, clean=False, overwrite_a=True)
