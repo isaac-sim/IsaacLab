@@ -57,7 +57,7 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     value_normalization = False
     obs_groups = {
         "policy": ["policy"],
-        "critic": ["policy"],
+        "critic": ["critic"],
     }
     policy = MyRslRlPpoActorCriticRecurrentCfg(
         init_noise_std=1.0,
