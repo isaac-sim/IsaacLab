@@ -327,4 +327,4 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
 
         self.hand_grasp_pos = {"gear_small": 0.64,
                                "gear_medium": 0.54,
-                               "gear_large": 0.51}
+                               "gear_large": 0.48}
