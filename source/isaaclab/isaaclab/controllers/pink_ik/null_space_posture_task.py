@@ -257,8 +257,9 @@ class NullSpacePostureTask(Task):
         L, info = lapack.dpotrf(JJT, lower=1, clean=False, overwrite_a=True)
 
         if info != 0:
-            # Fallback if not positive definite
-            return np.eye(n)
+            # Fallback if not positive definite: use numpy's pseudoinverse
+            J_pinv = np.linalg.pinv(J_combined)
+            return np.eye(n) - J_pinv @ J_combined
 
         # Solve (J @ J^T + λ²I) @ X = J using LAPACK's triangular solver (dpotrs)
         # This directly solves the system without computing the full inverse
