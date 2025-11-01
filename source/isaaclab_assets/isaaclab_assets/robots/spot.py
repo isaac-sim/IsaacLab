@@ -12,7 +12,7 @@ The following configuration parameters are available:
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -160,7 +160,7 @@ SPOT_CFG = ArticulationCfg(
         joint_vel={".*": 0.0},
     ),
     actuators={
-        "spot_hip": DelayedPDActuatorCfg(
+        "spot_hip": IdealPDActuatorCfg(
             joint_names_expr=[".*_h[xy]"],
             effort_limit=45.0,
             stiffness=60.0,
