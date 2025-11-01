@@ -1713,7 +1713,7 @@ class Articulation(AssetBase):
                 friction=self._data.default_joint_friction_coeff[:, joint_ids],
                 dynamic_friction=self._data.default_joint_dynamic_friction_coeff[:, joint_ids],
                 viscous_friction=self._data.default_joint_viscous_friction_coeff[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits[:, joint_ids].clone(),
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
             # log information on actuator groups
@@ -1843,6 +1843,7 @@ class Articulation(AssetBase):
         """
         # process actions per group
         for actuator in self.actuators.values():
+
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
