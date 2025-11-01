@@ -67,7 +67,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.3, 0.3),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -79,7 +79,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.3, 0.3),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -91,7 +91,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.3, 0.3),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -103,7 +103,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
             "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.3, 0.3),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -114,8 +114,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (40.0, 40.0),
-            "dynamic_friction_range": (40.0, 40.0),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -126,7 +126,7 @@ class EventCfg:
         mode="reset",
         params={
             # "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            "gear_types": ["gear_small"]
+            "gear_types": ["gear_medium"]
         },
     )
 
@@ -200,7 +200,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                 # usd_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets/ur10e_robotiq_140_variant.usd")
                 # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant.usd",
                 # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant_edited.usd",
-                usd_path = f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default_instancable.usd",
+                # usd_path = f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default.usd"
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
@@ -247,10 +247,10 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # default values for gripper actuators cause these joints to be not stiff enough
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
-            effort_limit_sim=50.0,
+            effort_limit_sim=1.0,
             velocity_limit_sim=1.0,
-            stiffness=10.0,
-            damping=0.05,
+            stiffness=2.0,
+            damping=0.01,
             friction=0.0,
             armature=0.0,
         )
