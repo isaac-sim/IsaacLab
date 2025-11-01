@@ -56,6 +56,7 @@ Guidelines for modifications:
 * Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
+* Christopher Allred
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
@@ -73,8 +74,10 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Huihua Zhao
+* Isaac Peterson
 * Iretiayo Akinola
 * Jack Zeng
+* Jacob Hate
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
