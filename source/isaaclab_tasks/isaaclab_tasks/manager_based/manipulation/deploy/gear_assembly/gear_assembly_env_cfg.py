@@ -111,60 +111,60 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
     )
 
-    factory_gear_medium = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
-        # TODO: change to common isaac sim directory
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_medium.usd",
-            # usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_medium.usd"),
-            # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_medium.usd",
-            # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/medium_gear_scale_1p5_usd/medium_gear_scale_1p5.usd",
-            activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                kinematic_enabled=False,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=196,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
-    )
+    # factory_gear_medium = RigidObjectCfg(
+    #     prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
+    #     # TODO: change to common isaac sim directory
+    #     spawn=sim_utils.UsdFileCfg(
+    #         usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_medium.usd",
+    #         # usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_medium.usd"),
+    #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_medium.usd",
+    #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/medium_gear_scale_1p5_usd/medium_gear_scale_1p5.usd",
+    #         activate_contact_sensors=True,
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    #             disable_gravity=False,
+    #             kinematic_enabled=False,
+    #             max_depenetration_velocity=5.0,
+    #             linear_damping=0.0,
+    #             angular_damping=0.0,
+    #             max_linear_velocity=1000.0,
+    #             max_angular_velocity=3666.0,
+    #             enable_gyroscopic_forces=True,
+    #             solver_position_iteration_count=196,
+    #             solver_velocity_iteration_count=1,
+    #             max_contact_impulse=1e32,
+    #         ),
+    #         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+    #         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+    #     ),
+    #     init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+    # )
 
-    factory_gear_large = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
-        # TODO: change to common isaac sim directory
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_large.usd",
-            # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_large.usd",
-            # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/large_gear_scale_1p5_usd/large_gear_scale_1p5.usd",
-            activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                kinematic_enabled=False,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=196,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
-    )
+    # factory_gear_large = RigidObjectCfg(
+    #     prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
+    #     # TODO: change to common isaac sim directory
+    #     spawn=sim_utils.UsdFileCfg(
+    #         usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_large.usd",
+    #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_large.usd",
+    #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/large_gear_scale_1p5_usd/large_gear_scale_1p5.usd",
+    #         activate_contact_sensors=True,
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    #             disable_gravity=False,
+    #             kinematic_enabled=False,
+    #             max_depenetration_velocity=5.0,
+    #             linear_damping=0.0,
+    #             angular_damping=0.0,
+    #             max_linear_velocity=1000.0,
+    #             max_angular_velocity=3666.0,
+    #             enable_gyroscopic_forces=True,
+    #             solver_position_iteration_count=196,
+    #             solver_velocity_iteration_count=1,
+    #             max_contact_impulse=1e32,
+    #         ),
+    #         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+    #         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+    #     ),
+    #     init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+    # )
     
 
     # robots
@@ -199,7 +199,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel,
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=ResetSampledNoiseModelCfg(
-            noise_cfg=UniformNoiseCfg(n_min=-0.002, n_max=0.002, operation="add")
+            noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
         ))
         gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
@@ -207,28 +207,28 @@ class ObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
     
-    @configclass
-    class CriticCfg(ObsGroup):
-        """Observations for policy group."""
+    # @configclass
+    # class CriticCfg(ObsGroup):
+    #     """Observations for policy group."""
 
-        # observation terms (order preserved)
-        joint_pos = ObsTerm(func=mdp.joint_pos,
-                            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        joint_vel = ObsTerm(func=mdp.joint_vel,
-                            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w,
-        #                          noise=AdditiveUniformNoiseModelCfg(n_min=-0.0025, n_max=0.0025))
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=Unoise(n_min=-0.005, n_max=0.005, operation="add"))
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
-        gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
-        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
+    #     # observation terms (order preserved)
+    #     joint_pos = ObsTerm(func=mdp.joint_pos,
+    #                         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+    #     joint_vel = ObsTerm(func=mdp.joint_vel,
+    #                         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+    #     # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w,
+    #     #                          noise=AdditiveUniformNoiseModelCfg(n_min=-0.0025, n_max=0.0025))
+    #     # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=Unoise(n_min=-0.005, n_max=0.005, operation="add"))
+    #     # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
+    #     gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
+    #     gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
-        gear_pos = ObsTerm(func=mdp.gear_pos_w)
-        gear_quat = ObsTerm(func=mdp.gear_quat_w)
+    #     gear_pos = ObsTerm(func=mdp.gear_pos_w)
+    #     gear_quat = ObsTerm(func=mdp.gear_quat_w)
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    critic: CriticCfg = CriticCfg()
+    # critic: CriticCfg = CriticCfg()
 
 
 @configclass
