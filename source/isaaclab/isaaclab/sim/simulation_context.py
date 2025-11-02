@@ -993,10 +993,17 @@ class SimulationContext(_SimulationContext):
         root_logger = logging.getLogger()
         root_logger.setLevel(self.cfg.logging_level)
 
+        # remove existing handlers
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers:
+                root_logger.removeHandler(handler)
+
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(self.cfg.logging_level)
 
-        formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+        formatter = ColoredFormatter(
+            fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"
+        )
         handler.setFormatter(formatter)
         handler.addFilter(RateLimitFilter(interval_seconds=5))
         root_logger.addHandler(handler)
@@ -1015,7 +1022,7 @@ class SimulationContext(_SimulationContext):
             root_logger.addHandler(file_handler)
 
             # Print the log file path once at startup
-            root_logger.info(f"IsaacLab logs will also be saved to: {log_file_path}")
+            print(f"[INFO] IsaacLab logging to file: {log_file_path}")
 
         return root_logger
 
