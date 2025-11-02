@@ -12,7 +12,7 @@ from isaacsim.core.prims import SingleArticulation
 # enable motion generation extensions
 from isaacsim.core.utils.extensions import enable_extension
 
-import isaaclab.utils.prims as prim_utils
+import isaaclab.sim as sim_utils
 
 enable_extension("isaacsim.robot_motion.lula")
 enable_extension("isaacsim.robot_motion.motion_generation")
@@ -82,7 +82,7 @@ class RmpFlowController:
         # obtain the simulation time
         physics_dt = SimulationContext.instance().get_physics_dt()
         # find all prims
-        self._prim_paths = prim_utils.find_matching_prim_paths(prim_paths_expr)
+        self._prim_paths = sim_utils.find_matching_prim_paths(prim_paths_expr)
         self.num_robots = len(self._prim_paths)
         # resolve controller
         if self.cfg.name == "rmp_flow":

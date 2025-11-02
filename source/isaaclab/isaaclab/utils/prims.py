@@ -8,12 +8,12 @@ import typing
 
 import omni.usd
 import usdrt
-from isaacsim.core.utils._isaac_utils import _find_matching_prim_paths
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
+import isaaclab.sim as sim_utils
 from isaaclab.utils.semantics import add_labels
-from isaaclab.utils.stage import add_reference_to_stage, get_current_stage, get_current_stage_id
+from isaaclab.utils.stage import add_reference_to_stage, get_current_stage
 from isaaclab.utils.types import SDF_type_to_Gf
 
 
@@ -362,33 +362,6 @@ def get_all_matching_child_prims(
                 children = get_prim_children(prim)
                 traversal_queue = traversal_queue + [(child, current_depth + 1) for child in children]
     return out
-
-
-def find_matching_prim_paths(prim_path_regex: str, prim_type: str | None = None) -> list[str]:
-    """Find all the matching prim paths in the stage based on Regex expression.
-
-    Args:
-        prim_path_regex (str): The Regex expression for prim path.
-        prim_type (typing.Optional[str]): The type of the prims to filter, only supports articulation and rigid_body currently. Defaults to None.
-
-    Returns:
-        typing.List[str]: List of prim paths that match input expression.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.utils.prims as prims_utils
-        >>>
-        >>> # given the stage: /World/env/Cube, /World/env_01/Cube, /World/env_02/Cube
-        >>> # get only the prim Cube paths from env_01 and env_02
-        >>> prims_utils.find_matching_prim_paths("/World/env_.*/Cube")
-        ['/World/env_01/Cube', '/World/env_02/Cube']
-    """
-    stage_id = get_current_stage_id()
-    if prim_type is None:
-        prim_type = ""
-    return _find_matching_prim_paths(prim_path_regex.replace(".*", "*"), stage_id, prim_type)
 
 
 def get_prim_children(prim: Usd.Prim) -> list[Usd.Prim]:
@@ -1005,7 +978,7 @@ def get_articulation_root_api_prim_path(prim_path):
             return get_prim_path(prim)
     # regular expression
     else:
-        paths = find_matching_prim_paths(prim_path)
+        paths = sim_utils.find_matching_prim_paths(prim_path)
         if len(paths):
             prim = get_first_matching_child_prim(paths[0], predicate)
             if prim is not None:

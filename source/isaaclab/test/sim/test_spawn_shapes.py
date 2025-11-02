@@ -259,7 +259,7 @@ def test_spawn_cone_clones(sim):
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
     # find matching prims
-    prims = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prims = sim_utils.find_matching_prim_paths("/World/env_*/Cone")
     assert len(prims) == num_clones
 
 
@@ -285,8 +285,8 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
     # find matching prims
-    prims = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prims = sim_utils.find_matching_prim_paths("/World/env_*/Cone")
     assert len(prims) == num_clones
     # find matching material prims
-    prims = prim_utils.find_matching_prim_paths("/Looks/visualMaterial.*")
+    prims = sim_utils.find_matching_prim_paths("/Looks/visualMaterial.*")
     assert len(prims) == 1
