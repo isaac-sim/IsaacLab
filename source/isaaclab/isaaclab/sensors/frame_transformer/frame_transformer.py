@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
@@ -31,6 +31,9 @@ from .frame_transformer_data import FrameTransformerData
 
 if TYPE_CHECKING:
     from .frame_transformer_cfg import FrameTransformerCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class FrameTransformer(SensorBase):
@@ -149,10 +152,10 @@ class FrameTransformer(SensorBase):
         self._apply_source_frame_offset = True
         # Handle source frame offsets
         if is_identity_pose(source_frame_offset_pos, source_frame_offset_quat):
-            omni.log.verbose(f"No offset application needed for source frame as it is identity: {self.cfg.prim_path}")
+            logger.debug(f"No offset application needed for source frame as it is identity: {self.cfg.prim_path}")
             self._apply_source_frame_offset = False
         else:
-            omni.log.verbose(f"Applying offset to source frame as it is not identity: {self.cfg.prim_path}")
+            logger.debug(f"Applying offset to source frame as it is not identity: {self.cfg.prim_path}")
             # Store offsets as tensors (duplicating each env's offsets for ease of multiplication later)
             self._source_frame_offset_pos = source_frame_offset_pos.unsqueeze(0).repeat(self._num_envs, 1)
             self._source_frame_offset_quat = source_frame_offset_quat.unsqueeze(0).repeat(self._num_envs, 1)
@@ -229,12 +232,12 @@ class FrameTransformer(SensorBase):
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
 
         if not self._apply_target_frame_offset:
-            omni.log.info(
+            logger.info(
                 f"No offsets application needed from '{self.cfg.prim_path}' to target frames as all"
                 f" are identity: {frames[1:]}"
             )
         else:
-            omni.log.info(
+            logger.info(
                 f"Offsets application needed from '{self.cfg.prim_path}' to the following target frames:"
                 f" {non_identity_offset_frames}"
             )

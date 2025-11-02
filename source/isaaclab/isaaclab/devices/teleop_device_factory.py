@@ -7,9 +7,8 @@
 
 import contextlib
 import inspect
+import logging
 from collections.abc import Callable
-
-import omni.log
 
 from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
@@ -36,6 +35,9 @@ from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3Spac
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
     from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 # Map device types to their constructor and expected config type
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
@@ -120,5 +122,5 @@ def create_teleop_device(
     for key, callback in callbacks.items():
         device.add_callback(key, callback)
 
-    omni.log.info(f"Created teleoperation device: {device_name}")
+    logger.info(f"Created teleoperation device: {device_name}")
     return device

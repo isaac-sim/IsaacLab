@@ -73,12 +73,12 @@ signal.signal(signal.SIGINT, cleanup_pbar)
 """Rest everything follows."""
 
 import gymnasium as gym
+import logging
 import numpy as np
 import os
 import random
 from datetime import datetime
 
-import omni
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
@@ -98,6 +98,8 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+# import logger
+logger = logging.getLogger(__name__)
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -145,7 +147,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
     else:
-        omni.log.warn(
+        logger.warning(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
         )
 
