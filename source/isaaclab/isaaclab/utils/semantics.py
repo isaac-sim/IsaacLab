@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2021-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,11 +20,12 @@
 from typing import Dict, List, Optional, Tuple
 
 import carb
-import isaaclab.utils.prims as prim_utils
 import omni.usd
 import Semantics
-from isaaclab.utils.stage import get_current_stage, get_current_stage_id
 from pxr import Usd, UsdGeom, UsdSemantics
+
+import isaaclab.utils.prims as prim_utils
+from isaaclab.utils.stage import get_current_stage, get_current_stage_id
 
 
 def add_update_semantics(prim: Usd.Prim, semantic_label: str, type_label: str = "class", suffix="") -> None:
@@ -32,8 +38,8 @@ def add_update_semantics(prim: Usd.Prim, semantic_label: str, type_label: str = 
         suffix (str): Additional suffix used to specify multiple semantic attribute names.
     """
     carb.log_warn(
-        "Function 'add_update_semantics' uses the deprecated SemanticsAPI. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim)` first and then using `add_labels` instead."
+        "Function 'add_update_semantics' uses the deprecated SemanticsAPI. Consider upgrading the semantics with"
+        " `upgrade_prim_semantics_to_labels(prim)` first and then using `add_labels` instead."
     )
     # Apply or acquire the existing SemanticAPI
     semantic_api = Semantics.SemanticsAPI.Get(prim, "Semantics" + suffix)
@@ -61,8 +67,8 @@ def remove_all_semantics(prim: Usd.Prim, recursive: bool = False) -> None:
         recursive (bool, optional): Also traverse children and remove semantics recursively. Defaults to False.
     """
     carb.log_warn(
-        "Function 'remove_all_semantics' uses the deprecated SemanticsAPI. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using `remove_labels` instead."
+        "Function 'remove_all_semantics' uses the deprecated SemanticsAPI. Consider upgrading the semantics with"
+        " `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using `remove_labels` instead."
     )
 
     def remove_semantics(input_prim: Usd.Prim):
@@ -85,7 +91,7 @@ def remove_all_semantics(prim: Usd.Prim, recursive: bool = False) -> None:
         remove_semantics(prim)
 
 
-def get_semantics(prim: Usd.Prim) -> Dict[str, Tuple[str, str]]:
+def get_semantics(prim: Usd.Prim) -> dict[str, tuple[str, str]]:
     """[DEPRECATED] Returns semantics (old SemanticsAPI) that are applied to a prim
 
     Args:
@@ -95,8 +101,8 @@ def get_semantics(prim: Usd.Prim) -> Dict[str, Tuple[str, str]]:
         Dict[str, Tuple[str,str]]: Dictionary containing the name of the applied semantic, and the type and data associated with that semantic.
     """
     carb.log_warn(
-        "Function 'get_semantics' reads the deprecated SemanticsAPI. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim)` first and then using `get_labels` instead."
+        "Function 'get_semantics' reads the deprecated SemanticsAPI. Consider upgrading the semantics with"
+        " `upgrade_prim_semantics_to_labels(prim)` first and then using `get_labels` instead."
     )
     result = {}
     for prop in prim.GetProperties():
@@ -111,7 +117,7 @@ def get_semantics(prim: Usd.Prim) -> Dict[str, Tuple[str, str]]:
     return result
 
 
-def check_missing_semantics(prim_path: str = None) -> List[str]:
+def check_missing_semantics(prim_path: str = None) -> list[str]:
     """[DEPRECATED] Returns a list of prim path of meshes with missing semantics (old SemanticsAPI)
 
     Args:
@@ -121,8 +127,9 @@ def check_missing_semantics(prim_path: str = None) -> List[str]:
         List[str]: Prim paths
     """
     carb.log_warn(
-        "Function 'check_missing_semantics' uses the deprecated SemanticsAPI via get_semantics. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using `check_missing_labels` instead."
+        "Function 'check_missing_semantics' uses the deprecated SemanticsAPI via get_semantics. Consider upgrading the"
+        " semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using"
+        " `check_missing_labels` instead."
     )
     prim_paths = []
     prims = []
@@ -141,7 +148,7 @@ def check_missing_semantics(prim_path: str = None) -> List[str]:
     return prim_paths
 
 
-def check_incorrect_semantics(prim_path: str = None) -> List[List[str]]:
+def check_incorrect_semantics(prim_path: str = None) -> list[list[str]]:
     """[DEPRECATED] Returns a list of prim path of meshes with different semantics labels (old SemanticsAPI) than their prim path and their semantic labels
 
     Args:
@@ -151,8 +158,9 @@ def check_incorrect_semantics(prim_path: str = None) -> List[List[str]]:
         List[List[str]]: List of prim path and semantic label
     """
     carb.log_warn(
-        "Function 'check_incorrect_semantics' uses the deprecated SemanticsAPI via get_semantics. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using `check_incorrect_labels` instead."
+        "Function 'check_incorrect_semantics' uses the deprecated SemanticsAPI via get_semantics. Consider upgrading"
+        " the semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using"
+        " `check_incorrect_labels` instead."
     )
     incorrect_pairs = []
     if prim_path is None:
@@ -180,7 +188,7 @@ def check_incorrect_semantics(prim_path: str = None) -> List[List[str]]:
     return incorrect_pairs
 
 
-def count_semantics_in_scene(prim_path: str = None) -> Dict[str, int]:
+def count_semantics_in_scene(prim_path: str = None) -> dict[str, int]:
     """[DEPRECATED] Returns a dictionary of labels (old SemanticsAPI) and the corresponding count
 
     Args:
@@ -190,8 +198,9 @@ def count_semantics_in_scene(prim_path: str = None) -> Dict[str, int]:
         Dict[str, int]: labels and count
     """
     carb.log_warn(
-        "Function 'count_semantics_in_scene' uses the deprecated SemanticsAPI via get_semantics. "
-        "Consider upgrading the semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using `count_labels_in_scene` instead."
+        "Function 'count_semantics_in_scene' uses the deprecated SemanticsAPI via get_semantics. Consider upgrading the"
+        " semantics with `upgrade_prim_semantics_to_labels(prim, recursive=True)` first and then using"
+        " `count_labels_in_scene` instead."
     )
     semantics_counter = {"missing": 0}
     if prim_path is None:
@@ -446,7 +455,8 @@ def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool =
 
             if not old_type or not old_data:
                 carb.log_warn(
-                    f"[upgrade_prim] Skipping instance '{old_instance_name}' on {current_prim.GetPath()} due to missing type or data."
+                    f"[upgrade_prim] Skipping instance '{old_instance_name}' on {current_prim.GetPath()} due to missing"
+                    " type or data."
                 )
                 continue
 

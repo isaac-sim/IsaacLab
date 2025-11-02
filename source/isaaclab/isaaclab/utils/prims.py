@@ -1,24 +1,30 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import numpy as np
 import re
 
 # python
 import typing
 
-import numpy as np
 import omni.usd
 import usdrt
 
 # isaacsim
 from isaacsim.core.utils._isaac_utils import _find_matching_prim_paths
-from isaaclab.utils.semantics import add_labels
-from isaaclab.utils.stage import add_reference_to_stage, get_current_stage, get_current_stage_id
-from isaaclab.utils.types import SDF_type_to_Gf
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 
 # omniverse
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.utils.semantics import add_labels
+from isaaclab.utils.stage import add_reference_to_stage, get_current_stage, get_current_stage_id
+from isaaclab.utils.types import SDF_type_to_Gf
 
-def get_prim_at_path(prim_path: str, fabric: bool = False) -> typing.Union[Usd.Prim, usdrt.Usd._Usd.Prim]:
+
+def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | usdrt.Usd._Usd.Prim:
     """Get the USD or Fabric Prim at a given path string
 
     Args:
@@ -76,7 +82,7 @@ def is_prim_path_valid(prim_path: str, fabric: bool = False) -> bool:
         return False
 
 
-def get_prim_attribute_names(prim_path: str, fabric: bool = False) -> typing.List[str]:
+def get_prim_attribute_names(prim_path: str, fabric: bool = False) -> list[str]:
     """Get all the attribute names of a prim at the path
 
     Args:
@@ -201,7 +207,7 @@ def define_prim(prim_path: str, prim_type: str = "Xform", fabric: bool = False) 
         Usd.Prim(</World/Shapes>)
     """
     if is_prim_path_valid(prim_path, fabric=fabric):
-        raise Exception("A prim already exists at prim path: {}".format(prim_path))
+        raise Exception(f"A prim already exists at prim path: {prim_path}")
     return get_current_stage(fabric=fabric).DefinePrim(prim_path, prim_type)
 
 
@@ -228,7 +234,7 @@ def get_prim_type_name(prim_path: str, fabric: bool = False) -> str:
         Cube
     """
     if not is_prim_path_valid(prim_path, fabric=fabric):
-        raise Exception("A prim does not exist at prim path: {}".format(prim_path))
+        raise Exception(f"A prim does not exist at prim path: {prim_path}")
     prim = get_prim_at_path(prim_path, fabric=fabric)
     if fabric:
         return prim.GetTypeName()
@@ -323,8 +329,8 @@ def get_first_matching_parent_prim(prim_path: str, predicate: typing.Callable[[s
 
 
 def get_all_matching_child_prims(
-    prim_path: str, predicate: typing.Callable[[str], bool] = lambda x: True, depth: typing.Optional[int] = None
-) -> typing.List[Usd.Prim]:
+    prim_path: str, predicate: typing.Callable[[str], bool] = lambda x: True, depth: int | None = None
+) -> list[Usd.Prim]:
     """Performs a breadth-first search starting from the root and returns all the prims matching the predicate.
 
     Args:
@@ -365,7 +371,7 @@ def get_all_matching_child_prims(
     return out
 
 
-def find_matching_prim_paths(prim_path_regex: str, prim_type: typing.Optional[str] = None) -> typing.List[str]:
+def find_matching_prim_paths(prim_path_regex: str, prim_type: str | None = None) -> list[str]:
     """Find all the matching prim paths in the stage based on Regex expression.
 
     Args:
@@ -392,7 +398,7 @@ def find_matching_prim_paths(prim_path_regex: str, prim_type: typing.Optional[st
     return _find_matching_prim_paths(prim_path_regex.replace(".*", "*"), stage_id, prim_type)
 
 
-def get_prim_children(prim: Usd.Prim) -> typing.List[Usd.Prim]:
+def get_prim_children(prim: Usd.Prim) -> list[Usd.Prim]:
     """Return the call of the USD Prim's GetChildren member function
 
     Args:
@@ -644,14 +650,14 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
 def create_prim(
     prim_path: str,
     prim_type: str = "Xform",
-    position: typing.Optional[typing.Sequence[float]] = None,
-    translation: typing.Optional[typing.Sequence[float]] = None,
-    orientation: typing.Optional[typing.Sequence[float]] = None,
-    scale: typing.Optional[typing.Sequence[float]] = None,
-    usd_path: typing.Optional[str] = None,
-    semantic_label: typing.Optional[str] = None,
+    position: typing.Sequence[float] | None = None,
+    translation: typing.Sequence[float] | None = None,
+    orientation: typing.Sequence[float] | None = None,
+    scale: typing.Sequence[float] | None = None,
+    usd_path: str | None = None,
+    semantic_label: str | None = None,
     semantic_type: str = "class",
-    attributes: typing.Optional[dict] = None,
+    attributes: dict | None = None,
 ) -> Usd.Prim:
     """Create a prim into current USD stage.
 
@@ -804,7 +810,7 @@ def set_prim_property(prim_path: str, property_name: str, property_value: typing
     prim.GetAttribute(property_name).Set(property_value)
 
 
-def get_prim_object_type(prim_path: str) -> typing.Union[str, None]:
+def get_prim_object_type(prim_path: str) -> str | None:
     """Get the dynamic control object type of the USD Prim at the given path.
 
     If the prim at the path is of Dynamic Control type e.g.: rigid_body, joint, dof, articulation, attractor, d6joint,

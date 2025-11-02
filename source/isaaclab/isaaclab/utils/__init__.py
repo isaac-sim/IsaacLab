@@ -15,3 +15,7 @@ from .string import *
 from .timer import Timer
 from .types import *
 from .version import *
+from .stage import *
+from .prims import *
+from .semantics import *
+from .seed import *

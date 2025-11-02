@@ -1,28 +1,45 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import builtins
 import contextlib
 import threading
-
-# python
 import typing
 
-# omniverse
 import omni
-# import omni.log
 import omni.kit.app
 import usdrt
-
-# isaacsim
-from isaacsim.core.utils.constants import AXES_TOKEN
-from omni.kit.usd import layers
+from pxr import Sdf, Usd, UsdGeom, UsdUtils
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
-from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
 
+AXES_TOKEN = {
+    "X": UsdGeom.Tokens.x,
+    "x": UsdGeom.Tokens.x,
+    "Y": UsdGeom.Tokens.y,
+    "y": UsdGeom.Tokens.y,
+    "Z": UsdGeom.Tokens.z,
+    "z": UsdGeom.Tokens.z,
+}
+"""Mapping from axis name to axis USD token
+
+    >>> import isaacsim.core.utils.constants as constants_utils
+    >>>
+    >>> # get the x-axis USD token
+    >>> constants_utils.AXES_TOKEN['x']
+    X
+    >>> constants_utils.AXES_TOKEN['X']
+    X
+"""
+
+
 @contextlib.contextmanager
-def use_stage(stage: Usd.Stage) -> None:
+def use_stage(stage: Usd.Stage):
     """Context manager that sets a thread-local stage.
 
     Args:
@@ -60,14 +77,14 @@ def use_stage(stage: Usd.Stage) -> None:
             _context.stage = previous_stage
 
 
-def get_current_stage(fabric: bool = False) -> typing.Union[Usd.Stage, usdrt.Usd._Usd.Stage]:
+def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
     """Get the current open USD or Fabric stage
 
     Args:
-        fabric (bool, optional): True to get the fabric stage. False to get the USD stage. Defaults to False.
+        fabric: True to get the fabric stage. False to get the USD stage. Defaults to False.
 
     Returns:
-        typing.Union[Usd.Stage, usdrt.Usd._Usd.Stage]: The USD or Fabric stage as specified by the input arg fabric.
+        The USD or Fabric stage as specified by the input arg fabric.
 
     Example:
 
@@ -127,25 +144,6 @@ def update_stage() -> None:
     omni.kit.app.get_app_interface().update()
 
 
-async def update_stage_async() -> None:
-    """Update the current USD stage (asynchronous version).
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import asyncio
-        >>> import isaaclab.utils.stage as stage_utils
-        >>> from omni.kit.async_engine import run_coroutine
-        >>>
-        >>> async def task():
-        ...     await stage_utils.update_stage_async()
-        ...
-        >>> run_coroutine(task())
-    """
-    await omni.kit.app.get_app().next_update_async()
-
-
 # TODO: make a generic util for setting all layer properties
 def set_stage_up_axis(axis: str = "z") -> None:
     """Change the up axis of the current stage
@@ -190,12 +188,11 @@ def get_stage_up_axis() -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
 
-def clear_stage(predicate: typing.Optional[typing.Callable[[str], bool]] = None) -> None:
+def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer
 
     Args:
-        predicate (typing.Optional[typing.Callable[[str], bool]], optional):
-            user defined function that takes a prim_path (str) as input and returns True/False if the prim
+        predicate: user defined function that takes a prim_path (str) as input and returns True/False if the prim
             should/shouldn't be deleted. If predicate is None, a default is used that deletes all prims
 
     Example:
@@ -337,11 +334,11 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
                 # )
                 success_bool = prim.GetReferences().AddReference(usd_path)
                 if not success_bool:
-                    raise FileNotFoundError("The usd file at path {} provided wasn't found".format(usd_path))
+                    raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
         else:
             success_bool = prim.GetReferences().AddReference(usd_path)
             if not success_bool:
-                raise FileNotFoundError("The usd file at path {} provided wasn't found".format(usd_path))
+                raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
 
     return prim
 
@@ -386,26 +383,6 @@ def create_new_stage_in_memory() -> Usd.Stage:
     return Usd.Stage.CreateInMemory()
 
 
-async def create_new_stage_async() -> None:
-    """Create a new stage (asynchronous version).
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import asyncio
-        >>> import isaaclab.utils.stage as stage_utils
-        >>> from omni.kit.async_engine import run_coroutine
-        >>>
-        >>> async def task():
-        ...     await stage_utils.create_new_stage_async()
-        ...
-        >>> run_coroutine(task())
-    """
-    await omni.usd.get_context().new_stage_async()
-    await omni.kit.app.get_app().next_update_async()
-
-
 def open_stage(usd_path: str) -> bool:
     """Open the given usd file and replace currently opened stage.
 
@@ -434,40 +411,6 @@ def open_stage(usd_path: str) -> bool:
     result = omni.usd.get_context().open_stage(usd_path)
     usd_context.enable_save_to_recent_files()
     return result
-
-
-async def open_stage_async(usd_path: str) -> typing.Tuple[bool, int]:
-    """Open the given usd file and replace currently opened stage (asynchronous version).
-
-    Args:
-        usd_path (str): Path to the USD file to open.
-
-    Raises:
-        ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import asyncio
-        >>> import isaaclab.utils.stage as stage_utils
-        >>> from omni.kit.async_engine import run_coroutine
-        >>>
-        >>> async def task():
-        ...     await stage_utils.open_stage_async("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
-        ...
-        >>> run_coroutine(task())
-    """
-    if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be loaded with this method")
-    usd_context = omni.usd.get_context()
-    usd_context.disable_save_to_recent_files()
-    (result, error) = await omni.usd.get_context().open_stage_async(usd_path)
-    usd_context.enable_save_to_recent_files()
-    return (result, error)
 
 
 def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
@@ -506,7 +449,7 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
     return result
 
 
-def close_stage(callback_fn: typing.Callable = None) -> bool:
+def close_stage(callback_fn: typing.Callable | None = None) -> bool:
     """Closes the current opened USD stage.
 
     .. note::
@@ -514,7 +457,7 @@ def close_stage(callback_fn: typing.Callable = None) -> bool:
         Once the stage is closed, it is necessary to open a new stage or create a new one in order to work on it.
 
     Args:
-        callback_fn (typing.Callable, optional): Callback function to call while closing. Defaults to None.
+        callback_fn: Callback function to call while closing. Defaults to None.
 
     Returns:
         bool: True if operation is successful, otherwise false.
@@ -548,49 +491,11 @@ def close_stage(callback_fn: typing.Callable = None) -> bool:
     return result
 
 
-def set_livesync_stage(usd_path: str, enable: bool) -> bool:
-    """Save the stage and set the Live Sync mode for real-time live editing of shared files on a Nucleus server
-
-    Args:
-        usd_path (str): path to enable live sync for, it will be overwritten with the current stage
-        enable (bool): True to enable livesync, false to disable livesync
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.set_livesync_stage("omniverse://localhost/Users/Live/stage.usd", enable=True)
-        server omniverse://localhost: ConnectionStatus.CONNECTING
-        server omniverse://localhost: ConnectionStatus.CONNECTED
-        True
-    """
-    # TODO: Check that the provided usd_path exists
-    # TODO: Check that the provided usd_path exists
-    if save_stage(usd_path):
-        if enable:
-            usd_path_split = usd_path.split("/")
-            live_session = layers.get_live_syncing().find_live_session_by_name(usd_path, "Default")
-            if live_session is None:
-                live_session = layers.get_live_syncing().create_live_session(name="Default")
-            result = layers.get_live_syncing().join_live_session(live_session)
-            return True
-        else:
-            layers.get_live_syncing().stop_live_session(usd_path)
-            return True
-    else:
-        return False
-
-
 def traverse_stage(fabric=False) -> typing.Iterable:
     """Traverse through prims (hidden or not) in the opened Usd stage.
 
     Returns:
-        typing.Iterable: Generator which yields prims from the stage in depth-first-traversal order.
+        Generator which yields prims from the stage in depth-first-traversal order.
 
     Example:
 
