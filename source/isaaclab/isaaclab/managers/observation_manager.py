@@ -62,6 +62,15 @@ class ObservationManager(ManagerBase):
     The observations are clipped and scaled as per the configuration settings.
     """
 
+    # Configuration fields to skip when parsing observation terms cfg
+    _EXCLUDED_CFG_KEYS: tuple[str, ...] = (
+        "enable_corruption",
+        "concatenate_terms",
+        "history_length",
+        "flatten_history_dim",
+        "concatenate_dim",
+    )
+
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
 
@@ -515,13 +524,7 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in [
-                    "enable_corruption",
-                    "concatenate_terms",
-                    "history_length",
-                    "flatten_history_dim",
-                    "concatenate_dim",
-                ]:
+                if term_name in self._EXCLUDED_CFG_KEYS:
                     continue
                 # check for non config
                 if term_cfg is None:
