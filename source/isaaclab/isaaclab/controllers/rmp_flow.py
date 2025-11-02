@@ -6,12 +6,13 @@
 import torch
 from dataclasses import MISSING
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import SingleArticulation
 
 # enable motion generation extensions
 from isaacsim.core.utils.extensions import enable_extension
+
+import isaaclab.utils.prims as prim_utils
 
 enable_extension("isaacsim.robot_motion.lula")
 enable_extension("isaacsim.robot_motion.motion_generation")

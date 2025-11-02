@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Literal
 import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -31,6 +30,7 @@ from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.terrains import TerrainImporter
+from isaaclab.utils.stage import get_current_stage
 from isaaclab.utils.version import compare_versions
 
 if TYPE_CHECKING:

@@ -12,8 +12,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.physx
 import omni.usd
@@ -23,6 +21,8 @@ from isaacsim.core.cloner import GridCloner
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.prims as prim_utils
+import isaaclab.utils.stage as stage_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 

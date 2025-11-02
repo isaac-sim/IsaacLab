@@ -7,18 +7,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
+
+import isaaclab.utils.prims as prim_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
     import Semantics
 except ModuleNotFoundError:
     from pxr import Semantics
-
-from isaacsim.core.utils.stage import get_current_stage
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import (
@@ -29,6 +28,7 @@ from isaaclab.sim.utils import (
     select_usd_variants,
 )
 from isaaclab.utils.assets import check_usd_path_with_timeout
+from isaaclab.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import from_files_cfg

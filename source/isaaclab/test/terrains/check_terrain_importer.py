@@ -64,7 +64,6 @@ simulation_app = app_launcher.app
 
 import numpy as np
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 from isaacsim.core.api.materials import PhysicsMaterial
@@ -78,6 +77,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+import isaaclab.utils.prims as prim_utils
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

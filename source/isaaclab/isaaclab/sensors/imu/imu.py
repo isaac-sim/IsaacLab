@@ -9,12 +9,12 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+import isaaclab.utils.stage as stage_utils
 from isaaclab.markers import VisualizationMarkers
 
 from ..sensor_base import SensorBase

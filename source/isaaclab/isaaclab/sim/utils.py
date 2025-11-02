@@ -15,15 +15,16 @@ from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
 import omni.log
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.utils.carb import get_carb_setting
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+
+import isaaclab.utils.stage as stage_utils
+from isaaclab.utils.stage import get_current_stage
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:

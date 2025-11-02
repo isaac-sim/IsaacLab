@@ -17,7 +17,6 @@ import torch
 import trimesh
 from typing import Literal
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 import pytest
@@ -29,6 +28,7 @@ from isaacsim.core.utils.extensions import enable_extension
 from pxr import UsdGeom
 
 import isaaclab.terrains as terrain_gen
+import isaaclab.utils.prims as prim_utils
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG

@@ -17,11 +17,11 @@ simulation_app = app_launcher.app
 import pathlib
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+import isaaclab.utils.stage as stage_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG, RED_ARROW_X_MARKER_CFG

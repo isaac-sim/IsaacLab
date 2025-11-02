@@ -16,11 +16,11 @@ import math
 import scipy.spatial.transform as tf
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+import isaaclab.utils.stage as stage_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg

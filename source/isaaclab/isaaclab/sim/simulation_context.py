@@ -21,7 +21,6 @@ from typing import Any
 
 import carb
 import flatdict
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 import omni.usd
@@ -32,6 +31,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
+import isaaclab.utils.stage as stage_utils
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg

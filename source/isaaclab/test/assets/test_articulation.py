@@ -20,12 +20,12 @@ simulation_app = AppLauncher(headless=True).app
 import ctypes
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+import isaaclab.utils.prims as prim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg

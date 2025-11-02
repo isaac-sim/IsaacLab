@@ -11,6 +11,33 @@ import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+SDF_type_to_Gf = {
+    "matrix3d": "Gf.Matrix3d",
+    "matrix3f": "Gf.Matrix3f",
+    "matrix4d": "Gf.Matrix4d",
+    "matrix4f": "Gf.Matrix4f",
+    "range1d": "Gf.Range1d",
+    "range1f": "Gf.Range1f",
+    "range2d": "Gf.Range2d",
+    "range2f": "Gf.Range2f",
+    "range3d": "Gf.Range3d",
+    "range3f": "Gf.Range3f",
+    "rect2i": "Gf.Rect2i",
+    "vec2d": "Gf.Vec2d",
+    "vec2f": "Gf.Vec2f",
+    "vec2h": "Gf.Vec2h",
+    "vec2i": "Gf.Vec2i",
+    "vec3d": "Gf.Vec3d",
+    "double3": "Gf.Vec3d",
+    "vec3f": "Gf.Vec3f",
+    "vec3h": "Gf.Vec3h",
+    "vec3i": "Gf.Vec3i",
+    "vec4d": "Gf.Vec4d",
+    "vec4f": "Gf.Vec4f",
+    "vec4h": "Gf.Vec4h",
+    "vec4i": "Gf.Vec4i",
+}
+
 
 @dataclass
 class ArticulationActions:
