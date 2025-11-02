@@ -44,18 +44,13 @@ import os
 import torch
 
 import omni.log
-
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
-
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 
+import isaaclab.utils.nucleus as nucleus_utils
 import isaaclab.utils.prims as prim_utils
 
 # check nucleus connection

@@ -32,7 +32,6 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 import torch
 
-import isaacsim.core.utils.nucleus as nucleus_utils
 import omni.kit.commands
 import omni.log
 import omni.physx
@@ -42,6 +41,7 @@ from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
 
+import isaaclab.utils.nucleus as nucleus_utils
 import isaaclab.utils.prims as prim_utils
 import isaaclab.utils.stage as stage_utils
 

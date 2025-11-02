@@ -38,16 +38,11 @@ import gc
 import torch  # noqa: F401
 
 import omni.log
-
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
-
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.carb import set_carb_setting
 
+import isaaclab.utils.nucleus as nucleus_utils
 import isaaclab.utils.prims as prim_utils
 
 # check nucleus connection

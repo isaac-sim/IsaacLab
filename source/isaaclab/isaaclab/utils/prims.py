@@ -693,6 +693,7 @@ def create_prim(
     from isaacsim.core.api.simulation_context.simulation_context import SimulationContext
 
     if SimulationContext.instance() is None:
+        # FIXME: remove this, we should never even use backend utils  especially not numpy ones
         import isaacsim.core.utils.numpy as backend_utils
 
         device = "cpu"
