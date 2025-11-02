@@ -516,7 +516,7 @@ class ManagerBasedEnv:
         state: dict[str, dict[str, dict[str, torch.Tensor]]] | None = None,
         seed: int | None = None,
         is_relative: bool = False,
-    ):
+    ) -> tuple[VecEnvObs, dict]:
         """Reset the specified environments to a given or randomized state.
 
         If a ``state`` is provided, the environments are restored accordingly.
@@ -533,6 +533,9 @@ class ManagerBasedEnv:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
+
+        Returns:
+            A tuple containing the observations and extras.
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
