@@ -491,7 +491,7 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._get_observations(update_history=True)
         self.recorder_manager.record_post_step()
 
         # return observations and extras
