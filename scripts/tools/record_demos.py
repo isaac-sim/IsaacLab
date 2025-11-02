@@ -90,8 +90,6 @@ simulation_app = app_launcher.app
 
 # Third-party imports
 import gymnasium as gym
-
-# Omniverse logger
 import logging
 import os
 import time
