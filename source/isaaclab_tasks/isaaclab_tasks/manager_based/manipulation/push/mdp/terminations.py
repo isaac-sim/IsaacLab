@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to activate certain terminations for the lift task.
+"""Common functions that can be used to activate certain terminations for the push task.
 
 The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
 the termination introduced by the function.
@@ -49,5 +49,5 @@ def object_reached_goal(
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
 
-    # rewarded if the object is lifted above the threshold
+    # terminate if object reached goal position
     return distance < threshold

@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
 
@@ -35,7 +31,7 @@ from . import mdp
 
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
-    """Configuration for the lift scene with a robot and a object.
+    """Configuration for the push scene with a robot and a object.
     This is the abstract base implementation, the exact scene is defined in the derived classes
     which need to set the target object, robot and end-effector frames
     """
@@ -191,7 +187,7 @@ class CurriculumCfg:
 
 @configclass
 class PushEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the lifting environment."""
+    """Configuration for the pushing environment."""
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
@@ -214,7 +210,6 @@ class PushEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation
 
-        self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
         self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024

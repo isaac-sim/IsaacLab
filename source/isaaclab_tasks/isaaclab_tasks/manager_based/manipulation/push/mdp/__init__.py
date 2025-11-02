@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that are specific to the lift environments."""
+"""This sub-module contains the functions that are specific to the push environments."""
 
 from isaaclab.envs.mdp import *  # noqa: F401, F403
 
