@@ -179,6 +179,10 @@ class JointAction(ActionTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
 
+    def normalize_processed_actions(self, processed_actions: torch.Tensor) -> torch.Tensor:
+        offset_free_actions = processed_actions - self._offset
+        return torch.where(self._scale > 1e-8, offset_free_actions / self._scale, offset_free_actions)
+
 
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
@@ -229,6 +233,16 @@ class RelativeJointPositionAction(JointAction):
         current_actions = self.processed_actions + self._asset.data.joint_pos[:, self._joint_ids]
         # set position targets
         self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
+
+    def normalize_processed_actions(self, processed_actions: torch.Tensor) -> torch.Tensor:
+        """Normalization of processed actions is not supported.
+
+        This method cannot be applied since the transformation is performed during the action application
+        stage (:meth:`apply_actions`) rather than during processing (:meth:`process_actions`).
+        """
+        raise NotImplementedError(
+            f"Normalizing of the processed actions is not supported for {self.__class__.__name__}."
+        )
 
 
 class JointVelocityAction(JointAction):
