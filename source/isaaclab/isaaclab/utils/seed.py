@@ -1,8 +1,13 @@
-import os
-import random
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+import os
+import random
 import torch
+
 import warp as wp
 
 
@@ -12,7 +17,7 @@ def set_seed(seed: int, torch_deterministic: bool = False) -> int:
         seed = 42
     elif seed == -1:
         seed = np.random.randint(0, 10000)
-    print("Setting seed: {}".format(seed))
+    print(f"Setting seed: {seed}")
 
     random.seed(seed)
     np.random.seed(seed)

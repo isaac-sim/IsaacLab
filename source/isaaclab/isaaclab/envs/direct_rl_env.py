@@ -26,10 +26,10 @@ from isaacsim.core.version import get_version
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.timer import Timer
 from isaaclab.utils.seed import set_seed
+from isaaclab.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg

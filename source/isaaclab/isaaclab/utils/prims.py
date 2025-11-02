@@ -4,19 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-import re
-
-# python
 import typing
 
 import omni.usd
 import usdrt
-
-# isaacsim
 from isaacsim.core.utils._isaac_utils import _find_matching_prim_paths
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-
-# omniverse
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.utils.semantics import add_labels
@@ -524,10 +517,7 @@ def is_prim_root_path(prim_path: str) -> bool:
         >>> prims_utils.is_prim_root_path("/World/Cube")
         False
     """
-    if prim_path == "/":
-        return True
-    else:
-        return False
+    return prim_path == "/"
 
 
 def is_prim_no_delete(prim_path: str) -> bool:

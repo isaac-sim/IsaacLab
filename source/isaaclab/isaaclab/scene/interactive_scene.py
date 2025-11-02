@@ -31,9 +31,8 @@ from isaaclab.assets import (
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.utils.stage import get_current_stage
+from isaaclab.utils.stage import get_current_stage, get_current_stage_id
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 

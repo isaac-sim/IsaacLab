@@ -20,15 +20,9 @@ except ModuleNotFoundError:
     from pxr import Semantics
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import (
-    bind_physics_material,
-    bind_visual_material,
-    clone,
-    is_current_stage_in_memory,
-    select_usd_variants,
-)
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
 from isaaclab.utils.assets import check_usd_path_with_timeout
-from isaaclab.utils.stage import get_current_stage
+from isaaclab.utils.stage import get_current_stage, is_current_stage_in_memory
 
 if TYPE_CHECKING:
     from . import from_files_cfg

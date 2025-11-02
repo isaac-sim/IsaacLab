@@ -11,11 +11,11 @@ from .configclass import configclass
 from .dict import *
 from .interpolation import *
 from .modifiers import *
+from .prims import *
+from .seed import *
+from .semantics import *
+from .stage import *
 from .string import *
 from .timer import Timer
 from .types import *
 from .version import *
-from .stage import *
-from .prims import *
-from .semantics import *
-from .seed import *

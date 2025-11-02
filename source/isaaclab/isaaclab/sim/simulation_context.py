@@ -32,7 +32,6 @@ from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.utils.stage as stage_utils
-from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -134,7 +133,7 @@ class SimulationContext(_SimulationContext):
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = create_new_stage_in_memory()
+            self._initial_stage = stage_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
 
@@ -613,7 +612,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with use_stage(self.get_initial_stage()):
+        with stage_utils.use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
