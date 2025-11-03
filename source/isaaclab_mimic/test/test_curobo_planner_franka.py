@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-# Skip all tests in this module on Windows
+# Skip all tests in this module on Windows - MUST be before AppLauncher
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
 
 SEED: int = 42
@@ -25,6 +25,8 @@ simulation_app: Any = app_launcher.app
 import gymnasium as gym
 import torch
 
+import pytest
+
 import isaaclab.utils.assets as _al_assets
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObjectCfg
@@ -35,10 +37,13 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 
-from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
-from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+if sys.platform != "win32":
+    from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
+    from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
+    from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_pos_env_cfg import (
+        FrankaCubeStackEnvCfg,
+    )
 
 # Predefined EE goals for the test
 # Each entry is a tuple of: (goal specification, goal ID)

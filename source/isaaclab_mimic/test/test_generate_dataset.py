@@ -5,11 +5,6 @@
 
 """Test dataset generation for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import subprocess
 import sys
@@ -17,8 +12,13 @@ import tempfile
 
 import pytest
 
-# Skip all tests in this module on Windows
+# Skip all tests in this module on Windows - MUST be before AppLauncher
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
+from isaaclab.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
