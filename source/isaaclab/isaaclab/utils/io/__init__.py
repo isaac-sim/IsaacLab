@@ -7,5 +7,5 @@
 Submodules for files IO operations.
 """
 
-from .pkl import dump_pickle, load_pickle
+from .torchscript import load_torchscript_model
 from .yaml import dump_yaml, load_yaml

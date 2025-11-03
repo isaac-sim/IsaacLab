@@ -102,6 +102,7 @@ Guidelines for modifications:
 * Miguel Alonso Jr
 * Mingyu Lee
 * Muhong Guo
+* Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
 * Norbert Cygiert
@@ -123,6 +124,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
+* Sergey Grizan
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
@@ -130,6 +132,7 @@ Guidelines for modifications:
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Tiffany Chen
 * Trushant Adeshara
 * Tyler Lum
 * Victor Khaustov
@@ -145,6 +148,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* Zehao Wang
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon

@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.4.4 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added onnxscript package to isaaclab_rl setup.py to fix onnxscript package missing issue in aarch64 platform.
+
+
+0.4.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Isaac-Ant-v0's sb3_ppo_cfg default value, so it trains under reasonable amount of time.
+
+
+0.4.2 (2025-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated opset version from 11 to 18 in RSL-RL OnnxPolicyExporter to avoid onnex downcast issue seen in aarch64.
+
+
 0.4.1 (2025-09-09)
 ~~~~~~~~~~~~~~~~~~
 

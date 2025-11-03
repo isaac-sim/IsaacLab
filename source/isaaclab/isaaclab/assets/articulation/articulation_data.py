@@ -196,6 +196,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_dynamic_friction_coeff: torch.Tensor = None
@@ -204,6 +207,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_viscous_friction_coeff: torch.Tensor = None
@@ -347,10 +353,18 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_dynamic_friction_coeff: torch.Tensor = None
-    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_viscous_friction_coeff: torch.Tensor = None
     """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
