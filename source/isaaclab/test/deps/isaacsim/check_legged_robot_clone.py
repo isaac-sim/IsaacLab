@@ -43,19 +43,15 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 import os
 import torch
 
-import omni.log
-
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
-
 import isaacsim.core.utils.prims as prim_utils
+import omni.log
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
+
+import isaaclab.sim.utils.nucleus as nucleus_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
