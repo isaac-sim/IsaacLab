@@ -229,7 +229,7 @@ class DirectRLEnv(gym.Env):
             omni.log.warn(msg)
             warnings.warn(
                 msg,
-                FutureWarning,
+                DeprecationWarning,
                 stacklevel=2,
             )
             self.cfg.num_rerenders_on_reset = 1
