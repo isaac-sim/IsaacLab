@@ -341,6 +341,7 @@ class HaplyDevice(DeviceBase):
 
                                 self.cached_data["inverse3_connected"] = inverse3_connected
                                 self.cached_data["versegrip_connected"] = versegrip_connected
+                                # Both devices required (AND logic): Inverse3 for position/force,
                                 both_connected = inverse3_connected and versegrip_connected
 
                             with self._connected_lock:

@@ -77,9 +77,6 @@ class DeviceBase(ABC):
         """
         raise NotImplementedError
 
-    # -----------------------------
-    # Optional force/torque feedback
-    # -----------------------------
     def push_force(self, forces: torch.Tensor, names: list[str] | None = None, frame: str = "world") -> None:
         """Push one or more 3D force vectors to the device (optional; default no-op).
 
@@ -94,20 +91,6 @@ class DeviceBase(ABC):
             may ignore this call.
         """
         return  # no-op by default
-
-    def push_wrench(self, wrenches: torch.Tensor, names: list[str] | None = None, frame: str = "world") -> None:
-        """Push one or more 6D wrenches to the device (optional; default no-op).
-
-        Args:
-            wrenches: Tensor of shape (N, 6) with [fx, fy, fz, tx, ty, tz].
-            names: Optional labels for each wrench channel (e.g., ["ee", "finger_1"]).
-            frame: Frame of the vectors: "world" (default) or "device".
-
-        Note:
-            Devices that support haptics should override this method. Devices that
-            do not support haptics may ignore this call.
-        """
-        return  # no-op by default`
 
     def _get_raw_data(self) -> Any:
         """Internal method to get the raw data from the device.
