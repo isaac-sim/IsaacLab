@@ -12,7 +12,7 @@ tactile sensing with the gelsight finger setup.
 .. code-block:: bash
 
     # Usage
-    python tacsl_example.py --enable_cameras --num_envs 16 --indenter_type nut --save_viz --use_tactile_taxim --use_tactile_ff
+    python tacsl_example.py --enable_cameras --num_envs 16 --indenter_type nut --save_viz --use_tactile_rgb --use_tactile_ff
 
 """
 
@@ -37,7 +37,7 @@ parser.add_argument("--tactile_compliance_stiffness", type=float, default=150.0,
 parser.add_argument("--tactile_compliant_damping", type=float, default=1.0, help="Tactile compliant damping.")
 parser.add_argument("--save_viz", action="store_true", help="Visualize tactile data.")
 parser.add_argument("--save_viz_dir", type=str, default="tactile_record", help="Directory to save tactile data.")
-parser.add_argument("--use_tactile_taxim", action="store_true", help="Use tactile taxim sensor data collection.")
+parser.add_argument("--use_tactile_rgb", action="store_true", help="Use tactile RGB sensor data collection.")
 parser.add_argument("--use_tactile_ff", action="store_true", help="Use tactile force field sensor data collection.")
 parser.add_argument("--debug_sdf_closest_pts", action="store_true", help="Visualize closest SDF points.")
 parser.add_argument("--debug_tactile_sensor_pts", action="store_true", help="Visualize tactile sensor points.")
@@ -64,7 +64,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 # Import our TactileSensor
 from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_viz_utils import visualize_tactile_shear_image
+from isaaclab.sensors.tacsl_sensor.gelsight_utils import visualize_tactile_shear_image
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab_assets.sensors import GELSIGHT_R15_CFG
@@ -116,7 +116,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
         # Sensor configuration
         render_cfg=GELSIGHT_R15_CFG,
-        enable_camera_tactile=args_cli.use_tactile_taxim,
+        enable_camera_tactile=args_cli.use_tactile_rgb,
         enable_force_field=args_cli.use_tactile_ff,
         # Elastomer configuration
         elastomer_rigid_body="elastomer",
@@ -210,15 +210,15 @@ def mkdir_helper(dir_path):
     os.makedirs(tactile_img_folder, exist_ok=True)
     tactile_force_field_dir = os.path.join(tactile_img_folder, "tactile_force_field")
     os.makedirs(tactile_force_field_dir, exist_ok=True)
-    tactile_taxim_dir = os.path.join(tactile_img_folder, "tactile_taxim")
-    os.makedirs(tactile_taxim_dir, exist_ok=True)
-    return tactile_force_field_dir, tactile_taxim_dir
+    tactile_rgb_image_dir = os.path.join(tactile_img_folder, "tactile_rgb_image")
+    os.makedirs(tactile_rgb_image_dir, exist_ok=True)
+    return tactile_force_field_dir, tactile_rgb_image_dir
 
 
 def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
     # Only save the first 2 environments
 
-    tactile_force_field_dir, tactile_taxim_dir = dir_path_list
+    tactile_force_field_dir, tactile_rgb_image_dir = dir_path_list
 
     if tactile_data.tactile_shear_force is not None and tactile_data.tactile_normal_force is not None:
         # visualize tactile forces
@@ -239,12 +239,12 @@ def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
         else:
             cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), tactile_image * 255)
 
-    if tactile_data.taxim_tactile is not None:
-        taxim_data = tactile_data.taxim_tactile.cpu().numpy()
-        taxim_data = np.transpose(taxim_data, axes=(0, 2, 1, 3))
-        taxim_data_first_2 = taxim_data[:2] if len(taxim_data) >= 2 else taxim_data
-        taxim_tiled = np.concatenate(taxim_data_first_2, axis=0)
-        cv2.imwrite(os.path.join(tactile_taxim_dir, f"{count}.png"), taxim_tiled)
+    if tactile_data.tactile_rgb_image is not None:
+        tactile_rgb_data = tactile_data.tactile_rgb_image.cpu().numpy()
+        tactile_rgb_data = np.transpose(tactile_rgb_data, axes=(0, 2, 1, 3))
+        tactile_rgb_data_first_2 = tactile_rgb_data[:2] if len(tactile_rgb_data) >= 2 else tactile_rgb_data
+        tactile_rgb_tiled = np.concatenate(tactile_rgb_data_first_2, axis=0)
+        cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count}.png"), tactile_rgb_tiled)
 
 
 def run_simulator(sim, scene: InteractiveScene):

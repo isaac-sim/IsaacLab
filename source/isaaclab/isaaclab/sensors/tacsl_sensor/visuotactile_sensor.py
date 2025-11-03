@@ -25,7 +25,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sensors.tacsl_sensor.gelsight_render import gelsightRender
+from isaaclab.sensors.tacsl_sensor.gelsight_utils import GelsightRender
 from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
@@ -261,7 +261,7 @@ class VisuoTactileSensor(SensorBase):
                 body_prim = prim_utils.get_prim_parent(mat_path)
                 physicsUtils.add_physics_material_to_prim(stage, body_prim, elastomer_collision_path)
 
-        omni.log.warn(f"Applied compliant contact materials to {self._num_envs} environments.")
+        omni.log.info(f"Applied compliant contact materials to {self._num_envs} environments.")
 
     def get_initial_render(self):
         """Get the initial tactile sensor render for baseline comparison.
@@ -307,7 +307,7 @@ class VisuoTactileSensor(SensorBase):
             return
 
         # gelsightRender
-        self.taxim_gelsight = gelsightRender(self.cfg.render_cfg, device=self.device)
+        self._tactile_rgb_render = GelsightRender(self.cfg.render_cfg, device=self.device)
 
         # Create camera sensor
         self._camera_sensor = TiledCamera(self.cfg.camera_cfg)
@@ -318,7 +318,7 @@ class VisuoTactileSensor(SensorBase):
             self._camera_sensor._is_initialized = True
 
         # Initialize camera buffers
-        self._data.taxim_tactile = torch.zeros(
+        self._data.tactile_rgb_image = torch.zeros(
             (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 3), device=self._device
         )
 
@@ -630,7 +630,7 @@ class VisuoTactileSensor(SensorBase):
         if "distance_to_image_plane" in camera_data.output:
             self._data.tactile_camera_depth = camera_data.output["distance_to_image_plane"][env_ids].clone()
             diff = self._nominal_tactile["distance_to_image_plane"][env_ids] - self._data.tactile_camera_depth
-            self._data.taxim_tactile[env_ids] = self.taxim_gelsight.render_tensorized(diff.squeeze(-1))
+            self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render_tensorized(diff.squeeze(-1))
 
     #########################################################################################
     # Force field tactile sensing

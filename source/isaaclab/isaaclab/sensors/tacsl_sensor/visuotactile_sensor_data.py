@@ -24,8 +24,8 @@ class VisuoTactileSensorData:
     tactile_camera_depth: torch.Tensor | None = None
     """Tactile depth images. Shape: (num_instances, height, width)."""
 
-    taxim_tactile: torch.Tensor | None = None
-    """Nominal (reference) tactile images with no contact. Shape: (num_instances, height, width, 3)."""
+    tactile_rgb_image: torch.Tensor | None = None
+    """Tactile RGB images rendered using the Taxim approach (https://arxiv.org/abs/2109.04027). Shape: (num_instances, height, width, 3)."""
 
     # Force field tactile data
     tactile_points_pos_w: torch.Tensor | None = None
@@ -38,7 +38,7 @@ class VisuoTactileSensorData:
     """Penetration depth at each tactile point. Shape: (num_instances, num_tactile_points)."""
 
     tactile_normal_force: torch.Tensor | None = None
-    """Normal forces at each tactile point. Shape: (num_instances, num_tactile_points)."""
+    """Normal forces at each tactile point in sensor frame. Shape: (num_instances, num_tactile_points)."""
 
     tactile_shear_force: torch.Tensor | None = None
-    """Shear forces at each tactile point. Shape: (num_instances, num_tactile_points, 2)."""
+    """Shear forces at each tactile point in sensor frame. Shape: (num_instances, num_tactile_points, 2)."""

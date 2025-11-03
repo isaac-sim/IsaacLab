@@ -110,14 +110,14 @@ To use the tactile sensor in a simulation environment, run the deom:
 .. code-block:: bash
 
     cd scripts/demos/sensors/tacsl
-    python tacsl_example.py --enable_cameras --indenter nut --num_envs 16 --use_tactile_taxim --use_tactile_ff --save_viz
+    python tacsl_example.py --enable_cameras --indenter nut --num_envs 16 --use_tactile_rgb --use_tactile_ff --save_viz
 
 Available command-line options include:
 
 * ``--enable_cameras``: Enable camera rendering for visualization
 * ``--indenter``: Specify the type of indenter object (nut, cube, etc.)
 * ``--num_envs``: Number of parallel environments
-* ``--use_tactile_taxim``: Enable RGB tactile imaging
+* ``--use_tactile_rgb``: Enable RGB tactile imaging
 * ``--use_tactile_ff``: Enable force field computation
 * ``--save_viz``: Save visualization outputs for analysis
 
@@ -173,7 +173,7 @@ The tactile sensor is designed to integrate seamlessly with reinforcement learni
         tactile_data = self.scene["tactile_sensor"].data
 
         # tactile RGB image
-        tactile_rgb = tactile_data.taxim_tactile
+        tactile_rgb = tactile_data.tactile_rgb_image
 
         # force field
         tactile_normal_force = tactile_data.tactile_normal_force
