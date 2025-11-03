@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+
+0.47.6 (2025-11-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an issue in recurrent policy evaluation in RSL-RL framework where the recurrent state was not reset after an episode termination.
+
+
 0.47.5 (2025-10-30)
 ~~~~~~~~~~~~~~~~~~~
 
