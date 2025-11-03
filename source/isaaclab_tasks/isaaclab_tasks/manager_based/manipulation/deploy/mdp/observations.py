@@ -59,7 +59,7 @@ def gear_shaft_pos_w(
         
         offset = torch.tensor(gear_offsets[gear_type], device=base_pos.device, dtype=base_pos.dtype)
         offset_pos = offset.unsqueeze(0)
-        shaft_pos[i] = base_pos[i] + offset_pos[0]
+        # shaft_pos[i] = base_pos[i] + offset_pos[0]
         # Apply position and rotation offsets if provided
         # create identity quaternion
         rot_offset_tensor = torch.tensor([1.0, 0.0, 0.0, 0.0], device=base_pos.device, dtype=base_pos.dtype).unsqueeze(0)
