@@ -681,7 +681,7 @@ class SimulationContext(_SimulationContext):
         # hide the Simulation Settings window
         self.carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
 
-    def _apply_render_settings_from_cfg(self):
+    def _apply_render_settings_from_cfg(self):  # noqa: C901
         """Sets rtx settings specified in the RenderCfg."""
 
         # define mapping of user-friendly RenderCfg names to native carb names
@@ -912,7 +912,9 @@ class SimulationContext(_SimulationContext):
         self._physxPvdInterface = _physxPvd.acquire_physx_pvd_interface()
 
         # Set carb settings for the output path and enabling pvd recording
-        self.carb_settings.set_string("/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir)
+        self.carb_settings.set_string(
+            "/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir
+        )
         self.carb_settings.set_bool("/physics/omniPvdOutputEnabled", True)
 
     def _update_usda_start_time(self, file_path, start_time):
