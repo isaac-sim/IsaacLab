@@ -177,7 +177,7 @@ class EventCfg:
             "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],
             "pos_randomization_range": {
                 "x": [-0.0, 0.0],
-                "y": [-0.005, 0.005],
+                "y": [-0.003, 0.003],
                 "z": [-0.003, 0.003]
             },
             # "pos_randomization_range": None
