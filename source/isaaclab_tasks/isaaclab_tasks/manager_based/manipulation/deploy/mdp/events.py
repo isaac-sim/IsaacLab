@@ -316,8 +316,10 @@ def set_robot_to_grasp_pose(
     #     env.sim.render()
     #     input("Press Enter to continue 2...")
 
-    hand_grasp_pos = env.cfg.hand_grasp_pos[gear_key]
-    set_finger_joint_pos_2f_140(joint_pos, env_ids_list, finger_joints, hand_grasp_pos)
+    for row_idx, env_id in enumerate(env_ids_list):
+        gear_key = env._current_gear_type[env_id]
+        hand_grasp_pos = env.cfg.hand_grasp_pos[gear_key]
+        set_finger_joint_pos_2f_140(joint_pos, [row_idx], finger_joints, hand_grasp_pos)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
@@ -328,7 +330,7 @@ def set_robot_to_grasp_pose(
 
     # Set finger joints based on gear type for each environment
     hand_close_pos = env.cfg.hand_close_pos
-    set_finger_joint_pos_2f_140(joint_pos, env_ids_list, finger_joints, hand_close_pos)
+    set_finger_joint_pos_2f_140(joint_pos, list(range(len(env_ids_list))), finger_joints, hand_close_pos)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
 
@@ -430,22 +432,23 @@ def randomize_gears_and_base_pose(
 
 def set_finger_joint_pos_2f_140(
     joint_pos: torch.Tensor,
-    env_ids_list: list[int],
+    reset_ind_joint_pos: list[int],
     finger_joints: list[int],
     finger_joint_position: float,
 ):
     # Get hand close positions for each environment based on gear type
-    for row_idx, env_id in enumerate(env_ids_list):
+    # reset_ind_joint_pos contains row indices into the sliced joint_pos tensor
+    for idx in reset_ind_joint_pos:
         
-        joint_pos[row_idx, finger_joints[0]] = finger_joint_position
-        joint_pos[row_idx, finger_joints[1]] = finger_joint_position
+        joint_pos[idx, finger_joints[0]] = finger_joint_position
+        joint_pos[idx, finger_joints[1]] = finger_joint_position
         
         # outer finger joints
-        joint_pos[row_idx, finger_joints[2]] = 0
-        joint_pos[row_idx, finger_joints[3]] = 0
+        joint_pos[idx, finger_joints[2]] = 0
+        joint_pos[idx, finger_joints[3]] = 0
 
-        joint_pos[row_idx, finger_joints[4]] = -finger_joint_position
-        joint_pos[row_idx, finger_joints[5]] = -finger_joint_position
+        joint_pos[idx, finger_joints[4]] = -finger_joint_position
+        joint_pos[idx, finger_joints[5]] = -finger_joint_position
 
-        joint_pos[row_idx, finger_joints[6]] = finger_joint_position
-        joint_pos[row_idx, finger_joints[7]] = finger_joint_position
+        joint_pos[idx, finger_joints[6]] = finger_joint_position
+        joint_pos[idx, finger_joints[7]] = finger_joint_position
