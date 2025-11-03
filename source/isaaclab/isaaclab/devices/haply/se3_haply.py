@@ -249,6 +249,9 @@ class HaplyDevice(DeviceBase):
             names: Optional labels (ignored for Haply Inverse3).
             frame: Frame of the vectors (currently only "world" is supported).
         """
+        if forces.shape[0] == 0:
+            raise ValueError("No forces provided to push")
+
         force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
         fx = np.clip(force[0], -self.limit_force, self.limit_force)
         fy = np.clip(force[1], -self.limit_force, self.limit_force)
