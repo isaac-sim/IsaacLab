@@ -33,7 +33,16 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
-parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment.")
+parser.add_argument(
+    "--teleop_device",
+    type=str,
+    default="keyboard",
+    help=(
+        "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
+        " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
+        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+    ),
+)
 parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
 )
@@ -98,6 +107,7 @@ from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subta
 
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 
@@ -304,7 +314,7 @@ def setup_ui(label_text: str, env: gym.Env) -> InstructionDisplay:
     Returns:
         InstructionDisplay: The configured instruction display object
     """
-    instruction_display = InstructionDisplay(args_cli.teleop_device)
+    instruction_display = InstructionDisplay(args_cli.xr)
     if not args_cli.xr:
         window = EmptyWindow(env, "Instruction")
         with window.ui_window_elements["main_vstack"]:
