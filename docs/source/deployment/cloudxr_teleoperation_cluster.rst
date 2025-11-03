@@ -15,6 +15,9 @@ System Requirements
 * **Minimum requirement**: Kubernetes cluster with a node that has at least 1 NVIDIA RTX PRO 6000 / L40 GPU or equivalent
 * **Recommended requirement**: Kubernetes cluster with a node that has at least 2 RTX PRO 6000 / L40 GPUs or equivalent
 
+.. note::
+   If you are using DGX Spark, check `DGX Spark Limitations <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations>`_ for compatibility.
+
 Software Dependencies
 ---------------------
 
@@ -76,7 +79,7 @@ Installation
 
    .. code:: bash
 
-      helm fetch https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.2.0.tgz \
+      helm fetch https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.3.0.tgz \
         --username='$oauthtoken' \
         --password=<your-ngc-api-key>
 
@@ -84,7 +87,7 @@ Installation
 
    .. code:: bash
 
-      helm upgrade --install hello-isaac-teleop isaac-lab-teleop-2.2.0.tgz \
+      helm upgrade --install hello-isaac-teleop isaac-lab-teleop-2.3.0.tgz \
         --set fullnameOverride=hello-isaac-teleop \
         --set hostNetwork="true"
 
@@ -107,7 +110,7 @@ Installation
 
          # command
          helm upgrade --install --values local_values.yml \
-           hello-isaac-teleop isaac-lab-teleop-2.2.0.tgz
+           hello-isaac-teleop isaac-lab-teleop-2.3.0.tgz
 
 #. Verify the deployment is completed:
 

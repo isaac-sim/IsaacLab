@@ -26,7 +26,7 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
