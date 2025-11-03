@@ -47,7 +47,6 @@ except ModuleNotFoundError:
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.carb import set_carb_setting
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -110,7 +109,7 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create a dummy tensor for testing
     # Uncommenting the following line will yield a reference count of 1 for the robot (as desired)
