@@ -354,7 +354,7 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        self.obs_buf, self.extras = self._reset(env_ids, None, seed)
+        self.obs_buf = self._reset(env_ids, None, seed)
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -369,7 +369,7 @@ class ManagerBasedEnv:
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,
-    ):
+    ) -> tuple[VecEnvObs, dict]:
         """Resets specified environments to provided states.
 
         This function resets the environments to the provided states. The state is a dictionary
@@ -384,13 +384,17 @@ class ManagerBasedEnv:
                 :meth:`InteractiveScene.get_state` for the format.
             env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            is_relative: If set to True, the state is considered relative to the environment origins.
-                Defaults to False.
+            is_relative: If True, the state is considered relative to the environment origins. Defaults to False.
+
+        Returns:
+            A tuple containing the observations and extras.
         """
         if state is None:
             raise ValueError("state cannot be None!")
 
-        return self._reset(env_ids, state, seed, is_relative)
+        self.obs_buf = self._reset(env_ids, state, seed, is_relative)
+
+        return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
@@ -516,7 +520,7 @@ class ManagerBasedEnv:
         state: dict[str, dict[str, dict[str, torch.Tensor]]] | None = None,
         seed: int | None = None,
         is_relative: bool = False,
-    ) -> tuple[VecEnvObs, dict]:
+    ) -> VecEnvObs:
         """Reset the specified environments to a given or randomized state.
 
         If a ``state`` is provided, the environments are restored accordingly.
@@ -531,11 +535,10 @@ class ManagerBasedEnv:
             state: The state is a dictionary containing the state of the scene entities. Defaults to None.
                 Please refer to :meth:`InteractiveScene.get_state` for the format.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            is_relative: If set to True, the state is considered relative to the environment origins.
-                Defaults to False.
+            is_relative: If True, the state is considered relative to the environment origins. Defaults to False.
 
         Returns:
-            A tuple containing the observations and extras.
+            A dictionary containing the full set of observations.
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
@@ -572,7 +575,7 @@ class ManagerBasedEnv:
         self.obs_buf = self._get_observations(update_history=True)
 
         # return observations
-        return self.obs_buf, self.extras
+        return self.obs_buf
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
