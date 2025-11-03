@@ -308,10 +308,10 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.episode_length_s = 1
+        self.episode_length_s = 6.66
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.decimation = 2
+        self.decimation = 4
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 120.0
 
@@ -327,4 +327,4 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
 
         self.hand_grasp_pos = {"gear_small": 0.64,
                                "gear_medium": 0.54,
-                               "gear_large": 0.48}
+                               "gear_large": 0.51}
