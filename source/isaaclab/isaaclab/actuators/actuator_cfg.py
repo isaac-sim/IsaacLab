@@ -153,10 +153,16 @@ class ActuatorBaseCfg:
     similar to static and Coulomb static friction.
 
     If None, the joint static friction is set to the value from the USD joint prim.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     dynamic_friction: dict[str, float] | float | None = None
     """The dynamic friction coefficient of the joints in the group. Defaults to None.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     viscous_friction: dict[str, float] | float | None = None

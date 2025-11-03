@@ -166,7 +166,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     `camera documentation <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html#fisheye-properties>`__.
 
     .. note::
-        The default values are taken from the `Replicator camera <https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera>`__
+        The default values are taken from the `Replicator camera <https://docs.omniverse.nvidia.com/py/replicator/1.12.16/source/extensions/omni.replicator.core/docs/API.html#cameras>`__
         function.
 
     .. _fish-eye camera: https://en.wikipedia.org/wiki/Fisheye_lens
