@@ -134,6 +134,7 @@ Guidelines for modifications:
 * Stefan Van de Mosselaer
 * Stephan Pleines
 * Tiffany Chen
+* Trushant Adeshara
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
