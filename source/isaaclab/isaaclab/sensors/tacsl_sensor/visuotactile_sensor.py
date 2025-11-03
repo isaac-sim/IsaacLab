@@ -55,7 +55,22 @@ class VisuoTactileSensor(SensorBase):
     2. Force field tactile sensing: Penalty-based normal and shear forces using SDF queries
 
     The sensor can be configured to use either or both sensing modalities.
-    It follows the same initialization and update patterns as other IsaacLab sensors.
+
+    **Computation Pipeline:**
+        Camera-based sensing computes depth differences from a nominal (no-contact) baseline and
+        processes them through the tac-sl GelSight renderer to produce realistic tactile images.
+
+        Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
+        then applies penalty-based spring-damper models (F_n = k_n * depth, F_t = min(k_t * |v_t|, mu * F_n))
+        to compute normal and shear forces at discrete tactile points.
+
+    **Example Usage:**
+        For a complete working example, see: ``scripts/demos/sensors/tacsl/tacsl_example.py``
+
+    **Current Limitations:**
+        - SDF collision meshes must be pre-computed and objects specified before simulation starts
+        - Force field computation requires specific rigid body and mesh configurations
+        - No support for dynamic addition/removal of interacting objects during runtime
 
     Configuration Requirements:
         The following requirements must be satisfied for proper sensor operation:
