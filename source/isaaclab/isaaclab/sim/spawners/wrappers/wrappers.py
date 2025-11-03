@@ -10,12 +10,12 @@ import re
 from typing import TYPE_CHECKING
 
 import carb
-import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.utils.stage import get_current_stage
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 
 if TYPE_CHECKING:

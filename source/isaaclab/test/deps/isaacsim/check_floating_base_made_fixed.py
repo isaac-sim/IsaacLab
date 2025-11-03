@@ -33,7 +33,6 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 import torch
 
 import isaacsim.core.utils.nucleus as nucleus_utils
-import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
@@ -43,6 +42,8 @@ from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
+
+import isaaclab.sim.utils.prims as prim_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:

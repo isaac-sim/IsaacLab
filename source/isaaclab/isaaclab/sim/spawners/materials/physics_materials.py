@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.utils.stage import get_current_stage
 from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
 
 if TYPE_CHECKING:
