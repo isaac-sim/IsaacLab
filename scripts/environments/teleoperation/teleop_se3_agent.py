@@ -45,7 +45,7 @@ if args_cli.enable_pinocchio:
     # not the one installed by Isaac Sim pinocchio is required by the Pink IK controllers and the
     # GR1T2 retargeter
     import pinocchio  # noqa: F401
-if "handtracking" in args_cli.teleop_device.lower():
+if "handtracking" in args_cli.teleop_device.lower() or "motion_controllers" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
 # launch omniverse app
@@ -100,6 +100,9 @@ def main() -> None:
         # Check for any camera configs and disable them
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
+        # Set flag for environment to know XR is enabled (if it supports it)
+        if hasattr(env_cfg, "xr_enabled"):
+            env_cfg.xr_enabled = True
 
     try:
         # create environment
@@ -200,7 +203,7 @@ def main() -> None:
                 )
             else:
                 omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
+                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking, motion_controllers")
                 env.close()
                 simulation_app.close()
                 return
@@ -229,6 +232,13 @@ def main() -> None:
     env.reset()
     teleop_interface.reset()
 
+    if args_cli.xr:
+        # Configure environment based on teleop device type
+        if hasattr(env.unwrapped, "setup_for_teleop_device") and callable(
+            getattr(env.unwrapped, "setup_for_teleop_device")
+        ):
+            env.unwrapped.setup_for_teleop_device(teleop_interface, args_cli)  # type: ignore[attr-defined]
+
     print("Teleoperation started. Press 'R' to reset the environment.")
 
     # simulate environment
@@ -250,6 +260,7 @@ def main() -> None:
 
                 if should_reset_recording_instance:
                     env.reset()
+                    teleop_interface.reset()
                     should_reset_recording_instance = False
                     print("Environment reset complete")
         except Exception as e:
