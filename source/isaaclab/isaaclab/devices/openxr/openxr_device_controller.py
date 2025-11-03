@@ -27,7 +27,7 @@ from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
 from .xr_cfg import XrAnchorRotationMode
 
 with contextlib.suppress(ModuleNotFoundError):
-    from omni.kit.xr.core import XRCore
+    from omni.kit.xr.core import XRCore, XRCoreEventType
 
 # Extend TrackingTarget enum for controllers
 from enum import Enum
@@ -86,13 +86,20 @@ class OpenXRDeviceMotionController(OpenXRDevice):
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
         super().__init__(cfg, retargeters)
-        
+
         # Store the motion controller config
         self._cfg = cfg
 
         self._xr_core = XRCore.get_singleton()
         if self._xr_core is None:
             raise RuntimeError("XRCore is not available")
+
+        xr_message_bus = self._xr_core.get_singleton().get_message_bus()
+        self._xr_pre_sync_update_subscription = xr_message_bus.create_subscription_to_pop_by_type(
+            XRCoreEventType.pre_sync_update,
+            lambda _: self._sync_headset_to_anchor(),
+            name="isaaclab_xr_pre_sync_update",
+        )
 
         # Force FOLLOW_PRIM_SMOOTHED mode for motion controller devices.
         if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FIXED:
@@ -138,11 +145,6 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         self.__smoothed_anchor_quat = None
         self.__last_anchor_quat = None
         self.__anchor_rotation_enabled = True
-        self._sync_headset_to_anchor()
-
-    def on_pre_render(self) -> None:
-        """Sync the headset to the anchor before rendering."""
-        super().on_pre_render()
         self._sync_headset_to_anchor()
 
     def _get_raw_data(self) -> Any:

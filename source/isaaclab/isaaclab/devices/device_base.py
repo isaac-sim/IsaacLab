@@ -117,10 +117,3 @@ class DeviceBase(ABC):
         # With multiple retargeters, return a tuple of outputs
         # Concatenate retargeted outputs into a single tensor
         return torch.cat([retargeter.retarget(raw_data) for retargeter in self._retargeters], dim=-1)
-
-    def on_pre_render(self) -> None:
-        """Hook called right before rendering.
-
-        Subclasses can override this to inject behavior. Default implementation is a no-op.
-        """
-        pass

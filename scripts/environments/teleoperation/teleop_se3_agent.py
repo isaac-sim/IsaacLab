@@ -9,7 +9,6 @@
 
 import argparse
 from collections.abc import Callable
-from typing import cast
 
 from isaaclab.app import AppLauncher
 
@@ -64,7 +63,6 @@ import omni.log
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
-from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
@@ -235,13 +233,6 @@ def main() -> None:
     teleop_interface.reset()
 
     if args_cli.xr:
-        # Attach pre-render callback if environment is ManagerBasedEnv
-        if isinstance(env, ManagerBasedEnv):
-            env_mb = cast(ManagerBasedEnv, env)
-            env_mb.add_pre_render_callback(lambda: teleop_interface.on_pre_render())
-        else:
-            omni.log.warn("Environment does not support pre-render callback; continuing without it.")
-
         # Configure environment based on teleop device type
         if hasattr(env.unwrapped, "setup_for_teleop_device") and callable(
             getattr(env.unwrapped, "setup_for_teleop_device")

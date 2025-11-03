@@ -5,7 +5,7 @@
 
 import builtins
 import torch
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import isaacsim.core.utils.torch as torch_utils
@@ -84,8 +84,6 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
-        # Optional user hooks called before rendering within the physics loop
-        self._pre_render_callback: list[Callable[[], None]] = []
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -463,8 +461,6 @@ class ManagerBasedEnv:
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                # Invoke pre-render hook for user extensions
-                self.on_pre_render()
                 self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
@@ -531,34 +527,6 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
-
-    def add_pre_render_callback(self, callback: Callable[[], None]) -> None:
-        """Registers a callback invoked just before rendering inside the physics loop.
-
-        The callback takes no arguments. Use this to update state that must be reflected
-        in the render without advancing physics.
-        """
-        self._pre_render_callback.append(callback)
-
-    def remove_pre_render_callback(self, callback: Callable[[], None]) -> None:
-        """Removes a previously registered pre-render callback.
-
-        Args:
-            callback: The callback to remove. Must be the same object that was registered.
-
-        Raises:
-            ValueError: If the callback is not in the list of registered callbacks.
-        """
-        self._pre_render_callback.remove(callback)
-
-    def on_pre_render(self) -> None:
-        """Hook called right before rendering in the physics decimation loop.
-
-        Subclasses can override this to inject behavior. By default, this calls all
-        user-provided callbacks registered via :meth:`add_pre_render_callback`.
-        """
-        for callback in self._pre_render_callback:
-            callback()
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
