@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from isaacsim.core.prims import XFormPrim
@@ -22,6 +21,7 @@ from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
