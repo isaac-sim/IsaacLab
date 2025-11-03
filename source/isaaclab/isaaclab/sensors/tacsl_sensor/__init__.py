@@ -6,5 +6,5 @@
 """TacSL Tactile Sensor implementation for IsaacLab."""
 
 from .visuotactile_sensor import VisuoTactileSensor
-from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
+from .visuotactile_sensor_cfg import GelSightRenderCfg, VisuoTactileSensorCfg
 from .visuotactile_sensor_data import VisuoTactileSensorData

@@ -92,8 +92,6 @@ class VisuoTactileSensor(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
-        # Initialize instance variables before calling super().__init__
-        # This is needed because super().__init__ may call _set_debug_vis_impl
 
         # Create empty variables for storing output data
         self._data: VisuoTactileSensorData = VisuoTactileSensorData()
@@ -146,7 +144,7 @@ class VisuoTactileSensor(SensorBase):
         """Returns: A string containing information about the instance."""
         return (
             f"Tactile sensor @ '{self.cfg.prim_path}': \n"
-            f"\tsensor type       : {self.cfg.sensor_type}\n"
+            f"\trender config     : {self.cfg.render_cfg.data_dir}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tcamera enabled    : {self.cfg.enable_camera_tactile}\n"
             f"\tforce field enabled: {self.cfg.enable_force_field}\n"
@@ -294,7 +292,7 @@ class VisuoTactileSensor(SensorBase):
             return
 
         # gelsightRender
-        self.taxim_gelsight = gelsightRender(self.cfg.sensor_type, device=self.device)
+        self.taxim_gelsight = gelsightRender(self.cfg.render_cfg, device=self.device)
 
         # Create camera sensor
         self._camera_sensor = TiledCamera(self.cfg.camera_cfg)

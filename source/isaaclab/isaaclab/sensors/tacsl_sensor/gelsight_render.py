@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import numpy as np
 import os
 import scipy
@@ -12,30 +14,11 @@ import cv2
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-conf_r15 = {
-    "data_dir": "gelsight_r15_data",
-    "background_path": "bg.jpg",
-    "calib_path": "polycalib.npz",
-    "real_bg": "real_bg.npy",
-    "h": 320,
-    "w": 240,
-    "numBins": 120,
-    "pixmm": 0.0877,
-}
-conf_gs_mini = {
-    "data_dir": "gs_mini_data",
-    "background_path": "bg.jpg",
-    "calib_path": "polycalib.npz",
-    "real_bg": "real_bg.npy",
-    "h": 240,
-    "w": 320,
-    "numBins": 120,
-    "pixmm": 0.065,
-}
-conf_options = {
-    "gelsight_r15": conf_r15,
-    "gs_mini": conf_gs_mini,
-}
+# Avoid circular import by using TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .visuotactile_sensor_cfg import GelSightRenderCfg
 
 
 def generate_normals_tensor(img_tensor):
@@ -156,33 +139,36 @@ class gelsightRender:
         Ref: https://arxiv.org/abs/2109.04027
     """
 
-    def __init__(self, sensor_name, device):
+    def __init__(self, cfg: GelSightRenderCfg, device):
         """
         Initialize the GelSight renderer.
 
         Parameters:
-        sensor_name (str): Name of the sensor.
+        cfg (GelSightRenderCfg): Configuration object for the GelSight sensor.
         device (str): Device to use ('cpu' or 'cuda').
         """
 
-        self.sensor_name = sensor_name
+        self.cfg = cfg
         self.device = device
-        self.conf = conf_options[self.sensor_name]
 
-        bg_path = get_gs_render_data(self.conf["data_dir"], self.conf["background_path"])
-        calib_path = get_gs_render_data(self.conf["data_dir"], self.conf["calib_path"])
+        bg_path = get_gs_render_data(self.cfg.data_dir, self.cfg.background_path)
+        calib_path = get_gs_render_data(self.cfg.data_dir, self.cfg.calib_path)
+
+        if bg_path is None or calib_path is None:
+            raise FileNotFoundError("Failed to retrieve GelSight render data files.")
 
         self.background = cv2.cvtColor(cv2.imread(bg_path), cv2.COLOR_BGR2RGB)
 
         self.calib_data = CalibData(calib_path)
-        h, w = self.conf["h"], self.conf["w"]
-        bins = self.conf["numBins"]
-        [xx, yy] = np.meshgrid(range(w), range(h))
+        image_height = self.cfg.image_height
+        image_width = self.cfg.image_width
+        num_bins = self.cfg.num_bins
+        [xx, yy] = np.meshgrid(range(image_width), range(image_height))
         xf = xx.flatten()
         yf = yy.flatten()
-        self.A = np.array([xf * xf, yf * yf, xf * yf, xf, yf, np.ones(h * w)]).T
+        self.A = np.array([xf * xf, yf * yf, xf * yf, xf, yf, np.ones(image_height * image_width)]).T
 
-        binm = bins - 1
+        binm = num_bins - 1
         self.x_binr = 0.5 * np.pi / binm  # x [0,pi/2]
         self.y_binr = 2 * np.pi / binm  # y [-pi, pi]
 
@@ -193,7 +179,7 @@ class gelsightRender:
         self.calib_data_grad_g_tensor = torch.tensor(self.calib_data.grad_g, device=self.device)
         self.calib_data_grad_b_tensor = torch.tensor(self.calib_data.grad_b, device=self.device)
 
-        self.A_tensor = torch.tensor(self.A.reshape(h, w, 6), device=self.device).unsqueeze(0)
+        self.A_tensor = torch.tensor(self.A.reshape(image_height, image_width, 6), device=self.device).unsqueeze(0)
         self.background_tensor = torch.tensor(self.background, device=self.device)
         print("Gelsight initialization done!")
 
@@ -210,7 +196,7 @@ class gelsightRender:
         height_map = heightMap.clone()
         height_map[torch.abs(height_map) < 1e-6] = 0  # remove minor artifact
         height_map = height_map * -1000.0
-        height_map /= self.conf["pixmm"]
+        height_map /= self.cfg.mm_per_pixel
 
         height_map = gaussian_filtering(height_map.unsqueeze(-1), self.kernel).squeeze(-1)
 
@@ -224,9 +210,9 @@ class gelsightRender:
         params_b_tensor = self.calib_data_grad_b_tensor[idx_x_tensor, idx_y_tensor, :]
 
         sim_img_rgb_tensor = torch.zeros((*idx_x_tensor.shape, 3), device=self.device)  # TODO: move to init
-        sim_img_rgb_tensor[..., 0] = torch.sum(self.A_tensor * params_r_tensor, axis=-1)  # R
-        sim_img_rgb_tensor[..., 1] = torch.sum(self.A_tensor * params_g_tensor, axis=-1)  # G
-        sim_img_rgb_tensor[..., 2] = torch.sum(self.A_tensor * params_b_tensor, axis=-1)  # B
+        sim_img_rgb_tensor[..., 0] = torch.sum(self.A_tensor * params_r_tensor, dim=-1)  # R
+        sim_img_rgb_tensor[..., 1] = torch.sum(self.A_tensor * params_g_tensor, dim=-1)  # G
+        sim_img_rgb_tensor[..., 2] = torch.sum(self.A_tensor * params_b_tensor, dim=-1)  # B
 
         # write tactile image
         sim_img = sim_img_rgb_tensor + self.background_tensor  # /255.0

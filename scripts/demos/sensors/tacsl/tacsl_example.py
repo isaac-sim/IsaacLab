@@ -67,6 +67,7 @@ from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
 from isaaclab.sensors.tacsl_sensor.visuotactile_viz_utils import visualize_tactile_shear_image
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 
 @configclass
@@ -114,7 +115,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         history_length=0,
         debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
         # Sensor configuration
-        sensor_type="gelsight_r15",
+        render_cfg=GELSIGHT_R15_CFG,
         enable_camera_tactile=args_cli.use_tactile_taxim,
         enable_force_field=args_cli.use_tactile_ff,
         # Elastomer configuration

@@ -23,11 +23,12 @@ Tactile sensors require specific configuration parameters to define their behavi
 .. code-block:: python
 
     from isaaclab.sensors.tacsl_sensor import VisuoTactileSensorCfg
+    from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
     tactile_sensor = VisuoTactileSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/tactile_sensor",
         ## Sensor configuration
-        sensor_type="gelsight_r15",
+        render_cfg=GELSIGHT_R15_CFG,
         enable_camera_tactile=True,
         enable_force_field=True,
         ## Elastomer configuration
@@ -62,7 +63,8 @@ Tactile sensors require specific configuration parameters to define their behavi
 
 The configuration supports customization of:
 
-* **Sensor Type**: Specify the tactile sensor model (e.g., ``"gelsight_r15"``)
+* **Render Configuration**: Specify the GelSight sensor rendering parameters using predefined configs
+  (e.g., ``GELSIGHT_R15_CFG``, ``GELSIGHT_MINI_CFG`` from ``isaaclab_assets.sensors``)
 * **Tactile Modalities**:
     * ``enable_camera_tactile`` - Enable tactile RGB imaging through camera sensors
     * ``enable_force_field`` - Enable force field computation and visualization

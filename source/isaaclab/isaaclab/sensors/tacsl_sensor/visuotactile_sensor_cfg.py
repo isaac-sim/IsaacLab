@@ -14,6 +14,51 @@ from ..camera.tiled_camera_cfg import TiledCameraCfg
 from ..sensor_base_cfg import SensorBaseCfg
 from .visuotactile_sensor import VisuoTactileSensor
 
+##
+# GelSight Render Configuration
+##
+
+
+@configclass
+class GelSightRenderCfg:
+    """Configuration for GelSight sensor rendering parameters.
+
+    This configuration defines the rendering parameters for example-based tactile image synthesis
+    using the Taxim approach (https://arxiv.org/abs/2109.04027).
+
+    The rendering process uses calibration data and background images to convert depth maps
+    into realistic tactile RGB images that simulate the appearance of GelSight sensors.
+    """
+
+    data_dir: str = "gelsight_r15_data"
+    """Directory name containing the sensor calibration and background data."""
+
+    background_path: str = "bg.jpg"
+    """Filename of the background image within the data directory."""
+
+    calib_path: str = "polycalib.npz"
+    """Filename of the polynomial calibration data within the data directory."""
+
+    real_background: str = "real_bg.npy"
+    """Filename of the real background data within the data directory."""
+
+    image_height: int = 320
+    """Height of the tactile image in pixels."""
+
+    image_width: int = 240
+    """Width of the tactile image in pixels."""
+
+    num_bins: int = 120
+    """Number of bins for gradient magnitude and direction quantization."""
+
+    mm_per_pixel: float = 0.0877
+    """Millimeters per pixel conversion factor for the tactile sensor."""
+
+
+##
+# Visuo-Tactile Sensor Configuration
+##
+
 
 @configclass
 class VisuoTactileSensorCfg(SensorBaseCfg):
@@ -26,8 +71,13 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     class_type: type = VisuoTactileSensor
 
     # Sensor type and capabilities
-    sensor_type: str = "gelsight_r15"
-    """Type of tactile sensor. Options: 'gelsight_r15', 'gs_mini'."""
+    render_cfg: GelSightRenderCfg = GelSightRenderCfg()
+    """Configuration for GelSight sensor rendering.
+
+    This defines the rendering parameters for converting depth maps to realistic tactile images.
+    Defaults to GelSight R1.5 parameters. Use predefined configs like GELSIGHT_R15_CFG or
+    GELSIGHT_MINI_CFG from isaaclab_assets.sensors for standard sensor models.
+    """
 
     enable_camera_tactile: bool = True
     """Whether to enable camera-based tactile sensing."""
