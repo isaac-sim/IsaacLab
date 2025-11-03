@@ -158,10 +158,7 @@ class HaplyDevice(DeviceBase):
             if self._websocket_thread.is_alive():
                 self._websocket_thread.join(timeout=2.0)
                 if self._websocket_thread.is_alive():
-                    print("[WARNING] WebSocket thread did not terminate within 2s, setting as daemon")
                     self._websocket_thread.daemon = True
-
-        print("[INFO] Haply device disconnected")
 
     def __str__(self) -> str:
         """Returns: A string containing the information of the device."""
@@ -274,12 +271,9 @@ class HaplyDevice(DeviceBase):
 
     async def _websocket_loop(self):
         """WebSocket data reading and writing loop."""
-        print(f"[INFO] Connecting to Haply WebSocket at {self.websocket_uri}...")
-
         while self.running:
             try:
                 async with websockets.connect(self.websocket_uri, ping_interval=None, ping_timeout=None) as ws:
-                    print("[INFO] Connected to Haply WebSocket")
                     first_message = True
 
                     while self.running:
@@ -301,15 +295,8 @@ class HaplyDevice(DeviceBase):
                                 first_message = False
                                 if inverse3_data:
                                     self.inverse3_device_id = inverse3_data.get("device_id")
-                                    print(f"[INFO] Inverse3: {self.inverse3_device_id}")
-                                else:
-                                    print("[WARNING] Inverse3 not found")
-
                                 if verse_grip_data:
                                     self.verse_grip_device_id = verse_grip_data.get("device_id")
-                                    print(f"[INFO] VerseGrip: {self.verse_grip_device_id}")
-                                else:
-                                    print("[WARNING] VerseGrip not found")
 
                             with self.data_lock:
                                 inverse3_connected = False
@@ -370,7 +357,6 @@ class HaplyDevice(DeviceBase):
                                 self.consecutive_timeouts >= self.max_consecutive_timeouts
                                 and not self.timeout_warning_issued
                             ):
-                                print(f"[WARNING] No data for {self.consecutive_timeouts}s, connection may be lost")
                                 self.timeout_warning_issued = True
                                 with self.data_lock:
                                     self.cached_data["inverse3_connected"] = False
@@ -382,8 +368,7 @@ class HaplyDevice(DeviceBase):
                             print(f"[ERROR] Error in WebSocket receive loop: {e}")
                             break
 
-            except Exception as e:
-                print(f"[ERROR] WebSocket connection error: {e}")
+            except Exception:
                 with self.data_lock:
                     self.cached_data["inverse3_connected"] = False
                     self.cached_data["versegrip_connected"] = False
@@ -393,7 +378,6 @@ class HaplyDevice(DeviceBase):
                 self.timeout_warning_issued = False
 
                 if self.running:
-                    print("[INFO] Reconnecting in 2 seconds...")
                     await asyncio.sleep(2.0)
                 else:
                     break
