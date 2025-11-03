@@ -21,7 +21,7 @@ teleoperate a robotic arm in Isaac Lab. The Haply provides:
     ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
 
     # With sensitivity adjustment
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0 --orientation_sensitivity 1.0
+    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0
 
 Prerequisites:
     1. Install websockets package: pip install websockets
@@ -49,12 +49,6 @@ parser.add_argument(
     type=float,
     default=1.0,
     help="Position sensitivity scaling factor.",
-)
-parser.add_argument(
-    "--orientation_sensitivity",
-    type=float,
-    default=1.0,
-    help="Orientation sensitivity scaling factor.",
 )
 
 AppLauncher.add_app_launcher_args(parser)
@@ -351,7 +345,6 @@ def main():
     haply_cfg = HaplyDeviceCfg(
         websocket_uri=args_cli.websocket_uri,
         pos_sensitivity=args_cli.pos_sensitivity,
-        orientation_sensitivity=args_cli.orientation_sensitivity,
         sim_device=args_cli.device,
         limit_force=2.0,
     )

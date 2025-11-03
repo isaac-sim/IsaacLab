@@ -37,7 +37,6 @@ class HaplyDeviceCfg(DeviceCfg):
 
     websocket_uri: str = "ws://localhost:10001"
     pos_sensitivity: float = 1.0
-    orientation_sensitivity: float = 1.0
     data_rate: float = 200.0
     limit_force: float = 2.0
 
@@ -87,7 +86,6 @@ class HaplyDevice(DeviceBase):
         # Store configuration
         self.websocket_uri = cfg.websocket_uri
         self.pos_sensitivity = cfg.pos_sensitivity
-        self.orientation_sensitivity = cfg.orientation_sensitivity
         self.data_rate = cfg.data_rate
         self._sim_device = cfg.sim_device
         self.limit_force = cfg.limit_force

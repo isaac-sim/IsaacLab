@@ -398,7 +398,6 @@ def test_haply_constructors(mock_environment, mocker):
     haply._sim_device = config.sim_device
     haply.websocket_uri = config.websocket_uri
     haply.pos_sensitivity = config.pos_sensitivity
-    haply.orientation_sensitivity = config.orientation_sensitivity
     haply.data_rate = config.data_rate
     haply.limit_force = config.limit_force
     haply.connected = True
