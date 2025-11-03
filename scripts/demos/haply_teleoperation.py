@@ -333,9 +333,7 @@ def run_simulator(
         left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
         right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
         total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
-        haply_device.set_force_feedback(
-            total_contact_force[0].item(), total_contact_force[1].item(), total_contact_force[2].item()
-        )
+        haply_device.push_force(total_contact_force.unsqueeze(0))
 
 
 def main():

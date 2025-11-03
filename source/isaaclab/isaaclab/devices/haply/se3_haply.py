@@ -240,21 +240,21 @@ class HaplyDevice(DeviceBase):
 
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
-    def set_force_feedback(self, force_x: float, force_y: float, force_z: float) -> None:
-        """Set force feedback to be sent to Haply Inverse3 device.
+    def push_force(self, forces: torch.Tensor, names: list[str] | None = None, frame: str = "world") -> None:
+        """Push force vector to Haply Inverse3 device.
 
-        Overrides DeviceBase.set_force_feedback() to provide force feedback for Haply Inverse3.
+        Overrides DeviceBase.push_force() to provide force feedback for Haply Inverse3.
         Forces are clipped to [-limit_force, limit_force] range for safety.
 
         Args:
-            force_x: Force in X direction (N)
-            force_y: Force in Y direction (N)
-            force_z: Force in Z direction (N)
+            forces: Tensor of shape (N, 3) with forces [fx, fy, fz]. Only the first force is used.
+            names: Optional labels (ignored for Haply Inverse3).
+            frame: Frame of the vectors (currently only "world" is supported).
         """
-        # Clip forces to safe range
-        fx = np.clip(force_x, -self.limit_force, self.limit_force)
-        fy = np.clip(force_y, -self.limit_force, self.limit_force)
-        fz = np.clip(force_z, -self.limit_force, self.limit_force)
+        force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
+        fx = np.clip(force[0], -self.limit_force, self.limit_force)
+        fy = np.clip(force[1], -self.limit_force, self.limit_force)
+        fz = np.clip(force[2], -self.limit_force, self.limit_force)
 
         with self.force_lock:
             self.feedback_force = {"x": fx, "y": fy, "z": fz}
