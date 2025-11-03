@@ -53,7 +53,6 @@ import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 
 # import logger
@@ -91,7 +90,7 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
