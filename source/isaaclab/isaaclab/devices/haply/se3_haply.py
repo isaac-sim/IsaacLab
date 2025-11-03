@@ -208,13 +208,14 @@ class HaplyDevice(DeviceBase):
             if not (self.cached_data["inverse3_connected"] and self.cached_data["versegrip_connected"]):
                 raise RuntimeError("Haply devices not connected. Both Inverse3 and VerseGrip must be connected.")
 
+            # Safe copy within lock
             position = self.cached_data["position"].copy() * self.pos_sensitivity
             quaternion = self.cached_data["quaternion"].copy()
             button_a = self.cached_data["buttons"].get("a", False)
             button_b = self.cached_data["buttons"].get("b", False)
             button_c = self.cached_data["buttons"].get("c", False)
 
-        # Check for button press events (rising edge detection)
+        # Button callbacks execute OUTSIDE lock to prevent deadlock
         for button_key, current_state in [("a", button_a), ("b", button_b), ("c", button_c)]:
             prev_state = self._prev_buttons.get(button_key, False)
 
@@ -290,6 +291,7 @@ class HaplyDevice(DeviceBase):
                             if self.timeout_warning_issued:
                                 self.timeout_warning_issued = False
 
+                            # Safe array access - no IndexError risk with ternary operator
                             inverse3_list = data.get("inverse3", [])
                             verse_grip_list = data.get("wireless_verse_grip", [])
                             inverse3_data = inverse3_list[0] if inverse3_list else {}
