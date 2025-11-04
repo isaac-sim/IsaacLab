@@ -5,7 +5,9 @@
 
 import asyncio
 import contextlib
+import sys
 import torch
+import traceback
 from typing import Any
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
@@ -58,10 +60,6 @@ async def run_data_generator(
                 motion_planner=motion_planner,
             )
         except Exception as e:
-            import sys
-            import traceback
-
-            # error_msg = f"\n{'='*80}\nERROR IN DATA GENERATOR:\n{traceback.format_exc()}{'='*80}\n"
             sys.stderr.write(traceback.format_exc())
             sys.stderr.flush()
             raise e

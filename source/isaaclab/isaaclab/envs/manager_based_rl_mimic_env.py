@@ -160,10 +160,10 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
     def get_navigation_state(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
         Gets the navigation state of the robot. Required when use of the navigation p-controller is
-        enabled. The navigation state includes a boolean flag "is_navigating" to indicate when the 
+        enabled. The navigation state includes a boolean flag "is_navigating" to indicate when the
         robot is under control by the navigation p-controller, and a boolean flag "navigation_goal_reached"
         to indicate when the navigation goal has been reached.
-        
+
         Args:
             env_id: The environment index to get the navigation state for. If None, all envs are considered.
 
