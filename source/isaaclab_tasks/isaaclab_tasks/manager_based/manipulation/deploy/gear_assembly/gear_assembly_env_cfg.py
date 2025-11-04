@@ -308,7 +308,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.episode_length_s = 6.66
+        self.episode_length_s = 2
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.decimation = 2
