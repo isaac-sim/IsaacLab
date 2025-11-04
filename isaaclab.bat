@@ -523,6 +523,7 @@ if "%arg%"=="-i" (
     REM Loop through all arguments - mimic shift
     for /f "tokens=1,* delims= " %%a in ("%*") do (
         set "allArgs=%%b"
+    )
     call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="-s" (
