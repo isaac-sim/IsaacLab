@@ -261,7 +261,7 @@ class HaplyDevice(DeviceBase):
             raise ValueError("No forces provided")
 
         if position is not None:
-            selected_forces = forces[position]
+            selected_forces = forces[position] if position.ndim > 0 else forces[position].unsqueeze(0)
             force = selected_forces.sum(dim=0)
             force = force.cpu().numpy() if force.is_cuda else force.numpy()
         else:
