@@ -42,8 +42,8 @@ def get_gelsight_render_data(data_dir: str, file_name: str) -> str | None:
         omni.log.info(f"Fetching gs render data : {ov_path}")
         try:
             download_path = retrieve_file_path(ov_path, download_dir)
-        except Exception:
-            omni.log.info("A gs render data is currently unavailable for this task.")
+        except (FileNotFoundError, OSError, ConnectionError, PermissionError) as e:
+            omni.log.warn(f"Failed to retrieve GelSight render data: {e}")
             return None
     else:
         omni.log.info(f"Using pre-fetched gs render data: {download_path}")
@@ -124,9 +124,17 @@ class GelsightRender:
         Args:
             cfg: Configuration object for the GelSight sensor.
             device: Device to use ('cpu' or 'cuda').
+
+        Raises:
+            ValueError: If mm_per_pixel is zero or negative.
         """
         self.cfg = cfg
         self.device = device
+
+        # Validate configuration parameters
+        eps = 1e-9
+        if self.cfg.mm_per_pixel < eps:
+            raise ValueError(f"mm_per_pixel must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
 
         bg_path = get_gelsight_render_data(self.cfg.data_dir, self.cfg.background_path)
         calib_path = get_gelsight_render_data(self.cfg.data_dir, self.cfg.calib_path)
@@ -165,7 +173,7 @@ class GelsightRender:
         self.background_tensor = torch.tensor(self.background, device=self.device)
         omni.log.info("Gelsight initialization done!")
 
-    def render_tensorized(self, heightMap: torch.Tensor) -> torch.Tensor:
+    def render(self, heightMap: torch.Tensor) -> torch.Tensor:
         """Render the height map using the GelSight sensor (tensorized version).
 
         Args:
@@ -185,6 +193,11 @@ class GelsightRender:
 
         idx_x = torch.floor(grad_mag / self.x_binr).long()
         idx_y = torch.floor((grad_dir + np.pi) / self.y_binr).long()
+
+        # Clamp indices to valid range to prevent out-of-bounds errors
+        max_idx = self.cfg.num_bins - 1
+        idx_x = torch.clamp(idx_x, 0, max_idx)
+        idx_y = torch.clamp(idx_y, 0, max_idx)
 
         params_r = self.calib_data_grad_r[idx_x, idx_y, :]
         params_g = self.calib_data_grad_g[idx_x, idx_y, :]

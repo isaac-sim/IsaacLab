@@ -261,7 +261,9 @@ class VisuoTactileSensor(SensorBase):
                 body_prim = prim_utils.get_prim_parent(mat_path)
                 physicsUtils.add_physics_material_to_prim(stage, body_prim, elastomer_collision_path)
 
-        omni.log.info(f"Applied compliant contact materials to {self._num_envs} environments.")
+        omni.log.info(
+            f"[VisuoTactileSensor] Successfully applied compliant contact materials to {self._num_envs} environments"
+        )
 
     def get_initial_render(self):
         """Get the initial tactile sensor render for baseline comparison.
@@ -276,19 +278,19 @@ class VisuoTactileSensor(SensorBase):
                         sensing is disabled.
 
         Raises:
-            AssertionError: If camera sensor is not initialized or initial render fails.
+            RuntimeError: If camera sensor is not initialized or initial render fails.
         """
         if not self.cfg.enable_camera_tactile:
             return None
         if not self._camera_sensor.is_initialized:
-            assert self._camera_sensor.is_initialized, "Camera sensor is not initialized"
+            raise RuntimeError("Camera sensor is not initialized")
 
         self._camera_sensor.update(dt=0.0)
 
         # get the initial render
         initial_render = self._camera_sensor.data.output
         if initial_render is None:
-            assert False, "Initial render is None"
+            raise RuntimeError("Initial render is None")
 
         if self._nominal_tactile is not None:
             assert False, "Nominal tactile is not None"
@@ -392,7 +394,7 @@ class VisuoTactileSensor(SensorBase):
             self._indenter_body_view = self._physics_sim_view.create_rigid_body_view(
                 indenter_pattern.replace("env_0", "env_*")
             )
-            print("create indenter body view: ", self.cfg.indenter_rigid_body)
+            omni.log.info(f"Created indenter body view: {self.cfg.indenter_rigid_body}")
 
     def _generate_tactile_points(self, num_divs: list, margin: float, visualize: bool) -> bool:
         """Try to generate tactile points from USD mesh data."""
@@ -400,13 +402,13 @@ class VisuoTactileSensor(SensorBase):
 
         # Check if required dependencies are available
         if not TRIMESH_AVAILABLE:
-            print("Trimesh not available, please install trimesh")
+            omni.log.warn("Trimesh not available, please install trimesh")
             return False
 
         # Get the elastomer prim path
         template_prim_path = self._parent_prims[0].GetPath().pathString
         elastomer_prim_path = f"{template_prim_path}/{self.cfg.elastomer_tactile_mesh}"
-        print("generate tactile points from USD mesh: elastomer_prim_path: ", elastomer_prim_path)
+        omni.log.info(f"Generating tactile points from USD mesh: {elastomer_prim_path}")
 
         # Find mesh prim
         mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -469,16 +471,9 @@ class VisuoTactileSensor(SensorBase):
         ray_dir[slim_axis] = -np.sign(elastomer_to_tip_link_pos[0][slim_axis].item())  # Ray point towards elastomer
 
         # Handle the ray intersection result
-        result = mesh_data.intersects_id(
+        index_tri, index_ray, locations = mesh_data.intersects_id(
             grid_corners, np.tile([ray_dir], (grid_corners.shape[0], 1)), return_locations=True, multiple_hits=False
         )
-
-        # Extract results based on what was returned
-        if len(result) == 3:
-            index_tri, index_ray, locations = result
-        else:
-            index_tri, index_ray = result
-            locations = None
 
         if visualize:
             query_pointcloud = trimesh.PointCloud(locations, colors=(0.0, 0.0, 1.0))
@@ -501,7 +496,7 @@ class VisuoTactileSensor(SensorBase):
             torch.tensor(rotation, dtype=torch.float32, device=self._device).unsqueeze(0).repeat(len(tactile_points), 1)
         )
 
-        print(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
+        omni.log.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
         return True
 
     def _get_elastomer_to_tip_transform(self):
@@ -630,7 +625,7 @@ class VisuoTactileSensor(SensorBase):
         if "distance_to_image_plane" in camera_data.output:
             self._data.tactile_camera_depth = camera_data.output["distance_to_image_plane"][env_ids].clone()
             diff = self._nominal_tactile["distance_to_image_plane"][env_ids] - self._data.tactile_camera_depth
-            self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render_tensorized(diff.squeeze(-1))
+            self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 
     #########################################################################################
     # Force field tactile sensing
@@ -919,14 +914,14 @@ class VisuoTactileSensor(SensorBase):
                 "combined_average": 0.0,
             }
 
-        # skip the first two calls
-        self._timing_call_count -= 2
-        num_frames = self._timing_call_count * self._num_envs
+        # skip the first two calls for calculation (without mutating state)
+        adjusted_call_count = max(0, self._timing_call_count - 2)
+        num_frames = adjusted_call_count * self._num_envs
         force_field_avg = self._force_field_timing_total / num_frames if self._force_field_timing_total > 0 else 0.0
         camera_avg = self._camera_timing_total / num_frames if self._camera_timing_total > 0 else 0.0
 
         return {
-            "call_count": self._timing_call_count,
+            "call_count": adjusted_call_count,
             "camera_total": self._camera_timing_total,
             "camera_average": camera_avg,
             "force_field_total": self._force_field_timing_total,

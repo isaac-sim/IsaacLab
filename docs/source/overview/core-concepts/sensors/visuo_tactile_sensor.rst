@@ -105,20 +105,19 @@ Configuration Requirements
 Usage Example
 ~~~~~~~~~~~~~
 
-To use the tactile sensor in a simulation environment, run the deom:
+To use the tactile sensor in a simulation environment, run the demo:
 
 .. code-block:: bash
 
     cd scripts/demos/sensors/tacsl
-    python tacsl_example.py --enable_cameras --indenter nut --num_envs 16 --use_tactile_rgb --use_tactile_ff --save_viz
+    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --indenter_type nut --num_envs 16 --save_viz
 
 Available command-line options include:
 
-* ``--enable_cameras``: Enable camera rendering for visualization
-* ``--indenter``: Specify the type of indenter object (nut, cube, etc.)
+* ``--use_tactile_rgb``: Enable camera-based tactile sensing
+* ``--use_tactile_ff``: Enable force field tactile sensing
+* ``--indenter_type``: Specify the type of indenter object (nut, cube, etc.)
 * ``--num_envs``: Number of parallel environments
-* ``--use_tactile_rgb``: Enable RGB tactile imaging
-* ``--use_tactile_ff``: Enable force field computation
 * ``--save_viz``: Save visualization outputs for analysis
 
 For a complete list of available options:

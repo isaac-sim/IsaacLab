@@ -12,7 +12,7 @@ tactile sensing with the gelsight finger setup.
 .. code-block:: bash
 
     # Usage
-    python tacsl_example.py --enable_cameras --num_envs 16 --indenter_type nut --save_viz --use_tactile_rgb --use_tactile_ff
+    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --num_envs 16 --indenter_type nut --save_viz
 
 """
 
@@ -339,7 +339,7 @@ def main():
         dt=0.005,
         device=args_cli.device,
         physx=sim_utils.PhysxCfg(
-            gpu_collision_stack_size=2
+            gpu_collision_stack_size=2**30,  # Prevent collisionStackSize buffer overflow in contact-rich environments.
             ** 30,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
         ),
     )
