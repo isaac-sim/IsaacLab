@@ -223,8 +223,8 @@ class ObservationsCfg:
         gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
         gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
-        gear_pos = ObsTerm(func=mdp.gear_pos_w)
-        gear_quat = ObsTerm(func=mdp.gear_quat_w)
+        # gear_pos = ObsTerm(func=mdp.gear_pos_w)
+        # gear_quat = ObsTerm(func=mdp.gear_quat_w)
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
