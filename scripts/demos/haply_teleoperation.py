@@ -73,7 +73,7 @@ from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 # Workspace mapping constants
 HAPLY_Z_OFFSET = 0.35
 WORKSPACE_LIMITS = {
-    "x": (0.2, 0.9),
+    "x": (0.1, 0.9),
     "y": (-0.50, 0.50),
     "z": (1.05, 1.85),
 }
@@ -135,13 +135,13 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            scale=(2.0, 1.0, 1.0),
+            scale=(1.0, 1.0, 1.0),
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
     )
 
     robot: Articulation = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot.init_state.pos = (0.1, 0.0, 1.05)
+    robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
     cube = RigidObjectCfg(
@@ -154,7 +154,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2), metallic=0.2),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, -0.05, 1.15)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.60, 0.00, 1.15)),
     )
 
     left_finger_contact_sensor = ContactSensorCfg(
