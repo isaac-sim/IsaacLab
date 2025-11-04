@@ -708,7 +708,11 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Installing template dependencies..."
             ${pip_command} -q -r ${ISAACLAB_PATH}/tools/template/requirements.txt
             echo -e "\n[INFO] Running template generator...\n"
-            ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py $@
+            if [[ " $* " == *" --non-interactive "* ]]; then
+                ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py --non-interactive $@
+            else
+                ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py $@
+            fi
             # exit neatly
             break
             ;;
