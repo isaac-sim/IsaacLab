@@ -153,7 +153,13 @@ def main() -> None:
     parser.add_argument("-n", "--non-interactive", action="store_true")
     parser.add_argument("--rl-library", dest="rl_library", type=str, default=None)
     parser.add_argument("--rl-algorithm", dest="rl_algorithm", type=str, default=None)
-    parser.add_argument("--task-type", dest="task_type", type=str, choices=["External", "Internal", "external", "internal"], default=None)
+    parser.add_argument(
+        "--task-type",
+        dest="task_type",
+        type=str,
+        choices=["External", "Internal", "external", "internal"],
+        default=None,
+    )
     parser.add_argument("--project-path", dest="project_path", type=str, default=None)
     parser.add_argument("--project-name", dest="project_name", type=str, default=None)
     parser.add_argument("--workflow", dest="workflow", type=str, default=None)
@@ -176,8 +182,9 @@ def main() -> None:
                     "Task type:",
                     choices=["External", "Internal"],
                     long_instruction=(
-                        "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
-                        "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
+                        "External (recommended): task/project is in its own folder/repo outside the Isaac Lab"
+                        " project.\nInternal: the task is implemented within the Isaac Lab project (in"
+                        " source/isaaclab_tasks)."
                     ),
                 ).lower()
                 == "external"
@@ -206,9 +213,7 @@ def main() -> None:
     if args.non_interactive:
         project_name = args.project_name
         if project_name is None or not project_name.isidentifier():
-            raise SystemExit(
-                "In non-interactive mode, --project_name is required and must be a valid identifier"
-            )
+            raise SystemExit("In non-interactive mode, --project_name is required and must be a valid identifier")
     else:
         project_name = cli_handler.input_text(
             "Project name:" if is_external_project else "Task's folder name:",
@@ -294,7 +299,9 @@ def main() -> None:
             default=supported_rl_libraries,
         )
     # - prompt for algorithms per RL library
-    algorithms_per_rl_library = get_algorithms_per_rl_library(bool(len(single_agent_workflow)), bool(len(multi_agent_workflow)))
+    algorithms_per_rl_library = get_algorithms_per_rl_library(
+        bool(len(single_agent_workflow)), bool(len(multi_agent_workflow))
+    )
     for rl_library in selected_rl_libraries:
         algorithms = algorithms_per_rl_library.get(rl_library, [])
         if args.non_interactive:
