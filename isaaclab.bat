@@ -604,7 +604,7 @@ if "%arg%"=="-i" (
     echo [INFO] Running template generator...
     echo.
     if "!isNonInteractive!"=="1" (
-        call !python_exe! tools\template\non_interactive.py !allArgs!
+        call !python_exe! tools\template\cli.py --non-interactive !allArgs!
     ) else (
         call !python_exe! tools\template\cli.py !allArgs!
     )
