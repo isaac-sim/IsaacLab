@@ -79,22 +79,19 @@ class DeviceBase(ABC):
 
     def push_force(
         self,
-        forces: torch.Tensor | dict[str, torch.Tensor | list[float]],
+        forces: torch.Tensor,
         names: list[str] | None = None,
         frame: str = "world",
-        position: list[str] | None = None,
+        position: torch.Tensor | None = None,
     ) -> None:
         """Push one or more 3D force vectors to the device (optional; default no-op).
 
         Args:
-            forces: Force data in one of two formats:
-                - Tensor of shape (N, 3) with forces [fx, fy, fz]
-                - Dict mapping object names to force vectors, e.g., {"gripper": [0.1, 0.1, 0.1]}
-            names: Optional labels for each force channel (used when forces is a tensor).
+            forces: Tensor of shape (N, 3) with forces [fx, fy, fz].
+            names: Optional labels for each force channel.
             frame: Frame of the vectors: "world" (default) or "device".
-            position: When forces is a dict, specifies which object(s) force to use.
-                     Can be a single object name or multiple names.
-                     When forces is a tensor, this parameter is ignored.
+            position: Optional tensor of indices specifying which forces to use.
+                     If provided, should be a 1D tensor of integer indices (e.g., torch.tensor([0, 2])).
 
         Note:
             Devices that support haptics should override this method to forward

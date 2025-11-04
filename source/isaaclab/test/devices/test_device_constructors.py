@@ -429,7 +429,7 @@ def test_haply_constructors(mock_environment, mocker):
     assert isinstance(result, torch.Tensor)
     assert result.shape == (10,)  # (pos_x, pos_y, pos_z, qx, qy, qz, qw, btn_a, btn_b, btn_c)
 
-    # Test push_force with tensor (within limit range)
+    # Test push_force with tensor
     forces_within = torch.tensor([[1.0, 1.5, -0.5]], dtype=torch.float32)
     haply.push_force(forces_within)
     assert haply.feedback_force["x"] == pytest.approx(1.0)
@@ -443,28 +443,22 @@ def test_haply_constructors(mock_environment, mocker):
     assert haply.feedback_force["y"] == pytest.approx(-2.0)
     assert haply.feedback_force["z"] == pytest.approx(1.5)
 
-    # Test push_force with dict format (single position)
-    forces_dict_single = {"gripper": [0.5, 0.8, -0.3]}
-    haply.push_force(forces_dict_single, position=["gripper"])
+    # Test push_force with position tensor (single index)
+    forces_multi = torch.tensor([[1.0, 2.0, 3.0], [0.5, 0.8, -0.3], [0.1, 0.2, 0.3]], dtype=torch.float32)
+    position_single = torch.tensor([1], dtype=torch.long)
+    haply.push_force(forces_multi, position=position_single)
     assert haply.feedback_force["x"] == pytest.approx(0.5)
     assert haply.feedback_force["y"] == pytest.approx(0.8)
     assert haply.feedback_force["z"] == pytest.approx(-0.3)
 
-    # Test push_force with dict format (multiple positions, summed)
-    forces_dict_multi = {"finger_left": [0.5, 0.5, 0.5], "finger_right": [0.5, 0.5, 0.5]}
-    haply.push_force(forces_dict_multi, position=["finger_left", "finger_right"])
-    assert haply.feedback_force["x"] == pytest.approx(1.0)
-    assert haply.feedback_force["y"] == pytest.approx(1.0)
-    assert haply.feedback_force["z"] == pytest.approx(1.0)
-
-    # Test push_force with dict format (missing position - should raise error)
-    forces_dict_multi = {"finger_left": [0.5, 0.5, 0.5], "finger_right": [0.5, 0.5, 0.5]}
-    with pytest.raises(ValueError, match="No position specified"):
-        haply.push_force(forces_dict_multi)
-
-    # Test push_force with dict format (invalid position name)
-    with pytest.raises(ValueError, match="Position 'finger_missing' not found"):
-        haply.push_force(forces_dict_multi, position=["finger_missing"])
+    # Test push_force with position tensor (multiple indices)
+    position_multi = torch.tensor([0, 2], dtype=torch.long)
+    haply.push_force(forces_multi, position=position_multi)
+    # Should sum forces[0] and forces[2]: [1.0+0.1, 2.0+0.2, 3.0+0.3] = [1.1, 2.2, 3.3]
+    # But clipped to [-2.0, 2.0]: [1.1, 2.0, 2.0]
+    assert haply.feedback_force["x"] == pytest.approx(1.1)
+    assert haply.feedback_force["y"] == pytest.approx(2.0)
+    assert haply.feedback_force["z"] == pytest.approx(2.0)
 
     # Test reset functionality
     haply.reset()

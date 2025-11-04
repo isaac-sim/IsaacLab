@@ -238,10 +238,10 @@ class HaplyDevice(DeviceBase):
 
     def push_force(
         self,
-        forces: torch.Tensor | dict[str, torch.Tensor | list[float]],
+        forces: torch.Tensor,
         names: list[str] | None = None,
         frame: str = "world",
-        position: list[str] | None = None,
+        position: torch.Tensor | None = None,
     ) -> None:
         """Push force vector to Haply Inverse3 device.
 
@@ -249,32 +249,21 @@ class HaplyDevice(DeviceBase):
         Forces are clipped to [-limit_force, limit_force] range for safety.
 
         Args:
-            forces: Force data in one of two formats:
-                - Tensor of shape (N, 3) with forces [fx, fy, fz]. The first force is used.
-                - Dict mapping object names to force vectors (e.g., {"gripper": [0.1, 0.1, 0.1]})
+            forces: Tensor of shape (N, 3) with forces [fx, fy, fz].
             names: Optional labels (ignored for Haply Inverse3).
             frame: Frame of the vectors (currently only "world" is supported).
-            position: When forces is a dict, specifies which object(s) force to use.
-                     Can be a single object name or multiple names.
-                     Required if dict has multiple entries. When forces is a tensor, this parameter is ignored.
+            position: Optional tensor of indices specifying which forces to use.
+                     If provided, should be a 1D tensor of integer indices (e.g., torch.tensor([0, 2])).
+                     If None, uses the first force (index 0).
         """
         # Check if forces is empty
-        if (isinstance(forces, dict) and not forces) or (isinstance(forces, torch.Tensor) and forces.shape[0] == 0):
+        if forces.shape[0] == 0:
             raise ValueError("No forces provided")
 
-        # Handle dict format
-        if isinstance(forces, dict):
-            if not position:
-                raise ValueError(f"No position specified. Available positions: {list(forces.keys())}")
-            # Collect forces for all specified positions
-            force_values = []
-            for pos in position:
-                if pos not in forces:
-                    raise ValueError(f"Position '{pos}' not found. Available: {list(forces.keys())}")
-                val = forces[pos]
-                force_values.append(np.array(val, dtype=np.float32))
-            force = np.sum(force_values, axis=0) if len(force_values) > 1 else force_values[0]
-        # Handle tensor format
+        if position is not None:
+            selected_forces = forces[position]
+            force = selected_forces.sum(dim=0)
+            force = force.cpu().numpy() if force.is_cuda else force.numpy()
         else:
             force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
 
