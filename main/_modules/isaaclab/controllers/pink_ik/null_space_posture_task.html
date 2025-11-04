@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 03, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 04, 2025"/>
   </head>
   
   
@@ -596,6 +596,8 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scipy.linalg.blas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">blas</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scipy.linalg.lapack</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">lapack</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">pinocchio</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pin</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pink.configuration</span><span class="w"> </span><span class="kn">import</span> <span class="n">Configuration</span>
@@ -666,6 +668,9 @@
 <span class="sd">    imposed by higher priority tasks (e.g., end-effector positioning).</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Regularization factor for pseudoinverse computation to ensure numerical stability</span>
+    <span class="n">PSEUDOINVERSE_DAMPING_FACTOR</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-9</span>
 
 <div class="viewcode-block" id="NullSpacePostureTask.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -829,7 +834,31 @@
         <span class="n">J_combined</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">J_frame_tasks</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
         <span class="c1"># Compute null space projector: N = I - J^+ * J</span>
-        <span class="n">N_combined</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">J_combined</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">J_combined</span><span class="p">)</span> <span class="o">@</span> <span class="n">J_combined</span>
+        <span class="c1"># Use fast pseudoinverse computation with direct LAPACK/BLAS calls</span>
+        <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">J_combined</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c1"># Wide matrix (typical for robotics): use left pseudoinverse</span>
+        <span class="c1"># J^+ = J^T @ inv(J @ J^T + λ²I)</span>
+        <span class="c1"># This is faster because we invert an m×m matrix instead of n×n</span>
+
+        <span class="c1"># Compute J @ J^T using BLAS (faster than numpy)</span>
+        <span class="n">JJT</span> <span class="o">=</span> <span class="n">blas</span><span class="o">.</span><span class="n">dgemm</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">J_combined</span><span class="p">,</span> <span class="n">J_combined</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">fill_diagonal</span><span class="p">(</span><span class="n">JJT</span><span class="p">,</span> <span class="n">JJT</span><span class="o">.</span><span class="n">diagonal</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">PSEUDOINVERSE_DAMPING_FACTOR</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Use LAPACK&#39;s Cholesky factorization (dpotrf = Positive definite TRiangular Factorization)</span>
+        <span class="n">L</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">lapack</span><span class="o">.</span><span class="n">dpotrf</span><span class="p">(</span><span class="n">JJT</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">clean</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">overwrite_a</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">info</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Fallback if not positive definite: use numpy&#39;s pseudoinverse</span>
+            <span class="n">J_pinv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">J_combined</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">-</span> <span class="n">J_pinv</span> <span class="o">@</span> <span class="n">J_combined</span>
+
+        <span class="c1"># Solve (J @ J^T + λ²I) @ X = J using LAPACK&#39;s triangular solver (dpotrs)</span>
+        <span class="c1"># This directly solves the system without computing the full inverse</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">lapack</span><span class="o">.</span><span class="n">dpotrs</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">J_combined</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Compute null space projector: N = I - J^T @ X</span>
+        <span class="n">N_combined</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">-</span> <span class="n">J_combined</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">X</span>
 
         <span class="k">return</span> <span class="n">N_combined</span></div>
 </pre></div>
@@ -879,7 +908,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 03, 2025.
+  Last updated on Nov 04, 2025.
   <br/>
 </p>
   </div>
