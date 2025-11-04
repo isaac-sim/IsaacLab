@@ -122,16 +122,6 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     tactile_kt: float = 0.1
     """Tangential stiffness for shear forces."""
 
-    # Compliant dynamics configuration
-    compliance_stiffness: float = 1.0
-    """Compliance stiffness for elastomer dynamics."""
-
-    compliant_damping: float = 0.1
-    """Compliant damping for elastomer dynamics."""
-
-    elastomer_collision_path: str = "collisions/compliant_contact"
-    """Path to the elastomer collision geometry."""
-
     # Camera configuration (optional, for camera-based tactile sensing)
     camera_cfg: TiledCameraCfg | None = None
     """Camera configuration for tactile RGB/depth sensing.

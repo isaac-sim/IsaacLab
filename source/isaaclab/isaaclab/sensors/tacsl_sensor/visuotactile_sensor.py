@@ -12,13 +12,10 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
 from isaacsim.core.prims import SdfShapePrim
 from isaacsim.core.simulation_manager import SimulationManager
-from omni.physx.scripts import physicsUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -27,8 +24,6 @@ from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sensors.tacsl_sensor.gelsight_utils import GelsightRender
 from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
-from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
@@ -96,6 +91,7 @@ class VisuoTactileSensor(SensorBase):
         **Elastomer Configuration**
             Elastomer properties (``elastomer_rigid_body``, ``elastomer_tip_link_name``) must
             match the robot model where the sensor is attached.
+
     """
 
     cfg: VisuoTactileSensorCfg
@@ -218,53 +214,6 @@ class VisuoTactileSensor(SensorBase):
         if self.cfg.debug_vis:
             self._initialize_visualization()
 
-    def setup_compliant_materials(self):
-        """Setup compliant contact materials for the elastomer.
-
-        This method configures the elastomer collision geometry with compliant contact
-        materials that provide softer, more realistic contact behavior. Only applies
-        materials if compliant contact is enabled in the configuration.
-
-        Note:
-            This method should be called after sensor initialization and before
-            simulation starts to ensure proper contact behavior.
-        """
-        # Get the current stage
-        stage = stage_utils.get_current_stage()
-
-        # Create material configuration
-        print("set up compliant contact materials", self.cfg.elastomer_collision_path)
-        material_cfg = RigidBodyMaterialCfg(
-            compliant_contact_stiffness=self.cfg.compliance_stiffness,
-            compliant_contact_damping=self.cfg.compliant_damping,
-        )
-        parent_prims = sim_utils.find_matching_prims(self.cfg.prim_path.rsplit("/", 1)[0])
-        self._num_envs = len(parent_prims)
-        assert self._num_envs > 0, "No environments found"
-
-        # Apply material to each environment
-        for env_id in range(self._num_envs):
-            # Construct the prim path for elastomer collision geometry
-            # Get the environment path from parent prims
-            if len(parent_prims) > env_id:
-                # Use the specific environment's parent prim
-                env_prim_path = parent_prims[env_id].GetPath().pathString
-
-                # Construct full path to elastomer collision
-                elastomer_collision_path = (
-                    f"{env_prim_path}/{self.cfg.elastomer_rigid_body}/{self.cfg.elastomer_collision_path}"
-                )
-                # Spawn the rigid body material
-                mat_path = spawn_rigid_body_material(elastomer_collision_path, material_cfg)
-
-                # Get the body prim and apply the physics material
-                body_prim = prim_utils.get_prim_parent(mat_path)
-                physicsUtils.add_physics_material_to_prim(stage, body_prim, elastomer_collision_path)
-
-        omni.log.info(
-            f"[VisuoTactileSensor] Successfully applied compliant contact materials to {self._num_envs} environments"
-        )
-
     def get_initial_render(self):
         """Get the initial tactile sensor render for baseline comparison.
 
@@ -292,12 +241,9 @@ class VisuoTactileSensor(SensorBase):
         if initial_render is None:
             raise RuntimeError("Initial render is None")
 
-        if self._nominal_tactile is not None:
-            assert False, "Nominal tactile is not None"
-
+        # Store the initial nominal tactile data
         self._nominal_tactile = dict()
         for key, value in initial_render.items():
-            print(f"key: {key}, value: {value.shape}")
             self._nominal_tactile[key] = value.clone()
 
         return self._nominal_tactile

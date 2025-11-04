@@ -33,8 +33,18 @@ parser.add_argument("--num_envs", type=int, default=2, help="Number of environme
 parser.add_argument("--tactile_kn", type=float, default=1.0, help="Tactile normal stiffness.")
 parser.add_argument("--tactile_kt", type=float, default=0.1, help="Tactile tangential stiffness.")
 parser.add_argument("--tactile_mu", type=float, default=2.0, help="Tactile friction coefficient.")
-parser.add_argument("--tactile_compliance_stiffness", type=float, default=150.0, help="Tactile compliance stiffness.")
-parser.add_argument("--tactile_compliant_damping", type=float, default=1.0, help="Tactile compliant damping.")
+parser.add_argument(
+    "--tactile_compliance_stiffness",
+    type=float,
+    default=None,
+    help="Optional: Override compliant contact stiffness (default: use USD asset values)",
+)
+parser.add_argument(
+    "--tactile_compliant_damping",
+    type=float,
+    default=None,
+    help="Optional: Override compliant contact damping (default: use USD asset values)",
+)
 parser.add_argument("--save_viz", action="store_true", help="Visualize tactile data.")
 parser.add_argument("--save_viz_dir", type=str, default="tactile_record", help="Directory to save tactile data.")
 parser.add_argument("--use_tactile_rgb", action="store_true", help="Use tactile RGB sensor data collection.")
@@ -57,6 +67,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.visualization_markers import VisualizationMarkersCfg
@@ -67,7 +79,6 @@ from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
 from isaaclab.sensors.tacsl_sensor.gelsight_utils import visualize_tactile_shear_image
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 
 @configclass
@@ -85,12 +96,15 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     # Robot with tactile sensor
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
+        spawn=sim_utils.UsdFileWithPhysicsMaterialOnPrimsCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
             ),
+            compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
+            compliant_contact_damping=args_cli.tactile_compliant_damping,
+            apply_physics_material_prim_path="elastomer/collisions",
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
                 solver_position_iteration_count=12,
@@ -133,9 +147,6 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         tactile_kn=args_cli.tactile_kn,
         tactile_mu=args_cli.tactile_mu,
         tactile_kt=args_cli.tactile_kt,
-        # Compliant dynamics
-        compliance_stiffness=args_cli.tactile_compliance_stiffness,
-        compliant_damping=args_cli.tactile_compliant_damping,
         # Camera configuration
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
@@ -235,15 +246,22 @@ def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
                 tactile_shear_force[1, :, :].detach().cpu().numpy(),
             )
             combined_image = np.vstack([tactile_image, tactile_image_1])
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), combined_image * 255)
+            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (combined_image * 255).astype(np.uint8))
         else:
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), tactile_image * 255)
+            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (tactile_image * 255).astype(np.uint8))
 
     if tactile_data.tactile_rgb_image is not None:
         tactile_rgb_data = tactile_data.tactile_rgb_image.cpu().numpy()
         tactile_rgb_data = np.transpose(tactile_rgb_data, axes=(0, 2, 1, 3))
         tactile_rgb_data_first_2 = tactile_rgb_data[:2] if len(tactile_rgb_data) >= 2 else tactile_rgb_data
         tactile_rgb_tiled = np.concatenate(tactile_rgb_data_first_2, axis=0)
+        # Convert to uint8 if not already
+        if tactile_rgb_tiled.dtype != np.uint8:
+            tactile_rgb_tiled = (
+                (tactile_rgb_tiled * 255).astype(np.uint8)
+                if tactile_rgb_tiled.max() <= 1.0
+                else tactile_rgb_tiled.astype(np.uint8)
+            )
         cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count}.png"), tactile_rgb_tiled)
 
 
@@ -340,7 +358,6 @@ def main():
         device=args_cli.device,
         physx=sim_utils.PhysxCfg(
             gpu_collision_stack_size=2**30,  # Prevent collisionStackSize buffer overflow in contact-rich environments.
-            ** 30,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
         ),
     )
     sim = sim_utils.SimulationContext(sim_cfg)
@@ -367,9 +384,6 @@ def main():
         scene_cfg.tactile_sensor.debug_vis = True
 
     scene = InteractiveScene(scene_cfg)
-
-    # Setup compliant materials (required after scene initialization, can be skipped if materials are pre-configured and not needed to be changed)
-    scene["tactile_sensor"].setup_compliant_materials()
 
     # Initialize simulation
     sim.reset()

@@ -24,7 +24,9 @@ Tactile sensors require specific configuration parameters to define their behavi
 
     from isaaclab.sensors.tacsl_sensor import VisuoTactileSensorCfg
     from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+    import isaaclab.sim as sim_utils
 
+    # Tactile sensor configuration
     tactile_sensor = VisuoTactileSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/tactile_sensor",
         ## Sensor configuration
@@ -35,7 +37,7 @@ Tactile sensors require specific configuration parameters to define their behavi
         elastomer_rigid_body="elastomer",
         elastomer_tactile_mesh="elastomer/visuals",
         elastomer_tip_link_name="elastomer_tip",
-        # Force field configuration
+        ## Force field configuration
         num_tactile_rows=20,
         num_tactile_cols=25,
         tactile_margin=0.003,
@@ -46,19 +48,15 @@ Tactile sensors require specific configuration parameters to define their behavi
         tactile_kn=1.0,
         tactile_mu=2.0,
         tactile_kt=0.1,
-        ## Compliant dynamics
-        compliance_stiffness=150.0,
-        compliant_damping=1.0,
         ## Camera configuration
         camera_cfg=TiledCameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/tactile_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             update_period=1 / 60,  # 60 Hz
             height=320,
             width=240,
             data_types=["distance_to_image_plane"],
-            spawn= None, # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
+            spawn=None,  # camera already spawned in USD file
         ),
-
     )
 
 The configuration supports customization of:
@@ -70,10 +68,9 @@ The configuration supports customization of:
     * ``enable_force_field`` - Enable force field computation and visualization
 * **Elastomer Properties**: Configure elastomer links and tip components that define the sensor's deformable surface
 * **Force Field Grid**: Set tactile grid dimensions (``num_tactile_rows``, ``num_tactile_cols``) and margins, which directly affects the spatial resolution of the computed force field
-* **Indenter Configuration**: Define properties of interacting objects including rigid body name, and collision mesh
-* **Physics Parameters**: Control the sensor's physical behavior:
-    * ``tactile_kn``, ``tactile_mu``, ``tactile_kt`` - Normal, friction, and tangential stiffness
-    * ``compliance_stiffness``, ``compliant_damping`` - Compliant dynamics parameters
+* **Indenter Configuration**: Define properties of interacting objects including rigid body name and collision mesh
+* **Physics Parameters**: Control the sensor's force field computation:
+    * ``tactile_kn``, ``tactile_mu``, ``tactile_kt`` - Normal stiffness, friction coefficient, and tangential stiffness
 * **Camera Settings**: Configure resolution, focal length, update rates, and 6-DOF positioning relative to the sensor
 
 Configuration Requirements
@@ -100,6 +97,17 @@ Configuration Requirements
    **Elastomer Configuration**
       Elastomer properties (``elastomer_rigid_body``, ``elastomer_tip_link_name``) must match the robot model where the sensor is attached.
 
+   **Physics Materials**
+      The sensor uses physics materials to configure the compliant contact properties of the elastomer.
+      By default, physics material properties are pre-configured in the USD asset. However, you can override
+      these properties by specifying the following parameters in ``UsdFileWithPhysicsMaterialOnPrimsCfg`` when
+      spawning the robot:
+
+      * ``compliant_contact_stiffness`` - Contact stiffness for the elastomer surface
+      * ``compliant_contact_damping`` - Contact damping for the elastomer surface
+      * ``apply_physics_material_prim_path`` - Prim path where physics material is applied (typically ``"elastomer/collisions"``)
+
+      If any parameter is set to ``None``, the corresponding property from the USD asset will be retained.
 
 
 Usage Example
