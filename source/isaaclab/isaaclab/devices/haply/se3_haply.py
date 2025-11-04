@@ -236,27 +236,54 @@ class HaplyDevice(DeviceBase):
 
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
-    def push_force(self, forces: torch.Tensor, names: list[str] | None = None, frame: str = "world") -> None:
+    def push_force(
+        self,
+        forces: torch.Tensor | dict[str, torch.Tensor | list[float]],
+        names: list[str] | None = None,
+        frame: str = "world",
+        position: list[str] | None = None,
+    ) -> None:
         """Push force vector to Haply Inverse3 device.
 
         Overrides DeviceBase.push_force() to provide force feedback for Haply Inverse3.
         Forces are clipped to [-limit_force, limit_force] range for safety.
 
         Args:
-            forces: Tensor of shape (N, 3) with forces [fx, fy, fz]. Only the first force is used.
+            forces: Force data in one of two formats:
+                - Tensor of shape (N, 3) with forces [fx, fy, fz]. The first force is used.
+                - Dict mapping object names to force vectors (e.g., {"gripper": [0.1, 0.1, 0.1]})
             names: Optional labels (ignored for Haply Inverse3).
             frame: Frame of the vectors (currently only "world" is supported).
+            position: When forces is a dict, specifies which object(s) force to use.
+                     Can be a single object name or multiple names.
+                     Required if dict has multiple entries. When forces is a tensor, this parameter is ignored.
         """
-        if forces.shape[0] == 0:
-            raise ValueError("No forces provided to push")
+        # Check if forces is empty
+        if (isinstance(forces, dict) and not forces) or (isinstance(forces, torch.Tensor) and forces.shape[0] == 0):
+            raise ValueError("No forces provided")
 
-        force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
+        # Handle dict format
+        if isinstance(forces, dict):
+            if not position:
+                raise ValueError(f"No position specified. Available positions: {list(forces.keys())}")
+            # Collect forces for all specified positions
+            force_values = []
+            for pos in position:
+                if pos not in forces:
+                    raise ValueError(f"Position '{pos}' not found. Available: {list(forces.keys())}")
+                val = forces[pos]
+                force_values.append(np.array(val, dtype=np.float32))
+            force = np.sum(force_values, axis=0) if len(force_values) > 1 else force_values[0]
+        # Handle tensor format
+        else:
+            force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
+
         fx = np.clip(force[0], -self.limit_force, self.limit_force)
         fy = np.clip(force[1], -self.limit_force, self.limit_force)
         fz = np.clip(force[2], -self.limit_force, self.limit_force)
 
         with self.force_lock:
-            self.feedback_force = {"x": fx, "y": fy, "z": fz}
+            self.feedback_force = {"x": float(fx), "y": float(fy), "z": float(fz)}
 
     def _start_websocket_thread(self):
         """Start WebSocket connection thread."""
