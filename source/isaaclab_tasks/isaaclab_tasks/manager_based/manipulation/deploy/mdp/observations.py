@@ -139,7 +139,7 @@ def gear_pos_w(
         # Get position for this specific environment
         gear_positions[i] = asset.data.root_pos_w[i]
     
-    return gear_positions
+    return gear_positions - env.scene.env_origins
 
 def gear_quat_w(
     env: ManagerBasedRLEnv, 
