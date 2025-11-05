@@ -124,3 +124,11 @@ class InteractiveSceneCfg:
         default to ``False``.
 
     """
+
+    random_heterogenous_cloning: bool = True
+    """Randomly assign prototypes to environments. Default is True.
+
+    When enabled, each environment selects a prototype at random from the available
+    prototypes under a given template root. When disabled, environments use a
+    round-robin assignment based on ``env_index % num_prototypes``.
+    """
