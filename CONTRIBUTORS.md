@@ -149,6 +149,7 @@ Guidelines for modifications:
 * Yujian Zhang
 * Yun Liu
 * Zehao Wang
+* Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
