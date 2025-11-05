@@ -138,7 +138,12 @@ class InteractiveScene:
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
 
-        self.cloner_cfg = cloner.TemplateCloneCfg()
+        self.cloner_cfg = cloner.TemplateCloneCfg(
+            clone_regex=self.env_regex_ns,
+            random_heterogenous_cloning=self.cfg.random_heterogenous_cloning,
+            clone_in_fabric=self.cfg.clone_in_fabric,
+            device=self.device,
+        )
         self.env_fmt = self.env_regex_ns.replace(".*", "{}")
         # allocate env indices
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
