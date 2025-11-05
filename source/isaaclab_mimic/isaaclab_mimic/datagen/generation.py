@@ -11,9 +11,11 @@ from typing import Any
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, TerminationTermCfg
+from isaaclab.managers.manager_term_cfg import RecorderTermCfg
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
+from isaaclab_mimic.datagen.async_writer_recorder import AsyncWriterRecorder
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -31,7 +33,7 @@ async def run_data_generator(
     data_generator: DataGenerator,
     success_term: TerminationTermCfg,
     pause_subtask: bool = False,
-    motion_planner: Any = None,
+    motion_planner: Any | None = None,
 ):
     """Run mimic data generation from the given data generator in the specified environment index.
 
@@ -43,17 +45,17 @@ async def run_data_generator(
         data_generator: The data generator instance to use.
         success_term: The success termination term to use.
         pause_subtask: Whether to pause the subtask during generation.
-        motion_planner: The motion planner to use.
     """
     global num_success, num_failures, num_attempts
     while True:
+
+
         results = await data_generator.generate(
             env_id=env_id,
             success_term=success_term,
             env_reset_queue=env_reset_queue,
             env_action_queue=env_action_queue,
             pause_subtask=pause_subtask,
-            motion_planner=motion_planner,
         )
         if bool(results["success"]):
             num_success += 1
@@ -68,6 +70,7 @@ def env_loop(
     env_action_queue: asyncio.Queue,
     shared_datagen_info_pool: DataGenInfoPool,
     asyncio_event_loop: asyncio.AbstractEventLoop,
+    
 ):
     """Main asyncio loop for the environment.
 
@@ -81,6 +84,8 @@ def env_loop(
     global num_success, num_failures, num_attempts
     env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
     prev_num_attempts = 0
+
+    print("STARTING ENV LOOP")
     # simulate environment -- run everything in inference mode
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
@@ -141,6 +146,8 @@ def setup_env_config(
     num_envs: int,
     device: str,
     generation_num_trials: int | None = None,
+    use_async_writer: bool = False,
+    early_cpu_offload: bool = False,
 ) -> tuple[Any, Any]:
     """Configure the environment for data generation.
 
@@ -151,7 +158,8 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
-
+        use_async_writer: Whether to use async writer
+        early_cpu_offload: Whether to use early cpu offload (episode data moved to CPU aggressively)
     Returns:
         tuple containing:
             - env_cfg: The environment configuration
@@ -180,25 +188,27 @@ def setup_env_config(
     env_cfg.observations.policy.concatenate_terms = False
 
     # Setup recorders
+
+    env_cfg.early_cpu_offload = early_cpu_offload 
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
-    if env_cfg.datagen_config.generation_keep_failed:
-        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
+    if use_async_writer:
+        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_NONE
+        env_cfg.recorders.export_in_record_pre_reset = False
+        env_cfg.recorders.async_writer = RecorderTermCfg(class_type=AsyncWriterRecorder)
     else:
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+        env_cfg.recorders.export_in_record_pre_reset = True
+        env_cfg.recorders.async_writer = None
+
 
     return env_cfg, success_term
 
 
 def setup_async_generation(
-    env: Any,
-    num_envs: int,
-    input_file: str,
-    success_term: Any,
-    pause_subtask: bool = False,
-    motion_planners: Any = None,
+    env: Any, num_envs: int, input_file: str, success_term: Any, pause_subtask: bool = False
 ) -> dict[str, Any]:
     """Setup async data generation tasks.
 
@@ -208,7 +218,6 @@ def setup_async_generation(
         input_file: Path to input dataset file
         success_term: Success termination condition
         pause_subtask: Whether to pause after subtasks
-        motion_planners: Motion planner instances for all environments
 
     Returns:
         List of asyncio tasks for data generation
@@ -225,17 +234,9 @@ def setup_async_generation(
     data_generator = DataGenerator(env=env, src_demo_datagen_info_pool=shared_datagen_info_pool)
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
-        env_motion_planner = motion_planners[i] if motion_planners else None
         task = asyncio_event_loop.create_task(
             run_data_generator(
-                env,
-                i,
-                env_reset_queue,
-                env_action_queue,
-                data_generator,
-                success_term,
-                pause_subtask=pause_subtask,
-                motion_planner=env_motion_planner,
+                env, i, env_reset_queue, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask
             )
         )
         data_generator_asyncio_tasks.append(task)
