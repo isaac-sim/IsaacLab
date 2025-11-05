@@ -78,8 +78,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.3, 0.3),
-            "dynamic_friction_range": (0.1, 0.1),
+            "static_friction_range": (0.1, 0.1),
+            "dynamic_friction_range": (0.05, 0.05),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
