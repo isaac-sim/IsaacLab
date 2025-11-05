@@ -189,6 +189,10 @@ class GelsightRender:
 
         self.A_tensor = torch.tensor(self.A.reshape(image_height, image_width, 6), device=self.device).unsqueeze(0)
         self.background_tensor = torch.tensor(self.background, device=self.device)
+
+        # Pre-allocate buffer for RGB output (will be resized if needed)
+        self._sim_img_rgb_buffer = torch.empty((1, image_height, image_width, 3), device=self.device)
+
         omni.log.info("Gelsight initialization done!")
 
     def render(self, heightMap: torch.Tensor) -> torch.Tensor:
@@ -221,7 +225,12 @@ class GelsightRender:
         params_g = self.calib_data_grad_g[idx_x, idx_y, :]
         params_b = self.calib_data_grad_b[idx_x, idx_y, :]
 
-        sim_img_rgb = torch.zeros((*idx_x.shape, 3), device=self.device)  # TODO: move to init
+        # Reuse pre-allocated buffer, resize if batch size changed
+        target_shape = (*idx_x.shape, 3)
+        if self._sim_img_rgb_buffer.shape != target_shape:
+            self._sim_img_rgb_buffer = torch.empty(target_shape, device=self.device)
+        sim_img_rgb = self._sim_img_rgb_buffer
+
         sim_img_rgb[..., 0] = torch.sum(self.A_tensor * params_r, dim=-1)  # R
         sim_img_rgb[..., 1] = torch.sum(self.A_tensor * params_g, dim=-1)  # G
         sim_img_rgb[..., 2] = torch.sum(self.A_tensor * params_b, dim=-1)  # B
