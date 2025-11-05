@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+0.47.7 (2025-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Pink IK controller qpsolver from osqp to daqp.
+* Changed Null Space matrix computation in Pink IK's Null Space Posture Task to a faster matrix pseudo inverse computation.
+
+
+0.47.6 (2025-11-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an issue in recurrent policy evaluation in RSL-RL framework where the recurrent state was not reset after an episode termination.
+
+
+0.47.5 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added docstrings notes to clarify the friction coefficient modeling in Isaac Sim 4.5 and 5.0.
+
+
 0.47.4 (2025-10-30)
 ~~~~~~~~~~~~~~~~~~~
 
