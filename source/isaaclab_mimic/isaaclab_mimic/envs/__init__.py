@@ -23,7 +23,7 @@ from .franka_stack_ik_rel_visuomotor_mimic_env_cfg import FrankaCubeStackIKRelVi
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    vector_entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg,
     },
@@ -32,7 +32,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    vector_entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": franka_stack_ik_rel_blueprint_mimic_env_cfg.FrankaCubeStackIKRelBlueprintMimicEnvCfg,
     },
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKAbsMimicEnv",
+    vector_entry_point="isaaclab_mimic.envs:FrankaCubeStackIKAbsMimicEnv",
     kwargs={
         "env_cfg_entry_point": franka_stack_ik_abs_mimic_env_cfg.FrankaCubeStackIKAbsMimicEnvCfg,
     },
@@ -50,7 +50,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    vector_entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": franka_stack_ik_rel_visuomotor_mimic_env_cfg.FrankaCubeStackIKRelVisuomotorMimicEnvCfg,
     },
@@ -59,7 +59,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    vector_entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": (
             franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg.FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg

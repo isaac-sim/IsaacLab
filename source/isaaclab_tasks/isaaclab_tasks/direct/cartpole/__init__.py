@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Cartpole-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env:CartpoleEnvCfg",
@@ -30,7 +30,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-RGB-Camera-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    vector_entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleRGBCameraEnvCfg",
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Depth-Camera-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    vector_entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleDepthCameraEnvCfg",

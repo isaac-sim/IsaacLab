@@ -23,7 +23,7 @@ from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
 
-class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
+class ManagerBasedRLEnv(ManagerBasedEnv, gym.vector.VectorEnv):
     """The superclass for the manager-based workflow reinforcement learning-based environments.
 
     This class inherits from :class:`ManagerBasedEnv` and implements the core functionality for
@@ -36,14 +36,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     environments. The method :meth:`step` is also expected to receive a batch of actions
     for each sub-environment.
 
-    While the environment itself is implemented as a vectorized environment, we do not
-    inherit from :class:`gym.vector.VectorEnv`. This is mainly because the class adds
-    various methods (for wait and asynchronous updates) which are not required.
-    Additionally, each RL library typically has its own definition for a vectorized
-    environment. Thus, to reduce complexity, we directly use the :class:`gym.Env` over
-    here and leave it up to library-defined wrappers to take care of wrapping this
-    environment for their agents.
-
     Note:
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
         method once before the first call to :meth:`step`, i.e. after the environment is created.
@@ -53,8 +45,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
     """
 
-    is_vector_env: ClassVar[bool] = True
-    """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
         "isaac_sim_version": get_version(),

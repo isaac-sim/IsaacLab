@@ -401,7 +401,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
 
     gym.register(
         id="Isaac-Cartpole-Direct-v0",
-        entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
+        vector_entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": CartpoleEnvCfg,

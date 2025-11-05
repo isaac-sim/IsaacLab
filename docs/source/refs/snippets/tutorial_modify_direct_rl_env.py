@@ -12,7 +12,7 @@ from .h1_env import H1Env, H1EnvCfg
 # [start-init-register]
 gym.register(
     id="Isaac-H1-Direct-v0",
-    entry_point="isaaclab_tasks.direct.humanoid:H1Env",
+    vector_entry_point="isaaclab_tasks.direct.humanoid:H1Env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": H1EnvCfg,
