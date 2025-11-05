@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
+import omni.log
 import os
 import scipy
 import torch
 from typing import TYPE_CHECKING
-
-import cv2
-import omni.log
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -20,34 +19,47 @@ if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import GelSightRenderCfg
 
 
-def get_gelsight_render_data(data_dir: str, file_name: str) -> str | None:
+def get_gelsight_render_data(base_data_path: str | None, data_dir: str, file_name: str) -> str | None:
     """Gets the path for the GelSight render data file.
 
-    If the data file is not cached locally then the file is downloaded from
-    the Isaac Lab Nucleus directory. The cached path is then returned.
+    If using a custom base path, the file is used directly from that location.
+    If using the default Nucleus path, the file is downloaded and cached locally.
 
     Args:
+        base_data_path: Base path for the sensor data. If None, defaults to
+                       Isaac Lab Nucleus TacSL directory (will download and cache).
         data_dir: The data directory name containing the render data.
         file_name: The specific file name to retrieve.
 
     Returns:
-        The local path to the downloaded/cached file, or None if unavailable.
+        The local path to the file, or None if unavailable.
     """
-    ov_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "TacSL", data_dir, file_name)
-    download_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), data_dir)
-    os.makedirs(download_dir, exist_ok=True)
-    download_path = os.path.join(download_dir, file_name)
-
-    if not os.path.exists(download_path):
-        omni.log.info(f"Fetching gs render data : {ov_path}")
-        try:
-            download_path = retrieve_file_path(ov_path, download_dir)
-        except (FileNotFoundError, OSError, ConnectionError, PermissionError) as e:
-            omni.log.warn(f"Failed to retrieve GelSight render data: {e}")
+    if base_data_path is not None:
+        # Custom path provided - use it directly without copying
+        file_path = os.path.join(base_data_path, data_dir, file_name)
+        if os.path.exists(file_path):
+            omni.log.info(f"Using custom GelSight render data: {file_path}")
+            return file_path
+        else:
+            omni.log.warn(f"Custom GelSight render data not found: {file_path}")
             return None
     else:
-        omni.log.info(f"Using pre-fetched gs render data: {download_path}")
-    return download_path
+        # Default to Isaac Lab Nucleus directory - download and cache
+        nucleus_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "TacSL", data_dir, file_name)
+        cache_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), data_dir)
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, file_name)
+
+        if not os.path.exists(cache_path):
+            omni.log.info(f"Downloading GelSight render data from Nucleus: {nucleus_path}")
+            try:
+                cache_path = retrieve_file_path(nucleus_path, cache_dir)
+            except (FileNotFoundError, OSError, ConnectionError, PermissionError) as e:
+                omni.log.warn(f"Failed to download GelSight render data from Nucleus: {e}")
+                return None
+        else:
+            omni.log.info(f"Using cached GelSight render data: {cache_path}")
+        return cache_path
 
 
 def visualize_tactile_shear_image(
@@ -127,6 +139,7 @@ class GelsightRender:
 
         Raises:
             ValueError: If mm_per_pixel is zero or negative.
+            FileNotFoundError: If render data files cannot be retrieved.
         """
         self.cfg = cfg
         self.device = device
@@ -136,11 +149,16 @@ class GelsightRender:
         if self.cfg.mm_per_pixel < eps:
             raise ValueError(f"mm_per_pixel must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
 
-        bg_path = get_gelsight_render_data(self.cfg.data_dir, self.cfg.background_path)
-        calib_path = get_gelsight_render_data(self.cfg.data_dir, self.cfg.calib_path)
+        # Retrieve render data files using the configured base path
+        bg_path = get_gelsight_render_data(self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.background_path)
+        calib_path = get_gelsight_render_data(self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.calib_path)
 
         if bg_path is None or calib_path is None:
-            raise FileNotFoundError("Failed to retrieve GelSight render data files.")
+            raise FileNotFoundError(
+                f"Failed to retrieve GelSight render data files. "
+                f"Base path: {self.cfg.base_data_path or 'default (Isaac Lab Nucleus)'}, "
+                f"Data dir: {self.cfg.sensor_data_dir_name}"
+            )
 
         self.background = cv2.cvtColor(cv2.imread(bg_path), cv2.COLOR_BGR2RGB)
 

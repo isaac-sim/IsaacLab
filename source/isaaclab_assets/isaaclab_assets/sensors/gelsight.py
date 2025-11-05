@@ -12,7 +12,7 @@ from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRender
 ##
 
 GELSIGHT_R15_CFG = GelSightRenderCfg(
-    data_dir="gelsight_r15_data",
+    sensor_data_dir_name="gelsight_r15_data",
     background_path="bg.jpg",
     calib_path="polycalib.npz",
     real_background="real_bg.npy",
@@ -30,7 +30,7 @@ Reference: https://www.gelsight.com/gelsightinc-products/
 """
 
 GELSIGHT_MINI_CFG = GelSightRenderCfg(
-    data_dir="gs_mini_data",
+    sensor_data_dir_name="gs_mini_data",
     background_path="bg.jpg",
     calib_path="polycalib.npz",
     real_background="real_bg.npy",

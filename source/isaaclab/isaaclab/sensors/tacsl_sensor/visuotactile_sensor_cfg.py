@@ -24,13 +24,53 @@ class GelSightRenderCfg:
     """Configuration for GelSight sensor rendering parameters.
 
     This configuration defines the rendering parameters for example-based tactile image synthesis
-    using the Taxim approach (https://arxiv.org/abs/2109.04027).
+    using the Taxim approach. 
 
-    The rendering process uses calibration data and background images to convert depth maps
-    into realistic tactile RGB images that simulate the appearance of GelSight sensors.
+    Reference:
+        Si, Z., & Yuan, W. (2022). Taxim: An example-based simulation model for GelSight
+        tactile sensors. IEEE Robotics and Automation Letters, 7(2), 2361-2368.
+        https://arxiv.org/abs/2109.04027
+
+    Data Directory Structure:
+        The sensor data should be organized in the following structure::
+
+            base_data_path/
+            └── sensor_data_dir_name/
+                ├── bg.jpg              # Background image (required)
+                ├── polycalib.npz       # Polynomial calibration data (required)
+                └── real_bg.npy         # Real background data (optional)
+
+    Path Resolution:
+        - If ``base_data_path`` is ``None`` (default): Downloads from Isaac Lab Nucleus at
+          ``{ISAACLAB_NUCLEUS_DIR}/TacSL/{sensor_data_dir_name}/{filename}``
+        - If ``base_data_path`` is provided: Uses custom path at
+          ``{base_data_path}/{sensor_data_dir_name}/{filename}``
+
+    Example:
+        Using predefined sensor configuration::
+
+            from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+            sensor_cfg = VisuoTactileSensorCfg(render_cfg=GELSIGHT_R15_CFG)
+
+        Using custom sensor data::
+
+            custom_cfg = GelSightRenderCfg(
+                base_data_path="/path/to/my/sensors",
+                sensor_data_dir_name="my_custom_sensor",
+                image_height=480,
+                image_width=640,
+                mm_per_pixel=0.05,
+            )
     """
 
-    data_dir: str = "gelsight_r15_data"
+    base_data_path: str | None = None
+    """Base path to the directory containing sensor calibration data.
+
+    If ``None`` (default), downloads and caches data from Isaac Lab Nucleus directory.
+    If a custom path is provided, uses the data directly from that location without copying.
+    """
+
+    sensor_data_dir_name: str = "gelsight_r15_data"
     """Directory name containing the sensor calibration and background data."""
 
     background_path: str = "bg.jpg"
@@ -122,7 +162,6 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     tactile_kt: float = 0.1
     """Tangential stiffness for shear forces."""
 
-    # Camera configuration (optional, for camera-based tactile sensing)
     camera_cfg: TiledCameraCfg | None = None
     """Camera configuration for tactile RGB/depth sensing.
 
