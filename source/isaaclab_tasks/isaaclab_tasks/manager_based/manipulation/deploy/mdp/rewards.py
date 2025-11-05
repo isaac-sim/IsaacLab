@@ -236,8 +236,6 @@ def keypoint_entity_error(
     asset_cfg_1: SceneEntityCfg,
     keypoint_scale: float = 1.0,
     add_cube_center_kp: bool = True,
-    quat_offset: torch.Tensor | None = None,
-    pos_offset: torch.Tensor | None = None
 ) -> torch.Tensor:
     """Compute keypoint distance between a RigidObject and the dynamically selected gear.
 
@@ -250,8 +248,6 @@ def keypoint_entity_error(
         asset_cfg_1: Configuration of the first asset (RigidObject)
         keypoint_scale: Scale factor for keypoint offsets
         add_cube_center_kp: Whether to include the center keypoint (0, 0, 0)
-        quat_offset: Optional quaternion offset to apply to asset_1's orientation (w, x, y, z)
-        pos_offset: Optional position offset to apply to asset_1's position (x, y, z)
 
     Returns:
         Keypoint distance tensor of shape (num_envs,) where each element
@@ -265,29 +261,6 @@ def keypoint_entity_error(
     curr_pos_1 = asset_1.data.body_pos_w[:, 0]  # type: ignore
     curr_quat_1 = asset_1.data.body_quat_w[:, 0]  # type: ignore
     
-    # Apply position offset to asset_1 if provided
-    if pos_offset is not None:
-        # Convert list to tensor if needed
-        if isinstance(pos_offset, list):
-            pos_offset = torch.tensor(pos_offset, device=curr_pos_1.device, dtype=curr_pos_1.dtype)
-        # Ensure pos_offset has the right shape (num_envs, 3)
-        if pos_offset.dim() == 1:
-            pos_offset = pos_offset.unsqueeze(0).expand(curr_pos_1.shape[0], -1)
-        # Apply the offset by adding to position
-        curr_pos_1 = curr_pos_1 + pos_offset
-    
-    # Apply quaternion offset to asset_1 if provided
-    if quat_offset is not None:
-        # Convert list to tensor if needed
-        if isinstance(quat_offset, list):
-            quat_offset = torch.tensor(quat_offset, device=curr_quat_1.device, dtype=curr_quat_1.dtype)
-        # Ensure quat_offset has the right shape (num_envs, 4)
-        if quat_offset.dim() == 1:
-            quat_offset = quat_offset.unsqueeze(0).expand(curr_quat_1.shape[0], -1)
-        # Apply the offset by quaternion multiplication
-        # TODO: check if this is correct or if its shoudl be the inverse
-        curr_quat_1 = quat_mul(quat_offset, curr_quat_1)
-
     # Handle per-environment gear type selection
     if hasattr(env, '_current_gear_type'):
         # Get the current gear type for each environment
@@ -366,8 +339,6 @@ def keypoint_entity_error_exp(
     kp_use_sum_of_exps: bool = True,
     keypoint_scale: float = 1.0,
     add_cube_center_kp: bool = True,
-    quat_offset: torch.Tensor | None = None,
-    pos_offset: torch.Tensor | None = None
 ) -> torch.Tensor:
     """Compute exponential keypoint reward between a RigidObject and the dynamically selected gear.
 
@@ -394,29 +365,6 @@ def keypoint_entity_error_exp(
     # asset_1 is RigidObject - use body_pos_w and body_quat_w
     curr_pos_1 = asset_1.data.body_pos_w[:, 0]  # type: ignore
     curr_quat_1 = asset_1.data.body_quat_w[:, 0]  # type: ignore
-    
-    # Apply position offset to asset_1 if provided
-    if pos_offset is not None:
-        # Convert list to tensor if needed
-        if isinstance(pos_offset, list):
-            pos_offset = torch.tensor(pos_offset, device=curr_pos_1.device, dtype=curr_pos_1.dtype)
-        # Ensure pos_offset has the right shape (num_envs, 3)
-        if pos_offset.dim() == 1:
-            pos_offset = pos_offset.unsqueeze(0).expand(curr_pos_1.shape[0], -1)
-        # Apply the offset by adding to position
-        curr_pos_1 = curr_pos_1 + pos_offset
-    
-    # Apply quaternion offset to asset_1 if provided
-    if quat_offset is not None:
-        # Convert list to tensor if needed
-        if isinstance(quat_offset, list):
-            quat_offset = torch.tensor(quat_offset, device=curr_quat_1.device, dtype=curr_quat_1.dtype)
-        # Ensure quat_offset has the right shape (num_envs, 4)
-        if quat_offset.dim() == 1:
-            quat_offset = quat_offset.unsqueeze(0).expand(curr_quat_1.shape[0], -1)
-        # Apply the offset by quaternion multiplication
-        # TODO: check if this is correct or if its shoudl be the inverse
-        curr_quat_1 = quat_mul(quat_offset, curr_quat_1)
 
     # Handle per-environment gear type selection
     if hasattr(env, '_current_gear_type'):
