@@ -12,9 +12,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 import torch
-from isaaclab.managers import TerminationTermCfg, TerminationManager
+
+import pytest
+
+from isaaclab.managers import TerminationManager, TerminationTermCfg
 from isaaclab.sim import SimulationContext
 
 
@@ -120,7 +122,7 @@ def test_term_transitions_and_persistence(env):
 
 def test_time_out_vs_terminated_split(env):
     cfg = {
-        "term_5": TerminationTermCfg(func=fail_every_5_steps, time_out=False),   # terminated
+        "term_5": TerminationTermCfg(func=fail_every_5_steps, time_out=False),  # terminated
         "term_10": TerminationTermCfg(func=fail_every_10_steps, time_out=True),  # timeout
     }
     tm = TerminationManager(cfg, env)
