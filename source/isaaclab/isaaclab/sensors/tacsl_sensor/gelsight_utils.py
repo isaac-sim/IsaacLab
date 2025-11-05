@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
-import omni.log
 import os
 import scipy
 import torch
 from typing import TYPE_CHECKING
+
+import cv2
+import omni.log
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -150,12 +151,16 @@ class GelsightRender:
             raise ValueError(f"mm_per_pixel must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
 
         # Retrieve render data files using the configured base path
-        bg_path = get_gelsight_render_data(self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.background_path)
-        calib_path = get_gelsight_render_data(self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.calib_path)
+        bg_path = get_gelsight_render_data(
+            self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.background_path
+        )
+        calib_path = get_gelsight_render_data(
+            self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.calib_path
+        )
 
         if bg_path is None or calib_path is None:
             raise FileNotFoundError(
-                f"Failed to retrieve GelSight render data files. "
+                "Failed to retrieve GelSight render data files. "
                 f"Base path: {self.cfg.base_data_path or 'default (Isaac Lab Nucleus)'}, "
                 f"Data dir: {self.cfg.sensor_data_dir_name}"
             )

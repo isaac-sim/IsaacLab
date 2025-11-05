@@ -24,7 +24,7 @@ class GelSightRenderCfg:
     """Configuration for GelSight sensor rendering parameters.
 
     This configuration defines the rendering parameters for example-based tactile image synthesis
-    using the Taxim approach. 
+    using the Taxim approach.
 
     Reference:
         Si, Z., & Yuan, W. (2022). Taxim: An example-based simulation model for GelSight
@@ -127,13 +127,21 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
 
     # Elastomer configuration
     elastomer_rigid_body: str = "elastomer"
-    """Prim path of the elastomer rigid body for tactile sensing."""
+    """Prim path of the elastomer rigid body for tactile sensing.
 
-    elastomer_tactile_mesh: str = "elastomer/visual"
-    """Prim path of the elastomer mesh for tactile point generation."""
+    This is required to track the elastomer's pose and velocity.
+    """
 
-    elastomer_tip_link_name: str = "elastomer_tip"
-    """Prim path of the elastomer tip link."""
+    elastomer_tactile_mesh: str | None = None
+    """Prim path of the elastomer mesh for tactile point generation.
+
+    If None (default), automatically searches for mesh geometry under common paths:
+    - {elastomer_rigid_body}/visuals
+    - {elastomer_rigid_body}/visual
+    - {elastomer_rigid_body}/mesh
+
+    Only specify this if your mesh is located at a non-standard path.
+    """
 
     # Force field configuration
     num_tactile_rows: int = 20

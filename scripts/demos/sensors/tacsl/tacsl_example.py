@@ -134,8 +134,6 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         enable_force_field=args_cli.use_tactile_ff,
         # Elastomer configuration
         elastomer_rigid_body="elastomer",
-        elastomer_tactile_mesh="elastomer/visuals",
-        elastomer_tip_link_name="elastomer_tip",
         # Force field configuration
         num_tactile_rows=20,
         num_tactile_cols=25,

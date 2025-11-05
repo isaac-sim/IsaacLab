@@ -35,8 +35,6 @@ Tactile sensors require specific configuration parameters to define their behavi
         enable_force_field=True,
         ## Elastomer configuration
         elastomer_rigid_body="elastomer",
-        elastomer_tactile_mesh="elastomer/visuals",
-        elastomer_tip_link_name="elastomer_tip",
         ## Force field configuration
         num_tactile_rows=20,
         num_tactile_cols=25,
@@ -66,7 +64,6 @@ The configuration supports customization of:
 * **Tactile Modalities**:
     * ``enable_camera_tactile`` - Enable tactile RGB imaging through camera sensors
     * ``enable_force_field`` - Enable force field computation and visualization
-* **Elastomer Properties**: Configure elastomer links and tip components that define the sensor's deformable surface
 * **Force Field Grid**: Set tactile grid dimensions (``num_tactile_rows``, ``num_tactile_cols``) and margins, which directly affects the spatial resolution of the computed force field
 * **Indenter Configuration**: Define properties of interacting objects including rigid body name and collision mesh
 * **Physics Parameters**: Control the sensor's force field computation:
@@ -87,6 +84,7 @@ Configuration Requirements
 
       * ``indenter_rigid_body`` - Specific rigid body within the actor
       * ``indenter_sdf_mesh`` - Collision mesh for SDF computation
+      * ``elastomer_rigid_body`` - Elastomer rigid body, this is required to track the elastomer's pose and velocity.
 
    **SDF Computation**
       When force field computation is enabled, penalty-based normal and shear forces are computed using Signed Distance Field (SDF) queries. To achieve GPU acceleration:

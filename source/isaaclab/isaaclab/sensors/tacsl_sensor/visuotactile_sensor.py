@@ -89,8 +89,8 @@ class VisuoTactileSensor(SensorBase):
               should be specified before simulation.
 
         **Elastomer Configuration**
-            Elastomer properties (``elastomer_rigid_body``, ``elastomer_tip_link_name``) must
-            match the robot model where the sensor is attached.
+            The ``elastomer_rigid_body`` parameter must match the rigid body name in your
+            robot's USD model.
 
     """
 
@@ -327,9 +327,6 @@ class VisuoTactileSensor(SensorBase):
         elastomer_pattern = f"{template_prim_path}/{self.cfg.elastomer_rigid_body}"
         body_names_regex = [elastomer_pattern.replace("env_0", "env_*")]
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
-        elastomer_tip_pattern = f"{template_prim_path}/{self.cfg.elastomer_tip_link_name}"
-        body_names_regex = [elastomer_tip_pattern.replace("env_0", "env_*")]
-        self._elastomer_tip_body_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
 
         # For force field sensing, we need indenter information
         if hasattr(self.cfg, "indenter_rigid_body") and self.cfg.indenter_rigid_body is not None:
@@ -353,7 +350,33 @@ class VisuoTactileSensor(SensorBase):
 
         # Get the elastomer prim path
         template_prim_path = self._parent_prims[0].GetPath().pathString
-        elastomer_prim_path = f"{template_prim_path}/{self.cfg.elastomer_tactile_mesh}"
+
+        # Auto-derive mesh path if not specified
+        if self.cfg.elastomer_tactile_mesh is None:
+            # Try common mesh path conventions
+            base_path = f"{template_prim_path}/{self.cfg.elastomer_rigid_body}"
+            common_mesh_paths = ["visuals", "visual", "mesh", "geometry"]
+
+            elastomer_prim_path = None
+            for mesh_subpath in common_mesh_paths:
+                candidate_path = f"{base_path}/{mesh_subpath}"
+                mesh_prim = sim_utils.get_first_matching_child_prim(
+                    candidate_path, lambda prim: prim.GetTypeName() == "Mesh"
+                )
+                if mesh_prim is not None and mesh_prim.IsValid():
+                    elastomer_prim_path = candidate_path
+                    omni.log.info(f"Auto-detected elastomer mesh at: {elastomer_prim_path}")
+                    break
+
+            if elastomer_prim_path is None:
+                omni.log.warn(
+                    f"Could not auto-detect elastomer mesh under {base_path}. "
+                    f"Tried: {common_mesh_paths}. Please specify elastomer_tactile_mesh explicitly."
+                )
+                return False
+        else:
+            elastomer_prim_path = f"{template_prim_path}/{self.cfg.elastomer_tactile_mesh}"
+
         omni.log.info(f"Generating tactile points from USD mesh: {elastomer_prim_path}")
 
         # Find mesh prim
@@ -382,8 +405,17 @@ class VisuoTactileSensor(SensorBase):
         elastomer_dims = np.diff(mesh_bounds, axis=0).squeeze()
         slim_axis = np.argmin(elastomer_dims)  # Determine flat axis of elastomer
 
-        # Get elastomer to tip transform
-        elastomer_to_tip_link_pos = self._get_elastomer_to_tip_transform()
+        # Determine tip direction using dome geometry
+        # For dome-shaped elastomers, the center of mass is shifted toward the dome (contact) side
+        mesh_center_of_mass = mesh.center_mass[slim_axis]
+        bounding_box_center = (mesh_bounds[0, slim_axis] + mesh_bounds[1, slim_axis]) / 2.0
+
+        if mesh_center_of_mass > bounding_box_center:
+            tip_direction_sign = +1.0
+            omni.log.info(f"Detected dome shape on positive side of slim axis (axis {slim_axis})")
+        else:
+            tip_direction_sign = -1.0
+            omni.log.info(f"Detected dome shape on negative side of slim axis (axis {slim_axis})")
 
         # Determine gap between adjacent tactile points
         axis_idxs = list(range(3))
@@ -398,7 +430,7 @@ class VisuoTactileSensor(SensorBase):
         for axis_i in range(3):
             if axis_i == slim_axis:
                 # On the slim axis, place a point far away so ray is pointing at the elastomer tip
-                planar_grid_points.append([np.sign(elastomer_to_tip_link_pos[0][slim_axis].item())])
+                planar_grid_points.append([tip_direction_sign])
             else:
                 axis_grid_points = np.linspace(
                     center[axis_i] - tactile_points_dx * (num_divs[idx] + 1.0) / 2.0,
@@ -414,7 +446,7 @@ class VisuoTactileSensor(SensorBase):
         # Project ray in positive y direction on the mesh
         mesh_data = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
         ray_dir = np.array([0, 0, 0])
-        ray_dir[slim_axis] = -np.sign(elastomer_to_tip_link_pos[0][slim_axis].item())  # Ray point towards elastomer
+        ray_dir[slim_axis] = -tip_direction_sign  # Ray points towards elastomer (opposite of tip direction)
 
         # Handle the ray intersection result
         index_tri, index_ray, locations = mesh_data.intersects_id(
@@ -444,34 +476,6 @@ class VisuoTactileSensor(SensorBase):
 
         omni.log.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
         return True
-
-    def _get_elastomer_to_tip_transform(self):
-        """Get the transformation from the elastomer to the tip.
-
-        Returns:
-            Position of the elastomer tip in the elastomer local frame.
-        """
-        # Get elastomer and tip body handles using IsaacLab's body view system
-        if self._elastomer_body_view is None or self._elastomer_tip_body_view is None:
-            raise RuntimeError("Elastomer body view not initialized")
-
-        # Get poses directly from the dedicated body views
-        elastomer_pose = self._elastomer_body_view.get_transforms()
-        elastomer_tip_pose = self._elastomer_tip_body_view.get_transforms()
-        elastomer_pose[..., 3:] = math_utils.convert_quat(elastomer_pose[..., 3:], to="wxyz")
-        elastomer_tip_pose[..., 3:] = math_utils.convert_quat(elastomer_tip_pose[..., 3:], to="wxyz")
-
-        # Extract positions and quaternions from the first environment
-        elastomer_pos = elastomer_pose[0, :3]  # (3,)
-        elastomer_quat = elastomer_pose[0, 3:]  # (4,)
-        tip_pos = elastomer_tip_pose[0, :3]  # (3,)
-
-        # Compute relative transform from elastomer to tip
-        # Position: transform tip position to elastomer local frame
-        relative_pos_world = tip_pos - elastomer_pos
-        tip_pos_local = math_utils.quat_apply_inverse(elastomer_quat, relative_pos_world.unsqueeze(0))
-
-        return tip_pos_local
 
     def _initialize_sdf(self):
         """Initialize SDF for collision detection."""
