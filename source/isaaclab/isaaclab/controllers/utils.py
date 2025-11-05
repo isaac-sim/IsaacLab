@@ -37,7 +37,7 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
         "edge_names_to_remove": None,
         "root": None,
         "parent_link_is_body_1": None,
-        "log_level": logger.level_from_name("ERROR"),
+        "log_level": logging.ERROR,
     }
 
     urdf_output_dir = os.path.join(output_path, "urdf")
