@@ -150,12 +150,11 @@ class InteractiveScene:
 
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
-            clone_plan = {"src": [], "dest": [], "mapping": torch.empty((0,), dtype=torch.bool).to(self.device)}
             self._global_template_prim_paths = list()  # store paths that are in global collision filter from templates
             self._add_entities_from_cfg()
             for prim_path in self._global_template_prim_paths:
-                i = clone_plan["src"].index(prim_path)
-                self._global_prim_paths.extend(sim_utils.find_matching_prim_paths(clone_plan["dest"][i].format(".*")))
+                filter_regex = prim_path.replace(self.cloner_cfg.template_root, self.env_regex_ns)
+                self._global_prim_paths.extend(sim_utils.find_matching_prim_paths(filter_regex))
 
             self.clone_environments()
             if self.cfg.filter_collisions:
