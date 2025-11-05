@@ -533,7 +533,7 @@ class ArticulationData(BaseArticulationData):
     def body_link_vel_w(self) -> wp.array | torch.Tensor:
         """Body link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
+        Shapes are (num_instances, num_bodies,). Velocities are in the form of [vx, vy, vz, wx, wy, wz].
         This quantity contains the linear and angular velocities of the articulation links' actor frame
         relative to the world.
         """
