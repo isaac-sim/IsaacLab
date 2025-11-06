@@ -429,16 +429,17 @@ def test_haply_constructors(mock_environment, mocker):
     assert isinstance(result, torch.Tensor)
     assert result.shape == (10,)  # (pos_x, pos_y, pos_z, qx, qy, qz, qw, btn_a, btn_b, btn_c)
 
-    # Test push_force with tensor
+    # Test push_force with tensor (single force vector)
     forces_within = torch.tensor([[1.0, 1.5, -0.5]], dtype=torch.float32)
-    haply.push_force(forces_within)
+    position_zero = torch.tensor([0], dtype=torch.long)
+    haply.push_force(forces_within, position_zero)
     assert haply.feedback_force["x"] == pytest.approx(1.0)
     assert haply.feedback_force["y"] == pytest.approx(1.5)
     assert haply.feedback_force["z"] == pytest.approx(-0.5)
 
     # Test push_force with tensor (force limiting, default limit is 2.0 N)
     forces_exceed = torch.tensor([[5.0, -10.0, 1.5]], dtype=torch.float32)
-    haply.push_force(forces_exceed)
+    haply.push_force(forces_exceed, position_zero)
     assert haply.feedback_force["x"] == pytest.approx(2.0)
     assert haply.feedback_force["y"] == pytest.approx(-2.0)
     assert haply.feedback_force["z"] == pytest.approx(1.5)

@@ -22,6 +22,7 @@ except ImportError:
     WEBSOCKETS_AVAILABLE = False
 
 from ..device_base import DeviceBase, DeviceCfg
+from ..retargeter_base import RetargeterBase
 
 
 @dataclass
@@ -67,12 +68,13 @@ class HaplyDevice(DeviceBase):
 
     """
 
-    def __init__(self, cfg: HaplyDeviceCfg, retargeters=None):
+    def __init__(self, cfg: HaplyDeviceCfg, retargeters: list[RetargeterBase] | None = None):
         """Initialize the Haply device interface.
 
         Args:
             cfg: Configuration object for Haply device settings.
-            retargeters: Optional list of retargeting components (not used in basic implementation).
+            retargeters: Optional list of retargeting components that transform device data
+                into robot commands. If None or empty, the device outputs its native data format.
 
         Raises:
             ImportError: If websockets module is not installed.
@@ -236,13 +238,7 @@ class HaplyDevice(DeviceBase):
 
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
-    def push_force(
-        self,
-        forces: torch.Tensor,
-        names: list[str] | None = None,
-        frame: str = "world",
-        position: torch.Tensor | None = None,
-    ) -> None:
+    def push_force(self, forces: torch.Tensor, position: torch.Tensor) -> None:
         """Push force vector to Haply Inverse3 device.
 
         Overrides DeviceBase.push_force() to provide force feedback for Haply Inverse3.
@@ -250,22 +246,16 @@ class HaplyDevice(DeviceBase):
 
         Args:
             forces: Tensor of shape (N, 3) with forces [fx, fy, fz].
-            names: Optional labels (ignored for Haply Inverse3).
-            frame: Frame of the vectors (currently only "world" is supported).
-            position: Optional tensor of indices specifying which forces to use.
-                     If provided, should be a 1D tensor of integer indices (e.g., torch.tensor([0, 2])).
-                     If None, uses the first force (index 0).
+            position: Tensor of shape (N) with indices specifying which forces to use.
         """
         # Check if forces is empty
         if forces.shape[0] == 0:
             raise ValueError("No forces provided")
 
-        if position is not None:
-            selected_forces = forces[position] if position.ndim > 0 else forces[position].unsqueeze(0)
-            force = selected_forces.sum(dim=0)
-            force = force.cpu().numpy() if force.is_cuda else force.numpy()
-        else:
-            force = forces[0].cpu().numpy() if forces.is_cuda else forces[0].numpy()
+        # Select forces using position indices
+        selected_forces = forces[position] if position.ndim > 0 else forces[position].unsqueeze(0)
+        force = selected_forces.sum(dim=0)
+        force = force.cpu().numpy() if force.is_cuda else force.numpy()
 
         fx = np.clip(force[0], -self.limit_force, self.limit_force)
         fy = np.clip(force[1], -self.limit_force, self.limit_force)

@@ -77,29 +77,6 @@ class DeviceBase(ABC):
         """
         raise NotImplementedError
 
-    def push_force(
-        self,
-        forces: torch.Tensor,
-        names: list[str] | None = None,
-        frame: str = "world",
-        position: torch.Tensor | None = None,
-    ) -> None:
-        """Push one or more 3D force vectors to the device (optional; default no-op).
-
-        Args:
-            forces: Tensor of shape (N, 3) with forces [fx, fy, fz].
-            names: Optional labels for each force channel.
-            frame: Frame of the vectors: "world" (default) or "device".
-            position: Optional tensor of indices specifying which forces to use.
-                     If provided, should be a 1D tensor of integer indices (e.g., torch.tensor([0, 2])).
-
-        Note:
-            Devices that support haptics should override this method to forward
-            forces to their hardware API. Devices that do not support haptics
-            may ignore this call.
-        """
-        return  # no-op by default
-
     def _get_raw_data(self) -> Any:
         """Internal method to get the raw data from the device.
 

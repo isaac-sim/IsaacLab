@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.47.8 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``HaplyDevice`` class for Inverse3 and VerseGrip integration.
+* Added ``haply_teleoperation.py`` demo script for real-time robot manipulation with force feedback.
+* Added Haply device tests in ``test_device_constructors.py``.
+
+Changed
+^^^^^^^
+
+* Updated ``api`` and ``how-to`` documentation for Haply device.
+
 0.47.7 (2025-10-31)
 ~~~~~~~~~~~~~~~~~~~
 
