@@ -194,13 +194,12 @@ class ManagerBasedEnv:
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
             msg = (
-                "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
-                " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
+                f"\033[93m\033[1m[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                f" ManagerBasedEnvCfg.num_rerenders_on_reset instead.\033[0m"
             )
-            omni.log.warn(msg)
             warnings.warn(
                 msg,
-                DeprecationWarning,
+                FutureWarning,
                 stacklevel=2,
             )
             self.cfg.num_rerenders_on_reset = 1
