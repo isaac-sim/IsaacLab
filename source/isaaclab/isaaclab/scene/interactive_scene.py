@@ -651,6 +651,7 @@ class InteractiveScene:
                 continue
             # resolve regex
             require_clone = False
+            asset_cfg = asset_cfg.copy()
             if hasattr(asset_cfg, "prim_path"):
                 # In order to compose cloner behavior more flexibly, we ask each spawner to spawn prototypes in
                 # prepared /World/template path, once all template is ready, cloner can determine what rules to follow
