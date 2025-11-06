@@ -57,20 +57,16 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         # Add waist joint to pink_ik_cfg
         waist_joint_names = ["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"]
         for joint_name in waist_joint_names:
-            self.actions.pink_ik_cfg.pink_controlled_joint_names.append(joint_name)
-            self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names.remove(joint_name)
+            self.actions.upper_body_ik.pink_controlled_joint_names.append(joint_name)
 
         # Convert USD to URDF and change revolute joints to fixed
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
             self.scene.robot.spawn.usd_path, self.temp_urdf_dir, force_conversion=True
         )
-        ControllerUtils.change_revolute_to_fixed(
-            temp_urdf_output_path, self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names
-        )
 
         # Set the URDF and mesh paths for the IK controller
-        self.actions.pink_ik_cfg.controller.urdf_path = temp_urdf_output_path
-        self.actions.pink_ik_cfg.controller.mesh_path = temp_urdf_meshes_output_path
+        self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
+        self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -81,7 +77,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                             # number of joints in both hands
                             num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
                     ],
                     sim_device=self.sim.device,

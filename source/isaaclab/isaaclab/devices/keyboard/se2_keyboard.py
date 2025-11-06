@@ -82,7 +82,7 @@ class Se2Keyboard(DeviceBase):
 
     def __del__(self):
         """Release the keyboard interface."""
-        self._input.unsubscribe_from_keyboard_events(self._keyboard, self._keyboard_sub)
+        self._input.unsubscribe_to_keyboard_events(self._keyboard, self._keyboard_sub)
         self._keyboard_sub = None
 
     def __str__(self) -> str:
