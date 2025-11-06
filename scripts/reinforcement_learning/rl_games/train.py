@@ -138,11 +138,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # specify directory for logging experiments
     config_name = agent_cfg["params"]["config"]["name"]
     log_root_path = os.path.join("logs", "rl_games", config_name)
-    if "pbt" in agent_cfg:
-        if agent_cfg["pbt"]["directory"] == ".":
-            log_root_path = os.path.abspath(log_root_path)
-        else:
-            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+    if "pbt" in agent_cfg and agent_cfg["pbt"]["directory"] != ".":
+        log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+    else:
+        log_root_path = os.path.abspath(log_root_path)
 
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
@@ -157,6 +156,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
+    print(f"Exact experiment name requested from command line: {os.path.join(log_root_path, log_dir)}")
 
     # read configurations about the agent-training
     rl_device = agent_cfg["params"]["config"]["device"]
