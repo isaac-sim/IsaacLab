@@ -1109,16 +1109,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: Not saving checkpoints, just running experiment...&quot;</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Model parameters and metrics will be preserved.&quot;</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: For homogeneous cluster resources only...&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Initialize Ray</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ray_init</span><span class="p">(</span>
+        <span class="n">ray_address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span>
+        <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
     <span class="c1"># Get available resources</span>
     <span class="n">resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">()</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Available resources </span><span class="si">{</span><span class="n">resources</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">ray</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
-        <span class="n">ray</span><span class="o">.</span><span class="n">init</span><span class="p">(</span>
-            <span class="n">address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span>
-            <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">num_gpus</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">resources</span><span class="p">),</span>
-        <span class="p">)</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Using config </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
