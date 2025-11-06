@@ -22,7 +22,7 @@ import torch
 
 import pytest
 from isaacsim.core.version import get_version
-from isaaclab.scene import cloner
+
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
@@ -31,6 +31,7 @@ from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuato
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.scene import cloner
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
