@@ -16,7 +16,6 @@ Fixed
 Changed
 ^^^^^^^
 
-
 * Changed Pink IK controller qpsolver from osqp to daqp.
 * Changed Null Space matrix computation in Pink IK's Null Space Posture Task to a faster matrix pseudo inverse computation.
 
