@@ -223,15 +223,16 @@ class DirectRLEnv(gym.Env):
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
             msg = (
-                f"\033[93m\033[1m[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
-                f" DirectRLEnvCfg.num_rerenders_on_reset instead.\033[0m"
+                "\033[93m\033[1m[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                " DirectRLEnvCfg.num_rerenders_on_reset instead.\033[0m"
             )
             warnings.warn(
                 msg,
                 FutureWarning,
                 stacklevel=2,
             )
-            self.cfg.num_rerenders_on_reset = 1
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
