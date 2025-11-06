@@ -66,8 +66,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.05, 0.05),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -78,8 +78,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.05, 0.05),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -90,8 +90,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.05, 0.05),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -102,8 +102,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.05, 0.05),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -114,8 +114,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
-            "static_friction_range": (4.0, 4.0),
-            "dynamic_friction_range": (2.0, 2.0),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -226,12 +226,12 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             # is close to the optimal grasp pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
-                    "shoulder_pan_joint": 2.8168,
-                    "shoulder_lift_joint": -0.8391,
-                    "elbow_joint": 1.3739,
-                    "wrist_1_joint": -2.0758,
-                    "wrist_2_joint": -1.5363,
-                    "wrist_3_joint": -5.0353,
+                    "shoulder_pan_joint": 2.7228e+00,
+                    "shoulder_lift_joint": -8.3962e-01,
+                    "elbow_joint": 1.3684e+00,
+                    "wrist_1_joint": -2.1048e+00,
+                    "wrist_2_joint": -1.5691e+00,
+                    "wrist_3_joint": -1.9896e+00,
                     "finger_joint": 0.0,
                     ".*_inner_finger_joint": 0.0,
                     ".*_inner_finger_pad_joint": 0.0,
