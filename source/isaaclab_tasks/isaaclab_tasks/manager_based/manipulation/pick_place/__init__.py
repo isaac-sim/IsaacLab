@@ -52,7 +52,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.pickplace_unitree_g1_inspire_hand_env_cfg:PickPlaceG1InspireFTPEnvCfg",
-        "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc_rnn_low_dim.json"),
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
