@@ -226,12 +226,12 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             # is close to the optimal grasp pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
-                    "shoulder_pan_joint": 2.7228e+00,
-                    "shoulder_lift_joint": -8.3962e-01,
-                    "elbow_joint": 1.3684e+00,
-                    "wrist_1_joint": -2.1048e+00,
-                    "wrist_2_joint": -1.5691e+00,
-                    "wrist_3_joint": -1.9896e+00,
+                    "shoulder_pan_joint": 2.8168,
+                    "shoulder_lift_joint": -0.8391,
+                    "elbow_joint": 1.3739,
+                    "wrist_1_joint": -2.0758,
+                    "wrist_2_joint": -1.5363,
+                    "wrist_3_joint": -5.0353,
                     "finger_joint": 0.0,
                     ".*_inner_finger_joint": 0.0,
                     ".*_inner_finger_pad_joint": 0.0,
