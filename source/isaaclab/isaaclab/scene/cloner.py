@@ -112,46 +112,47 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         cfg.template_root,
         predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
     )
-    prototype_root_set = {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
-    for prototype_root in prototype_root_set:
-        protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
-        protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
-        m = torch.zeros((len(protos), num_clones), dtype=torch.bool, device=cfg.device)
-        # Optionally select prototypes randomly per environment; else round-robin by modulo
-        if cfg.random_heterogenous_cloning:
-            rand_idx = torch.randint(len(protos), (num_clones,), device=cfg.device)
-            m[rand_idx, world_indices] = True
+    if len(prototypes) > 0:
+        prototype_root_set = {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
+        for prototype_root in prototype_root_set:
+            protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
+            protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
+            m = torch.zeros((len(protos), num_clones), dtype=torch.bool, device=cfg.device)
+            # Optionally select prototypes randomly per environment; else round-robin by modulo
+            if cfg.random_heterogenous_cloning:
+                rand_idx = torch.randint(len(protos), (num_clones,), device=cfg.device)
+                m[rand_idx, world_indices] = True
+            else:
+                m[world_indices % len(protos), world_indices] = True
+
+            clone_plan["src"].extend(protos)
+            clone_plan["dest"].extend([prototype_root.replace(cfg.template_root, clone_path_fmt)] * len(protos))
+            clone_plan["mapping"] = torch.cat((clone_plan["mapping"].reshape(-1, m.size(1)), m), dim=0)
+
+        proto_idx = clone_plan["mapping"].to(torch.int32).argmax(dim=1)
+        proto_mask = torch.zeros_like(clone_plan["mapping"])
+        proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_plan["mapping"].any(dim=1, keepdim=True))
+        usd_replicate(stage, clone_plan["src"], clone_plan["dest"], world_indices, proto_mask)
+        stage.GetPrimAtPath(cfg.template_root).SetActive(False)
+
+        # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
+        if torch.all(proto_idx == 0):
+            replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_plan["mapping"]
+            if cfg.clone_usd:
+                # parse env_origins directly from clone_path
+                get_translate = (
+                    lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
+                )  # noqa: E731
+                positions = torch.tensor([get_translate(clone_path_fmt.format(i)) for i in world_indices])
+                usd_replicate(stage, *replicate_args, positions=positions)
         else:
-            m[world_indices % len(protos), world_indices] = True
+            src = [tpl.format(int(idx)) for tpl, idx in zip(clone_plan["dest"], proto_idx.tolist())]
+            replicate_args = src, clone_plan["dest"], world_indices, clone_plan["mapping"]
+            if cfg.clone_usd:
+                usd_replicate(stage, *replicate_args)
 
-        clone_plan["src"].extend(protos)
-        clone_plan["dest"].extend([prototype_root.replace(cfg.template_root, clone_path_fmt)] * len(protos))
-        clone_plan["mapping"] = torch.cat((clone_plan["mapping"].reshape(-1, m.size(1)), m), dim=0)
-
-    proto_idx = clone_plan["mapping"].to(torch.int32).argmax(dim=1)
-    proto_mask = torch.zeros_like(clone_plan["mapping"])
-    proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_plan["mapping"].any(dim=1, keepdim=True))
-    usd_replicate(stage, clone_plan["src"], clone_plan["dest"], world_indices, proto_mask)
-    stage.GetPrimAtPath(cfg.template_root).SetActive(False)
-
-    # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
-    if torch.all(proto_idx == 0):
-        replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_plan["mapping"]
-        if cfg.clone_usd:
-            # parse env_origins directly from clone_path
-            get_translate = (
-                lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
-            )  # noqa: E731
-            positions = torch.tensor([get_translate(clone_path_fmt.format(i)) for i in world_indices])
-            usd_replicate(stage, *replicate_args, positions=positions)
-    else:
-        src = [tpl.format(int(idx)) for tpl, idx in zip(clone_plan["dest"], proto_idx.tolist())]
-        replicate_args = src, clone_plan["dest"], world_indices, clone_plan["mapping"]
-        if cfg.clone_usd:
-            usd_replicate(stage, *replicate_args)
-
-    if cfg.clone_physx:
-        physx_replicate(stage, *replicate_args, use_fabric=cfg.clone_in_fabric)
+        if cfg.clone_physx:
+            physx_replicate(stage, *replicate_args, use_fabric=cfg.clone_in_fabric)
 
 
 def usd_replicate(

@@ -135,8 +135,6 @@ class InteractiveScene:
         self._physics_scene_path = None
         # prepare cloner for environment replication
         self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
-        # create source prim
-        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
 
         self.cloner_cfg = cloner.TemplateCloneCfg(
             clone_regex=self.env_regex_ns,
@@ -144,6 +142,10 @@ class InteractiveScene:
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
         )
+
+        # create source prim
+        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+        self.stage.DefinePrim(self.cloner_cfg.template_root, "Xform")
         self.env_fmt = self.env_regex_ns.replace(".*", "{}")
         # allocate env indices
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
