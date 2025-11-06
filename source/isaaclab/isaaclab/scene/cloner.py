@@ -137,11 +137,11 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
     # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
     if torch.all(proto_idx == 0):
         replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_plan["mapping"]
-        # parse env_origins directly from clone_path
-        get_translate = (
-            lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
-        )  # noqa: E731
         if cfg.clone_usd:
+            # parse env_origins directly from clone_path
+            get_translate = (
+                lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
+            )  # noqa: E731
             positions = torch.tensor([get_translate(clone_path_fmt.format(i)) for i in world_indices])
             usd_replicate(stage, *replicate_args, positions=positions)
     else:
