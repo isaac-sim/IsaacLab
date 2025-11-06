@@ -47,7 +47,6 @@ from isaaclab.newton.kernels import (
     split_state_to_velocity,
     update_soft_joint_pos_limits,
 )
-from isaaclab.newton import Frontend, QuaternionFormat
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 
@@ -121,15 +120,13 @@ class Articulation(BaseArticulation):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    def __init__(self, cfg: ArticulationCfg, frontend: Frontend = Frontend.TORCH, quaternion_format: QuaternionFormat | None = None):
+    def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
         Args:
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        self._frontend = frontend
-        self._quaternion_format = quaternion_format
 
     """
     Properties
@@ -209,12 +206,14 @@ class Articulation(BaseArticulation):
     """
 
     def reset(self, ids: Sequence[int] | None = None, mask: wp.array | None = None):
-        if self._frontend == Frontend.TORCH:
-            if ids is not None:
-                mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-                mask[ids] = True
+        if ids is not None and mask is None:
+            mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+            mask[ids] = True
+            mask = wp.from_torch(mask, dtype=wp.bool)
+        elif mask is not None:
+            if isinstance(mask, torch.Tensor):
                 mask = wp.from_torch(mask, dtype=wp.bool)
-        if mask is None:
+        else:
             mask = self._data.ALL_ENV_MASK
         # reset external wrench
         wp.launch(
@@ -248,14 +247,6 @@ class Articulation(BaseArticulation):
     """
     Frontend conversions - Torch to Warp.
     """
-
-    def _convert_quaternion_format(self, quaternion: torch.Tensor) -> torch.Tensor:
-        return quaternion.clone().roll(-1, dims=-1) if self._quaternion_format == QuaternionFormat.WXYZ else quaternion
-
-    def _convert_pose_to_quaternion_format(self, pose: torch.Tensor) -> torch.Tensor:
-        pose_ = pose.clone()
-        pose_[..., 3:7] = self._convert_quaternion_format(pose[..., 3:7])
-        return pose_
 
     def _torch_to_warp_single_index(
         self,
@@ -372,7 +363,7 @@ class Articulation(BaseArticulation):
 
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[wp.array | torch.Tensor, list[str], list[int]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -385,15 +376,12 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body mask, names, and indices.
         """
-        if self._frontend == Frontend.TORCH:
-            mask, names, indices = self._find_bodies(name_keys, preserve_order)
-            return wp.to_torch(mask), names, indices
-        else:
-            return self._find_bodies(name_keys, preserve_order)
+        return self._find_bodies(name_keys, preserve_order)
+
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array | torch.Tensor, list[str], list[int]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -408,15 +396,11 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the joint mask, names, and indices.
         """
-        if self._frontend == Frontend.TORCH:
-            mask, names, indices = self._find_joints(name_keys, joint_subset, preserve_order)
-            return wp.to_torch(mask), names, indices
-        else:
-            return self._find_joints(name_keys, joint_subset, preserve_order)
+        return self._find_joints(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array | torch.Tensor, list[str], list[int]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -436,7 +420,7 @@ class Articulation(BaseArticulation):
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array | torch.Tensor, list[str], list[int]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -452,6 +436,7 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the tendon mask, names, and indices.
         """
         raise NotImplementedError("Spatial tendons are not supported in Newton.")
+
     """
     Operations - State Writers.
     """
@@ -474,7 +459,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(root_state, torch.Tensor):
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
         # solve for None masks
         if env_mask is None:
@@ -503,8 +488,10 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(root_state, torch.Tensor):
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
         pose, velocity = self._split_state(root_state)
         # write the pose and velocity to the simulation
@@ -529,8 +516,10 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(root_state, torch.Tensor):
             root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
         pose, velocity = self._split_state(root_state)
         # write the pose and velocity to the simulation
@@ -571,8 +560,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
-            pose = self._convert_pose_to_quaternion_format(pose)
+        if isinstance(pose, torch.Tensor):
             pose, env_mask = self._torch_to_warp_single_index(pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
         # solve for None masks
         if env_mask is None:
@@ -580,7 +568,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         self._update_array_with_array_masked(
             pose,
-            self._data._sim_bind_root_link_pose_w,
+            self._data.root_link_pose_w,
             env_mask,
             self.num_instances
         )
@@ -604,14 +592,29 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
-            root_pose = self._convert_pose_to_quaternion_format(root_pose)
+        if isinstance(root_pose, torch.Tensor):
             root_pose, env_mask = self._torch_to_warp_single_index(root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # Write to Newton using warp
-        self._write_root_com_pose_to_sim(root_pose, env_mask)
+        self._update_array_with_array_masked(
+            root_pose,
+            self._data.root_com_pose_w.data,
+            env_mask,
+            self.num_instances
+        )
+        # set link frame poses
+        wp.launch(
+            transform_CoM_pose_to_link_frame_masked_root,
+            dim=self.num_instances,
+            inputs=[
+                self._data.root_com_pose_w,
+                self._data.body_com_pos_b,
+                self._data.root_link_pose_w,
+                env_mask,
+            ],
+        )
 
     def write_root_velocity_to_sim(
         self,
@@ -648,7 +651,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(root_velocity, torch.Tensor):
             root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
         # solve for None masks
         if env_mask is None:
@@ -656,7 +659,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         self._update_array_with_array_masked(
             root_velocity,
-            self._data._sim_bind_root_com_vel_w,
+            self._data.root_com_vel_w,
             env_mask,
             self.num_instances
         )
@@ -677,7 +680,7 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(root_velocity, torch.Tensor):
             root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
         # solve for None masks
         if env_mask is None:
@@ -708,7 +711,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(position, torch.Tensor):
             position, _, _ = self._torch_to_warp_dual_index(position, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
             velocity, env_mask, joint_mask = self._torch_to_warp_dual_index(velocity, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
@@ -719,14 +722,14 @@ class Articulation(BaseArticulation):
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
             position,
-            self._data._sim_bind_joint_pos,
+            self._data.joint_pos,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
         )
         self._update_batched_array_with_batched_array_masked(
             velocity,
-            self._data._sim_bind_joint_vel,
+            self._data.joint_vel,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -750,7 +753,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(position, torch.Tensor):
             position, env_mask, joint_mask = self._torch_to_warp_dual_index(position, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -760,7 +763,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
             position,
-            self._data._sim_bind_joint_pos,
+            self._data.joint_pos,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -784,7 +787,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(velocity, torch.Tensor):
             velocity, env_mask, joint_mask = self._torch_to_warp_dual_index(velocity, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -794,7 +797,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
             velocity,
-            self._data._sim_bind_joint_vel,
+            self._data.joint_vel,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -825,7 +828,7 @@ class Articulation(BaseArticulation):
             ValueError: If the control mode is invalid.
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(control_mode, torch.Tensor):
             control_mode, env_mask, joint_mask = self._torch_to_warp_dual_index(control_mode, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -836,7 +839,7 @@ class Articulation(BaseArticulation):
         if isinstance(control_mode, int):
             self._update_batched_array_with_value_masked(
                 control_mode,
-                self._data._sim_bind_joint_control_mode_sim,
+                self._data.joint_control_mode,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -844,7 +847,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 control_mode,
-                self._data._sim_bind_joint_control_mode_sim,
+                self._data.joint_control_mode,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -870,7 +873,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(stiffness, torch.Tensor):
             stiffness, env_mask, joint_mask = self._torch_to_warp_dual_index(stiffness, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -881,7 +884,7 @@ class Articulation(BaseArticulation):
         if isinstance(stiffness, float):
             self._update_batched_array_with_value_masked(
                 stiffness,
-                self._data._sim_bind_joint_stiffness_sim,
+                self._data.joint_stiffness,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -889,7 +892,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 stiffness,
-                self._data._sim_bind_joint_stiffness_sim,
+                self._data.joint_stiffness,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -915,7 +918,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(damping, torch.Tensor):
             damping, env_mask, joint_mask = self._torch_to_warp_dual_index(damping, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -926,7 +929,7 @@ class Articulation(BaseArticulation):
         if isinstance(damping, float):
             self._update_batched_array_with_value_masked(
                 damping,
-                self._data._sim_bind_joint_damping_sim,
+                self._data.joint_damping,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -934,7 +937,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 damping,
-                self._data._sim_bind_joint_damping_sim,
+                self._data.joint_damping,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -962,7 +965,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(upper_limits, torch.Tensor):
             upper_limits, _, _ = self._torch_to_warp_dual_index(upper_limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
             lower_limits, env_mask, joint_mask = self._torch_to_warp_dual_index(lower_limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
@@ -1002,7 +1005,7 @@ class Articulation(BaseArticulation):
         if isinstance(NewtonManager._solver, SolverMuJoCo):
             warnings.warn("write_joint_velocity_limit_to_sim is ignored by the solver when using Mujoco.")
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(limits, torch.Tensor):
             limits, env_mask, joint_mask = self._torch_to_warp_dual_index(limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1013,7 +1016,7 @@ class Articulation(BaseArticulation):
         if isinstance(limits, float):
             self._update_batched_array_with_value_masked(
                 limits,
-                self._data._sim_bind_joint_vel_limits_sim,
+                self._data.joint_vel_limits,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1021,7 +1024,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 limits,
-                self._data._sim_bind_joint_vel_limits_sim,
+                self._data.joint_vel_limits,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1050,7 +1053,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(limits, torch.Tensor):
             limits, env_mask, joint_mask = self._torch_to_warp_dual_index(limits, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1061,7 +1064,7 @@ class Articulation(BaseArticulation):
         if isinstance(limits, float):
             self._update_batched_array_with_value_masked(
                 limits,
-                self._data._sim_bind_joint_effort_limits_sim,
+                self._data.joint_effort_limits,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1069,7 +1072,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 limits,
-                self._data._sim_bind_joint_effort_limits_sim,
+                self._data.joint_effort_limits,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1098,7 +1101,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(armature, torch.Tensor):
             armature, env_mask, joint_mask = self._torch_to_warp_dual_index(armature, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1109,7 +1112,7 @@ class Articulation(BaseArticulation):
         if isinstance(armature, float):
             self._update_batched_array_with_value_masked(
                 armature,
-                self._data._sim_bind_joint_armature,
+                self._data.joint_armature,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1117,7 +1120,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 armature,
-                self._data._sim_bind_joint_armature,
+                self._data.joint_armature,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1152,7 +1155,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(joint_friction_coeff, torch.Tensor):
             joint_friction_coeff, env_mask, joint_mask = self._torch_to_warp_dual_index(joint_friction_coeff, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1163,7 +1166,7 @@ class Articulation(BaseArticulation):
         if isinstance(joint_friction_coeff, float):
             self._update_batched_array_with_value_masked(
                 joint_friction_coeff,
-                self._data._sim_bind_joint_friction_coeff,
+                self._data.joint_friction_coeff,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1171,7 +1174,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 joint_friction_coeff,
-                self._data._sim_bind_joint_friction_coeff,
+                self._data.joint_friction_coeff,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1188,7 +1191,7 @@ class Articulation(BaseArticulation):
         env_mask: wp.array | None = None,
     ) -> None:
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(joint_dynamic_friction_coeff, torch.Tensor):
             joint_dynamic_friction_coeff, env_mask, joint_mask = self._torch_to_warp_dual_index(joint_dynamic_friction_coeff, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1199,7 +1202,7 @@ class Articulation(BaseArticulation):
         if isinstance(joint_dynamic_friction_coeff, float):
             self._update_batched_array_with_value_masked(
                 joint_dynamic_friction_coeff,
-                self._data._joint_dynamic_friction,
+                self._data.joint_dynamic_friction_coeff,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1207,7 +1210,7 @@ class Articulation(BaseArticulation):
         else:
             self._update_batched_array_with_batched_array_masked(
                 joint_dynamic_friction_coeff,
-                self._data._joint_dynamic_friction,
+                self._data.joint_dynamic_friction_coeff,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints)
@@ -1309,7 +1312,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor):
             if forces is not None:
                 forces, env_mask, body_mask = self._torch_to_warp_dual_index(forces, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
             if torques is not None:
@@ -1320,7 +1323,30 @@ class Articulation(BaseArticulation):
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # set into simulation
-        self._set_external_force_and_torque(forces, torques, body_mask, env_mask)
+        if (forces is not None) or (torques is not None):
+            self.has_external_wrench = True
+            if forces is not None:
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        forces,
+                        self._data._sim_bind_body_external_wrench,
+                        env_mask,
+                        body_mask,
+                    ],
+                )
+            if torques is not None:
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        torques,
+                        self._data._sim_bind_body_external_wrench,
+                        env_mask,
+                        body_mask,
+                    ],
+                )
 
     def set_joint_position_target(
         self,
@@ -1343,7 +1369,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(target, torch.Tensor):
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1356,7 +1382,7 @@ class Articulation(BaseArticulation):
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 target,
-                self._data._sim_bind_joint_target,
+                self._data.joint_target,
                 env_mask,
                 joint_mask,
             ],
@@ -1383,7 +1409,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(target, torch.Tensor):
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1393,7 +1419,7 @@ class Articulation(BaseArticulation):
         # set into the actuator target buffer
         self._update_batched_array_with_batched_array_masked(
             target,
-            self._data._sim_bind_joint_target,
+            self._data.joint_target,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -1420,7 +1446,7 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if self._frontend == Frontend.TORCH:
+        if isinstance(target, torch.Tensor):
             target, env_mask, joint_mask = self._torch_to_warp_dual_index(target, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
         # solve for None masks
         if env_mask is None:
@@ -1771,11 +1797,7 @@ class Articulation(BaseArticulation):
         )
 
         # container for data access
-        if self._frontend == Frontend.TORCH and self._quaternion_format is None:
-            self._quaternion_format = QuaternionFormat.WXYZ
-        if self._frontend == Frontend.WARP and self._quaternion_format is None:
-            self._quaternion_format = QuaternionFormat.XYZW
-        self._data = ArticulationData(self._root_view, self.device, frontend=self._frontend, quaternion_format=self._quaternion_format)
+        self._data = ArticulationData(self._root_view, self.device)
 
         # process configuration
         self._create_buffers()
@@ -1801,15 +1823,14 @@ class Articulation(BaseArticulation):
         self._root_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
     def _create_buffers(self, *args, **kwargs):
-        if self._frontend == Frontend.TORCH:
-            self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
         wp.launch(
             update_soft_joint_pos_limits,
             dim=(self.num_instances, self.num_joints),
             inputs=[
-                self.data._sim_bind_joint_pos_limits_lower,
-                self.data._sim_bind_joint_pos_limits_upper,
-                self.data._soft_joint_pos_limits,
+                self._data.joint_pos_limits_lower,
+                self._data.joint_pos_limits_upper,
+                self._data.soft_joint_pos_limits,
                 self.cfg.soft_joint_pos_limit_factor,
             ],
         )
@@ -1826,14 +1847,14 @@ class Articulation(BaseArticulation):
         # update the default root pose
         self._update_array_with_value(
             wp.transformf(*default_root_pose),
-            self._data._default_root_pose,
+            self._data.default_root_pose,
             self.num_instances
         )
         # default velocity
         default_root_velocity = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
         self._update_array_with_value(
             wp.spatial_vectorf(*default_root_velocity),
-            self._data._default_root_vel,
+            self._data.default_root_vel,
             self.num_instances
         )
         # -- joint pos
@@ -1863,7 +1884,7 @@ class Articulation(BaseArticulation):
         )
         self._update_batched_array_with_array_masked(
             tmp_joint_data,
-            self._data._default_joint_pos,
+            self._data.default_joint_pos,
             self._data.ALL_ENV_MASK,
             self._data.JOINT_MASK,
             (self.num_instances, self.num_joints)
@@ -1883,7 +1904,7 @@ class Articulation(BaseArticulation):
         )
         self._update_batched_array_with_array_masked(
             tmp_joint_data,
-            self._data._default_joint_vel,
+            self._data.default_joint_vel,
             self._data.ALL_ENV_MASK,
             self._data.JOINT_MASK,
             (self.num_instances, self.num_joints)
@@ -1946,40 +1967,40 @@ class Articulation(BaseArticulation):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self._update_batched_array_with_batched_array_masked(
-                    self._data._actuator_stiffness,
-                    self._data._sim_bind_joint_stiffness_sim,
+                    self._data.actuator_stiffness,
+                    self._data.joint_stiffness,
                     self._data.ALL_ENV_MASK,
                     actuator._joint_mask,
                     (self.num_instances, self.num_joints)
                 )
                 self._update_batched_array_with_batched_array_masked(
-                    self._data._actuator_damping,
-                    self._data._sim_bind_joint_damping_sim,
+                    self._data.actuator_damping,
+                    self._data.joint_damping,
                     self._data.ALL_ENV_MASK,
                     actuator._joint_mask,
                     (self.num_instances, self.num_joints)
                 )
                 # Sets the control mode for the implicit actuators
                 self._update_batched_array_with_batched_array_masked(
-                    self._data._actuator_control_mode,
-                    self._data._sim_bind_joint_control_mode_sim,
+                    self._data.actuator_control_mode,
+                    self._data.joint_control_mode,
                     self._data.ALL_ENV_MASK,
                     actuator._joint_mask,
                     (self.num_instances, self.num_joints)
                 )
                 # When using implicit actuators, we bind the commands sent from the user to the simulation.
                 # We only run the actuator model to compute the estimated joint efforts.
-                self.data._actuator_target = self.data._sim_bind_joint_target
-                self.data._actuator_effort_target = self.data._sim_bind_joint_effort
+                self.data._actuator_target = self.data.joint_target
+                self.data._actuator_effort_target = self.data.joint_effort
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self._update_batched_array_with_value_masked(0.0, self._data._sim_bind_joint_stiffness_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
-                self._update_batched_array_with_value_masked(0.0, self._data._sim_bind_joint_damping_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
+                self._update_batched_array_with_value_masked(0.0, self._data.joint_stiffness, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
+                self._update_batched_array_with_value_masked(0.0, self._data.joint_damping, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 # Set the control mode to None when using explicit actuators
-                self._update_batched_array_with_value_masked(0, self._data._sim_bind_joint_control_mode_sim, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
+                self._update_batched_array_with_value_masked(0, self._data.joint_control_mode, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 # Bind the applied effort to the simulation effort
-                self.data._applied_effort = self.data._sim_bind_joint_effort
+                self.data._applied_effort = self.data.joint_effort
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -2287,58 +2308,6 @@ class Articulation(BaseArticulation):
         )
         return mask, names, indices
 
-    def _set_external_force_and_torque(self, forces: wp.array | None, torques: wp.array | None, body_mask: wp.array, env_mask: wp.array):
-        """Set external force and torque to apply on the asset's bodies in their local frame.
-
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step.
-
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-            .. code-block:: python
-
-                # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=wp.zeros(0, 3), torques=wp.zeros(0, 3))
-
-        .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
-
-        Args:
-            forces: External forces in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            body_mask: The body mask. Shape is (num_bodies).
-            env_mask: The environment mask. Shape is (num_instances,).
-        """
-        if (forces is not None) or (torques is not None):
-            self.has_external_wrench = True
-            if forces is not None:
-                wp.launch(
-                    update_wrench_array_with_force,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        forces,
-                        self._data._sim_bind_body_external_wrench,
-                        env_mask,
-                        body_mask,
-                    ],
-                )
-            if torques is not None:
-                wp.launch(
-                    update_wrench_array_with_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        torques,
-                        self._data._sim_bind_body_external_wrench,
-                        env_mask,
-                        body_mask,
-                    ],
-                )
-
     def _write_joint_position_limit_to_sim(
         self,
         upper_limits: wp.array | float,
@@ -2405,65 +2374,6 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
             )
-
-    def _write_root_com_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array) -> None:
-        """Set the root center of mass pose over selected environment indices into the simulation.
-
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
-        The orientation is the orientation of the principle axes of inertia.
-
-        Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. Shape is (num_instances,).
-        """
-        # update the root com pose (internal buffer)
-        self._update_array_with_array_masked(
-            root_pose,
-            self._data.root_com_pose_w.data,
-            env_mask,
-            self.num_instances
-        )
-        # set link frame poses
-        wp.launch(
-            transform_CoM_pose_to_link_frame_masked_root,
-            dim=self.num_instances,
-            inputs=[
-                self._data._compute_root_com_pose_w(),
-                self._data._sim_bind_body_com_pos_b,
-                self._data._sim_bind_root_link_pose_w,
-                env_mask,
-            ],
-        )
-
-    def _write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array) -> None:
-        """Set the root link velocity over selected environment indices into the simulation.
-
-        The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
-
-        Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. Shape is (num_instances,).
-        """
-        # update the root link velocity (internal buffer)
-        self._update_array_with_array_masked(
-            root_velocity,
-            self._data.root_link_vel_w.data,
-            env_mask,
-            self.num_instances
-        )
-        # set into internal buffers
-        wp.launch(
-            project_link_velocity_to_com_frame_masked_root,
-            dim=self.num_instances,
-            inputs=[
-                root_velocity,
-                self._data._sim_bind_root_link_pose_w,
-                self._data._sim_bind_body_com_pos_b,
-                self._data._sim_bind_root_com_vel_w,
-                env_mask,
-            ],
-        )
 
     @warn_overhead_cost("N/A", "Launches a kernel to split the state into pose and velocity. Consider setting the pose and velocity independently instead.")
     def _split_state(

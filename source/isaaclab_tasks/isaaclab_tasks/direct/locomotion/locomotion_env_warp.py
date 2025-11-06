@@ -404,7 +404,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.torch_episode_length_buf = wp.to_torch(self.episode_length_buf)
 
     def _setup_scene(self) -> None:
-        self.robot = Articulation(self.cfg.robot, frontend=Frontend.WARP)
+        self.robot = Articulation(self.cfg.robot)
         # add ground plane
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing

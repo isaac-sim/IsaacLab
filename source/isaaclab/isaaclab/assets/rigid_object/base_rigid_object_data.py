@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import weakref
-
-import omni.physics.tensors.impl.api as physx
-
-import isaaclab.utils.math as math_utils
-from isaaclab.sim.utils import get_current_stage_id
-from isaaclab.utils.buffers import TimestampedBuffer
-
-import torch
 import warp as wp
 from abc import ABC, abstractmethod
 
@@ -66,12 +57,15 @@ class BaseRigidObjectData(ABC):
     # Defaults.
     ##
 
-    default_root_state: torch.Tensor = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
+    @property
+    @abstractmethod
+    def default_root_state(self) -> wp.array:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
 
-    The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-    of the center of mass frame.
-    """
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
+        of the center of mass frame.
+        """
+        raise NotImplementedError()
 
     ##
     # Root state properties.
@@ -79,7 +73,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_pose_w(self) -> torch.Tensor:
+    def root_link_pose_w(self) -> wp.array:
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the actor frame of the root rigid body relative to the world.
@@ -89,7 +83,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_vel_w(self) -> torch.Tensor:
+    def root_link_vel_w(self) -> wp.array:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
@@ -99,7 +93,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_pose_w(self) -> torch.Tensor:
+    def root_com_pose_w(self) -> wp.array:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
@@ -109,7 +103,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_vel_w(self) -> torch.Tensor:
+    def root_com_vel_w(self) -> wp.array:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
@@ -119,7 +113,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_state_w(self) -> torch.Tensor:
+    def root_state_w(self) -> wp.array:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
@@ -129,7 +123,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_state_w(self) -> torch.Tensor:
+    def root_link_state_w(self) -> wp.array:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
@@ -139,7 +133,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_state_w(self) -> torch.Tensor:
+    def root_com_state_w(self) -> wp.array:
         """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, 13).
 
@@ -154,7 +148,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pose_w(self) -> torch.Tensor:
+    def body_link_pose_w(self) -> wp.array:
         """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
@@ -164,7 +158,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_vel_w(self) -> torch.Tensor:
+    def body_link_vel_w(self) -> wp.array:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 1, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
@@ -174,7 +168,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_w(self) -> torch.Tensor:
+    def body_com_pose_w(self) -> wp.array:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
@@ -184,7 +178,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_vel_w(self) -> torch.Tensor:
+    def body_com_vel_w(self) -> wp.array:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, 1, 6).
 
@@ -195,7 +189,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_state_w(self) -> torch.Tensor:
+    def body_state_w(self) -> wp.array:
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, 1, 13).
 
@@ -206,7 +200,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_state_w(self) -> torch.Tensor:
+    def body_link_state_w(self) -> wp.array:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, 1, 13).
 
@@ -217,7 +211,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_state_w(self) -> torch.Tensor:
+    def body_com_state_w(self) -> wp.array:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
@@ -229,7 +223,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_acc_w(self) -> torch.Tensor:
+    def body_com_acc_w(self) -> wp.array:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
         Shape is (num_instances, 1, 6).
 
@@ -239,7 +233,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_b(self) -> torch.Tensor:
+    def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
         Shape is (num_instances, 1, 7).
 
@@ -254,13 +248,13 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> torch.Tensor:
+    def projected_gravity_b(self) -> wp.array:
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def heading_w(self) -> torch.Tensor:
+    def heading_w(self) -> wp.array:
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
 
         Note:
@@ -271,7 +265,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_lin_vel_b(self) -> torch.Tensor:
+    def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity in base frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
@@ -281,7 +275,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_ang_vel_b(self) -> torch.Tensor:
+    def root_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity in base world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
@@ -291,7 +285,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_lin_vel_b(self) -> torch.Tensor:
+    def root_com_lin_vel_b(self) -> wp.array:
         """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
@@ -301,7 +295,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_ang_vel_b(self) -> torch.Tensor:
+    def root_com_ang_vel_b(self) -> wp.array:
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
@@ -315,7 +309,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_pos_w(self) -> torch.Tensor:
+    def root_link_pos_w(self) -> wp.array:
         """Root link position in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
@@ -324,7 +318,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_quat_w(self) -> torch.Tensor:
+    def root_link_quat_w(self) -> wp.array:
         """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
@@ -333,7 +327,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_lin_vel_w(self) -> torch.Tensor:
+    def root_link_lin_vel_w(self) -> wp.array:
         """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
@@ -342,7 +336,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_ang_vel_w(self) -> torch.Tensor:
+    def root_link_ang_vel_w(self) -> wp.array:
         """Root link angular velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
@@ -351,7 +345,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_pos_w(self) -> torch.Tensor:
+    def root_com_pos_w(self) -> wp.array:
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
@@ -360,7 +354,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_quat_w(self) -> torch.Tensor:
+    def root_com_quat_w(self) -> wp.array:
         """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
@@ -369,7 +363,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_lin_vel_w(self) -> torch.Tensor:
+    def root_com_lin_vel_w(self) -> wp.array:
         """Root center of mass linear velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
@@ -378,7 +372,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_ang_vel_w(self) -> torch.Tensor:
+    def root_com_ang_vel_w(self) -> wp.array:
         """Root center of mass angular velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
@@ -387,7 +381,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pos_w(self) -> torch.Tensor:
+    def body_link_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
@@ -396,7 +390,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_quat_w(self) -> torch.Tensor:
+    def body_link_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
@@ -405,7 +399,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_lin_vel_w(self) -> torch.Tensor:
+    def body_link_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
@@ -414,7 +408,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_ang_vel_w(self) -> torch.Tensor:
+    def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
@@ -423,7 +417,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_w(self) -> torch.Tensor:
+    def body_com_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the position of the rigid bodies' actor frame.
@@ -432,7 +426,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_w(self) -> torch.Tensor:
+    def body_com_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
@@ -441,7 +435,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_vel_w(self) -> torch.Tensor:
+    def body_com_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
@@ -450,7 +444,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_w(self) -> torch.Tensor:
+    def body_com_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
@@ -459,7 +453,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_acc_w(self) -> torch.Tensor:
+    def body_com_lin_acc_w(self) -> wp.array:
         """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
@@ -468,7 +462,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_acc_w(self) -> torch.Tensor:
+    def body_com_ang_acc_w(self) -> wp.array:
         """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
@@ -477,7 +471,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_b(self) -> torch.Tensor:
+    def body_com_pos_b(self) -> wp.array:
         """Center of mass position of all of the bodies in their respective link frames.
         Shape is (num_instances, 1, 3).
 
@@ -487,7 +481,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_b(self) -> torch.Tensor:
+    def body_com_quat_b(self) -> wp.array:
         """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, 1, 4).
 
@@ -501,115 +495,115 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_pose_w(self) -> torch.Tensor:
+    def root_pose_w(self) -> wp.array:
         """Same as :attr:`root_link_pose_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_pos_w(self) -> torch.Tensor:
+    def root_pos_w(self) -> wp.array:
         """Same as :attr:`root_link_pos_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_quat_w(self) -> torch.Tensor:
+    def root_quat_w(self) -> wp.array:
         """Same as :attr:`root_link_quat_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_vel_w(self) -> torch.Tensor:
+    def root_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_lin_vel_w(self) -> torch.Tensor:
+    def root_lin_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_lin_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_ang_vel_w(self) -> torch.Tensor:
+    def root_ang_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_ang_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_lin_vel_b(self) -> torch.Tensor:
+    def root_lin_vel_b(self) -> wp.array:
         """Same as :attr:`root_com_lin_vel_b`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_ang_vel_b(self) -> torch.Tensor:
+    def root_ang_vel_b(self) -> wp.array:
         """Same as :attr:`root_com_ang_vel_b`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_pose_w(self) -> torch.Tensor:
+    def body_pose_w(self) -> wp.array:
         """Same as :attr:`body_link_pose_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_pos_w(self) -> torch.Tensor:
+    def body_pos_w(self) -> wp.array:
         """Same as :attr:`body_link_pos_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_quat_w(self) -> torch.Tensor:
+    def body_quat_w(self) -> wp.array:
         """Same as :attr:`body_link_quat_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_vel_w(self) -> torch.Tensor:
+    def body_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_lin_vel_w(self) -> torch.Tensor:
+    def body_lin_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_lin_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_ang_vel_w(self) -> torch.Tensor:
+    def body_ang_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_ang_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_acc_w(self) -> torch.Tensor:
+    def body_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_acc_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_lin_acc_w(self) -> torch.Tensor:
+    def body_lin_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_lin_acc_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_ang_acc_w(self) -> torch.Tensor:
+    def body_ang_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_ang_acc_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def com_pos_b(self) -> torch.Tensor:
+    def com_pos_b(self) -> wp.array:
         """Same as :attr:`body_com_pos_b`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def com_quat_b(self) -> torch.Tensor:
+    def com_quat_b(self) -> wp.array:
         """Same as :attr:`body_com_quat_b`."""
 
         raise NotImplementedError()

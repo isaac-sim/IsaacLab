@@ -123,7 +123,7 @@ class BaseRigidObject(AssetBase):
         self,
         name_keys: str | Sequence[str],
         preserve_order: bool = False
-    ) -> tuple[wp.array | torch.Tensor, list[str], list[int]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more

@@ -256,7 +256,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.torch_episode_length_buf = wp.to_torch(self.episode_length_buf)
 
     def _setup_scene(self) -> None:
-        self.cartpole = Articulation(self.cfg.robot_cfg, frontend=Frontend.WARP)
+        self.cartpole = Articulation(self.cfg.robot_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate
