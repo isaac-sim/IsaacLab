@@ -692,6 +692,7 @@ class SimulationContext(_SimulationContext):
             "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
             "enable_shadows": "/rtx/shadows/enabled",
             "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
         }
 
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
