@@ -79,7 +79,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/gear_base_scale_1.5_usd/gear_base_scale_1.5.usd",
             # rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
     )
 
     factory_gear_small = RigidObjectCfg(
@@ -108,7 +108,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
     )
 
     factory_gear_medium = RigidObjectCfg(
@@ -136,7 +136,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
     )
 
     factory_gear_large = RigidObjectCfg(
@@ -163,7 +163,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, -0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(-0.70711, 0.0, 0.0, 0.70711)),
     )
     
 
