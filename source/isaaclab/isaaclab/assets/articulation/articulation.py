@@ -1843,7 +1843,6 @@ class Articulation(AssetBase):
         """
         # process actions per group
         for actuator in self.actuators.values():
-
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
