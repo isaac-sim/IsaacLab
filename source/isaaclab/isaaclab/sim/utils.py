@@ -922,11 +922,12 @@ def resolve_pose_relative_to_physx_parent(
         Args:
             prim_path_regex (str): A str refelcting a primitive path pattern (e.g. from a cfg)
             implements_apis (list[ Usd.APISchemaBase] | Usd.APISchemaBase): APIs ancestor must implement.
+
         Returns:
             ancestor_path (str): Prim Path Expression including wildcards for the closest PhysX Parent
             fixed_pos_b (tuple[float, float, float]): positional offset
             fixed_quat_b (tuple[float, float, float, float]): rotational offset
-        ).
+
     """
     target_prim = find_first_matching_prim(prim_path_regex, stage)
 
