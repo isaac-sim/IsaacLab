@@ -161,7 +161,7 @@ class InteractiveScene:
                 filter_regex = prim_path.replace(self.cloner_cfg.template_root, self.env_regex_ns)
                 self._global_prim_paths.extend(sim_utils.find_matching_prim_paths(filter_regex))
 
-            self.clone_environments()
+            self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             if self.cfg.filter_collisions:
                 self.filter_collisions(self._global_prim_paths)
 
@@ -180,7 +180,7 @@ class InteractiveScene:
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
         if self._is_scene_setup_from_cfg():
-            self.cloner_cfg.clone_physx = copy_from_source
+            self.cloner_cfg.clone_physx = not copy_from_source
             cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
         else:
             mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
