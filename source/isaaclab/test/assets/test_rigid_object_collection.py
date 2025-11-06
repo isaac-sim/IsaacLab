@@ -24,8 +24,8 @@ import pytest
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
-from isaaclab.sim import build_simulation_context
 from isaaclab.scene import cloner
+from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
     combine_frame_transforms,
@@ -96,7 +96,7 @@ def generate_cubes_scene(
         sources=["/World/Table_0"],
         destinations=["/World/Table_{}"],
         env_ids=torch.arange(num_envs),
-        positions=origins
+        positions=origins,
     )
     return cube_object_colection, origins
 
