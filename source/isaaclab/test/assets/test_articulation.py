@@ -22,7 +22,7 @@ import torch
 
 import pytest
 from isaacsim.core.version import get_version
-
+from isaaclab.scene import cloner
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
@@ -177,6 +177,14 @@ def generate_articulation(
     for i in range(num_articulations):
         prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
+
+    cloner.usd_replicate(
+        stage=prim_utils.get_current_stage(),
+        sources=["/World/Env_0"],
+        destinations=["/World/Env_{}"],
+        env_ids=torch.arange(num_articulations),
+        positions=translations,
+    )
 
     return articulation, translations
 

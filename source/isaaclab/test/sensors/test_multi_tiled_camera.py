@@ -30,6 +30,24 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+from isaaclab.scene import cloner
+
+
+def _replicate_group_origins(group_index: int, num_cameras: int) -> None:
+    """Replicate `/World/Origin_{i}_0` subtree to `/World/Origin_{i}_{1..N-1}` with preserved translations."""
+    stage = prim_utils.get_current_stage()
+    fmt = f"/World/Origin_{group_index}_{{}}"
+    get_translate = (
+        lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
+    )  # noqa: E731
+    positions = torch.tensor([get_translate(fmt.format(j)) for j in range(num_cameras)])
+    cloner.usd_replicate(
+        stage=stage,
+        sources=[fmt.format(0)],
+        destinations=[fmt],
+        env_ids=torch.arange(num_cameras),
+        positions=positions,
+    )
 
 
 @pytest.fixture()
@@ -82,8 +100,10 @@ def test_multi_tiled_camera_init(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
+        # Ensure each origin in this group gets a camera
+        _replicate_group_origins(i, num_cameras_per_tiled_camera)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
@@ -178,8 +198,10 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
         camera_cfg.data_types = all_annotator_types
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
+        # Ensure each origin in this group gets a camera
+        _replicate_group_origins(i, num_cameras_per_tiled_camera)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
@@ -278,9 +300,11 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera_cfg.height, camera_cfg.width = resolutions[i]
         camera = TiledCamera(camera_cfg)
+        # Ensure each origin in this group gets a camera
+        _replicate_group_origins(i, num_cameras_per_tiled_camera)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
@@ -349,8 +373,10 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
+        # Ensure each origin in this group gets a camera
+        _replicate_group_origins(i, num_cameras_per_tiled_camera)
         tiled_cameras.append(camera)
 
     # modify scene to be less stochastic
@@ -417,9 +443,10 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera_cfg.offset = TiledCameraCfg.OffsetCfg(pos=positions[i], rot=rotations[i], convention="ros")
         camera = TiledCamera(camera_cfg)
+        _replicate_group_origins(i, num_cameras_per_tiled_camera)
         tiled_cameras.append(camera)
 
     # Play sim
