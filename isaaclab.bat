@@ -511,14 +511,8 @@ if "%arg%"=="-i" (
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "allArgs=%%b"
     )
     call !python_exe! !allArgs!
     goto :end
@@ -527,14 +521,8 @@ if "%arg%"=="-i" (
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "allArgs=%%b"
     )
     call !python_exe! !allArgs!
     goto :end

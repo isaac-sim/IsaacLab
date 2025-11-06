@@ -30,6 +30,7 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
         ),
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         activate_contact_sensors=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
