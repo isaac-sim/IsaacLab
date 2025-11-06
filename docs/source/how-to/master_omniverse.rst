@@ -68,7 +68,7 @@ Importing assets
 
 -  `Omniverse Create - Importing FBX Files \| NVIDIA Omniverse Tutorials <https://youtu.be/dQI0OpzfVHw>`__
 -  `Omniverse Asset Importer <https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-importer.html>`__
--  `Isaac Sim URDF impoter <https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html>`__
+-  `Isaac Sim URDF impoter <https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html>`__
 
 
 Part 2: Scripting in Omniverse
