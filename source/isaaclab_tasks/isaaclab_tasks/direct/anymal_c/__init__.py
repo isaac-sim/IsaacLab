@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Ant locomotion environment.
+Anymal-C environment.
 """
 
 import gymnasium as gym
@@ -14,6 +14,16 @@ from . import agents
 ##
 # Register Gym environments.
 ##
+
+gym.register(
+    id="Isaac-Velocity-Flat-Anymal-C-Happo-Direct-v0",
+    entry_point=f"{__name__}.anymal_c_happo_env:AnymalCHappoEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.anymal_c_happo_env:AnymalCHappoEnvCfg",
+        "harl_happo_cfg_entry_point": f"{agents.__name__}:harl_happo_cfg.yaml",
+    },
+)
 
 gym.register(
     id="Isaac-Velocity-Flat-Anymal-C-Direct-v0",
