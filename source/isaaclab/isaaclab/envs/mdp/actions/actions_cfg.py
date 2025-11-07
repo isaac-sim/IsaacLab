@@ -131,6 +131,9 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
         This operation is performed after applying the scale factor.
     """
 
+    preserve_order: bool = False
+    """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
 
 @configclass
 class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):

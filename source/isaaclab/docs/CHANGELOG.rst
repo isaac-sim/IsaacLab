@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.47.12 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Add :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+
+
 0.47.11 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~~
 
