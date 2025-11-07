@@ -110,6 +110,7 @@ class DirectRLEnv(gym.Env):
 
         # print useful information
         print("[INFO]: Base environment:")
+        print(f"\tSimulation device     : {self.sim.device}")
         print(f"\tEnvironment device    : {self.device}")
         print(f"\tEnvironment seed      : {self.cfg.seed}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
@@ -128,7 +129,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.get_initial_stage()):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = InteractiveScene(self.cfg.scene, device=self.device)
                 self._setup_scene()
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
