@@ -11,6 +11,7 @@ import inspect
 import math
 import numpy as np
 import torch
+import warnings
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -219,6 +220,20 @@ class DirectRLEnv(gym.Env):
         # video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
 
+        # show deprecation message for rerender_on_reset
+        if self.cfg.rerender_on_reset:
+            msg = (
+                "\033[93m\033[1m[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                " DirectRLEnvCfg.num_rerenders_on_reset instead.\033[0m"
+            )
+            warnings.warn(
+                msg,
+                FutureWarning,
+                stacklevel=2,
+            )
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
+
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
@@ -300,8 +315,9 @@ class DirectRLEnv(gym.Env):
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -377,8 +393,9 @@ class DirectRLEnv(gym.Env):
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
         # post-step: step interval event
         if self.cfg.events:
