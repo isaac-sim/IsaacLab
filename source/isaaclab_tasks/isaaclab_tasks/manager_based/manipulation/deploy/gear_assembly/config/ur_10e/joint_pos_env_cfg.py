@@ -203,13 +203,13 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=64,
+                    solver_position_iteration_count=8,
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                     enabled_self_collisions=False,
-                    solver_position_iteration_count=64,
+                    solver_position_iteration_count=8,
                     solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(
