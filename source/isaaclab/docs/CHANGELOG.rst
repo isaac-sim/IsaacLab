@@ -7,7 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Detected contacts are reported with the threshold of 0.0 (instead of 1.0). This increases the sensititfy of contact
+* Detected contacts are reported with the threshold of 0.0 (instead of 1.0). This increases the sensitivity of contact
   detection.
 
 Fixed
