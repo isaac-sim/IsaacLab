@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.47.4 (2025-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the bug where effort limits were being overridden in :class:`~isaaclab.actuators.ActuatorBase` when the ``effort_limit`` parameter is set to None.
+* Corrected the unit tests for three effort limit scenarios with proper assertions
+
+
 0.47.3 (2025-11-05)
 ~~~~~~~~~~~~~~~~~~~
 
