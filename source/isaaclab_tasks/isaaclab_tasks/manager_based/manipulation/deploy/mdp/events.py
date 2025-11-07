@@ -58,7 +58,6 @@ def randomize_gear_type(
     
     for i, env_id in enumerate(env_ids):
         env._current_gear_type[env_id] = selected_gears[i]
-    # print(f"env._current_gear_type: {env._current_gear_type}")
 
 def set_robot_to_grasp_pose(
     env: ManagerBasedEnv,
@@ -113,8 +112,6 @@ def set_robot_to_grasp_pose(
             # Apply rotation offset by quaternion multiplication
             # rot_offset is assumed to be in quaternion format (w, x, y, z)
             grasp_object_quat = math_utils.quat_mul(grasp_object_quat, rot_offset_tensor)
-            # print(f"Applied rot_offset: {rot_offset}")
-            # print(f"grasp_object_quat after offset: {grasp_object_quat}")
         
         if pos_randomization_range is not None:
             pos_keys = ["x", "y", "z"]
@@ -155,12 +152,10 @@ def set_robot_to_grasp_pose(
                 # Convert to environment-relative coordinates
                 eef_pos = eef_pos_world
 
-
                 # You can also get the full pose as [pos, quat] (7-dimensional)
                 eef_pos = robot_asset.data.body_pos_w[env_ids, wrist_3_idx]
                 eef_quat = robot_asset.data.body_quat_w[env_ids, wrist_3_idx]
-                # print(f"eef_pos: {eef_pos}")
-                # print(f"eef_quat: {eef_quat}")
+
             elif len(wrist_3_indices) > 1:
                 print("wrist_3_link found multiple times in robot body names")
                 print(f"Available body names: {robot_asset.body_names}")
@@ -183,11 +178,6 @@ def set_robot_to_grasp_pose(
             target_eef_pos = grasp_object_pos  # grasp object position
             target_eef_quat = grasp_object_quat  # grasp object orientation
 
-            # print(f"current_eef_pos: {current_eef_pos[0]}")
-            # print(f"current_eef_quat: {current_eef_quat[0]}")
-            # print(f"target_eef_pos: {target_eef_pos[0]}")
-            # print(f"target_eef_quat: {target_eef_quat[0]}")
-
             # Compute pose error
             pos_error, axis_angle_error = fc.get_pose_error(
                 fingertip_midpoint_pos=current_eef_pos,
@@ -201,18 +191,9 @@ def set_robot_to_grasp_pose(
             pos_error_norm = torch.norm(pos_error, dim=-1)
             rot_error_norm = torch.norm(axis_angle_error, dim=-1)
             
-            # print(f"Pose error - position: {pos_error[0]}")
-            # print(f"Pose error - orientation: {axis_angle_error[0]}")
-            # print(f"Position error norm: {pos_error_norm[0]}")
-            # print(f"Rotation error norm: {rot_error_norm[0]}")
             
-            # Check if all environments have converged
+            # break from IK loop if all environments have converged
             if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
-                # print(f"Converged after {i} iterations!")
-                # print(f"pos_error_norm: {pos_error_norm}")
-                # print(f"rot_error_norm: {rot_error_norm}")
-                # print(f"pos_error: {pos_error}")
-                # print(f"axis_angle_error: {axis_angle_error}")
                 break
 
             # Solve DLS problem for inverse kinematics
@@ -251,57 +232,8 @@ def set_robot_to_grasp_pose(
         robot_asset.set_joint_position_target(joint_pos, env_ids=env_ids)
         robot_asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
         robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
-
-
-        # print(f"delta_dof_pos.abs().max(): {delta_dof_pos.abs().max()}")
-
-        # if delta_dof_pos.abs().max() < 1e-5:
-        #     break
-
-        # print(f"Step {i}")
         
         i += 1
-    # if i >= max_iterations:
-    #     print(f"IK did not converge after {max_iterations} iterations")
-    #     # print(f"pos_error_norm: {pos_error_norm}")
-    #     # print(f"rot_error_norm: {rot_error_norm}")
-    #     # print(f"pos_error: {pos_error}")
-    #     # print(f"axis_angle_error: {axis_angle_error}")
-    #     # raise RuntimeError(f"IK did not converge after {max_iterations} iterations")
-
-    # # print(f"delta_dof_pos.abs().max(): {delta_dof_pos.abs().max()}")
-    # for i in range(10):
-    #     env.sim.render()
-    #     input("Going to set object position...")
-    
-    # TODO: Resttting the gear based on teh IK solution is not working as expected. The gear is not being placed in the correct position.
-    # # Set the grasp object's pose to the current end-effector pose in world coordinates (with optional offsets)
-    # # The offsets should be applied in reverse to get from wrist_3_link to gear pose
-    # gear_pos_world = current_eef_pos
-    # gear_quat_world = current_eef_quat
-    
-    # # Apply position offset (subtract to get from wrist_3_link to gear position)
-    # if pos_offset_tensor is not None:
-    #     gear_pos_world = gear_pos_world - pos_offset_tensor
-    
-    # # Apply rotation offset (inverse to get from wrist_3_link to gear orientation)
-    # if rot_offset_tensor is not None:
-    #     # Apply inverse rotation offset
-    #     gear_quat_world = math_utils.quat_mul(current_eef_quat, math_utils.quat_conjugate(rot_offset_tensor))
-    
-    # for i in range(10):
-    #     env.sim.render()
-    #     input("Press Enter to continue 1...")
-    
-    # # Set the grasp object's pose for each environment based on selected gear type
-    # for row_idx, env_id in enumerate(env_ids_list):
-    #     gear_key = env._current_gear_type[env_id]
-    #     selected_asset_name = f"factory_{gear_key}"
-    #     gear_asset: RigidObject = env.scene[selected_asset_name]
-    #     gear_asset.write_root_pose_to_sim(
-    #         torch.cat([gear_pos_world[row_idx:row_idx+1], gear_quat_world[row_idx:row_idx+1]], dim=-1), 
-    #         env_ids=torch.tensor([env_id], device=env.device)
-    #     )
 
     # Close the gripper by setting the finger_joint based on gear type
     all_joints, all_joints_names = robot_asset.find_joints([".*"])
@@ -312,10 +244,6 @@ def set_robot_to_grasp_pose(
     finger_joints = all_joints[num_arm_joints:]
     finger_joint_names = all_joints_names[num_arm_joints:]
 
-    # for i in range(10):
-    #     env.sim.render()
-    #     input("Press Enter to continue 2...")
-
     for row_idx, env_id in enumerate(env_ids_list):
         gear_key = env._current_gear_type[env_id]
         hand_grasp_pos = env.cfg.hand_grasp_pos[gear_key]
@@ -324,19 +252,11 @@ def set_robot_to_grasp_pose(
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-    # for i in range(10):
-    #     env.sim.render()
-    #     input("Press Enter to continue 3...")
-
     # Set finger joints based on gear type for each environment
     hand_close_pos = env.cfg.hand_close_pos
     set_finger_joint_pos_2f_140(joint_pos, list(range(len(env_ids_list))), finger_joints, hand_close_pos)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
-
-    # for i in range(10):
-    #     env.sim.render()
-    #     input("Press Enter to continue 4...")
 
 def randomize_gears_and_base_pose(
     env: ManagerBasedEnv,
