@@ -73,8 +73,6 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-            # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/gear_base_scale_1.5_usd/gear_base_scale_1.5.usd",
-            # rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
     )
@@ -205,10 +203,6 @@ class ObservationsCfg:
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         joint_vel = ObsTerm(func=mdp.joint_vel,
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w,
-        #                          noise=AdditiveUniformNoiseModelCfg(n_min=-0.0025, n_max=0.0025))
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=Unoise(n_min=-0.005, n_max=0.005, operation="add"))
-        # gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
         gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
         gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
