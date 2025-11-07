@@ -5,6 +5,7 @@
 
 from dataclasses import MISSING
 import os
+import math
 
 import torch
 import isaaclab.sim as sim_utils
@@ -26,6 +27,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import ResetSampledNoiseModelCfg, UniformNoiseCfg
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
+import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as gear_assembly_terminations
 from isaaclab_tasks.manager_based.manipulation.deploy.reach.reach_env_cfg import ReachEnvCfg
 
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -267,6 +269,16 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    
+    gear_dropped = DoneTerm(
+        func=gear_assembly_terminations.reset_when_gear_dropped,
+        params={
+            "distance_threshold": 0.15,  # 15cm from gripper
+            "height_threshold": None,  # Disable height check (set to a value like 0.5 to enable)
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+            "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],  # 90-degree rotation to match grasp pose
+        },
+    )
 
 @configclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
@@ -298,7 +310,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 120.0
 
-        self.hand_close_pos = 0.7
+        self.hand_close_pos = 0.8
 
         self.gear_offsets = {'gear_small': [0.076125, 0.0, 0.0],
                             'gear_medium': [0.030375, 0.0, 0.0],
