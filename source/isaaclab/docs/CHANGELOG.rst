@@ -43,6 +43,12 @@ Fixed
 * Fixed environment buffers (``reset_buf``, ``episode_length_buf``) in :class:`~isaaclab.envs.DirectRLEnv`,
   :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedRLEnv` to be allocated on
   environment device instead of simulation device.
+* Fixed environment device property in all environment classes to automatically default to CPU when
+  ``enable_cpu_readback=True`` is set, ensuring ``env_ids`` and other environment buffers are created on
+  the correct device without requiring explicit ``device`` configuration.
+* Fixed ``episode_length_buf`` initialization in :class:`~isaaclab.envs.ManagerBasedRLEnv` to respect
+  ``enable_cpu_readback`` setting, preventing device mismatch errors in termination manager when using
+  CPU readback with GPU simulation.
 
 
 0.47.10 (2025-11-06)

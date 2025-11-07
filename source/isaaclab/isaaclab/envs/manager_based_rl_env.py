@@ -77,7 +77,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         # Note: This needs to be on the environment device, not the simulation device
-        self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=self.device, dtype=torch.long)
+        # We compute device from cfg directly since self.cfg is not set yet
+        if hasattr(cfg, "device") and cfg.device is not None:
+            device = cfg.device
+        elif cfg.sim.enable_cpu_readback:
+            # If CPU readback is enabled, default to CPU for environment device
+            device = "cpu"
+        else:
+            device = cfg.sim.device
+        self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=device, dtype=torch.long)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)

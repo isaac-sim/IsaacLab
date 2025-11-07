@@ -277,6 +277,10 @@ class DirectRLEnv(gym.Env):
         # If device is explicitly set in config, use that
         if hasattr(self.cfg, "device") and self.cfg.device is not None:
             return self.cfg.device
+        # If CPU readback is enabled, default to CPU for environment device
+        # since simulation data will be automatically copied to CPU
+        if self.cfg.sim.enable_cpu_readback:
+            return "cpu"
         # Otherwise fall back to simulation device
         return self.sim.device
 
