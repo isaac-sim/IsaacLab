@@ -1171,6 +1171,11 @@ are matched against the joint names in the articulation.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1224,8 +1229,9 @@ are matched against the joint names in the articulation.</p>
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1268,7 +1274,12 @@ If a tensor, then the shape is (num_envs, num_joints).</p></li>
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1640,8 +1651,9 @@ functionality and should not be used. All values should be set to the simulation
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1755,7 +1767,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.ImplicitActuator.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ImplicitActuator.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit" title="isaaclab.actuators.ImplicitActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit_sim" title="isaaclab.actuators.ImplicitActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit_sim" title="isaaclab.actuators.ImplicitActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1763,6 +1780,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ImplicitActuator.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit" title="isaaclab.actuators.ImplicitActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit_sim" title="isaaclab.actuators.ImplicitActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit" title="isaaclab.actuators.ImplicitActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator.effort_limit" title="isaaclab.actuators.ImplicitActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2153,8 +2175,9 @@ and (feed-forward) joint efforts.</p></li>
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2234,7 +2257,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.IdealPDActuator.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.IdealPDActuator.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit" title="isaaclab.actuators.IdealPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit_sim" title="isaaclab.actuators.IdealPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit_sim" title="isaaclab.actuators.IdealPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2242,6 +2270,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.IdealPDActuator.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit" title="isaaclab.actuators.IdealPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit_sim" title="isaaclab.actuators.IdealPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit" title="isaaclab.actuators.IdealPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator.effort_limit" title="isaaclab.actuators.IdealPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2621,8 +2654,9 @@ applied output torque will be driven to the Continuous Torque (<cite>effort_limi
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2733,7 +2767,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.DCMotor.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.DCMotor.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit_sim" title="isaaclab.actuators.DCMotor.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit_sim" title="isaaclab.actuators.DCMotor.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2741,6 +2780,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.DCMotor.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit_sim" title="isaaclab.actuators.DCMotor.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3098,8 +3142,9 @@ to the class.</p>
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -3210,7 +3255,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuator.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuator.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit" title="isaaclab.actuators.DelayedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit_sim" title="isaaclab.actuators.DelayedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit_sim" title="isaaclab.actuators.DelayedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3218,6 +3268,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuator.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit" title="isaaclab.actuators.DelayedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit_sim" title="isaaclab.actuators.DelayedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit" title="isaaclab.actuators.DelayedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuator.effort_limit" title="isaaclab.actuators.DelayedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3575,8 +3630,9 @@ and the maximum output torque. The lookup table is provided in the configuration
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -3673,7 +3729,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.RemotizedPDActuator.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit" title="isaaclab.actuators.RemotizedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit_sim" title="isaaclab.actuators.RemotizedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit_sim" title="isaaclab.actuators.RemotizedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3681,6 +3742,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit" title="isaaclab.actuators.RemotizedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit_sim" title="isaaclab.actuators.RemotizedPDActuator.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit" title="isaaclab.actuators.RemotizedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.RemotizedPDActuator.effort_limit" title="isaaclab.actuators.RemotizedPDActuator.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4090,8 +4156,9 @@ as a TorchScript.</p>
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -4182,7 +4249,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLP.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit" title="isaaclab.actuators.ActuatorNetMLP.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit_sim" title="isaaclab.actuators.ActuatorNetMLP.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit_sim" title="isaaclab.actuators.ActuatorNetMLP.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4190,6 +4262,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit" title="isaaclab.actuators.ActuatorNetMLP.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit_sim" title="isaaclab.actuators.ActuatorNetMLP.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit" title="isaaclab.actuators.ActuatorNetMLP.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLP.effort_limit" title="isaaclab.actuators.ActuatorNetMLP.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4629,8 +4706,9 @@ hidden states of the recurrent network captures the history.</p>
 are not specified in the configuration, then their values provided in the constructor are used.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The values in the constructor are typically obtained through the USD schemas corresponding
-to the joints in the actuator model.</p>
+<p>The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+corresponding to the joints in the actuator model; these values serve as default values if the parameters
+are not specified in the cfg.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -4741,7 +4819,12 @@ actuator characteristics.</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetLSTM.effort_limit">
 <span class="sig-name descname"><span class="pre">effort_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<p>This limit is used differently depending on the actuator type:</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Used for internal torque clipping within the actuator model
+(e.g., motor torque limits in DC motor models).</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> (aliased for consistency).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4749,6 +4832,11 @@ actuator characteristics.</p>
 <span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim" title="Permalink to this definition">#</a></dt>
 <dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+<ul class="simple">
+<li><p><strong>Explicit actuators</strong>: Typically set to a large value (1.0e9) to avoid double-clipping,
+since the actuator model already clips efforts using <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>.</p></li>
+<li><p><strong>Implicit actuators</strong>: Same as <a class="reference internal" href="#isaaclab.actuators.ActuatorNetLSTM.effort_limit" title="isaaclab.actuators.ActuatorNetLSTM.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> (both values are synchronized).</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
