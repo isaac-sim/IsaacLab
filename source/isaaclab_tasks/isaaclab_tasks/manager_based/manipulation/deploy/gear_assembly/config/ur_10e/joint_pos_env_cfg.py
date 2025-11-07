@@ -203,13 +203,13 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=8,
+                    solver_position_iteration_count=192,
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                     enabled_self_collisions=False,
-                    solver_position_iteration_count=8,
+                    solver_position_iteration_count=192,
                     solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(
@@ -249,6 +249,15 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             armature=0.0,
         )
 
+        # gear offsets and grasp positions for the gripper
+        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.26],
+                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.26],
+                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.26]}
+
+        self.hand_grasp_width = {"gear_small": 0.64,
+                               "gear_medium": 0.54,
+                               "gear_large": 0.51}
+
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
         self.observations.policy.joint_vel.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
 
@@ -275,7 +284,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.policy_action_space = "joint"
         self.action_space = 6
         self.state_space = 0
-        self.observation_space = 19
+        self.observation_space = 42
 
         # Set joint_action_scale from the existing arm_action.scale
         self.joint_action_scale = self.actions.arm_action.scale

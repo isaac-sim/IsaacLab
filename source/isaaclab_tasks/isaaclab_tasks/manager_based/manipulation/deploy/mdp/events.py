@@ -246,8 +246,8 @@ def set_robot_to_grasp_pose(
 
     for row_idx, env_id in enumerate(env_ids_list):
         gear_key = env._current_gear_type[env_id]
-        hand_grasp_pos = env.cfg.hand_grasp_pos[gear_key]
-        set_finger_joint_pos_2f_140(joint_pos, [row_idx], finger_joints, hand_grasp_pos)
+        hand_grasp_width = env.cfg.hand_grasp_width[gear_key]
+        set_finger_joint_pos_2f_140(joint_pos, [row_idx], finger_joints, hand_grasp_width)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)

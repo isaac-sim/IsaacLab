@@ -303,11 +303,3 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.gear_offsets = {'gear_small': [0.076125, 0.0, 0.0],
                             'gear_medium': [0.030375, 0.0, 0.0],
                             'gear_large': [-0.045375, 0.0, 0.0]}
-        
-        self.gear_offsets_grasp = {'gear_small': [0.0, 0.076125, -0.26],
-                            'gear_medium': [0.0, 0.030375, -0.26],
-                            'gear_large': [0.0, -0.045375, -0.26]}
-
-        self.hand_grasp_pos = {"gear_small": 0.64,
-                               "gear_medium": 0.54,
-                               "gear_large": 0.51}
