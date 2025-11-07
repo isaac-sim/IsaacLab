@@ -59,11 +59,22 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     action_space = 4
     observation_space = 6
     state_space = 0
-    device = "cpu"
 
-    # Simulation cfg. Note that we are forcing the simulation to run on CPU.
-    # This is because the surface gripper API is only supported on CPU backend for now.
-    sim: SimulationCfg = SimulationCfg(dt=1 / 60, render_interval=decimation, device="cpu")
+    # Simulation cfg. We run physics on GPU but enable CPU readback so that
+    # data is automatically available on CPU for the task/policy.
+    # sim_device is where physics runs (cuda for performance)
+    # task_device is where data buffers are allocated (cpu for convenience)
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        device="cuda:0",  # Physics simulation runs on GPU
+        render_interval=decimation,
+        use_fabric=True,
+        enable_scene_query_support=True,
+        enable_cpu_readback=True,  # Data automatically copied to CPU
+    )
+    # Task device - where tensor operations and data buffers live
+    # This should match where the simulation data is returned (CPU when enable_cpu_readback=True)
+    device: str = "cpu"
     debug_vis = True
 
     # robot

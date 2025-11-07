@@ -29,6 +29,21 @@ class DirectMARLEnvCfg:
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
+    device: str | None = None
+    """Device for task computations (e.g., 'cuda:0', 'cpu'). Default is None.
+
+    If None, the device is inferred from the simulation device (:attr:`sim.device`).
+
+    This parameter allows separating the physics simulation device from the device where
+    task buffers and computations occur. For example, you can run physics on GPU
+    (:attr:`sim.device` = 'cuda:0') while keeping task data on CPU (:attr:`device` = 'cpu')
+    by enabling CPU readback (:attr:`sim.enable_cpu_readback` = True).
+
+    Note:
+        When using :attr:`sim.enable_cpu_readback` = True with GPU physics, this should
+        be set to 'cpu' since simulation data will be returned on CPU.
+    """
+
     # ui settings
     ui_window_class_type: type | None = BaseEnvWindow
     """The class type of the UI window. Default is None.

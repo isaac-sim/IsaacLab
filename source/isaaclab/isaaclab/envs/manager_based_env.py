@@ -236,7 +236,15 @@ class ManagerBasedEnv:
 
     @property
     def device(self):
-        """The device on which the environment is running."""
+        """The device on which the task computations are performed.
+
+        This can be different from :attr:`sim.device` when using CPU readback.
+        For example, physics can run on GPU while task buffers are on CPU.
+        """
+        # If device is explicitly set in config, use that
+        if hasattr(self.cfg, "device") and self.cfg.device is not None:
+            return self.cfg.device
+        # Otherwise fall back to simulation device
         return self.sim.device
 
     @property
