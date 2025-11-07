@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+
+0.11.8 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed to use of ``num_rerenders_on_reset`` and ``DLAA`` in visuomotor imitation learning environments.
+
+
 0.11.7 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~~
 
