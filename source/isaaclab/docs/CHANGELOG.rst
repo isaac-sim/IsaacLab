@@ -1,52 +1,15 @@
 Changelog
 ---------
 
-0.47.7 (2025-10-31)
+0.47.8 (2025-10-31)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Changed Pink IK controller qpsolver from osqp to daqp.
-* Changed Null Space matrix computation in Pink IK's Null Space Posture Task to a faster matrix pseudo inverse computation.
+* Implement ability to attach an imu sensor to xform primitives in a usd file. This PR is based on work by @GiulioRomualdi here: #3094 Addressing issue #3088.
 
-
-0.47.6 (2025-11-01)
-~~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed an issue in recurrent policy evaluation in RSL-RL framework where the recurrent state was not reset after an episode termination.
-
-
-0.47.5 (2025-10-30)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Added docstrings notes to clarify the friction coefficient modeling in Isaac Sim 4.5 and 5.0.
-
-
-0.47.4 (2025-10-30)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Enhanced :meth:`~isaaclab.managers.RecorderManager.export_episodes` method to support customizable sequence of demo IDs:
-
-  - Added argument ``demo_ids`` to :meth:`~isaaclab.managers.RecorderManager.export_episodes` to accept a sequence of integers
-    for custom episode identifiers.
-
-* Enhanced :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` method to support customizable episode identifiers:
-
-  - Added argument ``demo_id`` to :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` to accept a custom integer
-    for episode identifier.
-
-
-0.47.3 (2025-10-22)
+0.47.2 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
