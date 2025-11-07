@@ -26,12 +26,14 @@ PER_TEST_TIMEOUTS = {
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
+    "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
         6000
     ),  # This test runs through training for several environments and compares thresholds
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
+    "test_rl_games_wrapper.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

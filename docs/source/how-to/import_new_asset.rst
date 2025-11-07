@@ -307,8 +307,8 @@ of gravity.
 
 .. _instanceable: https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
 .. _documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
-.. _MJCF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html
-.. _URDF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_urdf.html
+.. _MJCF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
+.. _URDF importer: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html
 .. _anymal.urdf: https://github.com/isaac-orbit/anymal_d_simple_description/blob/master/urdf/anymal.urdf
 .. _asset converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html
 .. _mujoco_menagerie: https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1

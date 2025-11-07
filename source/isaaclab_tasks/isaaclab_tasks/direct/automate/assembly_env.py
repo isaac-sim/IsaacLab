@@ -60,24 +60,15 @@ class AssemblyEnv(DirectRLEnv):
         )
 
         # Create criterion for dynamic time warping (later used for imitation reward)
-        self.soft_dtw_criterion = SoftDTW(use_cuda=True, gamma=self.cfg_task.soft_dtw_gamma)
+        cuda_version = automate_algo.get_cuda_version()
+        if (cuda_version is not None) and (cuda_version < (13, 0, 0)):
+            self.soft_dtw_criterion = SoftDTW(use_cuda=True, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
+        else:
+            self.soft_dtw_criterion = SoftDTW(use_cuda=False, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
 
         # Evaluate
         if self.cfg_task.if_logging_eval:
             self._init_eval_logging()
-
-        if self.cfg_task.sample_from != "rand":
-            self._init_eval_loading()
-
-    def _init_eval_loading(self):
-        eval_held_asset_pose, eval_fixed_asset_pose, eval_success = automate_log.load_log_from_hdf5(
-            self.cfg_task.eval_filename
-        )
-
-        if self.cfg_task.sample_from == "gp":
-            self.gp = automate_algo.model_succ_w_gp(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
-        elif self.cfg_task.sample_from == "gmm":
-            self.gmm = automate_algo.model_succ_w_gmm(eval_held_asset_pose, eval_fixed_asset_pose, eval_success)
 
     def _init_eval_logging(self):
 
@@ -246,7 +237,7 @@ class AssemblyEnv(DirectRLEnv):
             # offset each trajectory to be relative to the goal
             eef_pos_traj.append(curr_ee_traj - curr_ee_goal)
 
-        self.eef_pos_traj = torch.tensor(eef_pos_traj, dtype=torch.float32, device=self.device).squeeze()
+        self.eef_pos_traj = torch.tensor(np.array(eef_pos_traj), dtype=torch.float32, device=self.device).squeeze()
 
     def _get_keypoint_offsets(self, num_keypoints):
         """Get uniformly-spaced keypoints along a line of unit length, centered at 0."""
@@ -804,28 +795,12 @@ class AssemblyEnv(DirectRLEnv):
                 torch.rand((self.num_envs,), dtype=torch.float32, device=self.device)
             )
 
-            if self.cfg_task.sample_from == "rand":
-
-                rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
-                held_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
-                held_asset_init_pos_rand = torch.tensor(
-                    self.cfg_task.held_asset_init_pos_noise, dtype=torch.float32, device=self.device
-                )
-                self.held_pos_init_rand = held_pos_init_rand @ torch.diag(held_asset_init_pos_rand)
-
-            if self.cfg_task.sample_from == "gp":
-                rand_sample = torch.rand((self.cfg_task.num_gp_candidates, 3), dtype=torch.float32, device=self.device)
-                held_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
-                held_asset_init_pos_rand = torch.tensor(
-                    self.cfg_task.held_asset_init_pos_noise, dtype=torch.float32, device=self.device
-                )
-                held_asset_init_candidates = held_pos_init_rand @ torch.diag(held_asset_init_pos_rand)
-                self.held_pos_init_rand, _ = automate_algo.propose_failure_samples_batch_from_gp(
-                    self.gp, held_asset_init_candidates.cpu().detach().numpy(), len(env_ids), self.device
-                )
-
-            if self.cfg_task.sample_from == "gmm":
-                self.held_pos_init_rand = automate_algo.sample_rel_pos_from_gmm(self.gmm, len(env_ids), self.device)
+            rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
+            held_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
+            held_asset_init_pos_rand = torch.tensor(
+                self.cfg_task.held_asset_init_pos_noise, dtype=torch.float32, device=self.device
+            )
+            self.held_pos_init_rand = held_pos_init_rand @ torch.diag(held_asset_init_pos_rand)
 
         # Set plug pos to assembled state, but offset plug Z-coordinate by height of socket,
         # minus curriculum displacement

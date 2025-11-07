@@ -198,6 +198,10 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
         self.sim.physx.friction_correlation_distance = 0.00625
 
+        # set viewer to see the whole scene
+        self.viewer.eye = [1.5, -1.0, 1.5]
+        self.viewer.lookat = [0.5, 0.0, 0.0]
+
 
 """
 Env to Replay Sim2Lab Demonstrations with JointSpaceAction

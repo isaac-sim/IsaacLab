@@ -4,7 +4,7 @@
 
 # Isaac Lab
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://docs.python.org/3/whatsnew/3.11.html)
 [![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
 [![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
@@ -37,92 +37,6 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 ## Getting Started
 
-### Getting Started with Open-Source Isaac Sim
-
-Isaac Sim is now open source and available on GitHub!
-
-For detailed Isaac Sim installation instructions, please refer to
-[Isaac Sim README](https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start).
-
-1. Clone Isaac Sim
-
-    ```
-    git clone https://github.com/isaac-sim/IsaacSim.git
-    ```
-
-2. Build Isaac Sim
-
-    ```
-    cd IsaacSim
-    ./build.sh
-    ```
-
-    On Windows, please use `build.bat` instead.
-
-3. Clone Isaac Lab
-
-    ```
-    cd ..
-    git clone https://github.com/isaac-sim/IsaacLab.git
-    cd isaaclab
-    ```
-
-4. Set up symlink in Isaac Lab
-
-    Linux:
-
-    ```
-    ln -s ../IsaacSim/_build/linux-x86_64/release _isaac_sim
-    ```
-
-    Windows:
-
-    ```
-    mklink /D _isaac_sim ..\IsaacSim\_build\windows-x86_64\release
-    ```
-
-5. Install Isaac Lab
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -i
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -i
-    ```
-
-6. [Optional] Set up a virtual python environment (e.g. for Conda)
-
-    Linux:
-
-    ```
-    source _isaac_sim/setup_conda_env.sh
-    ```
-
-    Windows:
-
-    ```
-    _isaac_sim\setup_python_env.bat
-    ```
-
-7. Train!
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Ant-v0 --headless
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Ant-v0 --headless
-    ```
-
 ### Documentation
 
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including
@@ -140,12 +54,13 @@ Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac S
 release of Isaac Lab. Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding
 dependency versions for Isaac Sim.
 
-| Isaac Lab Version             | Isaac Sim Version   |
-| ----------------------------- | ------------------- |
-| `main` branch                 | Isaac Sim 4.5 / 5.0 |
-| `v2.2.X`                      | Isaac Sim 4.5 / 5.0 |
-| `v2.1.X`                      | Isaac Sim 4.5       |
-| `v2.0.X`                      | Isaac Sim 4.5       |
+| Isaac Lab Version             | Isaac Sim Version         |
+| ----------------------------- | ------------------------- |
+| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
+| `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
+| `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
+| `v2.1.X`                      | Isaac Sim 4.5             |
+| `v2.0.X`                      | Isaac Sim 4.5             |
 
 
 ## Contributing to Isaac Lab
@@ -172,7 +87,7 @@ innovation in robotics and simulation.
 Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
 common fixes or [submit an issue](https://github.com/isaac-sim/IsaacLab/issues).
 
-For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html)
+For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
 
 ## Support
