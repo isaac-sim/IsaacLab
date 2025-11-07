@@ -173,7 +173,6 @@ def test_disable_sleeping_setting():
 @pytest.mark.isaacsim_ci
 def test_disable_sleeping_false_with_cpu():
     """Test that disable_sleeping can be set to False when using CPU simulation."""
-    from pxr import PhysxSchema
 
     # Test with disable_sleeping set to False and CPU device
     cfg = SimulationCfg(device="cpu")
