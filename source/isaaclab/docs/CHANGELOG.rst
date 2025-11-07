@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.49.0 (2025-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added two new PhysX configuration parameters to :class:`~isaaclab.sim.PhysxCfg`:
+
+  - :attr:`~isaaclab.sim.PhysxCfg.disable_sleeping`: Disables sleeping for all objects in the physics scene on a global level.
+    This flag is set to ``True`` by default and overrides any sleeping settings on individual bodies. If sleeping is required
+    on any individual body, this flag must be set to ``False``. Note that if ``disable_sleeping`` is set to ``False`` and the
+    directGPU pipeline is enabled, PhysX will issue an error and fail scene creation.
+  - :attr:`~isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration`: Enables external forces to be applied every iteration.
+    This flag is set to ``False`` by default (standard PhysX behavior). Setting this to ``True`` can reduce noisy joint velocity
+    data from PhysX at a slight performance cost.
+
+
 0.47.11 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~~
 

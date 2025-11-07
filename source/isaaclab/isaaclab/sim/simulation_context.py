@@ -792,6 +792,26 @@ class SimulationContext(_SimulationContext):
         physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             self.cfg.physx.solve_articulation_contact_last
         )
+        # -- Disable sleeping globally
+        # This overrides any sleeping settings on individual bodies
+        physx_prim.CreateAttribute("physxSceneAPI:disableSleeping", Sdf.ValueTypeNames.Bool).Set(
+            self.cfg.physx.disable_sleeping
+        )
+        # Check if disable_sleeping is False with GPU pipeline enabled
+        if not self.cfg.physx.disable_sleeping:
+            # Check if GPU pipeline is enabled via the suppressReadback flag
+            suppress_readback = self.carb_settings.get_as_bool("/physics/suppressReadback")
+            if suppress_readback:
+                raise RuntimeError(
+                    "PhysX configuration error: 'disable_sleeping' is set to False while GPU pipeline is enabled "
+                    "(/physics/suppressReadback=True). This combination will cause PhysX to fail scene creation. "
+                    "Please set 'cfg.physx.disable_sleeping = True' or disable GPU pipeline."
+                )
+        # -- Enable external forces every iteration
+        # This can help reduce noisy joint velocity data from PhysX at a slight performance cost
+        physx_scene_api.CreateEnableExternalForcesEveryIterationAttr(
+            self.cfg.physx.enable_external_forces_every_iteration
+        )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we

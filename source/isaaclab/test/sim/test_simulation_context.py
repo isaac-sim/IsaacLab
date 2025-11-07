@@ -146,3 +146,109 @@ def test_zero_gravity():
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_setting():
+    """Test that the disable_sleeping PhysX setting is applied correctly."""
+    from pxr import PhysxSchema
+
+    # Test with disable_sleeping set to True (default)
+    cfg = SimulationCfg()
+    assert cfg.physx.disable_sleeping is True
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene prim and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    # Check that the attribute exists and is set to True
+    disable_sleeping_attr = physics_scene_prim.GetAttribute("physxSceneAPI:disableSleeping")
+    assert disable_sleeping_attr.IsValid()
+    assert disable_sleeping_attr.Get() is True
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_false_with_cpu():
+    """Test that disable_sleeping can be set to False when using CPU simulation."""
+    from pxr import PhysxSchema
+
+    # Test with disable_sleeping set to False and CPU device
+    cfg = SimulationCfg(device="cpu")
+    cfg.physx.disable_sleeping = False
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene prim and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    # Check that the attribute exists and is set to False
+    disable_sleeping_attr = physics_scene_prim.GetAttribute("physxSceneAPI:disableSleeping")
+    assert disable_sleeping_attr.IsValid()
+    assert disable_sleeping_attr.Get() is False
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_false_with_gpu_raises_error():
+    """Test that disable_sleeping=False with GPU simulation raises an error."""
+    # Test with disable_sleeping set to False and GPU device
+    cfg = SimulationCfg(device="cuda:0")
+    cfg.physx.disable_sleeping = False
+
+    # This should raise a RuntimeError because GPU pipeline + disable_sleeping=False is not supported
+    with pytest.raises(RuntimeError, match="disable_sleeping.*GPU pipeline"):
+        SimulationContext(cfg)
+
+
+@pytest.mark.isaacsim_ci
+def test_enable_external_forces_every_iteration_setting():
+    """Test that the enable_external_forces_every_iteration PhysX setting is applied correctly."""
+    from pxr import PhysxSchema
+
+    # Test with enable_external_forces_every_iteration set to False (default)
+    cfg = SimulationCfg()
+    assert cfg.physx.enable_external_forces_every_iteration is False
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene API and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    physx_scene_api = PhysxSchema.PhysxSceneAPI(physics_scene_prim)
+    assert physx_scene_api
+
+    # Check that the attribute exists and is set to False
+    enable_external_forces_attr = physx_scene_api.GetEnableExternalForcesEveryIterationAttr()
+    assert enable_external_forces_attr.IsValid()
+    assert enable_external_forces_attr.Get() is False
+
+
+@pytest.mark.isaacsim_ci
+def test_enable_external_forces_every_iteration_true():
+    """Test that enable_external_forces_every_iteration can be set to True."""
+    from pxr import PhysxSchema
+
+    # Test with enable_external_forces_every_iteration set to True
+    cfg = SimulationCfg()
+    cfg.physx.enable_external_forces_every_iteration = True
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene API and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    physx_scene_api = PhysxSchema.PhysxSceneAPI(physics_scene_prim)
+    assert physx_scene_api
+
+    # Check that the attribute exists and is set to True
+    enable_external_forces_attr = physx_scene_api.GetEnableExternalForcesEveryIterationAttr()
+    assert enable_external_forces_attr.IsValid()
+    assert enable_external_forces_attr.Get() is True
