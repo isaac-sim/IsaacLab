@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.47.12 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Add :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+
+
 0.47.11 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -228,15 +237,6 @@ Added
 
 * Modified setter to support for viscous and dynamic joint friction coefficients in articulation based on IsaacSim 5.0.
 * Added randomization of viscous and dynamic joint friction coefficients in event term.
-
-
-0.46.3 (2025-10-15)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Add :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
 
 
 0.46.2 (2025-09-13)
