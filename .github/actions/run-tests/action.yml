@@ -105,7 +105,6 @@ runs:
             -c "
               set -e
               cd /workspace/isaaclab
-              pip install pytest-github-actions-annotate-failures
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
