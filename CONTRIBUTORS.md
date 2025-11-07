@@ -126,6 +126,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Sergey Grizan
 * Shafeef Omar
+* Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
 * Sixiang Chen
