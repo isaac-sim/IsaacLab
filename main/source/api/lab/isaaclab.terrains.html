@@ -682,6 +682,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.terrain_generator"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.terrain_generator</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.usd_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.env_spacing"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.env_spacing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.use_terrain_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.visual_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.max_init_terrain_level</span></code></a></li>
@@ -1433,16 +1434,19 @@ corresponding to the terrain.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.env_spacing" title="isaaclab.terrains.TerrainImporterCfg.env_spacing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">env_spacing</span></code></a></p></td>
 <td><p>The spacing between environment origins when defined in a grid.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.visual_material" title="isaaclab.terrains.TerrainImporterCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins" title="isaaclab.terrains.TerrainImporterCfg.use_terrain_origins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_terrain_origins</span></code></a></p></td>
+<td><p>Whether to set the environment origins based on the terrain origins or in a grid according to <a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.env_spacing" title="isaaclab.terrains.TerrainImporterCfg.env_spacing"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_spacing</span></code></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.visual_material" title="isaaclab.terrains.TerrainImporterCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
 <td><p>The visual material of the terrain.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.physics_material" title="isaaclab.terrains.TerrainImporterCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.physics_material" title="isaaclab.terrains.TerrainImporterCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>The physics material of the terrain.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level" title="isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_init_terrain_level</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level" title="isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_init_terrain_level</span></code></a></p></td>
 <td><p>The maximum initial terrain level for defining environment origins.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.debug_vis" title="isaaclab.terrains.TerrainImporterCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.debug_vis" title="isaaclab.terrains.TerrainImporterCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
 <td><p>Whether to enable visualization of terrain origins for the terrain.</p></td>
 </tr>
 </tbody>
@@ -1496,7 +1500,19 @@ corresponding to the terrain.</p></li>
 <dd><p>The spacing between environment origins when defined in a grid. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “plane” or “usd”.</p>
+<p>This parameter is used only when the <code class="docutils literal notranslate"><span class="pre">terrain_type</span></code> is “plane” or “usd” or if
+<a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins" title="isaaclab.terrains.TerrainImporterCfg.use_terrain_origins"><code class="xref py py-attr docutils literal notranslate"><span class="pre">use_terrain_origins</span></code></a> is False.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.terrains.TerrainImporterCfg.use_terrain_origins">
+<span class="sig-name descname"><span class="pre">use_terrain_origins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to set the environment origins based on the terrain origins or in a grid
+according to <a class="reference internal" href="#isaaclab.terrains.TerrainImporterCfg.env_spacing" title="isaaclab.terrains.TerrainImporterCfg.env_spacing"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_spacing</span></code></a>. Defaults to True.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This parameter is used only when the <code class="xref py py-attr docutils literal notranslate"><span class="pre">terrain</span> <span class="pre">type</span></code> is “generator”.</p>
 </div>
 </dd></dl>
 
@@ -5213,6 +5229,7 @@ the patch is rejected.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.terrain_generator"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.terrain_generator</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.usd_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.env_spacing"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.env_spacing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.use_terrain_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.visual_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.terrains.TerrainImporterCfg.max_init_terrain_level"><code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg.max_init_terrain_level</span></code></a></li>

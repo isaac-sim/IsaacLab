@@ -679,8 +679,11 @@
                 <span class="n">cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">terrain_generator</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">import_mesh</span><span class="p">(</span><span class="s2">&quot;terrain&quot;</span><span class="p">,</span> <span class="n">terrain_generator</span><span class="o">.</span><span class="n">terrain_mesh</span><span class="p">)</span>
-            <span class="c1"># configure the terrain origins based on the terrain generator</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">configure_env_origins</span><span class="p">(</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">terrain_origins</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_terrain_origins</span><span class="p">:</span>
+                <span class="c1"># configure the terrain origins based on the terrain generator</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">configure_env_origins</span><span class="p">(</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">terrain_origins</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">configure_env_origins</span><span class="p">()</span>
             <span class="c1"># refer to the flat patches</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_terrain_flat_patches</span> <span class="o">=</span> <span class="n">terrain_generator</span><span class="o">.</span><span class="n">flat_patches</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">terrain_type</span> <span class="o">==</span> <span class="s2">&quot;usd&quot;</span><span class="p">:</span>

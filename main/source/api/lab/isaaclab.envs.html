@@ -683,6 +683,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.events</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.teleop_devices</span></code></a></li>
@@ -737,6 +738,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.events</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.teleop_devices</span></code></a></li>
@@ -793,6 +795,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.num_actions"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.num_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.action_noise_model"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.action_noise_model</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.log_dir</span></code></a></li>
@@ -1346,19 +1349,22 @@ Based on these parameters, the environment time-step is computed as the product 
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.rerender_on_reset" title="isaaclab.envs.ManagerBasedEnvCfg.rerender_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rerender_on_reset</span></code></a></p></td>
 <td><p>Whether a render step is performed again after at least one environment has been reset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures" title="isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a></p></td>
+<td><p>Number of render steps to perform after reset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures" title="isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
 <td><p>True to wait for assets to be loaded completely, False otherwise.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.xr" title="isaaclab.envs.ManagerBasedEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.xr" title="isaaclab.envs.ManagerBasedEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
 <td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices" title="isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teleop_devices</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices" title="isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teleop_devices</span></code></a></p></td>
 <td><p>Configuration for teleoperation devices.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors" title="isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_io_descriptors</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors" title="isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_io_descriptors</span></code></a></p></td>
 <td><p>Whether to export the IO descriptors for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
 <td><p>Directory for logging experiment artifacts.</p></td>
 </tr>
 </tbody>
@@ -1456,6 +1462,25 @@ latest states in simulation caused by the reset.</p></li>
 <li><p>When this is True, an extra render step will be performed to update the sensor data
 to reflect the latest states from the reset. This comes at a cost of performance as an additional render
 step will be performed after each time an environment is reset.</p></li>
+</ul>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version 2.3.1: </span>This attribute is deprecated and will be removed in the future. Please use
+<a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> instead.</p>
+<p>To get the same behaviour as setting this parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>, set
+<a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> to 1 or 0, respectively.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset">
+<span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<ul class="simple">
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
+latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
+to reflect the latest states from the reset. This comes at a cost of performance as additional render
+steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -1967,28 +1992,31 @@ Defaults to False.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.rerender_on_reset" title="isaaclab.envs.ManagerBasedRLEnvCfg.rerender_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rerender_on_reset</span></code></a></p></td>
 <td><p>Whether a render step is performed again after at least one environment has been reset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures" title="isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a></p></td>
+<td><p>Number of render steps to perform after reset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures" title="isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
 <td><p>True to wait for assets to be loaded completely, False otherwise.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.xr" title="isaaclab.envs.ManagerBasedRLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.xr" title="isaaclab.envs.ManagerBasedRLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
 <td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices" title="isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teleop_devices</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices" title="isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teleop_devices</span></code></a></p></td>
 <td><p>Configuration for teleoperation devices.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors" title="isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_io_descriptors</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors" title="isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_io_descriptors</span></code></a></p></td>
 <td><p>Whether to export the IO descriptors for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
 <td><p>Directory for logging experiment artifacts.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations" title="isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations" title="isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
 <td><p>Termination settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum" title="isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum" title="isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
 <td><p>Curriculum settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands" title="isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands" title="isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
 <td><p>Command settings.</p></td>
 </tr>
 </tbody>
@@ -2120,6 +2148,25 @@ latest states in simulation caused by the reset.</p></li>
 <li><p>When this is True, an extra render step will be performed to update the sensor data
 to reflect the latest states from the reset. This comes at a cost of performance as an additional render
 step will be performed after each time an environment is reset.</p></li>
+</ul>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version 2.3.1: </span>This attribute is deprecated and will be removed in the future. Please use
+<a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> instead.</p>
+<p>To get the same behaviour as setting this parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>, set
+<a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> to 1 or 0, respectively.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset">
+<span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<ul class="simple">
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
+latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
+to reflect the latest states from the reset. This comes at a cost of performance as additional render
+steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -2585,13 +2632,16 @@ the seed will take the value -1.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.rerender_on_reset" title="isaaclab.envs.DirectRLEnvCfg.rerender_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rerender_on_reset</span></code></a></p></td>
 <td><p>Whether a render step is performed again after at least one environment has been reset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures" title="isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a></p></td>
+<td><p>Number of render steps to perform after reset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures" title="isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
 <td><p>True to wait for assets to be loaded completely, False otherwise.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.xr" title="isaaclab.envs.DirectRLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.xr" title="isaaclab.envs.DirectRLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
 <td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.log_dir" title="isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.log_dir" title="isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
 <td><p>Directory for logging experiment artifacts.</p></td>
 </tr>
 </tbody>
@@ -2848,6 +2898,25 @@ latest states in simulation caused by the reset.</p></li>
 <li><p>When this is True, an extra render step will be performed to update the sensor data
 to reflect the latest states from the reset. This comes at a cost of performance as an additional render
 step will be performed after each time an environment is reset.</p></li>
+</ul>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version 2.3.1: </span>This attribute is deprecated and will be removed in the future. Please use
+<a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> instead.</p>
+<p>To get the same behaviour as setting this parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>, set
+<a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset" title="isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">num_rerenders_on_reset</span></code></a> to 1 or 0, respectively.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset">
+<span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<ul class="simple">
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
+latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
+to reflect the latest states from the reset. This comes at a cost of performance as additional render
+steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -4623,6 +4692,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.events</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.teleop_devices</span></code></a></li>
@@ -4677,6 +4747,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.events</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.teleop_devices</span></code></a></li>
@@ -4733,6 +4804,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.num_actions"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.num_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.action_noise_model"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.action_noise_model</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.num_rerenders_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.xr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.log_dir</span></code></a></li>

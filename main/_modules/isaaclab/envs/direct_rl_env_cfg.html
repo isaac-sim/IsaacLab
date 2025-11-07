@@ -814,6 +814,22 @@
 <span class="sd">      to reflect the latest states from the reset. This comes at a cost of performance as an additional render</span>
 <span class="sd">      step will be performed after each time an environment is reset.</span>
 
+<span class="sd">    .. deprecated:: 2.3.1</span>
+<span class="sd">        This attribute is deprecated and will be removed in the future. Please use</span>
+<span class="sd">        :attr:`num_rerenders_on_reset` instead.</span>
+
+<span class="sd">        To get the same behaviour as setting this parameter to ``True`` or ``False``, set</span>
+<span class="sd">        :attr:`num_rerenders_on_reset` to 1 or 0, respectively.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_rerenders_on_reset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</span>
+
+<span class="sd">    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the</span>
+<span class="sd">      latest states in simulation caused by the reset.</span>
+<span class="sd">    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data</span>
+<span class="sd">      to reflect the latest states from the reset. This comes at a cost of performance as additional render</span>
+<span class="sd">      steps will be performed after each time an environment is reset.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">wait_for_textures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>

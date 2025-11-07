@@ -657,7 +657,16 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The spacing between environment origins when defined in a grid. Defaults to None.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">      This parameter is used only when the ``terrain_type`` is &quot;plane&quot; or &quot;usd&quot;.</span>
+<span class="sd">      This parameter is used only when the ``terrain_type`` is &quot;plane&quot; or &quot;usd&quot; or if</span>
+<span class="sd">      :attr:`use_terrain_origins` is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">use_terrain_origins</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to set the environment origins based on the terrain origins or in a grid</span>
+<span class="sd">    according to :attr:`env_spacing`. Defaults to True.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">      This parameter is used only when the :attr:`terrain type` is &quot;generator&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visual_material</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">VisualMaterialCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
