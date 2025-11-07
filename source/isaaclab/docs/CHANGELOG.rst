@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.47.9 (2025-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed termination term bookkeeping in :class:`~isaaclab.managers.TerminationManager`:
+  per-step termination and last-episode termination bookkeeping are now separated.
+  last-episode dones are now updated once per step from all term outputs, avoiding per-term overwrites
+  and ensuring Episode_Termination metrics reflect the actual triggering terms.
+
+
 0.47.8 (2025-11-06)
 ~~~~~~~~~~~~~~~~~~~
 
