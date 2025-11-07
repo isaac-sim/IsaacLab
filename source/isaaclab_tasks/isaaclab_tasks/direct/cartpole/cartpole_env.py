@@ -40,9 +40,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     pole_dof_name = "cart_to_pole"
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

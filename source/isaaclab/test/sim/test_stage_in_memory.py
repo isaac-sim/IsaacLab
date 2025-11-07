@@ -208,7 +208,6 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
             base_env_path=base_env_path,
             prim_paths=target_paths,
             replicate_physics=True,
-            clone_in_fabric=True,
         )
         prim_path_regex = "/World/envs/env_.*"
 
