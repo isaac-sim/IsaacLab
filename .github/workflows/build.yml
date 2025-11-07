@@ -56,7 +56,7 @@ jobs:
         result-file: "isaaclab-tasks-report.xml"
         container-name: "isaac-lab-tasks-test-$$"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
+        pytest-options: "--github-actions-annotate-failures"
         filter-pattern: "isaaclab_tasks"
 
     - name: Copy Test Results from IsaacLab Tasks Container
@@ -116,7 +116,7 @@ jobs:
         result-file: "general-tests-report.xml"
         container-name: "isaac-lab-general-test-$$"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        pytest-options: ""
+        pytest-options: "--github-actions-annotate-failures"
         filter-pattern: "not isaaclab_tasks"
 
     - name: Copy Test Results from General Tests Container
