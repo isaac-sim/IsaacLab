@@ -185,7 +185,7 @@ class DirectMARLEnv(gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # setup the observation, state and action spaces
         self._configure_env_spaces()

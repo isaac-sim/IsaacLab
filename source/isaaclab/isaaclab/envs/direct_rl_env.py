@@ -194,7 +194,7 @@ class DirectRLEnv(gym.Env):
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

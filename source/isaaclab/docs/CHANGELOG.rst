@@ -2,6 +2,49 @@ Changelog
 ---------
 
 
+0.48.0 (2025-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``enable_cpu_readback`` parameter to :class:`~isaaclab.sim.SimulationCfg` to control whether physics data
+  is automatically copied from GPU to CPU. When enabled with GPU simulation, allows data to be returned on CPU
+  while physics runs on GPU.
+* Added ``device`` parameter to :class:`~isaaclab.scene.InteractiveScene` to explicitly specify device for scene
+  tensor allocation, enabling proper device separation between simulation and task/environment.
+* Added ``device`` configuration field to :class:`~isaaclab.envs.DirectRLEnvCfg`, 
+  :class:`~isaaclab.envs.DirectMARLEnvCfg`, and :class:`~isaaclab.envs.ManagerBasedEnvCfg` to allow explicit
+  control of task device independent from simulation device.
+* Added simulation device information to environment initialization print output for better visibility of the
+  three-layer device architecture (simulation device, environment device, training device).
+
+Changed
+^^^^^^^
+
+* Modified :class:`~isaaclab.assets.SurfaceGripper` to support GPU simulation with CPU readback. Now validates
+  that either simulation runs on CPU or ``enable_cpu_readback=True`` is set for GPU simulation.
+* Updated all environment classes (:class:`~isaaclab.envs.DirectRLEnv`, :class:`~isaaclab.envs.DirectMARLEnv`,
+  :class:`~isaaclab.envs.ManagerBasedEnv`) to pass task device to :class:`~isaaclab.scene.InteractiveScene`
+  for proper device initialization.
+* Updated RL training scripts (RSL-RL, RL-Games, skrl, Stable-Baselines3) to decouple simulation device (``--device`` flag)
+  from RL training device. RL training device now uses configuration defaults unless in distributed mode.
+* Enhanced RL library wrappers (:class:`~isaaclab_rl.rsl_rl.RslRlVecEnvWrapper`, 
+  :class:`~isaaclab_rl.rl_games.RlGamesVecEnvWrapper`) to properly handle device transfers between environment
+  device and RL training device.
+
+Fixed
+^^^^^
+
+* Fixed device mismatch issues when using ``enable_cpu_readback=True`` by ensuring ``scene.env_origins`` and
+  other scene tensors are allocated on the correct task device.
+* Fixed RL-Games wrapper to properly transfer observations from environment device to RL device in addition
+  to existing action transfers.
+* Fixed environment buffers (``reset_buf``, ``episode_length_buf``) in :class:`~isaaclab.envs.DirectRLEnv`,
+  :class:`~isaaclab.envs.DirectMARLEnv`, and :class:`~isaaclab.envs.ManagerBasedRLEnv` to be allocated on
+  environment device instead of simulation device.
+
+
 0.47.10 (2025-11-06)
 ~~~~~~~~~~~~~~~~~~~~
 
