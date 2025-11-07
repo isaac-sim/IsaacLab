@@ -87,7 +87,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
 
     # Surface Gripper, the prim_expr need to point to a unique surface gripper per environment.
     gripper = SurfaceGripperCfg(
-        prim_expr="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
+        prim_path="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
         max_grip_distance=0.1,
         shear_force_limit=500.0,
         coaxial_force_limit=500.0,

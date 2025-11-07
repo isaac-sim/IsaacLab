@@ -151,8 +151,9 @@ class ArticulationData:
     default_inertia: torch.Tensor = None
     """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
 
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links' actor frame.
+    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
+    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
@@ -195,6 +196,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_dynamic_friction_coeff: torch.Tensor = None
@@ -203,6 +207,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_viscous_friction_coeff: torch.Tensor = None
@@ -346,10 +353,18 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_dynamic_friction_coeff: torch.Tensor = None
-    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_viscous_friction_coeff: torch.Tensor = None
     """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""

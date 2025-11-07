@@ -21,7 +21,7 @@ What These Features Do
 Usage Examples
 --------------
 
-Fabric cloning can be toggled by setting the ``clone_in_fabric`` flag in the ``InteractiveSceneCfg`` configuration.
+Fabric cloning can be toggled by setting the :attr:`isaaclab.scene.InteractiveSceneCfg.clone_in_fabric` flag.
 
 **Using Fabric Cloning with a RL environment**
 
@@ -34,7 +34,7 @@ Fabric cloning can be toggled by setting the ``clone_in_fabric`` flag in the ``I
     env = ManagerBasedRLEnv(cfg=env_cfg)
 
 
-Stage in memory can be toggled by setting the ``create_stage_in_memory`` in the ``SimulationCfg`` configuration.
+Stage in memory can be toggled by setting the :attr:`isaaclab.sim.SimulationCfg.create_stage_in_memory` flag.
 
 **Using Stage in Memory with a RL environment**
 
@@ -48,8 +48,9 @@ Stage in memory can be toggled by setting the ``create_stage_in_memory`` in the 
     env = ManagerBasedRLEnv(cfg=cfg)
 
 Note, if stage in memory is enabled without using an existing RL environment class, a few more steps are need.
-The stage creation steps should be wrapped in a ``with`` statement to set the stage context.
-If the stage needs to be attached, the ``attach_stage_to_usd_context`` function should be called after the stage is created.
+The stage creation steps should be wrapped in a :py:keyword:`with` statement to set the stage context.
+If the stage needs to be attached, the :meth:`~isaaclab.sim.utils.attach_stage_to_usd_context` function should
+be called after the stage is created.
 
 **Using Stage in Memory with a manual scene setup**
 

@@ -4,6 +4,8 @@
 Thank you for your interest in sending a pull request. Please make sure to check the contribution guidelines.
 
 Link: https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html
+
+💡 Please try to keep PRs small and focused. Large PRs are harder to review and merge.
 -->
 
 Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
@@ -21,8 +23,8 @@ is demanded by more than one party. -->
 
 - Bug fix (non-breaking change which fixes an issue)
 - New feature (non-breaking change which adds functionality)
-- Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- This change requires a documentation update
+- Breaking change (existing functionality will not work without user modification)
+- Documentation update
 
 ## Screenshots
 
@@ -40,6 +42,7 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 
 ## Checklist
 
+- [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)
 - [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings

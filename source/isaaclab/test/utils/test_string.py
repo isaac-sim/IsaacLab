@@ -164,6 +164,27 @@ def test_resolve_matching_names_values_with_basic_strings():
         _ = string_utils.resolve_matching_names_values(query_names, target_names)
 
 
+def test_resolve_matching_names_values_with_strict_false():
+    """Test resolving matching names with strict=False parameter."""
+    # list of strings
+    target_names = ["a", "b", "c", "d", "e"]
+    # test strict=False
+    data = {"a|c": 1, "b": 2, "f": 3}
+    index_list, names_list, values_list = string_utils.resolve_matching_names_values(data, target_names, strict=False)
+    assert index_list == [0, 1, 2]
+    assert names_list == ["a", "b", "c"]
+    assert values_list == [1, 2, 1]
+
+    # test failure case: multiple matches for a string (should still raise ValueError even with strict=False)
+    data = {"a|c": 1, "a": 2, "b": 3}
+    with pytest.raises(ValueError, match="Multiple matches for 'a':"):
+        _ = string_utils.resolve_matching_names_values(data, target_names, strict=False)
+
+    # test failure case: invalid input type (should still raise TypeError even with strict=False)
+    with pytest.raises(TypeError, match="Input argument `data` should be a dictionary"):
+        _ = string_utils.resolve_matching_names_values("not_a_dict", target_names, strict=False)
+
+
 def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     """Test resolving matching names with a basic expression."""
     # list of strings

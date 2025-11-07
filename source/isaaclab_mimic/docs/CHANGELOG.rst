@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+1.0.15 (2025-09-25)
+
+Fixed
+^^^^^
+
+* Fixed a bug in the instruction UI logic that caused incorrect switching between XR and non-XR display modes. The instruction display now properly detects and updates the UI based on the teleoperation device (e.g., handtracking/XR vs. keyboard).
+
+
+1.0.14 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added SkillGen integration for automated demonstration generation using cuRobo; enable via ``--use_skillgen`` in ``scripts/imitation_learning/isaaclab_mimic/generate_dataset.py``.
+* Added cuRobo motion planner interface (:class:`CuroboPlanner`, :class:`CuroboPlannerCfg`)
+* Added manual subtask start boundary annotation for SkillGen; enable via ``--annotate_subtask_start_signals`` in ``scripts/imitation_learning/isaaclab_mimic/annotate_demos.py``.
+* Added Rerun integration for motion plan visualization and debugging; enable via ``visualize_plan = True`` in :class:`CuroboPlannerCfg`.
+
+
+1.0.13 (2025-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`PickPlaceGR1T2WaistEnabledEnvCfg` and :class:`PickPlaceGR1T2WaistEnabledMimicEnvCfg` for GR1T2 robot manipulation tasks with waist joint control enabled.
+
 1.0.12 (2025-07-31)
 ~~~~~~~~~~~~~~~~~~~
 

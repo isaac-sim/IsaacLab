@@ -8,6 +8,12 @@ from the environments into the respective libraries function argument and return
 RL-Games
 --------
 
+.. attention::
+
+  When using RL-Games with the Ray workflow for distributed training or hyperparameter tuning,
+  please be aware that due to security risks associated with Ray, this workflow is not intended
+  for use outside of a strictly controlled network environment.
+
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
 
@@ -87,6 +93,40 @@ RSL-RL
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
+-  Training and distilling an agent with
+   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-Anymal-D-v0``:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # install python module (for rsl-rl)
+            ./isaaclab.sh -i rsl_rl
+            # run script for rl training of the teacher agent
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+            # run script for distilling the teacher agent into a student agent
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            # run script for playing the student with 64 environments
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: install python module (for rsl-rl)
+            isaaclab.bat -i rsl_rl
+            :: run script for rl training of the teacher agent
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+            :: run script for distilling the teacher agent into a student agent
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            :: run script for playing the student with 64 environments
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+
 SKRL
 ----
 
@@ -141,16 +181,16 @@ SKRL
             Note that JAX GPU support is only available on Linux.
 
             JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab's PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
-            To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0"``, for example.
+            To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0" "flax<0.10.7"``, for example.
 
          .. code:: bash
 
             # install python module (for skrl)
             ./isaaclab.sh -i skrl
+            # install jax<0.6.0 for torch 2.7
+            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0" "flax<0.10.7"
             # install skrl dependencies for JAX
             ./isaaclab.sh -p -m pip install skrl["jax"]
-            # install jax<0.6.0 for torch 2.7
-            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0"
             # run script for training
             ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for playing with 32 environments

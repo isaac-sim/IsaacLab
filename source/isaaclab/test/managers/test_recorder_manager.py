@@ -78,6 +78,28 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
 
 
+@configclass
+class DummyEnvCfg:
+    """Dummy environment configuration."""
+
+    @configclass
+    class DummySimCfg:
+        """Configuration for the dummy sim."""
+
+        dt = 0.01
+        render_interval = 1
+
+    @configclass
+    class DummySceneCfg:
+        """Configuration for the dummy scene."""
+
+        num_envs = 1
+
+    decimation = 1
+    sim = DummySimCfg()
+    scene = DummySceneCfg()
+
+
 def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
     """Create a dummy environment."""
 
@@ -86,8 +108,10 @@ def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
 
     dummy_termination_manager = DummyTerminationManager()
     sim = SimulationContext()
+    dummy_cfg = DummyEnvCfg()
+
     return namedtuple("ManagerBasedEnv", ["num_envs", "device", "sim", "cfg", "termination_manager"])(
-        20, device, sim, dict(), dummy_termination_manager
+        20, device, sim, dummy_cfg, dummy_termination_manager
     )
 
 
@@ -142,8 +166,8 @@ def test_record(dataset_dir):
         # check the recorded data
         for env_id in range(env.num_envs):
             episode = recorder_manager.get_episode(env_id)
-            assert episode.data["record_pre_step"].shape == (2, 4)
-            assert episode.data["record_post_step"].shape == (2, 5)
+            assert torch.stack(episode.data["record_pre_step"]).shape == (2, 4)
+            assert torch.stack(episode.data["record_post_step"]).shape == (2, 5)
 
         # Trigger pre-reset callbacks which then export and clean the episode data
         recorder_manager.record_pre_reset(env_ids=None)
@@ -154,4 +178,4 @@ def test_record(dataset_dir):
         recorder_manager.record_post_reset(env_ids=None)
         for env_id in range(env.num_envs):
             episode = recorder_manager.get_episode(env_id)
-            assert episode.data["record_post_reset"].shape == (1, 3)
+            assert torch.stack(episode.data["record_post_reset"]).shape == (1, 3)

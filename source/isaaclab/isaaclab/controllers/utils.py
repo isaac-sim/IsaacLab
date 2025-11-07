@@ -9,6 +9,7 @@ This module provides utility functions to help with controller implementations.
 """
 
 import os
+import re
 
 from isaacsim.core.utils.extensions import enable_extension
 
@@ -95,6 +96,41 @@ def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: b
             if old_str not in content:
                 omni.log.warn(f"Error: Could not find revolute joint named '{joint}' in URDF file")
         content = content.replace(old_str, new_str)
+
+    with open(urdf_path, "w") as file:
+        file.write(content)
+
+
+def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
+    """Change revolute joints to fixed joints in a URDF file.
+
+    This function modifies a URDF file by changing specified revolute joints to fixed joints.
+    This is useful when you want to disable certain joints in a robot model.
+
+    Args:
+        urdf_path: Path to the URDF file to modify.
+        fixed_joints: List of regular expressions matching joint names to convert from revolute to fixed.
+        verbose: Whether to print information about the changes being made.
+    """
+
+    with open(urdf_path) as file:
+        content = file.read()
+
+    # Find all revolute joints in the URDF
+    revolute_joints = re.findall(r'<joint name="([^"]+)" type="revolute">', content)
+
+    for joint in revolute_joints:
+        # Check if this joint matches any of the fixed joint patterns
+        should_fix = any(re.match(pattern, joint) for pattern in fixed_joints)
+
+        if should_fix:
+            old_str = f'<joint name="{joint}" type="revolute">'
+            new_str = f'<joint name="{joint}" type="fixed">'
+            if verbose:
+                omni.log.warn(f"Replacing {joint} with fixed joint")
+                omni.log.warn(old_str)
+                omni.log.warn(new_str)
+            content = content.replace(old_str, new_str)
 
     with open(urdf_path, "w") as file:
         file.write(content)
