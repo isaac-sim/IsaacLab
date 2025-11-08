@@ -23,10 +23,9 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 
-
-
 # Add markers for Windows and ARM platform support
 pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 def replace_value(env, env_id, data, value, num_steps):
     if env.common_step_counter > num_steps and data != value:

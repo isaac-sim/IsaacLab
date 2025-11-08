@@ -44,9 +44,9 @@ from isaaclab.utils import configclass
 ##
 
 
-
 # Add markers for Windows and ARM platform support
 pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 class CubeActionTerm(ActionTerm):
     """Simple action term that implements a PD controller to track a target position.

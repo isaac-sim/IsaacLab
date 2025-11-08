@@ -28,12 +28,11 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-
-@configclass
-
 # Add markers for Windows and ARM platform support
 pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
+
+@configclass
 class EmptyManagerCfg:
     """Empty manager specifications for the environment."""
 

@@ -40,9 +40,9 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
 
 
-
 # Add markers for Windows and ARM platform support
 pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 def generate_articulation_cfg(
     articulation_type: str,

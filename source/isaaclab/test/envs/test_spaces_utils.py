@@ -18,9 +18,10 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
-import pytest
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
+
+import pytest
 
 from isaaclab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
 

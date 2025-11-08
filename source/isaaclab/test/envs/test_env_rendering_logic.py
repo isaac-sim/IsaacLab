@@ -30,12 +30,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
 
-
-@configclass
-
 # Add markers for Windows and ARM platform support
 pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
+
+@configclass
 class EmptyManagerCfg:
     """Empty specifications for the environment."""
 

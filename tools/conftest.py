@@ -424,7 +424,9 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platform, arm_platform)
+    failed_tests, test_status = run_individual_tests(
+        test_files, workspace_root, isaacsim_ci, windows_platform, arm_platform
+    )
 
     print("failed tests:", failed_tests)
 
