@@ -15,6 +15,7 @@ from isaaclab.utils import configclass
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
+from .visualizers import VisualizerCfg
 
 
 @configclass
@@ -201,6 +202,23 @@ class SimulationCfg:
 
     When enabled, the Newton to renderer will be called every time the simulation is rendered. If Isaac Sim's
     renderer is also enabled, both will be called.
+    """
+
+    visualizer: VisualizerCfg | None = None
+    """Visualizer settings. Default is None (no visualizer).
+    
+    To enable a visualizer, set this to one of the visualizer configuration classes:
+    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
+    - OVVisualizerCfg: Omniverse-based high-fidelity visualizer  
+    - RerunVisualizerCfg: Web-based Rerun visualizer
+    
+    Example:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+        cfg = SimulationCfg(visualizer=NewtonVisualizerCfg(enabled=True))
+    
+    Note:
+        This replaces the previous enable_newton_rendering flag and provides a unified
+        interface for all visualizer backends.
     """
 
     create_stage_in_memory: bool = False
