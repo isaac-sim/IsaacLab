@@ -1,20 +1,51 @@
 Changelog
 ---------
 
+0.47.11 (2025-11-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the bug where effort limits were being overridden in :class:`~isaaclab.actuators.ActuatorBase` when the ``effort_limit`` parameter is set to None.
+* Corrected the unit tests for three effort limit scenarios with proper assertions
+
+
+0.47.10 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``num_rerenders_on_reset`` parameter to ManagerBasedEnvCfg and DirectRLEnvCfg to configure the number
+  of render steps to perform after reset. This enables more control over DLSS rendering behavior after reset.
+
+Changed
+^^^^^^^
+
+* Added deprecation warning for ``rerender_on_reset`` parameter in ManagerBasedEnv and DirectRLEnv.
+
+
+0.47.9 (2025-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed termination term bookkeeping in :class:`~isaaclab.managers.TerminationManager`:
+  per-step termination and last-episode termination bookkeeping are now separated.
+  last-episode dones are now updated once per step from all term outputs, avoiding per-term overwrites
+  and ensuring Episode_Termination metrics reflect the actual triggering terms.
+
+
 0.47.8 (2025-11-06)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added ``HaplyDevice`` class for Inverse3 and VerseGrip integration.
-* Added ``haply_teleoperation.py`` demo script for real-time robot manipulation with force feedback.
-* Added Haply device tests in ``test_device_constructors.py``.
+* Added parameter :attr:`~isaaclab.terrains.TerrainImporterCfg.use_terrain_origins` to allow generated sub terrains with grid origins.
 
-Changed
-^^^^^^^
-
-* Updated ``api`` and ``how-to`` documentation for Haply device.
 
 0.47.7 (2025-10-31)
 ~~~~~~~~~~~~~~~~~~~
