@@ -14,9 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import random
 
 import isaaclab.utils.dict as dict_utils
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
 
 def _test_function(x):

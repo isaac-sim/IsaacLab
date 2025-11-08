@@ -8,6 +8,9 @@ import torch.utils.benchmark as benchmark
 
 import pytest
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.mark.isaacsim_ci
 def test_array_slicing():

@@ -38,6 +38,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 # from isaacsim.robot.surface_gripper import GripperView
 
 
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 def generate_surface_gripper_cfgs(
     kinematic_enabled: bool = False,
     max_grip_distance: float = 0.1,

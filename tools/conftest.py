@@ -189,7 +189,7 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     return test_suite
 
 
-def run_individual_tests(test_files, workspace_root, isaacsim_ci):
+def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platform=False, arm_platform=False):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
@@ -222,6 +222,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         if isaacsim_ci:
             cmd.append("-m")
             cmd.append("isaacsim_ci")
+        elif windows_platform:
+            cmd.append("-m")
+            cmd.append("windows")
+        elif arm_platform:
+            cmd.append("-m")
+            cmd.append("arm")
 
         # Add the test file path last
         cmd.append(str(test_file))
@@ -334,6 +340,8 @@ def pytest_sessionstart(session):
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+    windows_platform = os.environ.get("WINDOWS_PLATFORM", "false") == "true"
+    arm_platform = os.environ.get("ARM_PLATFORM", "false") == "true"
 
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
@@ -348,6 +356,9 @@ def pytest_sessionstart(session):
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    print(f"IsaacSim CI mode: {isaacsim_ci}")
+    print(f"Windows platform: {windows_platform}")
+    print(f"ARM platform: {arm_platform}")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -387,6 +398,22 @@ def pytest_sessionstart(session):
                 if "@pytest.mark.isaacsim_ci" in f.read():
                     new_test_files.append(test_file)
         test_files = new_test_files
+    elif windows_platform:
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file) as f:
+                content = f.read()
+                if "@pytest.mark.windows" in content:
+                    new_test_files.append(test_file)
+        test_files = new_test_files
+    elif arm_platform:
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file) as f:
+                content = f.read()
+                if "@pytest.mark.arm" in content:
+                    new_test_files.append(test_file)
+        test_files = new_test_files
 
     if not test_files:
         print("No test files found in source directory")
@@ -397,7 +424,7 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platform, arm_platform)
 
     print("failed tests:", failed_tests)
 

@@ -32,6 +32,10 @@ from isaaclab.utils import configclass
 
 
 @configclass
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 class EmptyManagerCfg:
     """Empty specifications for the environment."""
 

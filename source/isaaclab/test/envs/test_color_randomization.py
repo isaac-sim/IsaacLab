@@ -36,6 +36,10 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 
 
 @configclass
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 class ActionsCfg:
     """Action specifications for the environment."""
 

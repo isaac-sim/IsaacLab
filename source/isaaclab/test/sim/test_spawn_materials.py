@@ -21,6 +21,9 @@ from pxr import UsdPhysics, UsdShade
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture
 def sim():

@@ -21,6 +21,9 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture
 def sim():

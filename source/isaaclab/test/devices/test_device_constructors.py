@@ -40,6 +40,9 @@ from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsReta
 # Import teleop device factory for testing
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture
 def mock_environment(mocker):

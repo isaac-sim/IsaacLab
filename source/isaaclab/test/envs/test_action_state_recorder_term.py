@@ -28,6 +28,10 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():
     """Set up carb settings to prevent simulation getting stuck."""

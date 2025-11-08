@@ -29,6 +29,10 @@ from env_test_utils import _run_environments, requires_pinocchio, setup_environm
 import isaaclab_tasks  # noqa: F401
 
 
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
 @pytest.mark.isaacsim_ci

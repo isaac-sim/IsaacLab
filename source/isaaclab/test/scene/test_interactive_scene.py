@@ -27,6 +27,10 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @configclass
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 

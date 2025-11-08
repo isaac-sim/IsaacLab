@@ -38,6 +38,10 @@ from isaaclab.utils.math import (
 )
 
 
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 def generate_cubes_scene(
     num_envs: int = 1,
     num_cubes: int = 1,

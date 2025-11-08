@@ -22,6 +22,9 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

@@ -27,6 +27,10 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 def test_non_concatenated_obs_groups_contain_all_terms(device):
     """Test that non-concatenated observation groups contain all defined terms (issue #3133).
 

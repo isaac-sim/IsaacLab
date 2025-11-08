@@ -26,6 +26,9 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture

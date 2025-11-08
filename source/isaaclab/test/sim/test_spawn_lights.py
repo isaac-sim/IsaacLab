@@ -21,6 +21,9 @@ from pxr import UsdLux
 import isaaclab.sim as sim_utils
 from isaaclab.utils.string import to_camel_case
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

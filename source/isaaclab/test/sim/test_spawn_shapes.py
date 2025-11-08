@@ -19,6 +19,9 @@ from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture
 def sim():

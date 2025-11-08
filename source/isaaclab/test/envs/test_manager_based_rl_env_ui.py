@@ -25,7 +25,12 @@ from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
+import pytest
+
 enable_extension("isaacsim.gui.components")
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
 
 @configclass
