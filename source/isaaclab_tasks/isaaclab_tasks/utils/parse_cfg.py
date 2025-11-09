@@ -100,6 +100,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
                 cfg = yaml.full_load(f)
             else:  # .json
                 import json
+
                 cfg = json.load(f)
     else:
         if callable(cfg_entry_point):

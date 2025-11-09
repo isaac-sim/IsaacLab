@@ -362,17 +362,17 @@ def main(args: argparse.Namespace):
         print(f"Loading configuration for task: {task_name}")
         print(gym.envs.registry.keys())
         print(" ")
-        
+
         # use the unified configuration loading utility (supports YAML, JSON, and Python classes)
         ext_cfg = load_cfg_from_registry(task_name, cfg_entry_point_key)
-        
+
         # ensure the configuration is a dictionary (robomimic expects JSON/YAML dict format)
         if not isinstance(ext_cfg, dict):
             raise TypeError(
                 f"Expected robomimic configuration to be a dictionary, but got {type(ext_cfg)}."
                 " Please ensure the configuration file is in JSON or YAML format."
             )
-        
+
         # create robomimic config from the loaded dictionary
         config = config_factory(ext_cfg["algo_name"])
         # update config with external json - this will throw errors if
