@@ -31,14 +31,7 @@ from isaaclab.utils.timer import Timer
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
 
-# Try importing optional dependencies
-try:
-    import trimesh
-
-    TRIMESH_AVAILABLE = True
-except ImportError:
-    TRIMESH_AVAILABLE = False
-    trimesh = None
+import trimesh
 
 
 class VisuoTactileSensor(SensorBase):
@@ -191,7 +184,7 @@ class VisuoTactileSensor(SensorBase):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         # Initialize camera-based tactile sensing
-        if self.cfg.enable_camera_tactile and self.cfg.camera_cfg is not None:
+        if self.cfg.enable_camera_tactile:
             self._initialize_camera_tactile()
 
         # Initialize force field tactile sensing
@@ -217,7 +210,7 @@ class VisuoTactileSensor(SensorBase):
         Raises:
             RuntimeError: If camera sensor is not initialized or initial render fails.
         """
-        if not self.cfg.enable_camera_tactile:
+        if not self.cfg.enable_camera_tactile or self._camera_sensor is None:
             return None
         if not self._camera_sensor.is_initialized:
             raise RuntimeError("Camera sensor is not initialized")
@@ -239,8 +232,22 @@ class VisuoTactileSensor(SensorBase):
     def _initialize_camera_tactile(self):
         """Initialize camera-based tactile sensing."""
         if self.cfg.camera_cfg is None:
-            omni.log.warn("Camera configuration is None. Disabling camera-based tactile sensing.")
-            return
+            raise ValueError("Camera configuration is None. Please provide a valid camera configuration.")
+        # check image size is consistent with the render config
+        if (
+            self.cfg.camera_cfg.height != self.cfg.render_cfg.image_height
+            or self.cfg.camera_cfg.width != self.cfg.render_cfg.image_width
+        ):
+            raise ValueError(
+                "Camera configuration image size is not consistent with the render config. Camera size:"
+                f" {self.cfg.camera_cfg.height}x{self.cfg.camera_cfg.width}, Render config:"
+                f" {self.cfg.render_cfg.image_height}x{self.cfg.render_cfg.image_width}"
+            )
+        # check data types
+        if not all(data_type in ["distance_to_image_plane", "depth"] for data_type in self.cfg.camera_cfg.data_types):
+            raise ValueError(
+                f"Camera configuration data types are not supported. Data types: {self.cfg.camera_cfg.data_types}"
+            )
 
         # gelsightRender
         self._tactile_rgb_render = GelsightRender(self.cfg.render_cfg, device=self.device)
@@ -256,6 +263,9 @@ class VisuoTactileSensor(SensorBase):
         # Initialize camera buffers
         self._data.tactile_rgb_image = torch.zeros(
             (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 3), device=self._device
+        )
+        self._data.tactile_camera_depth = torch.zeros(
+            (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 1), device=self._device
         )
 
         omni.log.info("Camera-based tactile sensing initialized.")
@@ -273,16 +283,15 @@ class VisuoTactileSensor(SensorBase):
         to create a grid of sensing points that will be used for force computation.
 
         """
-        if not self._create_physx_views():
-            return
 
         # Generate tactile points on elastomer surface
-        if not self._generate_tactile_points(
+        self._generate_tactile_points(
             num_divs=[self.cfg.num_tactile_rows, self.cfg.num_tactile_cols],
             margin=getattr(self.cfg, "tactile_margin", 0.003),
             visualize=self.cfg.trimesh_vis_tactile_points,
-        ):
-            return
+        )
+
+        self._create_physx_views()
 
         # Initialize force field data buffers
         self._initialize_force_field_buffers()
@@ -301,14 +310,9 @@ class VisuoTactileSensor(SensorBase):
 
         """
         if self.cfg.contact_object_prim_path_expr is None:
-            omni.log.warn("contact_object_prim_path_expr is None. Disabling force field tactile sensing.")
             return False
 
-        # Find contact object components
         contact_object_mesh, contact_object_rigid_body = self._find_contact_object_components()
-        if contact_object_mesh is None or contact_object_rigid_body is None:
-            return False
-
         # Create SDF view for collision detection
         num_query_points = self.cfg.num_tactile_rows * self.cfg.num_tactile_cols
         mesh_path_pattern = contact_object_mesh.GetPath().pathString.replace("env_0", "env_*")
@@ -342,15 +346,12 @@ class VisuoTactileSensor(SensorBase):
             Only SDF meshes are supported for optimal force field computation performance.
             If no SDF mesh is found, the method will log a warning and return None.
         """
-        if self.cfg.contact_object_prim_path_expr is None:
-            omni.log.warn("contact_object_prim_path_expr is None. Disabling force field tactile sensing.")
-            return None, None
-
         # Find the contact object prim using the configured pattern
         contact_object_prim = sim_utils.find_first_matching_prim(self.cfg.contact_object_prim_path_expr)
         if contact_object_prim is None:
-            omni.log.warn(f"No contact object prim found matching pattern: {self.cfg.contact_object_prim_path_expr}")
-            return None, None
+            raise RuntimeError(
+                f"No contact object prim found matching pattern: {self.cfg.contact_object_prim_path_expr}"
+            )
 
         def is_sdf_mesh(prim: Usd.Prim) -> bool:
             """Check if a mesh prim is configured for SDF approximation."""
@@ -364,8 +365,9 @@ class VisuoTactileSensor(SensorBase):
             contact_object_prim.GetPath(), predicate=is_sdf_mesh
         )
         if contact_object_mesh is None:
-            omni.log.warn(f"No SDF mesh found under contact object at path: {contact_object_prim.GetPath().pathString}")
-            return None, None
+            raise RuntimeError(
+                f"No SDF mesh found under contact object at path: {contact_object_prim.GetPath().pathString}"
+            )
 
         def find_parent_rigid_body(prim: Usd.Prim) -> Usd.Prim | None:
             """Find the first parent prim with RigidBodyAPI."""
@@ -381,13 +383,13 @@ class VisuoTactileSensor(SensorBase):
         # Find the rigid body parent of the SDF mesh
         contact_object_rigid_body = find_parent_rigid_body(contact_object_mesh)
         if contact_object_rigid_body is None:
-            omni.log.warn(
+            raise RuntimeError(
                 f"No contact object rigid body found for mesh at path: {contact_object_mesh.GetPath().pathString}"
             )
 
         return contact_object_mesh, contact_object_rigid_body
 
-    def _generate_tactile_points(self, num_divs: list, margin: float, visualize: bool) -> bool:
+    def _generate_tactile_points(self, num_divs: list, margin: float, visualize: bool):
         """Generate tactile sensing points from elastomer mesh geometry.
 
         This method creates a grid of tactile sensing points on the elastomer surface
@@ -398,13 +400,7 @@ class VisuoTactileSensor(SensorBase):
             margin: Margin distance from mesh edges in meters.
             visualize: Whether to show the generated points in trimesh visualization.
 
-        Returns:
-            True if tactile points were successfully generated, False otherwise.
         """
-        # Check if required dependencies are available
-        if not TRIMESH_AVAILABLE:
-            omni.log.warn("Trimesh not available, please install trimesh")
-            return False
 
         # Get the elastomer prim path
         elastomer_prim_path = self._parent_prims[0].GetPath().pathString
@@ -415,8 +411,7 @@ class VisuoTactileSensor(SensorBase):
 
         elastomer_mesh_prim = sim_utils.get_first_matching_child_prim(elastomer_prim_path, predicate=is_visual_mesh)
         if elastomer_mesh_prim is None:
-            omni.log.warn(f"No visual mesh found under elastomer at path: {elastomer_prim_path}")
-            return False
+            raise RuntimeError(f"No visual mesh found under elastomer at path: {elastomer_prim_path}")
 
         omni.log.info(f"Generating tactile points from USD mesh: {elastomer_mesh_prim.GetPath().pathString}")
 
@@ -485,22 +480,16 @@ class VisuoTactileSensor(SensorBase):
             query_pointcloud = trimesh.PointCloud(locations, colors=(0.0, 0.0, 1.0))
             trimesh.Scene([mesh, query_pointcloud]).show()
 
-        # Check if we got the expected number of points
-        if len(index_ray) != len(grid_corners):
-            omni.log.warn(f"Fewer number of tactile points than expected: {len(index_ray)} != {len(grid_corners)}")
-            return False
-
         # Sort and store tactile points
         tactile_points = locations[index_ray.argsort()]
         # in the frame of the elastomer
         self._tactile_pos_local = torch.tensor(tactile_points, dtype=torch.float32, device=self._device)
         self.num_tactile_points = self._tactile_pos_local.shape[0]
         if self.num_tactile_points != self.cfg.num_tactile_rows * self.cfg.num_tactile_cols:
-            omni.log.warn(
+            raise RuntimeError(
                 f"Number of tactile points does not match expected: {self.num_tactile_points} !="
                 f" {self.cfg.num_tactile_rows * self.cfg.num_tactile_cols}"
             )
-            return False
 
         # Assume tactile frame rotation are all the same
         rotation = (0, 0, -np.pi)
@@ -510,7 +499,6 @@ class VisuoTactileSensor(SensorBase):
         )
 
         omni.log.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
-        return True
 
     def _initialize_force_field_buffers(self):
         """Initialize data buffers for force field sensing."""
@@ -582,15 +570,24 @@ class VisuoTactileSensor(SensorBase):
             env_ids: Environment indices or slice to update. Can be a sequence of
                     integers or a slice object for batch processing.
         """
+        if self._nominal_tactile is None:
+            raise RuntimeError("Nominal tactile is not set. Please call get_initial_render() first.")
         # Update camera sensor
         self._camera_sensor.update(self._sim_physics_dt)
 
         # Get camera data
         camera_data = self._camera_sensor.data
 
+        # Check for either distance_to_image_plane or depth (they are equivalent)
+        depth_key = None
         if "distance_to_image_plane" in camera_data.output:
-            self._data.tactile_camera_depth = camera_data.output["distance_to_image_plane"][env_ids].clone()
-            diff = self._nominal_tactile["distance_to_image_plane"][env_ids] - self._data.tactile_camera_depth
+            depth_key = "distance_to_image_plane"
+        elif "depth" in camera_data.output:
+            depth_key = "depth"
+
+        if depth_key is not None:
+            self._data.tactile_camera_depth[env_ids] = camera_data.output[depth_key][env_ids].clone()
+            diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_camera_depth[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 
     #########################################################################################
@@ -659,11 +656,7 @@ class VisuoTactileSensor(SensorBase):
         Returns:
             True if all contact object components are available, False otherwise.
         """
-        return (
-            self._contact_object_body_view is not None
-            and self._data.tactile_points_pos_w is not None
-            and hasattr(self, "_contact_object_sdf_view")
-        )
+        return self._contact_object_body_view is not None and hasattr(self, "_contact_object_sdf_view")
 
     def _transform_tactile_points_to_world(self, pos_w: torch.Tensor, quat_w: torch.Tensor):
         """Transform tactile points from local to world coordinates.

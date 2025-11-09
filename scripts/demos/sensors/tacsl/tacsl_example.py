@@ -107,7 +107,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
             ),
             compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
             compliant_contact_damping=args_cli.tactile_compliant_damping,
-            apply_physics_material_prim_path="elastomer/collisions",
+            apply_physics_material_prim_path="elastomer",
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
                 solver_position_iteration_count=12,
@@ -149,8 +149,8 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             update_period=1 / 60,  # 60 Hz
-            height=320,
-            width=240,
+            height=GELSIGHT_R15_CFG.image_height,
+            width=GELSIGHT_R15_CFG.image_width,
             data_types=["distance_to_image_plane"],
             spawn=None,  # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
         ),
@@ -363,6 +363,7 @@ def main():
         scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
     elif args_cli.contact_object_type == "none":
         scene_cfg = TactileSensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
+        scene_cfg.tactile_sensor.contact_object_prim_path_expr = None
         # this flag is to visualize the tactile sensor points
         scene_cfg.tactile_sensor.debug_vis = True
 

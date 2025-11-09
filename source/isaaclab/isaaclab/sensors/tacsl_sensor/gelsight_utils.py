@@ -42,8 +42,7 @@ def get_gelsight_render_data(base_data_path: str | None, data_dir: str, file_nam
             omni.log.info(f"Using custom GelSight render data: {file_path}")
             return file_path
         else:
-            omni.log.warn(f"Custom GelSight render data not found: {file_path}")
-            return None
+            raise FileNotFoundError(f"Custom GelSight render data not found: {file_path}")
     else:
         # Default to Isaac Lab Nucleus directory - download and cache
         nucleus_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "TacSL", data_dir, file_name)
@@ -53,11 +52,7 @@ def get_gelsight_render_data(base_data_path: str | None, data_dir: str, file_nam
 
         if not os.path.exists(cache_path):
             omni.log.info(f"Downloading GelSight render data from Nucleus: {nucleus_path}")
-            try:
-                cache_path = retrieve_file_path(nucleus_path, cache_dir)
-            except (FileNotFoundError, OSError, ConnectionError, PermissionError) as e:
-                omni.log.warn(f"Failed to download GelSight render data from Nucleus: {e}")
-                return None
+            cache_path = retrieve_file_path(nucleus_path, cache_dir)
         else:
             omni.log.info(f"Using cached GelSight render data: {cache_path}")
         return cache_path
