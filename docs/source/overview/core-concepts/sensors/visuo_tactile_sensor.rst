@@ -28,20 +28,17 @@ Tactile sensors require specific configuration parameters to define their behavi
 
     # Tactile sensor configuration
     tactile_sensor = VisuoTactileSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/tactile_sensor",
+        prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
         ## Sensor configuration
         render_cfg=GELSIGHT_R15_CFG,
         enable_camera_tactile=True,
         enable_force_field=True,
         ## Elastomer configuration
-        elastomer_rigid_body="elastomer",
-        ## Force field configuration
         num_tactile_rows=20,
         num_tactile_cols=25,
         tactile_margin=0.003,
-        ## Indenter configuration (will be set based on indenter type)
-        indenter_rigid_body="indenter",
-        indenter_sdf_mesh="factory_nut_loose/collisions",
+        ## Contact object configuration
+        contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
         ## Force field physics parameters
         tactile_kn=1.0,
         tactile_mu=2.0,
@@ -65,7 +62,7 @@ The configuration supports customization of:
     * ``enable_camera_tactile`` - Enable tactile RGB imaging through camera sensors
     * ``enable_force_field`` - Enable force field computation and visualization
 * **Force Field Grid**: Set tactile grid dimensions (``num_tactile_rows``, ``num_tactile_cols``) and margins, which directly affects the spatial resolution of the computed force field
-* **Indenter Configuration**: Define properties of interacting objects including rigid body name and collision mesh
+* **Contact Object Configuration**: Define properties of interacting objects using prim path expressions to locate objects with SDF collision meshes
 * **Physics Parameters**: Control the sensor's force field computation:
     * ``tactile_kn``, ``tactile_mu``, ``tactile_kt`` - Normal stiffness, friction coefficient, and tangential stiffness
 * **Camera Settings**: Configure resolution, focal length, update rates, and 6-DOF positioning relative to the sensor
@@ -82,9 +79,7 @@ Configuration Requirements
    **Force Field Computation**
       If ``enable_force_field=True``, the following parameters are required:
 
-      * ``indenter_rigid_body`` - Specific rigid body within the actor
-      * ``indenter_sdf_mesh`` - Collision mesh for SDF computation
-      * ``elastomer_rigid_body`` - Elastomer rigid body, this is required to track the elastomer's pose and velocity.
+      * ``contact_object_prim_path_expr`` - Prim path expression to locate contact objects with SDF collision meshes
 
    **SDF Computation**
       When force field computation is enabled, penalty-based normal and shear forces are computed using Signed Distance Field (SDF) queries. To achieve GPU acceleration:
@@ -93,7 +88,7 @@ Configuration Requirements
       * An SDFView must be defined during initialization, therefore interacting objects should be specified before simulation.
 
    **Elastomer Configuration**
-      Elastomer properties (``elastomer_rigid_body``, ``elastomer_tip_link_name``) must match the robot model where the sensor is attached.
+      The sensor's ``prim_path`` must be configured as a child of the elastomer prim in the USD hierarchy.
 
    **Physics Materials**
       The sensor uses physics materials to configure the compliant contact properties of the elastomer.
@@ -116,15 +111,17 @@ To use the tactile sensor in a simulation environment, run the demo:
 .. code-block:: bash
 
     cd scripts/demos/sensors/tacsl
-    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --indenter_type nut --num_envs 16 --save_viz
+    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
 
 Available command-line options include:
 
 * ``--use_tactile_rgb``: Enable camera-based tactile sensing
 * ``--use_tactile_ff``: Enable force field tactile sensing
-* ``--indenter_type``: Specify the type of indenter object (nut, cube, etc.)
+* ``--contact_object_type``: Specify the type of contact object (nut, cube, etc.)
 * ``--num_envs``: Number of parallel environments
 * ``--save_viz``: Save visualization outputs for analysis
+* ``--tactile_compliance_stiffness``: Override compliant contact stiffness (default: use USD asset values)
+* ``--tactile_compliant_damping``: Override compliant contact damping (default: use USD asset values)
 
 For a complete list of available options:
 

@@ -773,6 +773,13 @@ class InteractiveScene:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
                             ENV_REGEX_NS=self.env_regex_ns
                         )
+                    if (
+                        hasattr(asset_cfg, "contact_object_prim_path_expr")
+                        and asset_cfg.contact_object_prim_path_expr is not None
+                    ):
+                        asset_cfg.contact_object_prim_path_expr = asset_cfg.contact_object_prim_path_expr.format(
+                            ENV_REGEX_NS=self.env_regex_ns
+                        )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):

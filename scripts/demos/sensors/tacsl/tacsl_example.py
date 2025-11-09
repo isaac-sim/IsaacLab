@@ -12,7 +12,7 @@ tactile sensing with the gelsight finger setup.
 .. code-block:: bash
 
     # Usage
-    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --num_envs 16 --indenter_type nut --save_viz
+    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --num_envs 16 --contact_object_type nut --save_viz --enable_cameras
 
 """
 
@@ -53,7 +53,11 @@ parser.add_argument("--debug_sdf_closest_pts", action="store_true", help="Visual
 parser.add_argument("--debug_tactile_sensor_pts", action="store_true", help="Visualize tactile sensor points.")
 parser.add_argument("--trimesh_vis_tactile_points", action="store_true", help="Visualize tactile points using trimesh.")
 parser.add_argument(
-    "--indenter_type", type=str, default="nut", choices=["none", "cube", "nut"], help="Type of indenter to use."
+    "--contact_object_type",
+    type=str,
+    default="nut",
+    choices=["none", "cube", "nut"],
+    help="Type of contact object to use.",
 )
 
 # Append AppLauncher cli args
@@ -71,7 +75,6 @@ from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.markers.visualization_markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 # Import our TactileSensor
@@ -125,7 +128,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
 
     # TacSL Tactile Sensor
     tactile_sensor = VisuoTactileSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/tactile_sensor",
+        prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
         history_length=0,
         debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
         # Sensor configuration
@@ -133,14 +136,11 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         enable_camera_tactile=args_cli.use_tactile_rgb,
         enable_force_field=args_cli.use_tactile_ff,
         # Elastomer configuration
-        elastomer_rigid_body="elastomer",
-        # Force field configuration
         num_tactile_rows=20,
         num_tactile_cols=25,
         tactile_margin=0.003,
-        # Indenter configuration (will be set based on indenter type)
-        indenter_rigid_body=None,  # Will be updated based on indenter type
-        indenter_sdf_mesh=None,  # Will be updated based on indenter type
+        # Contact object configuration
+        contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
         # Force field physics parameters
         tactile_kn=args_cli.tactile_kn,
         tactile_mu=args_cli.tactile_mu,
@@ -157,25 +157,16 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         # Debug Visualization
         trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
         visualize_sdf_closest_pts=args_cli.debug_sdf_closest_pts,
-        visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/TactileSensorDebugPts",
-            markers={
-                "debug_pts": sim_utils.SphereCfg(
-                    radius=0.0002,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-                ),
-            },
-        ),
     )
 
 
 @configclass
 class CubeTactileSceneCfg(TactileSensorsSceneCfg):
-    """Scene with cube indenter."""
+    """Scene with cube contact object."""
 
-    # Cube indenter
-    indenter = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/indenter",
+    # Cube contact object
+    contact_object = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
@@ -190,11 +181,11 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
 
 @configclass
 class NutTactileSceneCfg(TactileSensorsSceneCfg):
-    """Scene with nut indenter."""
+    """Scene with nut contact object."""
 
-    # Nut indenter
-    indenter = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/indenter",
+    # Nut contact object
+    contact_object = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -270,7 +261,7 @@ def run_simulator(sim, scene: InteractiveScene):
     sim_time = 0.0
     count = 0
 
-    # Assign different masses to indenters in different environments
+    # Assign different masses to contact objects in different environments
     num_envs = scene.num_envs
 
     if args_cli.save_viz:
@@ -292,14 +283,14 @@ def run_simulator(sim, scene: InteractiveScene):
     scene.update(sim_dt)
 
     entity_list = ["robot"]
-    if "indenter" in scene.keys():
-        entity_list.append("indenter")
+    if "contact_object" in scene.keys():
+        entity_list.append("contact_object")
 
     while simulation_app.is_running():
 
         if count == 122:
             print(scene["tactile_sensor"].get_timing_summary())
-            # Reset robot and indenter positions
+            # Reset robot and contact object positions
             count = 0
             for entity in entity_list:
                 root_state = scene[entity].data.default_root_state.clone()
@@ -307,9 +298,9 @@ def run_simulator(sim, scene: InteractiveScene):
                 scene[entity].write_root_state_to_sim(root_state)
 
             scene.reset()
-            print("[INFO]: Resetting robot and indenter state...")
+            print("[INFO]: Resetting robot and contact object state...")
 
-        if "indenter" in scene.keys():
+        if "contact_object" in scene.keys():
             # rotation
             if count > 20:
                 env_indices = torch.arange(scene.num_envs, device=sim.device)
@@ -317,7 +308,7 @@ def run_simulator(sim, scene: InteractiveScene):
                 even_mask = env_indices % 2 == 0
                 torque_tensor[odd_mask, 0, 2] = 10  # rotation for odd environments
                 torque_tensor[even_mask, 0, 2] = -10  # rotation for even environments
-                scene["indenter"].set_external_force_and_torque(force_tensor, torque_tensor)
+                scene["contact_object"].set_external_force_and_torque(force_tensor, torque_tensor)
 
         # Step simulation
         scene.write_data_to_sim()
@@ -363,20 +354,14 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
 
-    # Create scene based on indenter type
-    if args_cli.indenter_type == "cube":
+    # Create scene based on contact object type
+    if args_cli.contact_object_type == "cube":
         scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # disabled force field for cube indenter because a SDF collision mesh cannot be created for the Shape Prims
+        # disabled force field for cube contact object because a SDF collision mesh cannot be created for the Shape Prims
         scene_cfg.tactile_sensor.enable_force_field = False
-        # Update tactile sensor configuration for cube
-        scene_cfg.tactile_sensor.indenter_rigid_body = "indenter"
-        scene_cfg.tactile_sensor.indenter_sdf_mesh = None
-    elif args_cli.indenter_type == "nut":
+    elif args_cli.contact_object_type == "nut":
         scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # Update tactile sensor configuration for nut
-        scene_cfg.tactile_sensor.indenter_rigid_body = "indenter/factory_nut_loose"
-        scene_cfg.tactile_sensor.indenter_sdf_mesh = "indenter/factory_nut_loose/collisions"
-    elif args_cli.indenter_type == "none":
+    elif args_cli.contact_object_type == "none":
         scene_cfg = TactileSensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
         # this flag is to visualize the tactile sensor points
         scene_cfg.tactile_sensor.debug_vis = True

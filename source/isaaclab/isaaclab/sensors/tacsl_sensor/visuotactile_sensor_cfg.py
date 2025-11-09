@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.utils import configclass
 
 from ..camera.tiled_camera_cfg import TiledCameraCfg
@@ -125,24 +126,6 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     enable_force_field: bool = True
     """Whether to enable force field tactile sensing."""
 
-    # Elastomer configuration
-    elastomer_rigid_body: str = "elastomer"
-    """Prim path of the elastomer rigid body for tactile sensing.
-
-    This is required to track the elastomer's pose and velocity.
-    """
-
-    elastomer_tactile_mesh: str | None = None
-    """Prim path of the elastomer mesh for tactile point generation.
-
-    If None (default), automatically searches for mesh geometry under common paths:
-    - {elastomer_rigid_body}/visuals
-    - {elastomer_rigid_body}/visual
-    - {elastomer_rigid_body}/mesh
-
-    Only specify this if your mesh is located at a non-standard path.
-    """
-
     # Force field configuration
     num_tactile_rows: int = 20
     """Number of rows of tactile points for force field sensing."""
@@ -153,12 +136,22 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     tactile_margin: float = 0.003
     """Margin for tactile point generation (in meters)."""
 
-    # Indenter configuration for force field sensing
-    indenter_rigid_body: str | None = None
-    """Prim path of the indenter rigid body for SDF-based collision detection."""
+    contact_object_prim_path_expr: str | None = None
+    """Prim path expression to find the contact object for force field computation.
 
-    indenter_sdf_mesh: str | None = None
-    """Prim path of the indenter SDF mesh for SDF-based collision detection."""
+    This specifies the object that will make contact with the tactile sensor. The sensor will automatically
+    find the SDF collision mesh within this object for optimal force field computation.
+
+    .. note::
+        The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
+        will be replaced with the environment namespace.
+
+        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_.*/ContactObject``.
+
+    .. attention::
+        For force field computation to work properly, the contact object must have an SDF collision mesh.
+        The sensor will search for the first SDF mesh within the specified prim hierarchy.
+    """
 
     # Force field physics parameters
     tactile_kn: float = 1.0
@@ -177,7 +170,9 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """
 
     # Visualization
-    visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(prim_path="/Visuals/TactileSensor")
+    visualizer_cfg: VisualizationMarkersCfg = VISUO_TACTILE_SENSOR_MARKER_CFG.replace(
+        prim_path="/Visuals/TactileSensor"
+    )
     """The configuration object for the visualization markers.
 
     .. note::
