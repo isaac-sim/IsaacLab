@@ -65,7 +65,9 @@ The configuration supports customization of:
 * **Contact Object Configuration**: Define properties of interacting objects using prim path expressions to locate objects with SDF collision meshes
 * **Physics Parameters**: Control the sensor's force field computation:
     * ``tactile_kn``, ``tactile_mu``, ``tactile_kt`` - Normal stiffness, friction coefficient, and tangential stiffness
-* **Camera Settings**: Configure resolution, focal length, update rates, and 6-DOF positioning relative to the sensor
+* **Camera Settings**: Configure resolution, update rates, and data types, currently only ``distance_to_image_plane`` (alias for ``depth``) is supported.
+    ``spawn`` is set to ``None`` by default, which means that the camera is already spawned in the USD file.
+    If you want to spawn the camera yourself and set focal length, etc., you can set the spawn configuration to a valid spawn configuration.
 
 Configuration Requirements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,6 +91,7 @@ Configuration Requirements
 
    **Elastomer Configuration**
       The sensor's ``prim_path`` must be configured as a child of the elastomer prim in the USD hierarchy.
+      The query points for the force field computation is computed from the surface of the elastomer mesh, which is searched for under the prim path of the elastomer.
 
    **Physics Materials**
       The sensor uses physics materials to configure the compliant contact properties of the elastomer.
@@ -98,7 +101,7 @@ Configuration Requirements
 
       * ``compliant_contact_stiffness`` - Contact stiffness for the elastomer surface
       * ``compliant_contact_damping`` - Contact damping for the elastomer surface
-      * ``apply_physics_material_prim_path`` - Prim path where physics material is applied (typically ``"elastomer/collisions"``)
+      * ``apply_physics_material_prim_path`` - Prim path where physics material is applied (typically ``"elastomer"``)
 
       If any parameter is set to ``None``, the corresponding property from the USD asset will be retained.
 
@@ -111,7 +114,7 @@ To use the tactile sensor in a simulation environment, run the demo:
 .. code-block:: bash
 
     cd scripts/demos/sensors/tacsl
-    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
+    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
 
 Available command-line options include:
 
@@ -122,6 +125,12 @@ Available command-line options include:
 * ``--save_viz``: Save visualization outputs for analysis
 * ``--tactile_compliance_stiffness``: Override compliant contact stiffness (default: use USD asset values)
 * ``--tactile_compliant_damping``: Override compliant contact damping (default: use USD asset values)
+* ``--tactile_kn``: Normal contact stiffness for force field computation
+* ``--tactile_kt``: Tangential stiffness for shear forces
+* ``--tactile_mu``: Friction coefficient for shear forces
+* ``--debug_sdf_closest_pts``: Visualize closest SDF points for debugging
+* ``--debug_tactile_sensor_pts``: Visualize tactile sensor points for debugging
+* ``--trimesh_vis_tactile_points``: Enable trimesh-based visualization of tactile points
 
 For a complete list of available options:
 
