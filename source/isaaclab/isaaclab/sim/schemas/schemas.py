@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 import omni.physx.scripts.utils as physx_utils
+from omni.physx.bindings._physx import PERF_ENV_API
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
@@ -652,6 +653,7 @@ def modify_joint_drive_properties(
         "max_velocity": "max_joint_velocity",
         "max_effort": "max_force",
         "drive_type": "type",
+        "enable_physx_perf_env": None,
     }
     # convert to dict
     cfg = cfg.to_dict()
@@ -678,7 +680,11 @@ def modify_joint_drive_properties(
     # set into USD API
     for attr_name, attr_value in cfg.items():
         attr_name = cfg_to_usd_map.get(attr_name, attr_name)
-        safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
+        if attr_name is not None:
+            safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
+
+    if cfg["enable_physx_perf_env"]:
+        prim.ApplyAPI(PERF_ENV_API, UsdPhysics.Tokens.angular)
 
     return True
 

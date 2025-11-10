@@ -378,41 +378,17 @@ class RemotizedPDActuator(DelayedPDActuator):
     def __init__(
         self,
         cfg: RemotizedPDActuatorCfg,
-        joint_names: list[str],
-        joint_ids: Sequence[int],
-        num_envs: int,
-        device: str,
-        stiffness: torch.Tensor | float = 0.0,
-        damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        dynamic_friction: torch.Tensor | float = 0.0,
-        viscous_friction: torch.Tensor | float = 0.0,
-        effort_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf,
+        *args,
+        **kwargs,
     ):
         # remove effort and velocity box constraints from the base class
         cfg.effort_limit = torch.inf
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
-        super().__init__(
-            cfg,
-            joint_names,
-            joint_ids,
-            num_envs,
-            device,
-            stiffness,
-            damping,
-            armature,
-            friction,
-            dynamic_friction,
-            viscous_friction,
-            effort_limit,
-            velocity_limit,
-        )
-        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
+        super().__init__(cfg, *args, **kwargs)
+        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=self._device)
         # define remotized joint torque limit
-        self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
+        self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=self._device)
 
     """
     Properties.

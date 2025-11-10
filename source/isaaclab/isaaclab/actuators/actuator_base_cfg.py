@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from torch import inf
+from typing import NamedTuple
 
 from isaaclab.utils import configclass
 
@@ -47,6 +49,18 @@ class ActuatorBaseCfg:
         it is more intuitive.
 
     """
+
+    """Optional (min v5) settings to the drive model capturing performance envelope velocity-effort dependence.
+
+    See: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/_downloads/f44e831b7f29e7c2ec8e3f2c54418430/drivePerformanceEnvelope.pdf
+    """
+
+    class DriveModelCfg(NamedTuple):
+        speed_effort_gradient: float = 0.0
+        max_actuator_velocity: float = inf
+        velocity_dependent_resistance: float = 0.0
+
+    drive_model: dict[str, DriveModelCfg] | DriveModelCfg | None = None
 
     velocity_limit: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group. Defaults to None.
