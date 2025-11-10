@@ -37,6 +37,7 @@ def gear_shaft_pos_w(
     base_pos = asset.data.root_pos_w
     base_quat = asset.data.root_quat_w
     
+
     # get current gear type from environment, use default if not set
     if not hasattr(env, '_current_gear_type'):
         print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
@@ -48,17 +49,24 @@ def gear_shaft_pos_w(
     # get offset for the specific gear type
     gear_offsets = getattr(env.cfg, 'gear_offsets', {})
     
-    offsets = torch.stack([
-        torch.tensor(gear_offsets[current_gear_type[i]], 
-                     device=base_pos.device, dtype=base_pos.dtype)
-        for i in range(env.num_envs)
-    ])  # Shape: (num_envs, 3)
+    # Initialize shaft positions
+    shaft_pos = torch.zeros_like(base_pos)
     
-    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], 
-                                 device=base_pos.device, dtype=base_pos.dtype)
-    identity_quat = identity_quat.unsqueeze(0).expand(env.num_envs, -1)
-    
-    _, shaft_pos = tf_combine(base_quat, base_pos, identity_quat, offsets)
+    # Apply offsets for each environment based on their gear type
+    for i in range(env.num_envs):
+        # gear_type = current_gear_type[i] if i < len(current_gear_type) else "gear_medium"
+        gear_type = current_gear_type[i]
+        
+        offset = torch.tensor(gear_offsets[gear_type], device=base_pos.device, dtype=base_pos.dtype)
+        offset_pos = offset.unsqueeze(0)
+        shaft_pos[i] = base_pos[i] + offset_pos[0]
+        # Apply position and rotation offsets if provided
+        # create identity quaternion
+        rot_offset_tensor = torch.tensor([1.0, 0.0, 0.0, 0.0], device=base_pos.device, dtype=base_pos.dtype).unsqueeze(0)
+        _, shaft_pos[i] = tf_combine(
+            base_quat[i:i+1], base_pos[i:i+1],
+            rot_offset_tensor, offset_pos
+        )
 
     return shaft_pos - env.scene.env_origins
 
@@ -111,21 +119,25 @@ def gear_pos_w(
     else:
         current_gear_type = env._current_gear_type  # type: ignore
     
-    all_gear_positions = torch.stack([
-        env.scene["factory_gear_small"].data.root_pos_w,
-        env.scene["factory_gear_medium"].data.root_pos_w,
-        env.scene["factory_gear_large"].data.root_pos_w,
-    ], dim=1)  # Shape: (num_envs, 3, 3)
+    # Create a mapping from gear type to asset name
+    gear_to_asset_mapping = {
+        'gear_small': 'factory_gear_small',
+        'gear_medium': 'factory_gear_medium', 
+        'gear_large': 'factory_gear_large'
+    }
     
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[current_gear_type[i]] for i in range(env.num_envs)],
-        device=env.device,
-        dtype=torch.long
-    )
+    # Initialize positions array
+    gear_positions = torch.zeros((env.num_envs, 3), device=env.device)
     
-    env_indices = torch.arange(env.num_envs, device=env.device)
-    gear_positions = all_gear_positions[env_indices, gear_type_indices]
+    # Get positions for each environment based on their gear type
+    for i in range(env.num_envs):
+        gear_type = current_gear_type[i]
+        asset_name = gear_to_asset_mapping.get(gear_type)
+        
+        asset: RigidObject = env.scene[asset_name]
+        
+        # Get position for this specific environment
+        gear_positions[i] = asset.data.root_pos_w[i]
     
     return gear_positions - env.scene.env_origins
 
@@ -148,24 +160,32 @@ def gear_quat_w(
     else:
         current_gear_type = env._current_gear_type  # type: ignore
     
-    all_gear_quat = torch.stack([
-        env.scene["factory_gear_small"].data.root_quat_w,
-        env.scene["factory_gear_medium"].data.root_quat_w,
-        env.scene["factory_gear_large"].data.root_quat_w,
-    ], dim=1)  # Shape: (num_envs, 3, 4)
+    # Create a mapping from gear type to asset name
+    gear_to_asset_mapping = {
+        'gear_small': 'factory_gear_small',
+        'gear_medium': 'factory_gear_medium', 
+        'gear_large': 'factory_gear_large'
+    }
     
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[current_gear_type[i]] for i in range(env.num_envs)],
-        device=env.device,
-        dtype=torch.long
-    )
+    # Initialize quaternions array
+    gear_positive_quat = torch.zeros((env.num_envs, 4), device=env.device)
     
-    env_indices = torch.arange(env.num_envs, device=env.device)
-    gear_quat = all_gear_quat[env_indices, gear_type_indices]
-    
-    w_negative = gear_quat[:, 0] < 0
-    gear_positive_quat = gear_quat.clone()
-    gear_positive_quat[w_negative] = -gear_quat[w_negative]
+    # Get quaternions for each environment based on their gear type
+    for i in range(env.num_envs):
+        gear_type = current_gear_type[i]
+        asset_name = gear_to_asset_mapping.get(gear_type)
+        
+        # Get the asset for this specific gear type
+        asset: RigidObject = env.scene[asset_name]
+        
+        # Get quaternion for this specific environment
+        gear_quat = asset.data.root_quat_w[i]
+        
+        # ensure w component is positive for each environment
+        # if w is negative, negate the entire quaternion to maintain same orientation
+        if gear_quat[0] < 0:
+            gear_quat = -gear_quat
+        
+        gear_positive_quat[i] = gear_quat
     
     return gear_positive_quat
