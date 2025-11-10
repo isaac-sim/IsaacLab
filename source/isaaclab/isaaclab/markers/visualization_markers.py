@@ -29,7 +29,7 @@ import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat

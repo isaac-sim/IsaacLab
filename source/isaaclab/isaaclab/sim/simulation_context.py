@@ -32,7 +32,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import stage as stage_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg

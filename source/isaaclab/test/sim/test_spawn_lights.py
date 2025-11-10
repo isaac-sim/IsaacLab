@@ -18,7 +18,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdLux
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.string import to_camel_case
 
 

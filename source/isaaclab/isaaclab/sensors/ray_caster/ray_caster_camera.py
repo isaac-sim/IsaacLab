@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.prims import XFormPrim
 
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh

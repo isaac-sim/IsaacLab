@@ -20,7 +20,7 @@ import torch
 import pytest
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
