@@ -68,54 +68,60 @@ def reset_when_gear_dropped(
         carb.log_warn(f"Could not get end effector pose: {e}")
         return reset_flags
 
-    # Convert rotation offset to tensor if provided
+    # OPTIMIZED: Fully vectorized gear drop detection
+    # Stack all gear positions and quaternions
+    all_gear_pos = torch.stack([
+        env.scene["factory_gear_small"].data.root_link_pos_w,
+        env.scene["factory_gear_medium"].data.root_link_pos_w,
+        env.scene["factory_gear_large"].data.root_link_pos_w,
+    ], dim=1)  # (num_envs, 3, 3)
+    
+    all_gear_quat = torch.stack([
+        env.scene["factory_gear_small"].data.root_link_quat_w,
+        env.scene["factory_gear_medium"].data.root_link_quat_w,
+        env.scene["factory_gear_large"].data.root_link_quat_w,
+    ], dim=1)  # (num_envs, 3, 4)
+    
+    # Convert gear types to indices
+    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+    gear_type_indices = torch.tensor(
+        [gear_type_map[env._current_gear_type[i]] for i in range(num_envs)],
+        device=device,
+        dtype=torch.long
+    )
+    
+    # Select gear data using advanced indexing
+    env_indices = torch.arange(num_envs, device=device)
+    gear_pos_world = all_gear_pos[env_indices, gear_type_indices]  # (num_envs, 3)
+    gear_quat_world = all_gear_quat[env_indices, gear_type_indices]  # (num_envs, 4)
+    
+    # Apply rotation offset to all gears if provided
     if rot_offset is not None:
-        rot_offset_tensor = torch.tensor(rot_offset, device=device)
-    else:
-        rot_offset_tensor = None
-
-    # Check each environment's gear position against gripper position
-    for env_id in range(num_envs):
-        gear_key = env._current_gear_type[env_id]
-        selected_asset_name = f"factory_{gear_key}"
-
-        # Get the gear asset for this environment
-        gear_asset: RigidObject = env.scene[selected_asset_name]
-        gear_pos_world = gear_asset.data.root_link_pos_w[env_id]
-        gear_quat_world = gear_asset.data.root_link_quat_w[env_id]
-
-        # Apply rotation offset to gear orientation if provided
-        if rot_offset_tensor is not None:
-            gear_quat_world = math_utils.quat_mul(gear_quat_world, rot_offset_tensor)
-
-        # Get the grasp offset for this gear type from config
-        gear_grasp_offset = env.cfg.gear_offsets_grasp[gear_key]
-        grasp_offset_tensor = torch.tensor(gear_grasp_offset, device=device, dtype=gear_pos_world.dtype)
-
-        # Transform grasp offset from gear frame to world frame
-        gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(
-            gear_quat_world.unsqueeze(0), grasp_offset_tensor.unsqueeze(0)
-        )[0]
-
-        # Compute distance between gear grasp point and gripper
-        distance = torch.norm(gear_grasp_pos_world - eef_pos_world[env_id])
-
-        # # Print distance for debugging
-        # if env_id == 0:  # Only print for first environment to avoid spam
-        # print(f"[Env {env_id}] Gear-Gripper Distance: {distance:.4f}m (threshold: {distance_threshold:.4f}m)")
-
-        # Check distance threshold
-        if distance > distance_threshold:
-            # print(f"[Env {env_id}] RESET: Gear dropped! Distance {distance:.4f}m > threshold {distance_threshold:.4f}m")
-            reset_flags[env_id] = True
-            continue
-
-        # Check height threshold if provided
-        if height_threshold is not None:
-            gear_height = gear_pos_world[2]  # Z coordinate in world frame
-            if gear_height < height_threshold:
-                # print(f"[Env {env_id}] RESET: Gear too low! Height {gear_height:.4f}m < threshold {height_threshold:.4f}m")
-                reset_flags[env_id] = True
-
+        rot_offset_tensor = torch.tensor(rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
+        gear_quat_world = math_utils.quat_mul(gear_quat_world, rot_offset_tensor)
+    
+    # Get grasp offsets for all environments (vectorized)
+    gear_grasp_offsets = torch.stack([
+        torch.tensor(env.cfg.gear_offsets_grasp[env._current_gear_type[i]], 
+                     device=device, dtype=torch.float32)
+        for i in range(num_envs)
+    ])  # (num_envs, 3)
+    
+    # Transform grasp offsets to world frame (vectorized)
+    gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(
+        gear_quat_world, gear_grasp_offsets
+    )
+    
+    # Compute distances for all environments (vectorized)
+    distances = torch.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)  # (num_envs,)
+    
+    # Check distance threshold (vectorized)
+    reset_flags = distances > distance_threshold
+    
+    # Check height threshold if provided (vectorized)
+    if height_threshold is not None:
+        gear_heights = gear_pos_world[:, 2]  # Z coordinates
+        reset_flags |= gear_heights < height_threshold
+    
     return reset_flags
 
