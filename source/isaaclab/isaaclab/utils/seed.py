@@ -11,10 +11,10 @@ import torch
 import warp as wp
 
 
-def set_seed(seed: int, torch_deterministic: bool = False) -> int:
+def configure_seed(seed: int, torch_deterministic: bool = False) -> int:
     """set seed across modules"""
     if seed == -1:
-        seed = 42 if  torch_deterministic else np.random.randint(0, 10000)
+        seed = 42 if torch_deterministic else np.random.randint(0, 10000)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
