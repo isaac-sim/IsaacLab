@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import carb
-import time
 import torch
 from typing import TYPE_CHECKING, Literal, Optional, List
 
@@ -91,21 +90,34 @@ def set_robot_to_grasp_pose(
         joint_pos = robot_asset.data.joint_pos[env_ids].clone()
         joint_vel = robot_asset.data.joint_vel[env_ids].clone()
 
-        # Get gear positions and orientations for each environment based on selected gear type
+        # OPTIMIZED: Vectorized gear data fetching
         env_ids_list = env_ids.tolist() if isinstance(env_ids, torch.Tensor) else list(env_ids)
-        grasp_object_pos_world = torch.zeros(len(env_ids), 3, device=env.device)
-        grasp_object_quat = torch.zeros(len(env_ids), 4, device=env.device)
         
-        for row_idx, env_id in enumerate(env_ids_list):
-            # Get the gear type for this environment
-            gear_key = env._current_gear_type[env_id]
-            selected_asset_name = f"factory_{gear_key}"
-            
-            # Get the gear asset for this environment
-            gear_asset: RigidObject = env.scene[selected_asset_name]
-            grasp_object_pos_world[row_idx] = gear_asset.data.root_link_pos_w[env_id].clone()
-            grasp_object_quat[row_idx] = gear_asset.data.root_link_quat_w[env_id].clone()
-
+        # Stack all gear positions and quaternions
+        all_gear_pos = torch.stack([
+            env.scene["factory_gear_small"].data.root_link_pos_w,
+            env.scene["factory_gear_medium"].data.root_link_pos_w,
+            env.scene["factory_gear_large"].data.root_link_pos_w,
+        ], dim=1)[env_ids]  # (len(env_ids), 3, 3)
+        
+        all_gear_quat = torch.stack([
+            env.scene["factory_gear_small"].data.root_link_quat_w,
+            env.scene["factory_gear_medium"].data.root_link_quat_w,
+            env.scene["factory_gear_large"].data.root_link_quat_w,
+        ], dim=1)[env_ids]  # (len(env_ids), 3, 4)
+        
+        # Convert gear types to indices for the resetting environments
+        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+        gear_type_indices = torch.tensor(
+            [gear_type_map[env._current_gear_type[env_id]] for env_id in env_ids_list],
+            device=env.device,
+            dtype=torch.long
+        )
+        
+        # Select gear data using advanced indexing
+        local_env_indices = torch.arange(len(env_ids), device=env.device)
+        grasp_object_pos_world = all_gear_pos[local_env_indices, gear_type_indices]
+        grasp_object_quat = all_gear_quat[local_env_indices, gear_type_indices]
         
         # First apply rotation offset to get the object's orientation
         if rot_offset_tensor is not None:
@@ -113,24 +125,25 @@ def set_robot_to_grasp_pose(
             # rot_offset is assumed to be in quaternion format (w, x, y, z)
             grasp_object_quat = math_utils.quat_mul(grasp_object_quat, rot_offset_tensor)
         
+        # OPTIMIZED: Vectorized grasp offsets application
+        # Get grasp offsets for all environments
+        gear_grasp_offsets = torch.stack([
+            torch.tensor(env.cfg.gear_offsets_grasp[env._current_gear_type[env_id]], 
+                         device=env.device, dtype=grasp_object_pos_world.dtype)
+            for env_id in env_ids_list
+        ])  # (len(env_ids), 3)
+        
         if pos_randomization_range is not None:
             pos_keys = ["x", "y", "z"]
             range_list_pos = [pos_randomization_range.get(key, (0.0, 0.0)) for key in pos_keys]
             ranges_pos = torch.tensor(range_list_pos, device=env.device)
             rand_pos_offsets = math_utils.sample_uniform(ranges_pos[:, 0], ranges_pos[:, 1], (len(env_ids), 3), device=env.device)
-        # Apply gear-specific grasp offsets to each environment
-        for row_idx, env_id in enumerate(env_ids_list):
-            gear_key = env._current_gear_type[env_id]
-            gear_grasp_offset = env.cfg.gear_offsets_grasp[gear_key]
-            grasp_offset_tensor = torch.tensor(gear_grasp_offset, device=env.device, dtype=grasp_object_pos_world.dtype)
-
-            if pos_randomization_range is not None:
-                grasp_offset_tensor += rand_pos_offsets[row_idx]
-            
-            # Transform position offset from rotated object frame to world frame
-            grasp_object_pos_world[row_idx] = grasp_object_pos_world[row_idx] + math_utils.quat_apply(
-                grasp_object_quat[row_idx:row_idx+1], grasp_offset_tensor.unsqueeze(0)
-            )[0]
+            gear_grasp_offsets += rand_pos_offsets
+        
+        # Transform all offsets from gear frame to world frame (vectorized)
+        grasp_object_pos_world = grasp_object_pos_world + math_utils.quat_apply(
+            grasp_object_quat, gear_grasp_offsets
+        )
         
         # Convert to environment-relative coordinates by subtracting environment origins
         grasp_object_pos = grasp_object_pos_world
@@ -166,7 +179,6 @@ def set_robot_to_grasp_pose(
         except Exception as e:
             print(f"Could not get end effector pose: {e}")
             print("You may need to adjust the body name or access method based on your robot configuration")
-        
 
         # Compute error to target using wrist_3_link as current and grasp_object as target
         if len(wrist_3_indices) > 0:
@@ -269,6 +281,8 @@ def randomize_gears_and_base_pose(
 ):
     """Randomize both the gear base pose and the poses of all gear types with the same value,
     then apply the per-env `gear_pos_range` only to the gear selected by `randomize_gear_type`.
+    
+    OPTIMIZED: Vectorized approach using masks instead of Python loops over environments.
     """
     if not hasattr(env, '_current_gear_type'):
         raise ValueError("Environment does not have '_current_gear_type' attribute. Ensure randomize_gear_type event is configured.")
@@ -327,21 +341,37 @@ def randomize_gears_and_base_pose(
     rand_rot_offsets = math_utils.sample_uniform(ranges_rot[:, 0], ranges_rot[:, 1], (len(env_ids), 3), device=device)
     rand_rot_quats = math_utils.quat_from_euler_xyz(rand_rot_offsets[:, 0], rand_rot_offsets[:, 1], rand_rot_offsets[:, 2])
 
+    # OPTIMIZED: Create masks for each gear type instead of Python loop
     env_ids_list = env_ids.tolist() if isinstance(env_ids, torch.Tensor) else list(env_ids)
-    for row_idx, env_id in enumerate(env_ids_list):
-        # env._current_gear_type[env_id] is expected to be one of: "gear_small", "gear_medium", "gear_large"
-        gear_key = env._current_gear_type[env_id]
-        selected_asset_name = f"factory_{gear_key}"
-        if selected_asset_name in positions_by_asset:
-            positions_by_asset[selected_asset_name][row_idx] = (
-                positions_by_asset[selected_asset_name][row_idx] + rand_gear_offsets[row_idx]
-            )
-            # Apply additional orientation randomization to the selected gear
-            orientations_by_asset[selected_asset_name][row_idx] = math_utils.quat_mul(
-                orientations_by_asset[selected_asset_name][row_idx], rand_rot_quats[row_idx]
+
+    # Create gear type mapping for vectorization
+    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+    gear_asset_names = ["factory_gear_small", "factory_gear_medium", "factory_gear_large"]
+
+    # Convert current gear types to indices (single list comprehension)
+    gear_type_indices = torch.tensor(
+        [gear_type_map[env._current_gear_type[env_id]] for env_id in env_ids_list],
+        device=device,
+        dtype=torch.long
+    )
+
+    # Apply offsets using vectorized operations with masks (no Python loop over envs)
+    for gear_idx, asset_name in enumerate(gear_asset_names):
+        if asset_name in positions_by_asset:
+            # Create mask for environments using this gear type
+            mask = gear_type_indices == gear_idx  # Shape: (len(env_ids),)
+
+            # Apply position offsets only to selected environments (vectorized)
+            positions_by_asset[asset_name][mask] = (
+                positions_by_asset[asset_name][mask] + rand_gear_offsets[mask]
             )
 
-    # Write back to sim for all prepared assets
+            # Apply orientation offsets only to selected environments (vectorized)
+            orientations_by_asset[asset_name][mask] = math_utils.quat_mul(
+                orientations_by_asset[asset_name][mask], rand_rot_quats[mask]
+            )
+
+    # Write back to sim for all prepared assets (fully vectorized)
     for asset_name in positions_by_asset.keys():
         asset = env.scene[asset_name]
         positions = positions_by_asset[asset_name]

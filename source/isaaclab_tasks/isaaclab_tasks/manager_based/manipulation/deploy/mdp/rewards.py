@@ -77,29 +77,24 @@ def compute_keypoint_distance(
     keypoint_offsets = keypoint_offsets * keypoint_scale
     num_keypoints = keypoint_offsets.shape[0]
 
-    # Expand keypoints for all environments: (num_envs, num_keypoints, 3)
-    keypoint_offsets_batch = keypoint_offsets.unsqueeze(0).expand(num_envs, -1, -1)
-    
-    # Flatten for batch processing: (num_envs * num_keypoints, 3)
-    keypoint_offsets_flat = keypoint_offsets_batch.reshape(-1, 3)
-    
-    # Expand quaternions and positions for all keypoints
-    current_quat_expanded = current_quat.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 4)
-    current_pos_expanded = current_pos.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 3)
-    target_quat_expanded = target_quat.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 4)
-    target_pos_expanded = target_pos.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 3)
-    
-    # Create identity quaternion for all transforms
-    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).expand(num_envs * num_keypoints, -1)
-    
-    # Transform all keypoints at once
-    _, keypoints_current_flat = tf_combine(current_quat_expanded, current_pos_expanded, identity_quat, keypoint_offsets_flat)
-    _, keypoints_target_flat = tf_combine(target_quat_expanded, target_pos_expanded, identity_quat, keypoint_offsets_flat)
-    
-    # Reshape back to (num_envs, num_keypoints, 3)
-    keypoints_current = keypoints_current_flat.reshape(num_envs, num_keypoints, 3)
-    keypoints_target = keypoints_target_flat.reshape(num_envs, num_keypoints, 3)
-    
+    # Create identity quaternion for transformations
+    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+
+    # Initialize keypoint tensors
+    keypoints_current = torch.zeros((num_envs, num_keypoints, 3), device=device)
+    keypoints_target = torch.zeros((num_envs, num_keypoints, 3), device=device)
+
+    # Compute keypoints for current and target poses
+    for idx, keypoint_offset in enumerate(keypoint_offsets):
+        # Transform keypoint offset to world coordinates for current pose
+        keypoints_current[:, idx] = tf_combine(
+            current_quat, current_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
+        )[1]
+
+        # Transform keypoint offset to world coordinates for target pose
+        keypoints_target[:, idx] = tf_combine(
+            target_quat, target_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
+        )[1]
     # Calculate L2 norm distance between corresponding keypoints
     keypoint_dist_sep = torch.norm(keypoints_target - keypoints_current, p=2, dim=-1)
 
@@ -266,34 +261,42 @@ def keypoint_entity_error(
     curr_pos_1 = asset_1.data.body_pos_w[:, 0]  # type: ignore
     curr_quat_1 = asset_1.data.body_quat_w[:, 0]  # type: ignore
     
+    # Handle per-environment gear type selection
     if hasattr(env, '_current_gear_type'):
+        # Get the current gear type for each environment
         current_gear_type = env._current_gear_type  # type: ignore
         
-        # Stack all gear positions and quaternions
-        all_gear_pos = torch.stack([
-            env.scene["factory_gear_small"].data.body_pos_w[:, 0],
-            env.scene["factory_gear_medium"].data.body_pos_w[:, 0],
-            env.scene["factory_gear_large"].data.body_pos_w[:, 0],
-        ], dim=1)  # (num_envs, 3, 3)
+        # Create a mapping from gear type to asset name
+        gear_to_asset_mapping = {
+            'gear_small': 'factory_gear_small',
+            'gear_medium': 'factory_gear_medium', 
+            'gear_large': 'factory_gear_large'
+        }
         
-        all_gear_quat = torch.stack([
-            env.scene["factory_gear_small"].data.body_quat_w[:, 0],
-            env.scene["factory_gear_medium"].data.body_quat_w[:, 0],
-            env.scene["factory_gear_large"].data.body_quat_w[:, 0],
-        ], dim=1)  # (num_envs, 3, 4)
+        # Create arrays to store poses for all environments
+        curr_pos_2_all = torch.zeros_like(curr_pos_1)
+        curr_quat_2_all = torch.zeros_like(curr_quat_1)
         
-        # Convert gear types to indices
-        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        gear_type_indices = torch.tensor(
-            [gear_type_map.get(current_gear_type[i], 1) for i in range(env.num_envs)],
-            device=curr_pos_1.device,
-            dtype=torch.long
-        )
-        
-        # Select positions and quaternions using advanced indexing
-        env_indices = torch.arange(env.num_envs, device=curr_pos_1.device)
-        curr_pos_2_all = all_gear_pos[env_indices, gear_type_indices]
-        curr_quat_2_all = all_gear_quat[env_indices, gear_type_indices]
+        # Get poses for each environment based on their gear type
+        for env_id in range(env.num_envs):
+            # Get the gear type for this specific environment
+            if env_id < len(current_gear_type):
+                selected_gear_type = current_gear_type[env_id]
+            else:
+                print(f"ERROR: env_id {env_id} is out of bounds for current_gear_type (length: {len(current_gear_type)}), using 'gear_medium' as fallback")
+                selected_gear_type = 'gear_medium'
+            selected_asset_name = gear_to_asset_mapping.get(selected_gear_type, 'factory_gear_medium')
+            
+            # Get the asset for this specific gear type
+            try:
+                asset_2 = env.scene[selected_asset_name]
+            except KeyError:
+                # Fallback to factory_gear_medium if the asset doesn't exist
+                asset_2 = env.scene['factory_gear_medium']
+            
+            # Get poses for this specific environment
+            curr_pos_2_all[env_id] = asset_2.data.body_pos_w[env_id, 0]  # type: ignore
+            curr_quat_2_all[env_id] = asset_2.data.body_quat_w[env_id, 0]  # type: ignore
         
         # Compute keypoint distance for all environments at once
         keypoint_dist_sep = compute_keypoint_distance(
@@ -363,34 +366,42 @@ def keypoint_entity_error_exp(
     curr_pos_1 = asset_1.data.body_pos_w[:, 0]  # type: ignore
     curr_quat_1 = asset_1.data.body_quat_w[:, 0]  # type: ignore
 
+    # Handle per-environment gear type selection
     if hasattr(env, '_current_gear_type'):
+        # Get the current gear type for each environment
         current_gear_type = env._current_gear_type  # type: ignore
         
-        # Stack all gear positions and quaternions
-        all_gear_pos = torch.stack([
-            env.scene["factory_gear_small"].data.body_pos_w[:, 0],
-            env.scene["factory_gear_medium"].data.body_pos_w[:, 0],
-            env.scene["factory_gear_large"].data.body_pos_w[:, 0],
-        ], dim=1)  # (num_envs, 3, 3)
+        # Create a mapping from gear type to asset name
+        gear_to_asset_mapping = {
+            'gear_small': 'factory_gear_small',
+            'gear_medium': 'factory_gear_medium', 
+            'gear_large': 'factory_gear_large'
+        }
         
-        all_gear_quat = torch.stack([
-            env.scene["factory_gear_small"].data.body_quat_w[:, 0],
-            env.scene["factory_gear_medium"].data.body_quat_w[:, 0],
-            env.scene["factory_gear_large"].data.body_quat_w[:, 0],
-        ], dim=1)  # (num_envs, 3, 4)
+        # Create arrays to store poses for all environments
+        curr_pos_2_all = torch.zeros_like(curr_pos_1)
+        curr_quat_2_all = torch.zeros_like(curr_quat_1)
         
-        # Convert gear types to indices
-        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        gear_type_indices = torch.tensor(
-            [gear_type_map.get(current_gear_type[i], 1) for i in range(env.num_envs)],
-            device=curr_pos_1.device,
-            dtype=torch.long
-        )
-        
-        # Select positions and quaternions using advanced indexing
-        env_indices = torch.arange(env.num_envs, device=curr_pos_1.device)
-        curr_pos_2_all = all_gear_pos[env_indices, gear_type_indices]
-        curr_quat_2_all = all_gear_quat[env_indices, gear_type_indices]
+        # Get poses for each environment based on their gear type
+        for env_id in range(env.num_envs):
+            # Get the gear type for this specific environment
+            if env_id < len(current_gear_type):
+                selected_gear_type = current_gear_type[env_id]
+            else:
+                print(f"ERROR: env_id {env_id} is out of bounds for current_gear_type (length: {len(current_gear_type)}), using 'gear_medium' as fallback")
+                selected_gear_type = 'gear_medium'
+            selected_asset_name = gear_to_asset_mapping.get(selected_gear_type, 'factory_gear_medium')
+            
+            # Get the asset for this specific gear type
+            try:
+                asset_2 = env.scene[selected_asset_name]
+            except KeyError:
+                # Fallback to factory_gear_medium if the asset doesn't exist
+                asset_2 = env.scene['factory_gear_medium']
+            
+            # Get poses for this specific environment
+            curr_pos_2_all[env_id] = asset_2.data.body_pos_w[env_id, 0]  # type: ignore
+            curr_quat_2_all[env_id] = asset_2.data.body_quat_w[env_id, 0]  # type: ignore
         
         # Compute keypoint distance for all environments at once
         keypoint_dist_sep = compute_keypoint_distance(
