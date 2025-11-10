@@ -454,7 +454,17 @@ class SimulationContext(_SimulationContext):
             name: The name of the setting.
             value: The value of the setting.
         """
-        self._settings.set(name, value)
+        # Route through typed setters for correctness and consistency.
+        if isinstance(value, bool):
+            self.carb_settings.set_bool(name, value)
+        elif isinstance(value, int):
+            self.carb_settings.set_int(name, value)
+        elif isinstance(value, float):
+            self.carb_settings.set_float(name, value)
+        elif isinstance(value, str):
+            self.carb_settings.set_string(name, value)
+        else:
+            raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get_setting(self, name: str) -> Any:
         """Read the simulation setting using the Carbonite SDK.
@@ -465,7 +475,7 @@ class SimulationContext(_SimulationContext):
         Returns:
             The value of the setting.
         """
-        return self._settings.get(name)
+        return self.carb_settings.get(name)
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
@@ -735,16 +745,7 @@ class SimulationContext(_SimulationContext):
             # set presets
             for key, value in preset_dict.items():
                 key = "/" + key.replace(".", "/")  # convert to carb setting format
-                if isinstance(value, bool):
-                    self.carb_settings.set_bool(key, value)
-                elif isinstance(value, int):
-                    self.carb_settings.set_int(key, value)
-                elif isinstance(value, float):
-                    self.carb_settings.set_float(key, value)
-                elif isinstance(value, str):
-                    self.carb_settings.set_string(key, value)
-                else:
-                    raise ValueError(f"Unsupported value type: {type(value)}")
+                self.set_setting(key, value)
 
         # set user-friendly named settings
         for key, value in vars(self.cfg.render).items():
@@ -757,16 +758,7 @@ class SimulationContext(_SimulationContext):
                     " need to be updated."
                 )
             key = rendering_setting_name_mapping[key]
-            if isinstance(value, bool):
-                self.carb_settings.set_bool(key, value)
-            elif isinstance(value, int):
-                self.carb_settings.set_int(key, value)
-            elif isinstance(value, float):
-                self.carb_settings.set_float(key, value)
-            elif isinstance(value, str):
-                self.carb_settings.set_string(key, value)
-            else:
-                raise ValueError(f"Unsupported value type: {type(value)}")
+            self.set_setting(key, value)
 
         # set general carb settings
         carb_settings = self.cfg.render.carb_settings
@@ -776,18 +768,9 @@ class SimulationContext(_SimulationContext):
                     key = "/" + key.replace("_", "/")  # convert from python variable style string
                 elif "." in key:
                     key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if self.carb_settings.get(key) is None:
+                if self.get_setting(key) is None:
                     raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                if isinstance(value, bool):
-                    self.carb_settings.set_bool(key, value)
-                elif isinstance(value, int):
-                    self.carb_settings.set_int(key, value)
-                elif isinstance(value, float):
-                    self.carb_settings.set_float(key, value)
-                elif isinstance(value, str):
-                    self.carb_settings.set_string(key, value)
-                else:
-                    raise ValueError(f"Unsupported value type: {type(value)}")
+                self.set_setting(key, value)
 
         # set denoiser mode
         if self.cfg.render.antialiasing_mode is not None:
