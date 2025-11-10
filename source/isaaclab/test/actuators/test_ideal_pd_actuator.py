@@ -68,9 +68,7 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
-    torch.testing.assert_close(
-        actuator.effort_limit, actuator._DEFAULT_MAX_EFFORT_SIM * torch.ones(num_envs, num_joints, device=device)
-    )
+    torch.testing.assert_close(actuator.effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
     torch.testing.assert_close(
         actuator.effort_limit_sim, actuator._DEFAULT_MAX_EFFORT_SIM * torch.ones(num_envs, num_joints, device=device)
     )
@@ -133,11 +131,11 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
         effort_lim_sim_expected = actuator._DEFAULT_MAX_EFFORT_SIM
 
     elif effort_lim is None and effort_lim_sim is not None:
-        effort_lim_expected = effort_lim_sim
+        effort_lim_expected = effort_lim_default
         effort_lim_sim_expected = effort_lim_sim
 
     elif effort_lim is None and effort_lim_sim is None:
-        effort_lim_expected = actuator._DEFAULT_MAX_EFFORT_SIM
+        effort_lim_expected = effort_lim_default
         effort_lim_sim_expected = actuator._DEFAULT_MAX_EFFORT_SIM
 
     elif effort_lim is not None and effort_lim_sim is not None:
