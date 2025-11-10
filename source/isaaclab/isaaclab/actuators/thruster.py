@@ -76,17 +76,12 @@ class Thruster:
         # State & randomized per-motor parameters
         self.tau_inc_s = math_utils.sample_uniform(*self.tau_inc_r, (self._num_envs, self.num_motors), self._device)
         self.tau_dec_s = math_utils.sample_uniform(*self.tau_dec_r, (self._num_envs, self.num_motors), self._device)
-
-        self.thrust_const_r = torch.tensor(cfg.thrust_const_range).to(device)
+        self.thrust_const_r = torch.tensor(cfg.thrust_const_range, device=self._device, dtype=torch.float32)
         self.thrust_const = math_utils.sample_uniform(
             *self.thrust_const_r, (self._num_envs, self.num_motors), self._device
-        )
+        ).clamp(min=1e-6)
 
-        self.curr_thrust = (
-            torch.ones(self._num_envs, self.num_motors, device=self._device, dtype=torch.float32)
-            * self.thrust_const
-            * self._init_thruster_rps**2
-        )
+        self.curr_thrust = self.thrust_const * (self._init_thruster_rps.to(self._device).float() ** 2)
 
         # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
@@ -208,8 +203,11 @@ class Thruster:
         curr_thrust: torch.Tensor,
         mixing_factor: torch.Tensor,
     ):
-        current_rpm = torch.sqrt(curr_thrust / self.thrust_const)
-        desired_rpm = torch.sqrt(des_thrust / self.thrust_const)
+        # Avoid negative or NaN values inside sqrt by clamping the ratio to >= 0.
+        current_ratio = torch.clamp(curr_thrust / self.thrust_const, min=0.0)
+        desired_ratio = torch.clamp(des_thrust / self.thrust_const, min=0.0)
+        current_rpm = torch.sqrt(current_ratio)
+        desired_rpm = torch.sqrt(desired_ratio)
         rpm_error = desired_rpm - current_rpm
         current_rpm += self.motor_model_rate(rpm_error, mixing_factor) * self.cfg.dt
         return self.thrust_const * current_rpm**2
@@ -220,8 +218,10 @@ class Thruster:
         curr_thrust: torch.Tensor,
         mixing_factor: torch.Tensor,
     ) -> torch.Tensor:
-        current_rpm = torch.sqrt(curr_thrust / self.thrust_const)
-        desired_rpm = torch.sqrt(des_thrust / self.thrust_const)
+        current_ratio = torch.clamp(curr_thrust / self.thrust_const, min=0.0)
+        desired_ratio = torch.clamp(des_thrust / self.thrust_const, min=0.0)
+        current_rpm = torch.sqrt(current_ratio)
+        desired_rpm = torch.sqrt(desired_ratio)
         rpm_error = desired_rpm - current_rpm
         current_rpm += self.rk4_integration(rpm_error, mixing_factor)
         return self.thrust_const * current_rpm**2
