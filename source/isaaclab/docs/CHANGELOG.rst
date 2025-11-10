@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.48.1 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add navigation state API to IsaacLabManagerBasedRLMimicEnv
+* Add optional custom recorder config to MimicEnvCfg
+
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
