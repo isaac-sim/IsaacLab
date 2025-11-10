@@ -202,6 +202,10 @@ class JointDrivePropertiesCfg:
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
+    enable_physx_perf_env: bool = False
+    """Enable the new physx drive model for all joints in this articulation. This is automatically set to true if any
+        actuator_cfgs in the articulation supply a drive_model property, but the usd file does not have the api enabled."""
+
     max_effort: float | None = None
     """Maximum effort that can be applied to the joint (in kg-m^2/s^2)."""
 

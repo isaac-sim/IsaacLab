@@ -5,7 +5,8 @@
 
 from dataclasses import MISSING
 
-from isaaclab.actuators import ActuatorBaseCfg
+from isaaclab.actuators import ActuatorBaseCfg, actuator_pd
+from isaaclab.sim import JointDrivePropertiesCfg
 from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
@@ -69,3 +70,25 @@ class ArticulationCfg(AssetBaseCfg):
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
+
+    def __post_init__(self):
+        """This Post init is meant to determine if we need to apply the new drive model api to the joints for this articulation.
+        If the drive model is not explicitly enabled by the USD, but an actuator configuration attempts to configure the new
+        api, it will silent default to legacy behavior. If we see an attempt to parametrize the drive model, we configure
+        the primitive spawner to enable the API so that when the actuators are configured, after the primitive is spawned
+        the necessary attributes exist and are available to be configured by the usual configuration parser logic.
+
+        .. Note: Importantly, configuring the drive model on any actuator in the articulation will enable the api on _all_
+           actuators in the articulation (with some default values). It is not currently possible to enable the api on
+           specific joint indices. This may lead to unexpected impacts on drive behavior or frame rate."""
+
+        if self.actuators is not None:
+            if len(self.actuators.keys()) > 0:
+                for act_cfg in self.actuators.values():
+                    if act_cfg.class_type == actuator_pd.ImplicitActuator:
+                        if act_cfg.drive_model is not None:
+                            if hasattr(self.spawn, "joint_drive_props"):
+                                if self.spawn.joint_drive_props is not None:
+                                    self.spawn.joint_drive_props.enable_physx_perf_env = True
+                                else:
+                                    self.spawn.joint_drive_props = JointDrivePropertiesCfg(enable_physx_perf_env=True)
