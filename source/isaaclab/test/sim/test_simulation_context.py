@@ -151,7 +151,6 @@ def test_zero_gravity():
 @pytest.mark.isaacsim_ci
 def test_disable_sleeping_setting():
     """Test that the disable_sleeping PhysX setting is applied correctly."""
-    from pxr import PhysxSchema
 
     # Test with disable_sleeping set to True (default)
     cfg = SimulationCfg()
@@ -173,7 +172,6 @@ def test_disable_sleeping_setting():
 @pytest.mark.isaacsim_ci
 def test_disable_sleeping_false_with_cpu():
     """Test that disable_sleeping can be set to False when using CPU simulation."""
-    from pxr import PhysxSchema
 
     # Test with disable_sleeping set to False and CPU device
     cfg = SimulationCfg(device="cpu")

@@ -792,11 +792,6 @@ class SimulationContext(_SimulationContext):
         physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             self.cfg.physx.solve_articulation_contact_last
         )
-        # -- Disable sleeping globally
-        # This overrides any sleeping settings on individual bodies
-        physx_prim.CreateAttribute("physxSceneAPI:disableSleeping", Sdf.ValueTypeNames.Bool).Set(
-            self.cfg.physx.disable_sleeping
-        )
         # Check if disable_sleeping is False with GPU pipeline enabled
         if not self.cfg.physx.disable_sleeping:
             # Check if GPU pipeline is enabled via the suppressReadback flag
