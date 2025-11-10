@@ -33,6 +33,7 @@ from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
+from isaaclab.ui.draw import DrawingInterface
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -259,6 +260,7 @@ class SimulationContext(_SimulationContext):
                 " Consider setting the `enable_stabilization` flag to True in the PhysxCfg, or reducing the"
                 " simulation step size if you run into physics issues."
             )
+        self._draw_interface = None
 
         # set simulation device
         # note: Although Isaac Sim sets the physics device in the init function,
@@ -314,6 +316,13 @@ class SimulationContext(_SimulationContext):
     """
     Operations - New.
     """
+
+    @property
+    def draw_interface(self) -> DrawingInterface:
+        """The Drawing interface to draw points/lines in the simulator."""
+        if self._draw_interface is None:
+            self._draw_interface = DrawingInterface()
+        return self._draw_interface
 
     def has_gui(self) -> bool:
         """Returns whether the simulation has a GUI enabled.
@@ -548,6 +557,9 @@ class SimulationContext(_SimulationContext):
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
+        if render and self._draw_interface is not None:
+            self._draw_interface.update()
+
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
 
@@ -595,6 +607,11 @@ class SimulationContext(_SimulationContext):
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+        # update the drawing interface if it exists
+        if self._draw_interface is not None:
+            # Draw lines and points in the simulator
+            self._draw_interface.update()
 
     """
     Operations - Override (extension)
