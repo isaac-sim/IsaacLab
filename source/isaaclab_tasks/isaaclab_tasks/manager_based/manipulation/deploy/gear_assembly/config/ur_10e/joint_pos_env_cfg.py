@@ -203,13 +203,13 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=64,
+                    solver_position_iteration_count=128,
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                     enabled_self_collisions=False,
-                    solver_position_iteration_count=64,
+                    solver_position_iteration_count=128,
                     solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(
@@ -238,16 +238,16 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             ),
         )
 
-        # # default values for gripper actuators cause these joints to be not stiff enough
-        # self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
-        #     joint_names_expr=[".*_inner_finger_joint"],
-        #     effort_limit_sim=1.0,
-        #     velocity_limit_sim=1.0,
-        #     stiffness=2.0,
-        #     damping=0.01,
-        #     friction=0.0,
-        #     armature=0.0,
-        # )
+        # default values for gripper actuators cause these joints to be not stiff enough
+        self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
+            joint_names_expr=[".*_inner_finger_joint"],
+            effort_limit_sim=1.0,
+            velocity_limit_sim=1.0,
+            stiffness=2.0,
+            damping=0.01,
+            friction=0.0,
+            armature=0.0,
+        )
 
         # gear offsets and grasp positions for the gripper
         self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.26],
