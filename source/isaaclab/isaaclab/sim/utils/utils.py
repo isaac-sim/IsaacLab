@@ -33,8 +33,6 @@ except ModuleNotFoundError:
 
 from isaaclab.utils.string import to_camel_case
 
-from . import schemas
-
 if TYPE_CHECKING:
     from .spawners.spawner_cfg import SpawnerCfg
 
@@ -286,9 +284,10 @@ def clone(func: Callable) -> Callable:
                 sem.CreateSemanticDataAttr()
                 sem.GetSemanticTypeAttr().Set(semantic_type)
                 sem.GetSemanticDataAttr().Set(semantic_value)
-        # activate rigid body contact sensors
+        # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
-            schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
+            from ..schemas import schemas as _schemas
+            _schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
