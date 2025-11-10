@@ -35,6 +35,7 @@ Guidelines for modifications:
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
+* Brian McCann
 
 ## Contributors
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.48.2 (2025-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored modules related to the actuator configs in order to remediate a circular import necessary to support future
+  actuator drive model improvements.
+
 0.48.1 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -11,7 +20,6 @@ Added
   supporting robot manipulation with haptic feedback.
 * Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
   ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
-
 
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
