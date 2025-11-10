@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 07, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
   </head>
   
   
@@ -880,7 +880,7 @@
                 <span class="n">sem</span><span class="o">.</span><span class="n">GetSemanticDataAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_value</span><span class="p">)</span>
         <span class="c1"># activate rigid body contact sensors</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;activate_contact_sensors&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">:</span>
-            <span class="n">schemas</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cfg</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">)</span>
+            <span class="n">schemas</span><span class="o">.</span><span class="n">activate_contact_sensors</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="c1"># clone asset using cloner API</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">cloner</span> <span class="o">=</span> <span class="n">Cloner</span><span class="p">(</span><span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
@@ -1818,7 +1818,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 07, 2025.
+  Last updated on Nov 10, 2025.
   <br/>
 </p>
   </div>
