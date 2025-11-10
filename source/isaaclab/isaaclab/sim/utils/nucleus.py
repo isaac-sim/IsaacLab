@@ -9,7 +9,6 @@ import carb
 import omni.client
 from omni.client import Result
 
-# import logger
 logger = logging.getLogger(__name__)
 
 DEFAULT_ASSET_ROOT_PATH_SETTING = "/persistent/isaac/asset_root/default"
