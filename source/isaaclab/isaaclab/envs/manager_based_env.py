@@ -6,6 +6,7 @@
 import builtins
 import logging
 import torch
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -193,6 +194,20 @@ class ManagerBasedEnv:
         if self.cfg.export_io_descriptors:
             self.export_IO_descriptors()
 
+        # show deprecation message for rerender_on_reset
+        if self.cfg.rerender_on_reset:
+            msg = (
+                "\033[93m\033[1m[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                " ManagerBasedEnvCfg.num_rerenders_on_reset instead.\033[0m"
+            )
+            warnings.warn(
+                msg,
+                FutureWarning,
+                stacklevel=2,
+            )
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -356,8 +371,9 @@ class ManagerBasedEnv:
         self.scene.write_data_to_sim()
         self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)
@@ -416,8 +432,9 @@ class ManagerBasedEnv:
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)
