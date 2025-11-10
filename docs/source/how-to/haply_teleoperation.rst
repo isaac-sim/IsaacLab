@@ -68,7 +68,7 @@ Hardware Requirements
 Software Requirements
 ~~~~~~~~~~~~~~~~~~~~~
 
-* Isaac Lab (follow the :ref:`installation guide <installation>`)
+* Isaac Lab (follow the :ref:`installation guide <isaaclab-installation-root>`)
 * Haply SDK (provided by Haply Robotics)
 * Python 3.10+
 * ``websockets`` Python package (automatically installed with Isaac Lab)
@@ -82,7 +82,7 @@ Installation
 1. Install Isaac Lab
 ~~~~~~~~~~~~~~~~~~~~
 
-Follow the Isaac Lab :ref:`installation guide <installation>` to set up your environment.
+Follow the Isaac Lab :ref:`installation guide <isaaclab-installation-root>` to set up your environment.
 
 The ``websockets`` dependency is automatically included in Isaac Lab's requirements.
 
