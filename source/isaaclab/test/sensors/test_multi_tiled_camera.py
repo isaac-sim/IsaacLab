@@ -28,8 +28,8 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()

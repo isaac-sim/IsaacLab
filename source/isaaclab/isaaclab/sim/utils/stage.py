@@ -425,10 +425,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
                 payref = Sdf.Reference(usd_path)
                 omni.kit.commands.execute("AddReference", stage=stage, prim_path=prim.GetPath(), reference=payref)
-            except Exception as exc:
-                # omni.log.warn(
-                #     f"The USD file {usd_path} used for a reference does have divergent units, please either enable omni.usd.metrics.assembler.ui or convert the file into right units."
-                # )
+            except Exception:
                 success_bool = prim.GetReferences().AddReference(usd_path)
                 if not success_bool:
                     raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")

@@ -19,8 +19,8 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture(autouse=True)

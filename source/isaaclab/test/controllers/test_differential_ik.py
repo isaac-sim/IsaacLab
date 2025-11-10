@@ -19,9 +19,9 @@ import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,

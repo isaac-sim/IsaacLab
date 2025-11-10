@@ -22,8 +22,8 @@ import isaacsim.core.utils.prims as prim_utils
 import pytest
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils import configclass
 
 
