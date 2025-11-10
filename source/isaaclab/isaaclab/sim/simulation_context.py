@@ -807,11 +807,6 @@ class SimulationContext(_SimulationContext):
                     "(/physics/suppressReadback=True). This combination will cause PhysX to fail scene creation. "
                     "Please set 'cfg.physx.disable_sleeping = True' or disable GPU pipeline."
                 )
-        # -- Enable external forces every iteration
-        # This can help reduce noisy joint velocity data from PhysX at a slight performance cost
-        physx_scene_api.CreateEnableExternalForcesEveryIterationAttr(
-            self.cfg.physx.enable_external_forces_every_iteration
-        )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we

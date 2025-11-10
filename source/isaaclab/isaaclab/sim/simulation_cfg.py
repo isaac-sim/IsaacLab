@@ -192,14 +192,6 @@ class PhysxCfg:
         message and fail scene creation as this is not supported.
     """
 
-    enable_external_forces_every_iteration: bool = False
-    """Enable external forces to be applied every iteration. Default is False.
-
-    When set to False (default), external forces are applied using the standard PhysX behavior, which may lead
-    to noisy joint velocity data from PhysX. Setting this to True will apply external forces at every iteration,
-    which can reduce the noise in joint velocity data at a slight performance cost.
-    """
-
 
 @configclass
 class RenderCfg:
