@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.48.0 (2025-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Detected contacts are reported with the threshold of 0.0 (instead of 1.0). This increases the sensitivity of contact
+  detection.
+
+Fixed
+^^^^^
+
+* Removed passing the boolean flag to :meth:`isaaclab.sim.schemas.activate_contact_sensors` when activating contact
+  sensors. This was incorrectly modifying the threshold attribute to 1.0 when contact sensors were activated.
+
+
 0.47.11 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -95,8 +111,8 @@ Changed
 0.47.3 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
-Changed
-^^^^^^^
+Fixed
+^^^^^
 
 * Fixed the data type conversion in :class:`~isaaclab.sensors.tiled_camera.TiledCamera` to
   support the correct data type when converting from numpy arrays to warp arrays on the CPU.
