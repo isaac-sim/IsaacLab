@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -789,6 +789,8 @@
         <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter.__init__">(isaaclab.sim.converters.UrdfConverter method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.__init__">(isaaclab.sim.SimulationContext method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter.__init__">(isaaclab.sim.utils.RateLimitFilter method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator.__init__">(isaaclab.terrains.TerrainGenerator method)</a>
 </li>
@@ -1983,6 +1985,8 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.ColoredFormatter">ColoredFormatter (class in isaaclab.sim.utils)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation">colorize_instance_id_segmentation (isaaclab.sensors.CameraCfg attribute)</a>
 
       <ul>
@@ -3097,6 +3101,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation">fail_on_joint_limit_violation (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter.filter">filter() (isaaclab.sim.utils.RateLimitFilter method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.filter_collisions">filter_collisions (isaaclab.scene.InteractiveSceneCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.filter_collisions">filter_collisions() (isaaclab.scene.InteractiveScene method)</a>
@@ -3335,6 +3341,8 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.force_usd_conversion">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.ColoredFormatter.format">format() (isaaclab.sim.utils.ColoredFormatter method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.forward">forward() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.frame">frame (isaaclab.sensors.Camera property)</a>
@@ -4839,8 +4847,6 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.link_density">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.load_cfg_from_registry">load_cfg_from_registry() (in module isaaclab_tasks.utils)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_checkpoint">load_checkpoint (isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
@@ -4851,6 +4857,8 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_checkpoint">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file">load_from_dataset_file() (isaaclab_mimic.datagen.DataGenInfoPool method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.load_managers">load_managers() (isaaclab.envs.ManagerBasedEnv method)</a>
@@ -4893,14 +4901,20 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.log_dir">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.logger">logger (isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.logger">logger (in module isaaclab.sim.utils)</a>
 
       <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.logger">(in module isaaclab.utils.math)</a>
+</li>
+        <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.logger">(isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
+</li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.logger">(isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.logger">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.logging_level">logging_level (isaaclab.sim.SimulationCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ViewerCfg.lookat">lookat (isaaclab.envs.ViewerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.loss_type">loss_type (isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg attribute)</a>
@@ -6552,6 +6566,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges">(isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter">RateLimitFilter (class in isaaclab.sim.utils)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.raw_actions">raw_actions (isaaclab.managers.ActionTerm property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCameraCfg.ray_alignment">ray_alignment (isaaclab.sensors.RayCasterCameraCfg attribute)</a>
@@ -7328,6 +7344,8 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.save_interval">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.save_logs_to_file">save_logs_to_file (isaaclab.sim.SimulationCfg attribute)</a>
+</li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper">Sb3VecEnvWrapper (class in isaaclab_rl.sb3)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.scale">scale (isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg attribute)</a>
@@ -9164,7 +9182,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

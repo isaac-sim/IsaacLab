@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -600,18 +600,20 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prettytable</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_term_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="EventManager"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">EventManager</span><span class="p">(</span><span class="n">ManagerBase</span><span class="p">):</span>
@@ -777,7 +779,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if mode is valid</span>
         <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; is not defined. Skipping event.&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; is not defined. Skipping event.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
 
         <span class="c1"># check if mode is interval and dt is not provided</span>
@@ -940,7 +942,7 @@
                 <span class="p">)</span>
 
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">!=</span> <span class="s2">&quot;reset&quot;</span> <span class="ow">and</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Event term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; has &#39;min_step_count_between_reset&#39; set to a non-zero value&quot;</span>
                     <span class="s2">&quot; but the mode is not &#39;reset&#39;. Ignoring the &#39;min_step_count_between_reset&#39; value.&quot;</span>
                 <span class="p">)</span>
@@ -962,7 +964,7 @@
             <span class="c1"># can be initialized before the simulation starts.</span>
             <span class="c1"># this is done to ensure that the USD-level randomization is possible before the simulation starts.</span>
             <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">)</span> <span class="ow">and</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;prestartup&quot;</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initializing term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; with class &#39;</span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initializing term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; with class &#39;</span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
                 <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">term_cfg</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">)</span>
 
             <span class="c1"># check if mode is a new mode</span>
@@ -1058,7 +1060,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

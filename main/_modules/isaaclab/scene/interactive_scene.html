@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -595,13 +595,12 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridCloner</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
@@ -628,6 +627,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span><span class="p">,</span> <span class="n">TerrainImporterCfg</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.interactive_scene_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="InteractiveScene"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">InteractiveScene</span><span class="p">:</span>
@@ -814,7 +816,7 @@
         <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
         <span class="n">has_multi_assets</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/spawn/multi_assets&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">has_multi_assets</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Varying assets might have been spawned under different environments.&quot;</span>
                 <span class="s2">&quot; However, the replicate physics flag is enabled in the &#39;InteractiveScene&#39; configuration.&quot;</span>
                 <span class="s2">&quot; This may adversely affect PhysX parsing. We recommend disabling this property.&quot;</span>
@@ -852,7 +854,7 @@
         <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
             <span class="c1"># if scene is specified through cfg, this is already taken care of</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_setup_from_cfg</span><span class="p">():</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">&quot;Collision filtering can only be automatically enabled when replicate_physics=True and using GPU&quot;</span>
                     <span class="s2">&quot; simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across&quot;</span>
                     <span class="s2">&quot; environments.&quot;</span>
@@ -916,7 +918,7 @@
             <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxSceneAPI</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
-                    <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Physics scene prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Physics scene prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="k">break</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No physics scene found! Please make sure one exists.&quot;</span><span class="p">)</span>
@@ -1427,7 +1429,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

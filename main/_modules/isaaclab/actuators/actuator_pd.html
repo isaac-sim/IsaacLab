@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -597,11 +597,10 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
@@ -617,6 +616,8 @@
         <span class="n">RemotizedPDActuatorCfg</span><span class="p">,</span>
     <span class="p">)</span>
 
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Implicit Actuator Models.</span>
@@ -649,7 +650,7 @@
         <span class="c1"># effort limits</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># throw a warning that we have a replacement for the deprecated parameter</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has a value for &#39;effort_limit&#39;.&quot;</span>
                 <span class="s2">&quot; This parameter will be removed in the future.&quot;</span>
                 <span class="s2">&quot; To set the effort limit, please use &#39;effort_limit_sim&#39; instead.&quot;</span>
@@ -671,7 +672,7 @@
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit_sim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># throw a warning that previously this was not set</span>
             <span class="c1"># it leads to different simulation behavior so we want to remain backwards compatible</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;The &lt;ImplicitActuatorCfg&gt; object has a value for &#39;velocity_limit&#39;.&quot;</span>
                 <span class="s2">&quot; Previously, although this value was specified, it was not getting used by implicit&quot;</span>
                 <span class="s2">&quot; actuators. Since this parameter affects the simulation behavior, we continue to not&quot;</span>
@@ -1085,7 +1086,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

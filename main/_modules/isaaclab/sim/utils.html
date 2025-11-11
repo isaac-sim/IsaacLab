@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -602,7 +602,9 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Generator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
@@ -610,7 +612,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">Cloner</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_carb_setting</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
@@ -629,6 +630,9 @@
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Attribute - Setters.</span>
@@ -668,7 +672,7 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># think: do we ever need to create the attribute if it doesn&#39;t exist?</span>
         <span class="c1">#   currently, we are not doing this since the schemas are already created with some defaults.</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attribute &#39;</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">schema_api</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attribute &#39;</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">schema_api</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attribute &#39;</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">schema_api</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span></div>
 
 
@@ -793,7 +797,7 @@
                 <span class="n">count_success</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># check if we were successful in applying the function to any prim</span>
         <span class="k">if</span> <span class="n">count_success</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Could not perform &#39;</span><span class="si">{</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39; on any prims under: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
                 <span class="s2">&quot; This might be because of the following reasons:&quot;</span>
                 <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">(1) The desired attribute does not exist on any of the prims.&quot;</span>
@@ -1016,7 +1020,7 @@
     <span class="n">has_deformable_body</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableBodyAPI</span><span class="p">)</span>
     <span class="n">has_particle_system</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxParticleSystem</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">has_physics_scene_api</span> <span class="ow">or</span> <span class="n">has_collider</span> <span class="ow">or</span> <span class="n">has_deformable_body</span> <span class="ow">or</span> <span class="n">has_particle_system</span><span class="p">):</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">verbose</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;Cannot apply physics material &#39;</span><span class="si">{</span><span class="n">material_path</span><span class="si">}</span><span class="s2">&#39; on prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;. It is neither a&quot;</span>
             <span class="s2">&quot; PhysX scene, collider, a deformable body, nor a particle system.&quot;</span>
         <span class="p">)</span>
@@ -1614,14 +1618,14 @@
     <span class="k">for</span> <span class="n">variant_set_name</span><span class="p">,</span> <span class="n">variant_selection</span> <span class="ow">in</span> <span class="n">variants</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="c1"># Check if the variant set exists on the prim.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">existing_variant_sets</span><span class="o">.</span><span class="n">HasVariantSet</span><span class="p">(</span><span class="n">variant_set_name</span><span class="p">):</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Variant set &#39;</span><span class="si">{</span><span class="n">variant_set_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Variant set &#39;</span><span class="si">{</span><span class="n">variant_set_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
             <span class="k">continue</span>
 
         <span class="n">variant_set</span> <span class="o">=</span> <span class="n">existing_variant_sets</span><span class="o">.</span><span class="n">GetVariantSet</span><span class="p">(</span><span class="n">variant_set_name</span><span class="p">)</span>
         <span class="c1"># Only set the variant selection if it is different from the current selection.</span>
         <span class="k">if</span> <span class="n">variant_set</span><span class="o">.</span><span class="n">GetVariantSelection</span><span class="p">()</span> <span class="o">!=</span> <span class="n">variant_selection</span><span class="p">:</span>
             <span class="n">variant_set</span><span class="o">.</span><span class="n">SetVariantSelection</span><span class="p">(</span><span class="n">variant_selection</span><span class="p">)</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Setting variant selection &#39;</span><span class="si">{</span><span class="n">variant_selection</span><span class="si">}</span><span class="s2">&#39; for variant set &#39;</span><span class="si">{</span><span class="n">variant_set_name</span><span class="si">}</span><span class="s2">&#39; on&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
             <span class="p">)</span></div>
@@ -1672,7 +1676,7 @@
 
     <span class="c1"># early attach warning msg</span>
     <span class="k">if</span> <span class="n">attaching_early</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;Attaching stage in memory to USD context early to support an operation which doesn&#39;t support stage in&quot;</span>
             <span class="s2">&quot; memory.&quot;</span>
         <span class="p">)</span>
@@ -1732,7 +1736,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
     <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;[Compat] Isaac Sim &lt; 5.0 does not support thread-local stage contexts. Skipping use_stage().&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;[Compat] Isaac Sim &lt; 5.0 does not support thread-local stage contexts. Skipping use_stage().&quot;</span><span class="p">)</span>
         <span class="k">yield</span>  <span class="c1"># no-op</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">use_stage</span><span class="p">(</span><span class="n">stage</span><span class="p">):</span>
@@ -1747,7 +1751,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
     <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;[Compat] Isaac Sim &lt; 5.0 does not support creating a new stage in memory. Falling back to creating a new&quot;</span>
             <span class="s2">&quot; stage attached to USD context.&quot;</span>
         <span class="p">)</span>
@@ -1771,6 +1775,47 @@
     <span class="k">if</span> <span class="n">stage_id</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">stage_id</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Logger.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="c1"># --- Colored formatter ---</span>
+<div class="viewcode-block" id="ColoredFormatter"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.ColoredFormatter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ColoredFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">):</span>
+    <span class="n">COLORS</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;WARNING&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[33m&quot;</span><span class="p">,</span>  <span class="c1"># orange/yellow</span>
+        <span class="s2">&quot;ERROR&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span><span class="p">,</span>  <span class="c1"># red</span>
+        <span class="s2">&quot;CRITICAL&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span><span class="p">,</span>  <span class="c1"># red</span>
+        <span class="s2">&quot;INFO&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span><span class="p">,</span>  <span class="c1"># reset</span>
+        <span class="s2">&quot;DEBUG&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">RESET</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span>
+
+<div class="viewcode-block" id="ColoredFormatter.format"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.ColoredFormatter.format">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">COLORS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">RESET</span><span class="p">)</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">color</span><span class="si">}{</span><span class="n">message</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">RESET</span><span class="si">}</span><span class="s2">&quot;</span></div></div>
+
+
+<span class="c1"># --- Custom rate-limited warning filter ---</span>
+<div class="viewcode-block" id="RateLimitFilter"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RateLimitFilter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Filter</span><span class="p">):</span>
+<div class="viewcode-block" id="RateLimitFilter.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval_seconds</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">interval</span> <span class="o">=</span> <span class="n">interval_seconds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_emitted</span> <span class="o">=</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="RateLimitFilter.filter"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.RateLimitFilter.filter">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allow WARNINGs only once every few seconds per message.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">!=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">msg_key</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">getMessage</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">msg_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_emitted</span> <span class="ow">or</span> <span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_emitted</span><span class="p">[</span><span class="n">msg_key</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">interval</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_emitted</span><span class="p">[</span><span class="n">msg_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">now</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span></div></div>
 </pre></div>
 
                 </article>
@@ -1818,7 +1863,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

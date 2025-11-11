@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -596,6 +596,7 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
@@ -608,6 +609,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.converters.mesh_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MeshConverterCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">schemas</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_prim_to_file</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="MeshConverter"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">MeshConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
@@ -679,7 +683,7 @@
             <span class="c1"># Correct the name to a valid identifier and update the basename</span>
             <span class="n">mesh_file_basename_original</span> <span class="o">=</span> <span class="n">mesh_file_basename</span>
             <span class="n">mesh_file_basename</span> <span class="o">=</span> <span class="n">Tf</span><span class="o">.</span><span class="n">MakeValidIdentifier</span><span class="p">(</span><span class="n">mesh_file_basename</span><span class="p">)</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Input file name &#39;</span><span class="si">{</span><span class="n">mesh_file_basename_original</span><span class="si">}</span><span class="s2">&#39; is an invalid identifier for the mesh prim path.&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; Renaming it to &#39;</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&#39; for the conversion.&quot;</span>
             <span class="p">)</span>
@@ -883,7 +887,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

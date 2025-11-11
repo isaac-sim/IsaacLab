@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -597,13 +597,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.dict</span><span class="w"> </span><span class="kn">import</span> <span class="n">dict_to_md5_hash</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_yaml</span>
@@ -616,6 +615,9 @@
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.sub_terrain_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">FlatPatchSamplingCfg</span><span class="p">,</span> <span class="n">SubTerrainBaseCfg</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_generator_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainGeneratorCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="TerrainGenerator"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">TerrainGenerator</span><span class="p">:</span>
@@ -718,7 +720,7 @@
 
         <span class="c1"># throw a warning if the cache is enabled but the seed is not set</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_cache</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Cache is enabled but the seed is not set. The terrain generation will not be reproducible.&quot;</span>
                 <span class="s2">&quot; Please set the seed in the terrain generator configuration to make the generation reproducible.&quot;</span>
             <span class="p">)</span>
@@ -894,7 +896,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># sample flat patches if specified</span>
         <span class="k">if</span> <span class="n">sub_terrain_cfg</span><span class="o">.</span><span class="n">flat_patch_sampling</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sampling flat patches for sub-terrain at (row, col):  (</span><span class="si">{</span><span class="n">row</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sampling flat patches for sub-terrain at (row, col):  (</span><span class="si">{</span><span class="n">row</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
             <span class="c1"># convert the mesh to warp mesh</span>
             <span class="n">wp_mesh</span> <span class="o">=</span> <span class="n">convert_to_warp_mesh</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="c1"># sample flat patches based on each patch configuration for that sub-terrain</span>
@@ -1031,7 +1033,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

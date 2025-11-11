@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -597,12 +597,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
@@ -612,6 +611,9 @@
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.terrain_importer_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="TerrainImporter"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">TerrainImporter</span><span class="p">:</span>
@@ -803,7 +805,7 @@
             <span class="k">if</span> <span class="s2">&quot;diffuse_color&quot;</span> <span class="ow">in</span> <span class="n">material</span><span class="p">:</span>
                 <span class="n">color</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;diffuse_color&quot;</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">&quot;Visual material specified for ground plane but no diffuse color found.&quot;</span>
                     <span class="s2">&quot; Using default color: (0.0, 0.0, 0.0)&quot;</span>
                 <span class="p">)</span>
@@ -968,7 +970,7 @@
 <span class="sd">        .. deprecated:: v2.1.0</span>
 <span class="sd">            The `warp_meshes` attribute is deprecated. It is no longer stored inside the class.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;The `warp_meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class.&quot;</span>
             <span class="s2">&quot; Returning an empty dictionary.&quot;</span>
         <span class="p">)</span>
@@ -981,7 +983,7 @@
 <span class="sd">        .. deprecated:: v2.1.0</span>
 <span class="sd">            The `meshes` attribute is deprecated. It is no longer stored inside the class.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;The `meshes` attribute is deprecated. It is no longer stored inside the `TerrainImporter` class.&quot;</span>
             <span class="s2">&quot; Returning an empty dictionary.&quot;</span>
         <span class="p">)</span>
@@ -1033,7 +1035,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

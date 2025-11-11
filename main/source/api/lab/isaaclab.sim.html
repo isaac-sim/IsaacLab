@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -696,6 +696,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.create_stage_in_memory</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.logging_level"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.logging_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.save_logs_to_file</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -748,6 +750,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.sim.utils">Utilities</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.logger"><code class="docutils literal notranslate"><span class="pre">logger</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.safe_set_attribute_on_usd_schema"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_schema()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.safe_set_attribute_on_usd_prim"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_prim()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.apply_nested"><code class="docutils literal notranslate"><span class="pre">apply_nested()</span></code></a></li>
@@ -770,6 +773,15 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.use_stage"><code class="docutils literal notranslate"><span class="pre">use_stage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.create_new_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">create_new_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_current_stage_id"><code class="docutils literal notranslate"><span class="pre">get_current_stage_id()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.ColoredFormatter"><code class="docutils literal notranslate"><span class="pre">ColoredFormatter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.ColoredFormatter.format"><code class="docutils literal notranslate"><span class="pre">ColoredFormatter.format()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter.__init__"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter.filter"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter.filter()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -1276,6 +1288,12 @@ background. The rendering components are refreshed based on the render mode.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory" title="isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_stage_in_memory</span></code></a></p></td>
 <td><p>If stage is first created in memory.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.logging_level" title="isaaclab.sim.SimulationCfg.logging_level"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logging_level</span></code></a></p></td>
+<td><p>The logging level.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.save_logs_to_file" title="isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_logs_to_file</span></code></a></p></td>
+<td><p>Save logs to a file.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1378,6 +1396,18 @@ physics material specified on them.</p>
 <span class="sig-name descname"><span class="pre">create_stage_in_memory</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory" title="Permalink to this definition">#</a></dt>
 <dd><p>If stage is first created in memory. Default is False.</p>
 <p>Creating the stage in memory can reduce start-up time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.SimulationCfg.logging_level">
+<span class="sig-name descname"><span class="pre">logging_level</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'DEBUG'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'INFO'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'WARNING'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'ERROR'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'CRITICAL'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.logging_level" title="Permalink to this definition">#</a></dt>
+<dd><p>The logging level. Default is “WARNING”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.SimulationCfg.save_logs_to_file">
+<span class="sig-name descname"><span class="pre">save_logs_to_file</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.save_logs_to_file" title="Permalink to this definition">#</a></dt>
+<dd><p>Save logs to a file. Default is True.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1982,6 +2012,24 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 </tbody>
 </table>
 </div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.ColoredFormatter" title="isaaclab.sim.utils.ColoredFormatter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ColoredFormatter</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.RateLimitFilter" title="isaaclab.sim.utils.RateLimitFilter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RateLimitFilter</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py data">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.logger">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">isaaclab.sim.utils</span> <span class="pre">(WARNING)&gt;</span></em><a class="headerlink" href="#isaaclab.sim.utils.logger" title="Permalink to this definition">#</a></dt>
+<dd><p>Attribute - Setters.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.safe_set_attribute_on_usd_schema">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">safe_set_attribute_on_usd_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema_api</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">pxr.Usd.APISchemaBase</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">camel_case</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#safe_set_attribute_on_usd_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.safe_set_attribute_on_usd_schema" title="Permalink to this definition">#</a></dt>
@@ -2503,6 +2551,68 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 </dl>
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.ColoredFormatter">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">ColoredFormatter</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#ColoredFormatter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.ColoredFormatter" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Formatter" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Formatter</span></code></a></p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.ColoredFormatter.format" title="isaaclab.sim.utils.ColoredFormatter.format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">format</span></code></a>(record)</p></td>
+<td><p>Format the specified record as text.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.ColoredFormatter.format">
+<span class="sig-name descname"><span class="pre">format</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">record</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#ColoredFormatter.format"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.ColoredFormatter.format" title="Permalink to this definition">#</a></dt>
+<dd><p>Format the specified record as text.</p>
+<p>The record’s attribute dictionary is used as the operand to a
+string formatting operation which yields the returned string.
+Before formatting the dictionary, a couple of preparatory steps
+are carried out. The message attribute of the record is computed
+using LogRecord.getMessage(). If the formatting string uses the
+time (as determined by a call to usesTime(), formatTime() is
+called to format the event time. If there is exception information,
+it is formatted using formatException() and appended to the message.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.RateLimitFilter">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">RateLimitFilter</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#RateLimitFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.RateLimitFilter" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Filter" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Filter</span></code></a></p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.RateLimitFilter.__init__" title="isaaclab.sim.utils.RateLimitFilter.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([interval_seconds])</p></td>
+<td><p>Initialize a filter.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.RateLimitFilter.filter" title="isaaclab.sim.utils.RateLimitFilter.filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter</span></code></a>(record)</p></td>
+<td><p>Allow WARNINGs only once every few seconds per message.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.RateLimitFilter.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">interval_seconds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#RateLimitFilter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.RateLimitFilter.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize a filter.</p>
+<p>Initialize with the name of the logger which, together with its
+children, will have its events allowed through the filter. If no
+name is specified, allow every event.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.RateLimitFilter.filter">
+<span class="sig-name descname"><span class="pre">filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">record</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#RateLimitFilter.filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.RateLimitFilter.filter" title="Permalink to this definition">#</a></dt>
+<dd><p>Allow WARNINGs only once every few seconds per message.</p>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 </section>
 
@@ -2593,6 +2703,8 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.create_stage_in_memory</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.logging_level"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.logging_level</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.save_logs_to_file</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -2645,6 +2757,7 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.sim.utils">Utilities</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.logger"><code class="docutils literal notranslate"><span class="pre">logger</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.safe_set_attribute_on_usd_schema"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_schema()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.safe_set_attribute_on_usd_prim"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_prim()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.apply_nested"><code class="docutils literal notranslate"><span class="pre">apply_nested()</span></code></a></li>
@@ -2667,6 +2780,15 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.use_stage"><code class="docutils literal notranslate"><span class="pre">use_stage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.create_new_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">create_new_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_current_stage_id"><code class="docutils literal notranslate"><span class="pre">get_current_stage_id()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.ColoredFormatter"><code class="docutils literal notranslate"><span class="pre">ColoredFormatter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.ColoredFormatter.format"><code class="docutils literal notranslate"><span class="pre">ColoredFormatter.format()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter.__init__"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.RateLimitFilter.filter"><code class="docutils literal notranslate"><span class="pre">RateLimitFilter.filter()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -2702,7 +2824,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>

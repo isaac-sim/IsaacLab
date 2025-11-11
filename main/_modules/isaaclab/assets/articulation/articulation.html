@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 10, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
   </head>
   
   
@@ -600,12 +600,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prettytable</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.log</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
@@ -622,6 +622,9 @@
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.articulation_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Articulation"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Articulation</span><span class="p">(</span><span class="n">AssetBase</span><span class="p">):</span>
@@ -1298,10 +1301,10 @@
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">warn_limit_violation</span><span class="p">:</span>
                 <span class="c1"># warn level will show in console</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">violation_message</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">violation_message</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># info level is only written to log file</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">violation_message</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">violation_message</span><span class="p">)</span>
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_limits</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos_limits</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
 
@@ -1499,7 +1502,7 @@
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Setting joint dynamic friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Setting joint dynamic friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="c1"># resolve indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
@@ -1525,7 +1528,7 @@
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Setting joint viscous friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Setting joint viscous friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="c1"># resolve indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
@@ -1629,7 +1632,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">is_global</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;The external wrench frame has been changed from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">is_global</span><span class="si">}</span><span class="s2">. This&quot;</span>
                 <span class="s2">&quot; may lead to unexpected behavior.&quot;</span>
             <span class="p">)</span>
@@ -1924,7 +1927,7 @@
 <span class="sd">            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
             <span class="k">return</span>
@@ -1955,7 +1958,7 @@
 <span class="sd">            env_ids: The environment indices to set the damping for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
             <span class="k">return</span>
@@ -1986,7 +1989,7 @@
 <span class="sd">            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
             <span class="k">return</span>
@@ -2017,7 +2020,7 @@
 <span class="sd">            env_ids: The environment indices to set the offset for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
             <span class="k">return</span>
@@ -2110,7 +2113,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create articulation at: </span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">. Please check PhysX logs.&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0: patching spatial-tendon getter&quot;</span>
                 <span class="s2">&quot; and setter to use dummy value&quot;</span>
             <span class="p">)</span>
@@ -2119,19 +2122,19 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_spatial_tendon_dampings</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_spatial_tendon_limit_stiffnesses</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_spatial_tendon_offsets</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">set_spatial_tendon_properties</span> <span class="o">=</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">set_spatial_tendon_properties</span> <span class="o">=</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0: Calling&quot;</span>
                 <span class="s2">&quot; set_spatial_tendon_properties has no effect&quot;</span>
             <span class="p">)</span>
 
         <span class="c1"># log information about the articulation</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Articulation initialized at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2"> with root &#39;</span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Is fixed root: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">is_fixed_base</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of bodies: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Body names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">body_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of joints: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Joint names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of fixed tendons: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Articulation initialized at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2"> with root &#39;</span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Is fixed root: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">is_fixed_base</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of bodies: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Body names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">body_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of joints: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Joint names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of fixed tendons: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># container for data access</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">ArticulationData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -2310,7 +2313,7 @@
             <span class="p">)</span>
             <span class="c1"># log information on actuator groups</span>
             <span class="n">model_type</span> <span class="o">=</span> <span class="s2">&quot;implicit&quot;</span> <span class="k">if</span> <span class="n">actuator</span><span class="o">.</span><span class="n">is_implicit_model</span> <span class="k">else</span> <span class="s2">&quot;explicit&quot;</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Actuator collection: </span><span class="si">{</span><span class="n">actuator_name</span><span class="si">}</span><span class="s2"> with model &#39;</span><span class="si">{</span><span class="n">actuator_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; (type: </span><span class="si">{</span><span class="n">model_type</span><span class="si">}</span><span class="s2">) and joint names: </span><span class="si">{</span><span class="n">joint_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">joint_ids</span><span class="si">}</span><span class="s2">].&quot;</span>
             <span class="p">)</span>
@@ -2354,7 +2357,7 @@
         <span class="c1"># perform some sanity checks to ensure actuators are prepared correctly</span>
         <span class="n">total_act_joints</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">num_joints</span> <span class="k">for</span> <span class="n">actuator</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actuators</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
         <span class="k">if</span> <span class="n">total_act_joints</span> <span class="o">!=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">):</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Not all actuators are configured! Total number of actuated joints not equal to number of&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; joints available: </span><span class="si">{</span><span class="n">total_act_joints</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="p">)</span>
@@ -2370,7 +2373,7 @@
                         <span class="n">fmt</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.2e</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">resolution_detail</span><span class="p">]</span>
                         <span class="n">t</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span><span class="n">actuator_group_str</span><span class="p">,</span> <span class="n">property_str</span><span class="p">,</span> <span class="o">*</span><span class="n">fmt</span><span class="p">])</span>
                         <span class="n">group_count</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">ActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): </span><span class="se">\n</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">ActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): </span><span class="se">\n</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_process_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Process fixed and spatial tendons.&quot;&quot;&quot;</span>
@@ -2594,7 +2597,7 @@
                     <span class="n">effort_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
                 <span class="p">])</span>
         <span class="c1"># convert table to string</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Simulation parameters for joints in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">joint_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">())</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Simulation parameters for joints in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">joint_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">())</span>
 
         <span class="c1"># read out all fixed tendon parameters from simulation</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -2632,7 +2635,7 @@
                     <span class="n">ft_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
                 <span class="p">])</span>
             <span class="c1"># convert table to string</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Simulation parameters for fixed tendons in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">tendon_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">()</span>
             <span class="p">)</span>
 
@@ -2664,7 +2667,7 @@
                     <span class="n">st_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
                 <span class="p">])</span>
             <span class="c1"># convert table to string</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Simulation parameters for spatial tendons in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">tendon_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">()</span>
             <span class="p">)</span>
 
@@ -2683,7 +2686,7 @@
 <span class="sd">        .. deprecated:: 2.1.0</span>
 <span class="sd">            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;The function &#39;write_joint_friction_to_sim&#39; will be deprecated in a future release. Please&quot;</span>
             <span class="s2">&quot; use &#39;write_joint_friction_coefficient_to_sim&#39; instead.&quot;</span>
         <span class="p">)</span>
@@ -2701,7 +2704,7 @@
 <span class="sd">        .. deprecated:: 2.1.0</span>
 <span class="sd">            Please use :meth:`write_joint_position_limit_to_sim` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;The function &#39;write_joint_limits_to_sim&#39; will be deprecated in a future release. Please&quot;</span>
             <span class="s2">&quot; use &#39;write_joint_position_limit_to_sim&#39; instead.&quot;</span>
         <span class="p">)</span>
@@ -2720,7 +2723,7 @@
 <span class="sd">        .. deprecated:: 2.1.0</span>
 <span class="sd">            Please use :meth:`set_fixed_tendon_position_limit` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;The function &#39;set_fixed_tendon_limit&#39; will be deprecated in a future release. Please&quot;</span>
             <span class="s2">&quot; use &#39;set_fixed_tendon_position_limit&#39; instead.&quot;</span>
         <span class="p">)</span>
@@ -2772,7 +2775,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 10, 2025.
+  Last updated on Nov 11, 2025.
   <br/>
 </p>
   </div>
