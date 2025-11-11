@@ -107,22 +107,12 @@ ensure_cuda_torch() {
     local python_exe=$(extract_python_exe)
     local pip_install_command=$(extract_pip_command)
     local pip_uninstall_command=$(extract_pip_uninstall_command)
-    # base index for torch
-    local base_index="https://download.pytorch.org/whl"
 
-    # choose pins per arch
-    local torch_ver tv_ver cuda_ver
-    if is_arm; then
-        torch_ver="2.9.0"
-        tv_ver="0.24.0"
-        cuda_ver="130"
-    else
-        torch_ver="2.7.0"
-        tv_ver="0.22.0"
-        cuda_ver="128"
-    fi
-
-    local index="${base_index}/cu${cuda_ver}"
+    # Torch version configuration
+    local torch_ver="2.9.0"
+    local tv_ver="0.24.0"
+    local cuda_ver="130"
+    local index="https://download.pytorch.org/whl/cu${cuda_ver}"
     local want_torch="${torch_ver}+cu${cuda_ver}"
 
     # check current torch version (may be empty)
