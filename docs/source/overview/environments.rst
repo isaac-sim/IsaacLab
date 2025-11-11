@@ -458,15 +458,16 @@ Multirotor
 .. table::
     :widths: 33 37 30
 
-    +----------------+--------------------------------------+--------------------------------------------------------------------------------------+
-    | World          | Environment ID                       | Description                                                                          |
-    +================+======================================+======================================================================================+
-    | |arl-drone|    | |arl_drone_state_based-link|         | Setpoint position control for the ARL drone using the state_based_control task.      |
-    +----------------+--------------------------------------+--------------------------------------------------------------------------------------+
+    +----------------------------+--------------------------------------+--------------------------------------------------------------------------------------+
+    | World                      | Environment ID                       | Description                                                                          |
+    +============================+======================================+======================================================================================+
+    | |arl_robot_state_based|    | |arl_robot_state_based-link|         | Setpoint position control for the ARL robot using the state_based_control task.      |
+    +----------------------------+--------------------------------------+--------------------------------------------------------------------------------------+
 
-.. |arl-drone| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
+.. |arl_robot_state_based-link| replace:: `Isaac-StateBasedControl-ARL-robot-1-v0 <https://github.com/ntnu-arl/IsaacLab/blob/feature/drone_multirotor_class/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
 
-.. |arl_drone_state_based-link| replace:: `Isaac-StateBasedControl-ARL-robot-1-v0 <https://github.com/ntnu-arl/IsaacLab/blob/main/feature/drone_multirotor_class/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
+.. |arl_robot_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
+
 
 Others
 ~~~~~~
