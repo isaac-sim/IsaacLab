@@ -1,13 +1,13 @@
 Changelog
 ---------
 
-0.5.0 (2025-11-10)
+0.4.5 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
+Changed
+^^^^^^^
 
-* Added support for decoupling RL device from simulation device in for RL wrappers.
+* Added support for decoupling RL device from simulation device in for RL games wrapper.
   This allows users to run simulation on one device (e.g., CPU) while running RL training/inference on another device.
 
 
