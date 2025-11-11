@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
@@ -23,6 +23,9 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from .rigid_object_cfg import RigidObjectCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RigidObject(AssetBase):
@@ -436,7 +439,7 @@ class RigidObject(AssetBase):
         self._external_torque_b[env_ids, body_ids] = torques
 
         if is_global != self._use_global_wrench_frame:
-            omni.log.warn(
+            logger.warning(
                 f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
                 " may lead to unexpected behavior."
             )
@@ -505,10 +508,10 @@ class RigidObject(AssetBase):
             raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the rigid body
-        omni.log.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        omni.log.info(f"Number of instances: {self.num_instances}")
-        omni.log.info(f"Number of bodies: {self.num_bodies}")
-        omni.log.info(f"Body names: {self.body_names}")
+        logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        logger.info(f"Number of instances: {self.num_instances}")
+        logger.info(f"Number of bodies: {self.num_bodies}")
+        logger.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectData(self.root_physx_view, self.device)
