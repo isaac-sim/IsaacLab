@@ -24,7 +24,7 @@ class RslRlVecEnvWrapper(VecEnv):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, clip_actions: float | None = None):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, clip_actions: float | None = None, rl_device: str | None = None):
         """Initializes the wrapper.
 
         Note:
@@ -33,6 +33,8 @@ class RslRlVecEnvWrapper(VecEnv):
         Args:
             env: The environment to wrap around.
             clip_actions: The clipping value for actions. If ``None``, then no clipping is done.
+            rl_device: The device for RL agent/policy. If ``None``, uses the environment device.
+                This allows running the RL agent on a different device than the environment.
 
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
@@ -49,10 +51,20 @@ class RslRlVecEnvWrapper(VecEnv):
         self.env = env
         self.clip_actions = clip_actions
 
+        # store the RL device (where policy/training happens)
+        # this may be different from env.device (where task buffers are)
+        if rl_device is None:
+            self.rl_device = self.unwrapped.device
+        else:
+            self.rl_device = rl_device
+
         # store information required by wrapper
         self.num_envs = self.unwrapped.num_envs
-        self.device = self.unwrapped.device
+        self.device = self.rl_device
         self.max_episode_length = self.unwrapped.max_episode_length
+
+        # track the environment device separately
+        self.env_device = self.unwrapped.device
 
         # obtain dimensions of the environment
         if hasattr(self.unwrapped, "action_manager"):
@@ -139,6 +151,9 @@ class RslRlVecEnvWrapper(VecEnv):
     def reset(self) -> tuple[TensorDict, dict]:  # noqa: D102
         # reset the environment
         obs_dict, extras = self.env.reset()
+        # move observations to RL device if different from env device
+        if self.rl_device != self.env_device:
+            obs_dict = {k: v.to(self.rl_device) if isinstance(v, torch.Tensor) else v for k, v in obs_dict.items()}
         return TensorDict(obs_dict, batch_size=[self.num_envs]), extras
 
     def get_observations(self) -> TensorDict:
@@ -147,14 +162,26 @@ class RslRlVecEnvWrapper(VecEnv):
             obs_dict = self.unwrapped.observation_manager.compute()
         else:
             obs_dict = self.unwrapped._get_observations()
+        # move observations to RL device if different from env device
+        if self.rl_device != self.env_device:
+            obs_dict = {k: v.to(self.rl_device) if isinstance(v, torch.Tensor) else v for k, v in obs_dict.items()}
         return TensorDict(obs_dict, batch_size=[self.num_envs])
 
     def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
+        # move actions to env device if coming from different RL device
+        if self.rl_device != self.env_device:
+            actions = actions.to(self.env_device)
         # clip actions
         if self.clip_actions is not None:
             actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+        # move outputs to RL device if different from env device
+        if self.rl_device != self.env_device:
+            obs_dict = {k: v.to(self.rl_device) if isinstance(v, torch.Tensor) else v for k, v in obs_dict.items()}
+            rew = rew.to(self.rl_device)
+            terminated = terminated.to(self.rl_device)
+            truncated = truncated.to(self.rl_device)
         # compute dones for compatibility with RSL-RL
         dones = (terminated | truncated).to(dtype=torch.long)
         # move time out information to the extras dict
