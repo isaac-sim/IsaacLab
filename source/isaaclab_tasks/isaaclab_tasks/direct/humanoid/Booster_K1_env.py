@@ -13,7 +13,7 @@ from __future__ import annotations
 from isaaclab_assets import BOOSTER_K1_CFG
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, DeformableObjectCfg, DeformableObject, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -39,7 +39,7 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/Field",
         terrain_type="usd",
-        usd_path= os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Field.usd"),
+        usd_path= os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Field.usd"),
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="average",
@@ -50,6 +50,75 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         ),
         debug_vis=False,
     )
+
+    # Ball
+    ball_cfg = DeformableObjectCfg(
+
+        prim_path="/World/Ball",
+
+        spawn=sim_utils.UsdFileCfg(
+
+            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Ball.usd"),
+
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
+
+            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
+
+            mass_props= sim_utils.MassPropertiesCfg(mass=0.044, density=-1)
+        ),
+
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.06)),
+
+        debug_vis=True,
+
+    )
+
+    ball = DeformableObject(cfg=ball_cfg)
+
+    # Goal blue
+
+    goal_blue_cfg = RigidObjectCfg(
+        prim_path = "/World/Goal_Blue",
+
+        spawn=sim_utils.UsdFileCfg(
+
+            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usd"),
+
+            rigid_props = sim_utils.RigidBodyPropertiesCfg(),
+            mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props = sim_utils.CollisionPropertiesCfg(),
+            visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0), metallic=0),
+        ),
+
+        init_state=RigidObjectCfg.InitialStateCfg(),
+
+    )
+
+    goal_blue = RigidObject(cfg=goal_blue_cfg)
+
+    # Goal red
+
+    goal_red_cfg = RigidObjectCfg(
+        prim_path = "/World/Goal_Blue",
+
+        spawn=sim_utils.UsdFileCfg(
+
+            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usd"),
+
+            rigid_props = sim_utils.RigidBodyPropertiesCfg(),
+            mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props = sim_utils.CollisionPropertiesCfg(),
+            visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0), metallic=0),
+        ),
+
+        init_state=RigidObjectCfg.InitialStateCfg(),
+
+    )
+
+    goal_red = RigidObject(cfg=goal_red_cfg)
+
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
