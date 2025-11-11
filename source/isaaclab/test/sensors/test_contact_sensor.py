@@ -21,6 +21,7 @@ from enum import Enum
 import carb
 import pytest
 from flaky import flaky
+from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -393,6 +394,50 @@ def test_sensor_print(setup_simulation):
         sim.reset()
         # print info
         print(scene.sensors["contact_sensor"])
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_contact_sensor_threshold(setup_simulation, device):
+    """Test that the contact sensor USD threshold attribute is set to 0.0."""
+    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        # Spawn things into stage
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+        )
+        scene = InteractiveScene(scene_cfg)
+        # Play the simulator
+        sim.reset()
+
+        # Get the stage and check the USD threshold attribute on the rigid body prim
+        from isaacsim.core.utils.stage import get_current_stage
+
+        stage = get_current_stage()
+        prim_path = scene_cfg.shape.prim_path
+        prim = stage.GetPrimAtPath(prim_path)
+
+        # Ensure the contact sensor was created properly
+        contact_sensor = scene["contact_sensor"]
+        assert contact_sensor is not None, "Contact sensor was not created"
+
+        # Check if the prim has contact report API and verify threshold is close to 0.0
+        if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+            cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
+            threshold_attr = cr_api.GetThresholdAttr()
+            if threshold_attr.IsValid():
+                threshold_value = threshold_attr.Get()
+                assert (
+                    pytest.approx(threshold_value, abs=1e-6) == 0.0
+                ), f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
 
 
 """
