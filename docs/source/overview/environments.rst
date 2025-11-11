@@ -466,7 +466,7 @@ Multirotor
 
 .. |arl-drone| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
 
-.. |arl_drone_state_based-link| replace:: `Isaac-StateBasedControl-ARL-robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
+.. |arl_drone_state_based-link| replace:: `Isaac-StateBasedControl-ARL-robot-1-v0 <https://github.com/ntnu-arl/IsaacLab/blob/main/feature/drone_multirotor_class/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
 
 Others
 ~~~~~~
