@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import inspect
+import logging
 import numpy as np
 import threading
 import time
@@ -15,11 +16,13 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, Union
 
-import omni.log
 from pxr import Gf
 
 from isaaclab.sim import SimulationContext
 from isaaclab.ui.xr_widgets import show_instruction
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class TriggerType(Enum):
@@ -432,7 +435,7 @@ class VisualizationManager:
                 raise
             # If we can't inspect the signature (e.g., built-in functions),
             # just log a warning and proceed
-            omni.log.warn(f"Could not validate callback signature for {trigger.name}: {e}")
+            logger.warning(f"Could not validate callback signature for {trigger.name}: {e}")
 
 
 class XRVisualization:
@@ -600,7 +603,7 @@ class XRVisualization:
             manager: Type of the visualization manager to assign
         """
         if cls._instance is not None:
-            omni.log.error(
+            logger.error(
                 f"Visualization system already initialized to {type(cls._instance._visualization_manager).__name__},"
                 f" cannot assign manager {manager.__name__}"
             )
