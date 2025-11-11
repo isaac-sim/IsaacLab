@@ -447,6 +447,27 @@ Navigation
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
 
 
+Multirotor
+~~~~~~
+
+.. note::
+    The multirotor entry provides an environment configuration for flying the ARL robot using the
+    state_based_control task. See the `drone_arl` folder and the ARL robot config
+    (`ARL_ROBOT_1_CFG`) in the codebase for details.
+
+.. table::
+    :widths: 33 37 30
+
+    +----------------+--------------------------------------+--------------------------------------------------------------------------------------+
+    | World          | Environment ID                       | Description                                                                          |
+    +================+======================================+======================================================================================+
+    | |arl-drone|    | |arl_drone_state_based-link|         | Setpoint position control for the ARL drone using the state_based_control task.      |
+    +----------------+--------------------------------------+--------------------------------------------------------------------------------------+
+
+.. |arl-drone| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
+
+.. |arl_drone_state_based-link| replace:: `Isaac-StateBasedControl-ARL-robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
+
 Others
 ~~~~~~
 
