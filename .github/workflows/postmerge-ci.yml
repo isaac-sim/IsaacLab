@@ -11,6 +11,7 @@ on:
       - main
       - devel
       - release/**
+      - feature/isaacsim-6-0
 
 # Concurrency control to prevent parallel runs
 concurrency:

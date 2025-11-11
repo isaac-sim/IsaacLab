@@ -11,6 +11,7 @@ on:
       - main
       - devel
       - 'release/**'
+      - 'feature/isaacsim-6-0'
   pull_request:
     types: [opened, synchronize, reopened]
 
