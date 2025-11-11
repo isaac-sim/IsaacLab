@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.49.0 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reverted the URDF Importer version to 2.4.24 to avoid issues with merging joints on the latest URDF importer in Isaac Sim 5.1
+
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
