@@ -160,7 +160,7 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555  scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
+                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
             .. tab-item:: JAX
                 :sync: jax
