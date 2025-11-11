@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -14,7 +14,8 @@ import omni.log
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.utils.math import euler_xyz_from_quat
+from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
+from isaaclab.envs.mdp.kernels.action_kernels import process_non_holonomic_action, apply_non_holonomic_action
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -56,11 +57,11 @@ class NonHolonomicAction(ActionTerm):
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
-    _scale: torch.Tensor
+    _scale: wp.array(dtype=wp.float32)
     """The scaling factor applied to the input action. Shape is (1, 2)."""
-    _offset: torch.Tensor
+    _offset: wp.array(dtype=wp.float32)
     """The offset applied to the input action. Shape is (1, 2)."""
-    _clip: torch.Tensor
+    _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnv):
@@ -69,21 +70,21 @@ class NonHolonomicAction(ActionTerm):
 
         # parse the joint information
         # -- x joint
-        x_joint_id, x_joint_name = self._asset.find_joints(self.cfg.x_joint_name)
+        x_joint_mask, x_joint_name, x_joint_id = self._asset.find_joints(self.cfg.x_joint_name)
         if len(x_joint_id) != 1:
             raise ValueError(
                 f"Expected a single joint match for the x joint name: {self.cfg.x_joint_name}, got {len(x_joint_id)}"
             )
         # -- y joint
-        y_joint_id, y_joint_name = self._asset.find_joints(self.cfg.y_joint_name)
+        y_joint_mask, y_joint_name, y_joint_id = self._asset.find_joints(self.cfg.y_joint_name)
         if len(y_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the y joint name: {self.cfg.y_joint_name}")
         # -- yaw joint
-        yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name)
+        yaw_joint_mask, yaw_joint_name, yaw_joint_id = self._asset.find_joints(self.cfg.yaw_joint_name)
         if len(yaw_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the yaw joint name: {self.cfg.yaw_joint_name}")
         # parse the body index
-        self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name)
+        self._body_mask, self._body_name, self._body_idx = self._asset.find_bodies(self.cfg.body_name)
         if len(self._body_idx) != 1:
             raise ValueError(f"Found more than one body match for the body name: {self.cfg.body_name}")
 
@@ -100,21 +101,37 @@ class NonHolonomicAction(ActionTerm):
         )
 
         # create tensors for raw and processed actions
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        self._processed_actions = torch.zeros_like(self.raw_actions)
-        self._joint_vel_command = torch.zeros(self.num_envs, 3, device=self.device)
+        self._raw_actions = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+        self._processed_actions = wp.zeros_like(self.raw_actions)
+        self._joint_vel_command = wp.zeros((self.num_envs, 3), device=self.device, dtype=wp.float32)
+        self._yaw_w = wp.zeros((self.num_envs,), device=self.device, dtype=wp.float32)
 
         # save the scale and offset as tensors
-        self._scale = torch.tensor(self.cfg.scale, device=self.device).unsqueeze(0)
-        self._offset = torch.tensor(self.cfg.offset, device=self.device).unsqueeze(0)
+        self._scale = wp.array(self.cfg.scale, device=self.device, dtype=wp.float32)
+        self._offset = wp.array(self.cfg.offset, device=self.device, dtype=wp.float32)
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
+                self._clip = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.vec2f)
+                wp.launch(
+                    update_array2D_with_value,
+                    dim=(self.num_envs, self.action_dim),
+                    inputs=[
+                        wp.vec2f(-float("inf"), float("inf")),
+                        self._clip,
+                    ],
                 )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+                wp.launch(
+                    update_array2D_with_array1D_indexed,
+                    dim=(self.num_envs, len(index_list)),
+                    inputs=[
+                        wp.array(value_list, dtype=wp.vec2f, device=self.device),
+                        self._clip,
+                        None,
+                        wp.array(index_list, dtype=wp.int32, device=self.device),
+                    ],
+                )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
@@ -127,11 +144,11 @@ class NonHolonomicAction(ActionTerm):
         return 2
 
     @property
-    def raw_actions(self) -> torch.Tensor:
+    def raw_actions(self) -> wp.array:
         return self._raw_actions
 
     @property
-    def processed_actions(self) -> torch.Tensor:
+    def processed_actions(self) -> wp.array:
         return self._processed_actions
 
     """
@@ -140,24 +157,41 @@ class NonHolonomicAction(ActionTerm):
 
     def process_actions(self, actions):
         # store the raw actions
-        self._raw_actions[:] = actions
-        self._processed_actions = self.raw_actions * self._scale + self._offset
-        # clip actions
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+        self._raw_actions.assign(actions)
+        wp.launch(
+            process_non_holonomic_action,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self._raw_actions,
+                self._processed_actions,
+                self._scale,
+                self._offset,
+                self._clip,
+            ],
+        )
 
     def apply_actions(self):
-        # obtain current heading
-        quat_w = self._asset.data.body_quat_w[:, self._body_idx].view(self.num_envs, 4)
-        yaw_w = euler_xyz_from_quat(quat_w)[2]
-        # compute joint velocities targets
-        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x
-        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * self.processed_actions[:, 0]  # y
-        self._joint_vel_command[:, 2] = self.processed_actions[:, 1]  # yaw
-        # set the joint velocity targets
+        wp.launch(
+            apply_non_holonomic_action,
+            dim=(self.num_envs),
+            inputs=[
+                self._asset.data.body_pose_w,
+                self._yaw_w,
+                self._processed_actions,
+                self._joint_vel_command,
+                self._body_idx,
+            ],
+        )
         self._asset.set_joint_velocity_target(self._joint_vel_command, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> None:
+        wp.launch(
+            update_array2D_with_value_masked,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32),
+                self._raw_actions,
+                mask,
+                None,
+            ],
+        )

@@ -7,16 +7,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
-
+from enum import IntEnum
 import warp as wp
 
 import isaaclab.utils.string as string_utils
 from isaaclab.newton.actuators.kernels import clip_efforts_with_limits
-from isaaclab.newton.kernels import (
-    populate_empty_array,
-    update_joint_array_with_value,
-    update_joint_array_with_value_array,
-    update_joint_array_with_value_int,
+from isaaclab.utils.warp.update_kernels import (
+    update_array2D_with_array1D_indexed,
+    update_array2D_with_value_masked,
 )
 from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
 
@@ -211,22 +209,13 @@ class ActuatorBase(ABC):
         """
         # parse the parameter
         if cfg_value is not None:
-            if isinstance(cfg_value, float):
-                # if float, then use the same value for all joints
-                wp.launch(
-                    update_joint_array_with_value,
-                    dim=(self._num_envs, self._num_joints),
-                    inputs=[
-                        float(cfg_value),
-                        original_value,
-                        self._env_mask,
-                        self._joint_mask,
-                    ],
-                )
-            elif isinstance(cfg_value, int):
+            if isinstance(cfg_value, float) or isinstance(cfg_value, int):
+                print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
+                if isinstance(cfg_value, IntEnum):
+                    cfg_value = int(cfg_value.value)
                 # if int, then use the same value for all joints
                 wp.launch(
-                    update_joint_array_with_value_int,
+                    update_array2D_with_value_masked,
                     dim=(self._num_envs, self._num_joints),
                     inputs=[
                         cfg_value,
@@ -238,24 +227,14 @@ class ActuatorBase(ABC):
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                tmp_param = wp.zeros((self._num_joints,), dtype=wp.float32, device=self._device)
                 wp.launch(
-                    populate_empty_array,
-                    dim=(self._num_joints,),
+                    update_array2D_with_array1D_indexed,
+                    dim=(self._num_envs, len(indices)),
                     inputs=[
                         wp.array(values, dtype=wp.float32, device=self._device),
-                        tmp_param,
-                        wp.array(indices, dtype=wp.int32, device=self._device),
-                    ],
-                )
-                wp.launch(
-                    update_joint_array_with_value_array,
-                    dim=(self._num_envs, self._num_joints),
-                    inputs=[
-                        tmp_param,
                         original_value,
-                        self._env_mask,
-                        self._joint_mask,
+                        None,
+                        wp.array(indices, dtype=wp.int32, device=self._device),
                     ],
                 )
             else:

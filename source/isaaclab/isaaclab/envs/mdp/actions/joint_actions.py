@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -14,6 +14,8 @@ import omni.log
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed
+from isaaclab.envs.mdp.kernels.action_kernels import process_joint_action, apply_relative_joint_position_action
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -46,11 +48,11 @@ class JointAction(ActionTerm):
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
-    _scale: torch.Tensor | float
+    _scale: wp.array(dtype=wp.float32)
     """The scaling factor applied to the input action."""
-    _offset: torch.Tensor | float
+    _offset: wp.array(dtype=wp.float32)
     """The offset applied to the input action."""
-    _clip: torch.Tensor
+    _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.JointActionCfg, env: ManagerBasedEnv) -> None:
@@ -58,7 +60,7 @@ class JointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(
+        self._joint_masks, self._joint_names, self._joint_ids = self._asset.find_joints(
             self.cfg.joint_names, preserve_order=self.cfg.preserve_order
         )
         self._num_joints = len(self._joint_ids)
@@ -68,42 +70,73 @@ class JointAction(ActionTerm):
             f" {self._joint_names} [{self._joint_ids}]"
         )
 
-        # Avoid indexing across all joints for efficiency
-        if self._num_joints == self._asset.num_joints and not self.cfg.preserve_order:
-            self._joint_ids = slice(None)
-
         # create tensors for raw and processed actions
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        self._processed_actions = torch.zeros_like(self.raw_actions)
+        self._raw_actions = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+        self._processed_actions = wp.zeros_like(self.raw_actions)
 
         # parse scale
         if isinstance(cfg.scale, (float, int)):
-            self._scale = float(cfg.scale)
+            self._scale = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._scale.fill_(float(cfg.scale))
         elif isinstance(cfg.scale, dict):
-            self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
+            self._scale = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
-            self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_envs, len(index_list)),
+                inputs=[
+                    wp.array(value_list, dtype=wp.float32, device=self.device),
+                    self._scale,
+                    None,
+                    wp.array(index_list, dtype=wp.int32, device=self.device),
+                ],
+            )
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
         # parse offset
         if isinstance(cfg.offset, (float, int)):
-            self._offset = float(cfg.offset)
+            self._offset = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._offset.fill_(float(cfg.offset))
         elif isinstance(cfg.offset, dict):
-            self._offset = torch.zeros_like(self._raw_actions)
+            self._offset = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.offset, self._joint_names)
-            self._offset[:, index_list] = torch.tensor(value_list, device=self.device)
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_envs, len(index_list)),
+                inputs=[
+                    wp.array(value_list, dtype=wp.float32, device=self.device),
+                    self._offset,
+                    None,
+                    wp.array(index_list, dtype=wp.int32, device=self.device),
+                ],
+            )
         else:
             raise ValueError(f"Unsupported offset type: {type(cfg.offset)}. Supported types are float and dict.")
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
+                self._clip = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.vec2f)
+                wp.launch(
+                    update_array2D_with_value,
+                    dim=(self.num_envs, self.action_dim),
+                    inputs=[
+                        wp.vec2f(-float("inf"), float("inf")),
+                        self._clip,
+                    ],
                 )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+                wp.launch(
+                    update_array2D_with_array1D_indexed,
+                    dim=(self.num_envs, len(index_list)),
+                    inputs=[
+                        wp.array(value_list, dtype=wp.vec2f, device=self.device),
+                        self._clip,
+                        None,
+                        wp.array(index_list, dtype=wp.int32, device=self.device),
+                    ],
+                )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
@@ -116,30 +149,41 @@ class JointAction(ActionTerm):
         return self._num_joints
 
     @property
-    def raw_actions(self) -> torch.Tensor:
+    def raw_actions(self) -> wp.array:
         return self._raw_actions
 
     @property
-    def processed_actions(self) -> torch.Tensor:
+    def processed_actions(self) -> wp.array:
         return self._processed_actions
 
     """
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: wp.array):
         # store the raw actions
-        self._raw_actions[:] = actions
-        # apply the affine transformations
-        self._processed_actions = self._raw_actions * self._scale + self._offset
-        # clip actions
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+        self._raw_actions.assign(actions)
+        wp.launch(
+            process_joint_action,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self._raw_actions,
+                self._scale,
+                self._offset,
+            ],
+        )
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> None:
+        wp.launch(
+            update_array2D_with_value_masked,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32),
+                self._raw_actions,
+                mask,
+                None,
+            ],
+        )
 
 
 class JointPositionAction(JointAction):
@@ -153,7 +197,16 @@ class JointPositionAction(JointAction):
         super().__init__(cfg, env)
         # use default joint positions as offset
         if cfg.use_default_offset:
-            self._offset = self._asset.data.default_joint_pos[:, self._joint_ids].clone()
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_envs, self.action_dim),
+                inputs=[
+                    self._asset.data.default_joint_pos[:, self._joint_ids],
+                    self._offset,
+                    None,
+                    self._joint_ids,
+                ],
+            )
 
     def apply_actions(self):
         # set position targets
@@ -184,13 +237,24 @@ class RelativeJointPositionAction(JointAction):
         super().__init__(cfg, env)
         # use zero offset for relative position
         if cfg.use_zero_offset:
-            self._offset = 0.0
+            self._offset.fill_(0.0)
+
+        self.current_actions = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
 
     def apply_actions(self):
         # add current joint positions to the processed actions
-        current_actions = self.processed_actions + self._asset.data.joint_pos[:, self._joint_ids]
+        wp.launch(
+            apply_relative_joint_position_action,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self.processed_actions,
+                self.current_actions,
+                self._asset.data.joint_pos,
+                self._joint_ids,
+            ],
+        )
         # set position targets
-        self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target(self.current_actions, joint_ids=self._joint_ids)
 
 
 class JointVelocityAction(JointAction):
@@ -204,7 +268,16 @@ class JointVelocityAction(JointAction):
         super().__init__(cfg, env)
         # use default joint velocity as offset
         if cfg.use_default_offset:
-            self._offset = self._asset.data.default_joint_vel[:, self._joint_ids].clone()
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_envs, self.action_dim),
+                inputs=[
+                    self._asset.data.default_joint_vel[:, self._joint_ids],
+                    self._offset,
+                    None,
+                    self._joint_ids,
+                ],
+            )
 
     def apply_actions(self):
         # set joint velocity targets

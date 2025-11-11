@@ -27,16 +27,17 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 from isaaclab.newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab.newton.assets.articulation.articulation_data import ArticulationData
+from isaaclab.utils.warp.update_kernels import (
+    update_array2D_with_array1D_indexed,
+    update_array1D_with_value,
+    update_array1D_with_value_masked,
+    update_array1D_with_array1D_masked,
+    update_array2D_with_value_masked,
+    update_array2D_with_array2D_masked,
+)
 from isaaclab.newton.kernels import (
     generate_mask_from_ids,
-    populate_empty_array,
-    update_batched_array_with_array_masked,
     vec13f,
-    update_array_with_value,
-    update_array_with_value_masked,
-    update_array_with_array_masked,
-    update_batched_array_with_value_masked,
-    update_batched_array_with_batched_array_masked,
     update_wrench_array_with_force,
     update_wrench_array_with_torque,
     update_joint_limits,
@@ -217,7 +218,7 @@ class Articulation(BaseArticulation):
             mask = self._data.ALL_ENV_MASK
         # reset external wrench
         wp.launch(
-            update_batched_array_with_value_masked,
+            update_array2D_with_value_masked,
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -1378,7 +1379,7 @@ class Articulation(BaseArticulation):
             joint_mask = self._data.ALL_JOINT_MASK
         # set into the actuator target buffer
         wp.launch(
-            update_batched_array_with_batched_array_masked,
+            update_array2D_with_array2D_masked,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 target,
@@ -1863,51 +1864,29 @@ class Articulation(BaseArticulation):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         # Compute the mask once and use it for all joint operations
-        self._data.JOINT_MASK.fill_(False)
         wp.launch(
-            generate_mask_from_ids,
-            dim=(self.num_joints,),
-            inputs=[
-                self._data.JOINT_MASK,
-                wp.array(indices_list, dtype=wp.int32, device=self.device),
-            ],
-        )
-        tmp_joint_data = wp.zeros((self.num_joints,), dtype=wp.float32, device=self.device)
-        wp.launch(
-            populate_empty_array,
-            dim=(self.num_joints,),
+            update_array2D_with_array1D_indexed,
+            dim=(self.num_instances, len(indices_list)),
             inputs=[
                 wp.array(values_list, dtype=wp.float32, device=self.device),
-                tmp_joint_data,
+                self._data.default_joint_pos,
+                None,
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
-        )
-        self._update_batched_array_with_array_masked(
-            tmp_joint_data,
-            self._data.default_joint_pos,
-            self._data.ALL_ENV_MASK,
-            self._data.JOINT_MASK,
-            (self.num_instances, self.num_joints)
         )
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_vel, self.joint_names
         )
         wp.launch(
-            populate_empty_array,
-            dim=(self.num_joints,),
+            update_array2D_with_array1D_indexed,
+            dim=(self.num_instances, len(indices_list)),
             inputs=[
                 wp.array(values_list, dtype=wp.float32, device=self.device),
-                tmp_joint_data,
+                self._data.default_joint_vel,
+                None,
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
-        )
-        self._update_batched_array_with_array_masked(
-            tmp_joint_data,
-            self._data.default_joint_vel,
-            self._data.ALL_ENV_MASK,
-            self._data.JOINT_MASK,
-            (self.num_instances, self.num_joints)
         )
 
     """
@@ -2139,7 +2118,7 @@ class Articulation(BaseArticulation):
             dim: The dimension of the array.
         """
         wp.launch(
-            update_array_with_value,
+            update_array1D_with_value,
             dim=(dim,),
             inputs=[
                 source,
@@ -2157,7 +2136,7 @@ class Articulation(BaseArticulation):
             dim: The dimension of the array.
         """
         wp.launch(
-            update_array_with_value_masked,
+            update_array1D_with_value_masked,
             dim=(dim,),
             inputs=[
                 source,
@@ -2175,33 +2154,12 @@ class Articulation(BaseArticulation):
             mask: The mask to use. Shape is (dim,).
         """
         wp.launch(
-            update_array_with_array_masked,
+            update_array1D_with_array1D_masked,
             dim=(dim,),
             inputs=[
                 source,
                 target,
                 mask,
-            ],
-        )
-
-    def _update_batched_array_with_array_masked(self, source: wp.array, target: wp.array, mask_1: wp.array, mask_2: wp.array, dim: tuple[int, int]):
-        """Update a batched array with an array using a mask.
-
-        Args:
-            source: The source array. Shape is (dim[1],).
-            target: The target array. Shape is (dim[0], dim[1]). Must be pre-allocated, is modified in place.
-            mask_1: The mask to use. Shape is (dim[0],).
-            mask_2: The mask to use. Shape is (dim[1],).
-            dim: The dimension of the arrays.
-        """
-        wp.launch(
-            update_batched_array_with_array_masked,
-            dim=dim,
-            inputs=[
-                source,
-                target,
-                mask_1,
-                mask_2,
             ],
         )
 
@@ -2216,7 +2174,7 @@ class Articulation(BaseArticulation):
             dim: The dimension of the arrays.
         """
         wp.launch(
-            update_batched_array_with_batched_array_masked,
+            update_array2D_with_array2D_masked,
             dim=dim,
             inputs=[
                 source,
@@ -2237,7 +2195,7 @@ class Articulation(BaseArticulation):
             dim: The dimension of the arrays.
         """
         wp.launch(
-            update_batched_array_with_value_masked,
+            update_array2D_with_value_masked,
             dim=dim,
             inputs=[
                 source,

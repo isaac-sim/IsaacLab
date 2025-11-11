@@ -1,14 +1,18 @@
 from __future__ import annotations
 from .base_articulation import BaseArticulation
+from .base_articulation_data import BaseArticulationData
 from isaaclab.utils.backend_utils import FactoryBase
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.newton.assets.articulation import Articulation as NewtonArticulation
+    from isaaclab.newton.assets.articulation import ArticulationData as NewtonArticulationData
 
 class Articulation(FactoryBase):
     """Factory for creating articulation instances."""
+
+    data: BaseArticulationData | NewtonArticulationData
 
     def __new__(cls, *args, **kwargs) -> BaseArticulation | NewtonArticulation:
         """Create a new instance of an articulation based on the backend."""

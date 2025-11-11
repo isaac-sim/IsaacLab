@@ -20,27 +20,21 @@ from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 
 from isaaclab.newton.assets.rigid_object.rigid_object_data import RigidObjectData
+from isaaclab.utils.warp.update_kernels import (
+    update_array1D_with_array1D_masked,
+    update_array2D_with_value_masked,
+)
 from isaaclab.newton.kernels import (
     generate_mask_from_ids,
-    populate_empty_array,
-    update_batched_array_with_array_masked,
     vec13f,
-    update_array_with_value,
-    update_array_with_value_masked,
-    update_array_with_array_masked,
-    update_batched_array_with_value_masked,
-    update_batched_array_with_batched_array_masked,
     update_wrench_array_with_force,
     update_wrench_array_with_torque,
-    update_joint_limits,
-    update_joint_limits_value_vec2f,
     transform_CoM_pose_to_link_frame_masked_root,
     project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose,
     split_state_to_velocity,
 )
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
-from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
@@ -136,7 +130,7 @@ class RigidObject(BaseRigidObject):
             mask = self._data.ALL_ENV_MASK
         # reset external wrench
         wp.launch(
-            update_batched_array_with_value_masked,
+            update_array2D_with_value_masked,
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -518,7 +512,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._data.ALL_ENV_MASK
         # set into simulation
         wp.launch(
-            update_array_with_array_masked,
+            update_array1D_with_array1D_masked,
             dim=(self.num_instances,),
             inputs=[
                 root_pose,
@@ -636,7 +630,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._data.ALL_ENV_MASK
         # set into simulation
         wp.launch(
-            update_array_with_array_masked,
+            update_array1D_with_array1D_masked,
             dim=(self.num_instances,),
             inputs=[
                 root_velocity,

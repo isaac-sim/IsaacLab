@@ -1,13 +1,18 @@
+from __future__ import annotations
 from .base_rigid_object import BaseRigidObject
+from .base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.backend_utils import FactoryBase
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.newton.assets.rigid_object import RigidObject as NewtonRigidObject
+    from isaaclab.newton.assets.rigid_object import RigidObjectData as NewtonRigidObjectData
 
 class RigidObject(FactoryBase):
     """Factory for creating articulation instances."""
+
+    data: BaseRigidObjectData | NewtonRigidObjectData
 
     def __new__(cls, *args, **kwargs) -> BaseRigidObject | NewtonRigidObject:
         """Create a new instance of an articulation based on the backend."""

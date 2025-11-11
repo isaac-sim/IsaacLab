@@ -5,16 +5,17 @@
 
 from __future__ import annotations
 
-import torch
-from collections.abc import Sequence
+import warp as wp
 from typing import TYPE_CHECKING
+from collections.abc import Sequence
 
 import omni.log
 
-import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value, update_array2D_with_value_masked, update_array2D_with_array2D_masked
+from isaaclab.envs.mdp.kernels.action_kernels import process_joint_position_to_limits_action, process_ema_joint_position_to_limits_action
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -42,9 +43,9 @@ class JointPositionToLimitsAction(ActionTerm):
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
-    _scale: torch.Tensor | float
+    _scale: wp.array(dtype=wp.float32)
     """The scaling factor applied to the input action."""
-    _clip: torch.Tensor
+    _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: ManagerBasedEnv):
@@ -52,7 +53,7 @@ class JointPositionToLimitsAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        self._joint_masks, self._joint_names, self._joint_ids = self._asset.find_joints(self.cfg.joint_names)
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
         omni.log.info(
@@ -60,32 +61,53 @@ class JointPositionToLimitsAction(ActionTerm):
             f" {self._joint_names} [{self._joint_ids}]"
         )
 
-        # Avoid indexing across all joints for efficiency
-        if self._num_joints == self._asset.num_joints:
-            self._joint_ids = slice(None)
-
         # create tensors for raw and processed actions
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        self._processed_actions = torch.zeros_like(self.raw_actions)
+        self._raw_actions = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+        self._processed_actions = wp.zeros_like(self.raw_actions)
 
         # parse scale
         if isinstance(cfg.scale, (float, int)):
-            self._scale = float(cfg.scale)
+            self._scale = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._scale.fill_(float(cfg.scale))
         elif isinstance(cfg.scale, dict):
-            self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
+            self._scale = wp.ones((env.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
-            self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_envs, len(index_list)),
+                inputs=[
+                    wp.array(value_list, dtype=wp.float32, device=self.device),
+                    self._scale,
+                    None,
+                    wp.array(index_list, dtype=wp.int32, device=self.device),
+                ],
+            )
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
+                self._clip = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.vec2f)
+                wp.launch(
+                    update_array2D_with_value,
+                    dim=(self.num_envs, self.action_dim),
+                    inputs=[
+                        wp.vec2f(-float("inf"), float("inf")),
+                        self._clip,
+                    ],
                 )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+                wp.launch(
+                    update_array2D_with_array1D_indexed,
+                    dim=(self.num_envs, self.action_dim),
+                    inputs=[
+                        wp.array(value_list, dtype=wp.vec2f, device=self.device),
+                        self._clip,
+                        None,
+                        wp.array(index_list, dtype=wp.int32, device=self.device),
+                    ],
+                )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
@@ -98,45 +120,50 @@ class JointPositionToLimitsAction(ActionTerm):
         return self._num_joints
 
     @property
-    def raw_actions(self) -> torch.Tensor:
+    def raw_actions(self) -> wp.array:
         return self._raw_actions
 
     @property
-    def processed_actions(self) -> torch.Tensor:
+    def processed_actions(self) -> wp.array:
         return self._processed_actions
 
     """
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor):
+    # FIXME: Do we need to store the raw actions?
+    def process_actions(self, actions: wp.array):
         # store the raw actions
-        self._raw_actions[:] = actions
-        # apply affine transformations
-        self._processed_actions = self._raw_actions * self._scale
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
-        # rescale the position targets if configured
-        # this is useful when the input actions are in the range [-1, 1]
-        if self.cfg.rescale_to_limits:
-            # clip to [-1, 1]
-            actions = self._processed_actions.clamp(-1.0, 1.0)
-            # rescale within the joint limits
-            actions = math_utils.unscale_transform(
-                actions,
-                self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 0],
-                self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 1],
-            )
-            self._processed_actions[:] = actions[:]
+        self._raw_actions.assign(actions)
+        wp.launch(
+            process_joint_position_to_limits_action,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self._raw_actions,
+                self._scale,
+            ],
+        )
+
+
 
     def apply_actions(self):
         # set position targets
         self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> None:
+        if mask is not None:
+            wp.launch(
+                update_array2D_with_value_masked,
+                dim=(self.num_envs, self.action_dim),
+                inputs=[
+                    wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32),
+                    self._raw_actions,
+                    mask,
+                    None,
+                ],
+            )
+        else:
+            self._raw_actions.fill_(0.0)
 
 
 class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
@@ -173,9 +200,10 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             # check that the weight is in the valid range
             if not 0.0 <= cfg.alpha <= 1.0:
                 raise ValueError(f"Moving average weight must be in the range [0, 1]. Got {cfg.alpha}.")
-            self._alpha = cfg.alpha
+            self._alpha = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._alpha.fill_(cfg.alpha)
         elif isinstance(cfg.alpha, dict):
-            self._alpha = torch.ones((env.num_envs, self.action_dim), device=self.device)
+            self._alpha = wp.ones((env.num_envs, self.action_dim), device=self.device)
             # resolve the dictionary config
             index_list, names_list, value_list = string_utils.resolve_matching_names_values(
                 cfg.alpha, self._joint_names
@@ -186,36 +214,48 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
                     raise ValueError(
                         f"Moving average weight must be in the range [0, 1]. Got {value} for joint {name}."
                     )
-            self._alpha[:, index_list] = torch.tensor(value_list, device=self.device)
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(env.num_envs, len(index_list)),
+                inputs=[
+                    wp.array(value_list, dtype=wp.float32, device=self.device),
+                    self._alpha,
+                    None,
+                    wp.array(index_list, dtype=wp.int32, device=self.device),
+                ],
+            )
         else:
             raise ValueError(
                 f"Unsupported moving average weight type: {type(cfg.alpha)}. Supported types are float and dict."
             )
 
         # initialize the previous targets
-        self._prev_applied_actions = torch.zeros_like(self.processed_actions)
+        self._prev_applied_actions = wp.zeros_like(self.processed_actions)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> None:
         # check if specific environment ids are provided
-        if env_ids is None:
-            env_ids = slice(None)
-        else:
-            env_ids = env_ids[:, None]
-        super().reset(env_ids)
+        super().reset(env_ids, mask)
         # reset history to current joint positions
-        self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self._asset.data.joint_pos,
+                self._prev_applied_actions,
+                mask,
+                None,
+            ],
+        )
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: wp.array):
         # apply affine transformations
         super().process_actions(actions)
-        # set position targets as moving average
-        ema_actions = self._alpha * self._processed_actions
-        ema_actions += (1.0 - self._alpha) * self._prev_applied_actions
-        # clamp the targets
-        self._processed_actions[:] = torch.clamp(
-            ema_actions,
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 0],
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 1],
+        wp.launch(
+            process_ema_joint_position_to_limits_action,
+            dim=(self.num_envs, self.action_dim),
+            inputs=[
+                self._processed_actions,
+                self._alpha,
+                self._clip,
+            ],
         )
-        # update previous targets
-        self._prev_applied_actions[:] = self._processed_actions[:]
