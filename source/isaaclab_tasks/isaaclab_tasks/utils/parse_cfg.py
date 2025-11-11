@@ -119,7 +119,6 @@ def parse_env_cfg(
     device: str = "cuda:0",
     num_envs: int | None = None,
     use_fabric: bool | None = None,
-    newton_visualizer: bool | None = None,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -130,7 +129,6 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
-        newton_visualizer: Whether to enable/disable Newton rendering. Defaults to None, in which case it is left unchanged.
 
     Returns:
         The parsed configuration object.
@@ -138,6 +136,15 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
+            
+    Note:
+        To enable visualizers, set them directly in the environment configuration using
+        SimulationCfg.visualizers. For example:
+        
+        .. code-block:: python
+        
+            from isaaclab.sim.visualizers import NewtonVisualizerCfg
+            cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
     """
     # load the default configuration
     cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
@@ -155,9 +162,6 @@ def parse_env_cfg(
     # number of environments
     if num_envs is not None:
         cfg.scene.num_envs = num_envs
-    # newton rendering
-    if newton_visualizer is not None:
-        cfg.sim.enable_newton_rendering = newton_visualizer
 
     return cfg
 

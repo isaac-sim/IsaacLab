@@ -197,28 +197,35 @@ class SimulationCfg:
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    enable_newton_rendering: bool = False
-    """Enable/disable rendering using Newton. Default is False.
-
-    When enabled, the Newton to renderer will be called every time the simulation is rendered. If Isaac Sim's
-    renderer is also enabled, both will be called.
-    """
-
-    visualizer: VisualizerCfg | None = None
+    visualizers: list[VisualizerCfg] | VisualizerCfg | None = None
     """Visualizer settings. Default is None (no visualizer).
     
-    To enable a visualizer, set this to one of the visualizer configuration classes:
+    This field supports multiple visualizer backends for debug visualization and monitoring
+    during simulation. It accepts:
+    - A single VisualizerCfg: One visualizer will be created
+    - A list of VisualizerCfg: Multiple visualizers will be created
+    - None or empty list: No visualizers will be created
+    
+    Supported visualizer backends:
     - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
     - OVVisualizerCfg: Omniverse-based high-fidelity visualizer  
     - RerunVisualizerCfg: Web-based Rerun visualizer
     
-    Example:
+    Examples:
+        # Single visualizer
         from isaaclab.sim.visualizers import NewtonVisualizerCfg
-        cfg = SimulationCfg(visualizer=NewtonVisualizerCfg(enabled=True))
+        cfg = SimulationCfg(visualizers=NewtonVisualizerCfg(enabled=True))
+        
+        # Multiple visualizers
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
+        cfg = SimulationCfg(visualizers=[
+            NewtonVisualizerCfg(enabled=True),
+            RerunVisualizerCfg(enabled=True)
+        ])
     
     Note:
-        This replaces the previous enable_newton_rendering flag and provides a unified
-        interface for all visualizer backends.
+        Visualizers are separate from rendering backends (for cameras/sensors).
+        They are intended for debug visualization and monitoring only.
     """
 
     create_stage_in_memory: bool = False

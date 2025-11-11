@@ -35,6 +35,7 @@ from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
+from .visualizers import Visualizer, NewtonVisualizer, NewtonVisualizerCfg
 
 
 class SimulationContext(_SimulationContext):
@@ -251,6 +252,10 @@ class SimulationContext(_SimulationContext):
         else:
             self._app_control_on_stop_handle = None
         self._disable_app_control_on_stop_handle = False
+
+        # initialize visualizers
+        self._visualizers: list[Visualizer] = []
+        self._visualizer_step_counter = 0
 
         # flag for skipping prim deletion callback
         # when stage in memory is attached
@@ -538,6 +543,118 @@ class SimulationContext(_SimulationContext):
         NewtonManager.forward_kinematics()
         NewtonManager.sync_fabric_transforms()
 
+    def initialize_visualizers(self) -> None:
+        """Initialize all configured visualizers.
+        
+        This method creates and initializes visualizers based on the configuration provided
+        in SimulationCfg.visualizers. It supports:
+        - A single VisualizerCfg: Creates one visualizer
+        - A list of VisualizerCfg: Creates multiple visualizers
+        - None or empty list: No visualizers are created
+        """
+        # Handle different input formats
+        visualizer_cfgs = []
+        if self.cfg.visualizers is not None:
+            if isinstance(self.cfg.visualizers, list):
+                visualizer_cfgs = [cfg for cfg in self.cfg.visualizers if cfg.enabled]
+            elif self.cfg.visualizers.enabled:
+                visualizer_cfgs = [self.cfg.visualizers]
+
+        # Create and initialize each visualizer
+        for viz_cfg in visualizer_cfgs:
+            try:
+                # Create visualizer instance based on config type
+                if isinstance(viz_cfg, NewtonVisualizerCfg):
+                    visualizer = NewtonVisualizer(viz_cfg)
+                else:
+                    # Skip unsupported visualizer types for now
+                    omni.log.warn(
+                        f"Visualizer type '{type(viz_cfg).__name__}' is not yet implemented. Skipping."
+                    )
+                    continue
+
+                # Initialize with Newton model if available
+                if NewtonManager._model is not None:
+                    scene = {
+                        "model": NewtonManager._model,
+                        "state": NewtonManager._state_0,
+                    }
+                    visualizer.initialize(scene)
+                    self._visualizers.append(visualizer)
+                    omni.log.info(f"Initialized visualizer: {type(visualizer).__name__}")
+                else:
+                    omni.log.warn(
+                        "Newton model not available yet. Visualizer will be initialized later."
+                    )
+
+            except Exception as e:
+                omni.log.error(f"Failed to initialize visualizer '{type(viz_cfg).__name__}': {e}")
+
+    def step_visualizers(self, dt: float) -> None:
+        """Update all active visualizers.
+        
+        This method steps all initialized visualizers and updates their state.
+        It also handles visualizer pause states and removes closed visualizers.
+        
+        Args:
+            dt: Time step in seconds.
+        """
+        if not self._visualizers:
+            return
+
+        self._visualizer_step_counter += 1
+
+        # Update visualizers and check if any should be removed
+        visualizers_to_remove = []
+
+        for visualizer in self._visualizers:
+            try:
+                # Check if visualizer is still running
+                if not visualizer.is_running():
+                    visualizers_to_remove.append(visualizer)
+                    continue
+
+                # Handle training pause - block until resumed
+                while visualizer.is_training_paused() and visualizer.is_running():
+                    if isinstance(visualizer, NewtonVisualizer):
+                        # Update state before rendering during pause
+                        visualizer.update_state(NewtonManager._state_0)
+                    visualizer.step(0.0)  # Step with 0 dt during pause
+
+                # Skip rendering if visualizer has rendering paused
+                if visualizer.is_rendering_paused():
+                    continue
+
+                # Normal step: update state and visualizer
+                if isinstance(visualizer, NewtonVisualizer):
+                    visualizer.update_state(NewtonManager._state_0)
+                
+                visualizer.step(dt)
+
+            except Exception as e:
+                omni.log.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")
+                visualizers_to_remove.append(visualizer)
+
+        # Remove closed visualizers
+        for visualizer in visualizers_to_remove:
+            try:
+                visualizer.close()
+                self._visualizers.remove(visualizer)
+                omni.log.info(f"Removed visualizer: {type(visualizer).__name__}")
+            except Exception as e:
+                omni.log.error(f"Error closing visualizer: {e}")
+
+    def close_visualizers(self) -> None:
+        """Close all active visualizers and clean up resources."""
+        for visualizer in self._visualizers:
+            try:
+                visualizer.close()
+            except Exception as e:
+                omni.log.error(f"Error closing visualizer '{type(visualizer).__name__}': {e}")
+        
+        self._visualizers.clear()
+        omni.log.info("All visualizers closed")
+
     def get_initial_stage(self) -> Usd.Stage:
         """Returns stage handle used during scene creation.
 
@@ -577,6 +694,11 @@ class SimulationContext(_SimulationContext):
         if not soft:
             for _ in range(2):
                 self.render()
+        
+        # Initialize visualizers after simulation is set up (only on first reset)
+        if not soft and not self._visualizers:
+            self.initialize_visualizers()
+        
         self._disable_app_control_on_stop_handle = False
 
     def step(self, render: bool = True):
@@ -628,9 +750,8 @@ class SimulationContext(_SimulationContext):
             if self.is_playing():
                 NewtonManager.step()
 
-        # Use the NewtonManager to render the scene if enabled
-        if self.cfg.enable_newton_rendering:
-            NewtonManager.render()
+        # Update visualizers
+        self.step_visualizers(self.cfg.dt)
 
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -728,6 +849,9 @@ class SimulationContext(_SimulationContext):
             if cls._instance._app_control_on_stop_handle is not None:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
+            # close all visualizers
+            if hasattr(cls._instance, '_visualizers'):
+                cls._instance.close_visualizers()
         # call parent to clear the instance
         super().clear_instance()
         NewtonManager.clear()

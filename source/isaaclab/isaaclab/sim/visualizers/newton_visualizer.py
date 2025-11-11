@@ -3,30 +3,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Training-aware viewer that adds a separate pause for simulation/training while keeping rendering at full rate.
-
-This class subclasses Newton's ViewerGL and introduces a second pause mode:
-- Rendering pause: identical to the base viewer's pause (space key / Pause checkbox)
-- Training pause: stops simulation/training steps but keeps rendering running
-
-The training pause can be toggled from the UI via a button and optionally via the 'T' key.
-"""
+"""Newton OpenGL Visualizer implementation."""
 
 from __future__ import annotations
 
-import newton as nt
 import warp as wp
 from newton.viewer import ViewerGL
 
+from .newton_visualizer_cfg import NewtonVisualizerCfg
+from .visualizer import Visualizer
+
 
 class NewtonViewerGL(ViewerGL):
+    """Training-aware viewer that adds a separate pause for simulation/training.
+    
+    This class subclasses Newton's ViewerGL and introduces a second pause mode:
+    - Rendering pause: identical to the base viewer's pause (space key / Pause checkbox)
+    - Training pause: stops simulation/training steps but keeps rendering running
+    
+    The training pause can be toggled from the UI via a button and optionally via the 'T' key.
+    """
+
     def __init__(self, *args, train_mode: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training: bool = False
         self._paused_rendering: bool = False
         self._fallback_draw_controls: bool = False
-        self._is_train_mode: bool = train_mode  # Convert train_mode to play_mode
+        self._is_train_mode: bool = train_mode
+        self._visualizer_update_frequency: int = 1
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -34,10 +38,32 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
+        """Check if training is paused."""
         return self._paused_training
 
     def is_paused(self) -> bool:
+        """Check if rendering is paused."""
         return self._paused_rendering
+
+    def is_rendering_paused(self) -> bool:
+        """Check if rendering is paused (alias for is_paused for consistency)."""
+        return self._paused_rendering
+
+    def set_visualizer_update_frequency(self, frequency: int) -> None:
+        """Set the visualizer update frequency.
+        
+        Args:
+            frequency: Number of simulation steps between visualizer updates.
+        """
+        self._visualizer_update_frequency = max(1, frequency)
+
+    def get_visualizer_update_frequency(self) -> int:
+        """Get the current visualizer update frequency.
+        
+        Returns:
+            Number of simulation steps between visualizer updates.
+        """
+        return self._visualizer_update_frequency
 
     # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
@@ -60,17 +86,14 @@ class NewtonViewerGL(ViewerGL):
             if imgui.button(rendering_label):
                 self._paused_rendering = not self._paused_rendering
 
-        # Import NewtonManager locally to avoid circular imports
-        from .newton_manager import NewtonManager  # noqa: PLC0415
-
         imgui.text("Visualizer Update Frequency")
 
-        current_frequency = NewtonManager._visualizer_update_frequency
+        current_frequency = self._visualizer_update_frequency
         changed, new_frequency = imgui.slider_int(
             "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
         )
         if changed:
-            NewtonManager._visualizer_update_frequency = new_frequency
+            self._visualizer_update_frequency = new_frequency
 
         if imgui.is_item_hovered():
             imgui.set_tooltip(
@@ -119,6 +142,8 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_left_panel(self):
         """Override the left panel to remove the base pause checkbox."""
+        import newton as nt
+
         imgui = self.ui.imgui
 
         # Use theme colors directly
@@ -228,3 +253,176 @@ class NewtonViewerGL(ViewerGL):
 
         imgui.end()
         return
+
+
+class NewtonVisualizer(Visualizer):
+    """Newton OpenGL Visualizer for Isaac Lab.
+    
+    This visualizer uses Newton's OpenGL-based viewer to provide lightweight,
+    fast visualization of simulations. It includes IsaacLab-specific features
+    like training controls, rendering pause, and update frequency adjustment.
+    
+    Args:
+        cfg: Configuration for the Newton visualizer.
+    """
+
+    def __init__(self, cfg: NewtonVisualizerCfg):
+        super().__init__(cfg)
+        self.cfg: NewtonVisualizerCfg = cfg
+        self._viewer: NewtonViewerGL | None = None
+        self._sim_time: float = 0.0
+        self._step_counter: int = 0
+        self._model = None
+        self._state = None
+
+    def initialize(self, scene) -> None:
+        """Initialize the Newton visualizer with the simulation scene.
+        
+        Args:
+            scene: Dictionary containing 'model' and 'state' for Newton simulation,
+                   or the Newton Model object directly.
+        """
+        if self._is_initialized:
+            return
+
+        # Extract model and state from scene
+        if isinstance(scene, dict):
+            self._model = scene.get("model")
+            self._state = scene.get("state")
+        else:
+            # Assume scene is the Newton Model
+            self._model = scene
+            self._state = None
+
+        if self._model is None:
+            raise ValueError("Newton visualizer requires a Newton Model to be provided in the scene")
+
+        # Create the viewer
+        self._viewer = NewtonViewerGL(
+            width=self.cfg.window_width,
+            height=self.cfg.window_height,
+            train_mode=self.cfg.train_mode,
+        )
+
+        # Set the model
+        self._viewer.set_model(self._model)
+
+        # Configure camera
+        self._viewer.camera.pos = wp.vec3(*self.cfg.camera_position)
+        self._viewer.up_axis = ["X", "Y", "Z"].index(self.cfg.up_axis)
+        self._viewer.scaling = 1.0
+        self._viewer._paused = False
+
+        # Configure visualization options
+        self._viewer.show_joints = self.cfg.show_joints
+        self._viewer.show_contacts = self.cfg.show_contacts
+        self._viewer.show_springs = self.cfg.show_springs
+        self._viewer.show_com = self.cfg.show_com
+
+        # Configure rendering options
+        self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
+        self._viewer.renderer.draw_sky = self.cfg.enable_sky
+        self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
+
+        # Configure colors
+        self._viewer.renderer.sky_upper = self.cfg.background_color
+        self._viewer.renderer.sky_lower = self.cfg.ground_color
+        self._viewer.renderer._light_color = self.cfg.light_color
+
+        # Set update frequency
+        self._viewer.set_visualizer_update_frequency(self.cfg.update_frequency)
+
+        self._is_initialized = True
+
+    def step(self, dt: float) -> None:
+        """Update the visualizer for one simulation step.
+        
+        Args:
+            dt: Time step in seconds since last visualization update.
+        
+        Note:
+            Pause handling (training and rendering) is managed by SimulationContext.
+            This method only performs the actual rendering when called.
+            The visualizer MUST be called every frame to maintain proper ImGui state,
+            even if we skip rendering some frames based on update_frequency.
+        """
+        if not self._is_initialized or self._is_closed or self._viewer is None:
+            return
+
+        # Update simulation time
+        self._sim_time += dt
+
+        # Render the current frame
+        # Note: We always call begin_frame/end_frame to maintain ImGui state
+        # The update frequency is handled internally by the viewer
+        try:
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                if self._state is not None:
+                    self._viewer.log_state(self._state)
+            finally:
+                # Always call end_frame if begin_frame succeeded
+                self._viewer.end_frame()
+        except Exception as e:
+            # Handle any rendering errors gracefully
+            # Frame lifecycle is now properly handled by try-finally
+            pass  # Silently ignore to avoid log spam - the viewer will recover
+
+    def close(self) -> None:
+        """Close the visualizer and clean up resources."""
+        if self._is_closed:
+            return
+
+        if self._viewer is not None:
+            try:
+                # Newton viewer doesn't have an explicit close method,
+                # but we can clean up our reference
+                self._viewer = None
+            except Exception as e:
+                print(f"[Warning] Error closing Newton visualizer: {e}")
+
+        self._is_closed = True
+
+    def is_running(self) -> bool:
+        """Check if the visualizer is still running.
+        
+        Returns:
+            True if the visualizer window is open and running.
+        """
+        if not self._is_initialized or self._is_closed or self._viewer is None:
+            return False
+
+        return self._viewer.is_running()
+
+    def is_training_paused(self) -> bool:
+        """Check if training is paused by the visualizer.
+        
+        Returns:
+            True if the user has paused training via the visualizer controls.
+        """
+        if not self._is_initialized or self._viewer is None:
+            return False
+
+        return self._viewer.is_training_paused()
+
+    def is_rendering_paused(self) -> bool:
+        """Check if rendering is paused by the visualizer.
+        
+        Returns:
+            True if rendering is paused via the visualizer controls.
+        """
+        if not self._is_initialized or self._viewer is None:
+            return False
+
+        return self._viewer.is_rendering_paused()
+
+    def update_state(self, state) -> None:
+        """Update the simulation state for visualization.
+        
+        This method should be called before step() to provide the latest simulation state.
+        
+        Args:
+            state: The Newton State object to visualize.
+        """
+        self._state = state
+
