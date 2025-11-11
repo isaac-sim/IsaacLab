@@ -244,7 +244,7 @@ class PickAndPlaceEnv(DirectRLEnv):
             self.instant_controls[self.go_to_cube] = torch.stack(
                 [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, torch.zeros_like(d_cube_robot_x)], dim=1
             )
-        elif self.go_to_target.any():
+        if self.go_to_target.any():
             # Effort based proportional controller to track the target position
             head_pos_x = self.pick_and_place.data.joint_pos[self.go_to_target, self._x_dof_idx[0]]
             head_pos_y = self.pick_and_place.data.joint_pos[self.go_to_target, self._y_dof_idx[0]]
