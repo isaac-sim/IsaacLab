@@ -32,7 +32,7 @@ Installing dependencies
       pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  If you want to use ``rl_games`` for training and inferencing, install the
-   its Python 3.11 enabled fork:
+   its Python 3.11+ enabled fork:
 
    .. code-block:: none
 
@@ -101,7 +101,7 @@ Installing dependencies
             removing the preload warnings during runtime.
 
 -  If you want to use ``rl_games`` for training and inferencing, install
-   its Python 3.11 enabled fork:
+   its Python 3.11+ enabled fork:
 
    .. code-block:: none
 

@@ -32,7 +32,7 @@ Create a new conda environment:
 
 .. code-block:: bash
 
-    conda create -n env_isaaclab python=3.11
+    conda create -n env_isaaclab python=3.12
 
 Activate the environment:
 

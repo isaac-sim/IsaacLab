@@ -43,7 +43,7 @@ jobs:
     - name: Setup python
       uses: actions/setup-python@v2
       with:
-        python-version: "3.11"
+        python-version: "3.12"
         architecture: x64
 
     - name: Install dev requirements

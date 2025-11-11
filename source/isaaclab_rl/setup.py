@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     # video recording
     "moviepy",
     # make sure this is consistent with isaac sim version
-    "pillow==11.3.0",
+    "pillow==12.0.0",
     "packaging<24",
 ]
 
@@ -74,11 +74,11 @@ setup(
     packages=["isaaclab_rl"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

@@ -46,7 +46,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+      pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 

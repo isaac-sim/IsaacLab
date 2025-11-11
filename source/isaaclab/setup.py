@@ -34,8 +34,9 @@ INSTALL_REQUIRES = [
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang",
+    "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
-    "pillow==11.3.0",
+    "pillow==12.0.0",
     # livestream
     "starlette==0.45.3",
     # testing
@@ -75,12 +76,11 @@ setup(
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
-        "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )
