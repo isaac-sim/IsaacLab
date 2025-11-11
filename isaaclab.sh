@@ -102,9 +102,10 @@ is_arm() {
 }
 
 ensure_cuda_torch() {
-    local py="$1"
-
-    # base base index for torch
+    local python_exe=$(extract_python_exe)
+    local pip_install_command=$(extract_pip_command)
+    local pip_uninstall_command=$(extract_pip_uninstall_command)
+    # base index for torch
     local base_index="https://download.pytorch.org/whl"
 
     # choose pins per arch
@@ -124,9 +125,15 @@ ensure_cuda_torch() {
 
     # check current torch version (may be empty)
     local cur=""
-    if "$py" -m pip show torch >/dev/null 2>&1; then
-        cur="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
-    fi
+    cur="$(${python_exe} - <<'PY' 2>/dev/null || true
+try:
+    import torch
+except Exception:
+    pass
+else:
+    print(torch.__version__, end="")
+PY
+)"
 
     # skip install if version is already satisfied
     if [[ "$cur" == "$want_torch" ]]; then
@@ -135,8 +142,8 @@ ensure_cuda_torch() {
 
     # clean install torch
     echo "[INFO] Installing torch==${torch_ver} and torchvision==${tv_ver} (cu${cuda_ver}) from ${index}..."
-    "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-    "$py" -m pip install -U --index-url "${index}" "torch==${torch_ver}" "torchvision==${tv_ver}"
+    ${pip_uninstall_command} torch torchvision torchaudio >/dev/null 2>&1 || true
+    ${pip_install_command} -U --index-url "${index}" "torch==${torch_ver}" "torchvision==${tv_ver}"
 }
 
 # extract isaac sim path
@@ -568,7 +575,7 @@ while [[ $# -gt 0 ]]; do
             begin_arm_install_sandbox
 
             # install pytorch (version based on arch)
-            ensure_cuda_torch ${python_exe}
+            ensure_cuda_torch
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -598,7 +605,7 @@ while [[ $# -gt 0 ]]; do
 
             # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
-            ensure_cuda_torch ${python_exe}
+            ensure_cuda_torch
 
             # restore LD_PRELOAD if we cleared it
             end_arm_install_sandbox
