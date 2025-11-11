@@ -12,13 +12,12 @@ from collections.abc import Generator
 import carb
 import omni
 import omni.kit.app
-
+from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
-from isaacsim.core.utils import stage as sim_stage
 
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
