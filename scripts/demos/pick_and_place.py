@@ -241,8 +241,8 @@ class PickAndPlaceEnv(DirectRLEnv):
             cube_pos_y = self.cube.data.root_pos_w[self.go_to_cube, 1] - self.scene.env_origins[self.go_to_cube, 1]
             d_cube_robot_x = cube_pos_x - head_pos_x
             d_cube_robot_y = cube_pos_y - head_pos_y
-            self.instant_controls[self.go_to_cube] = torch.tensor(
-                [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, 0.0], device=self.device
+            self.instant_controls[self.go_to_cube] = torch.stack(
+                [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, torch.zeros_like(d_cube_robot_x)], dim=1
             )
         elif self.go_to_target.any():
             # Effort based proportional controller to track the target position
@@ -252,10 +252,10 @@ class PickAndPlaceEnv(DirectRLEnv):
             target_pos_y = self.target_pos[self.go_to_target, 1]
             d_target_robot_x = target_pos_x - head_pos_x
             d_target_robot_y = target_pos_y - head_pos_y
-            self.instant_controls[self.go_to_target] = torch.tensor(
-                [d_target_robot_x * 5.0, d_target_robot_y * 5.0, 0.0], device=self.device
+            self.instant_controls[self.go_to_target] = torch.stack(
+                [d_target_robot_x * 5.0, d_target_robot_y * 5.0, torch.zeros_like(d_target_robot_x)], dim=1
             )
-    
+
         # Set the joint effort targets for the picker
         self.pick_and_place.set_joint_effort_target(
             self.instant_controls[:, 0].unsqueeze(dim=1), joint_ids=self._x_dof_idx
