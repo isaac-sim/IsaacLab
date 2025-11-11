@@ -610,7 +610,7 @@ class VisuoTactileSensor(SensorBase):
             Requires both elastomer and contact object body views to be initialized. Returns
             early if tactile points or body views are not available.
         """
-        if self._elastomer_body_view is None or self._tactile_pos_local is None:
+        if self._elastomer_body_view is None :
             return
 
         # Step 1: Get elastomer pose and precompute pose components

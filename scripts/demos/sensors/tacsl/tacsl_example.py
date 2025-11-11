@@ -373,9 +373,8 @@ def main():
     sim.reset()
     print("[INFO]: Setup complete...")
 
-    # Juana: this should be manually called before running any simulation ?
+    # Get initial render
     scene["tactile_sensor"].get_initial_render()
-
     # Run simulation
     run_simulator(sim, scene)
 

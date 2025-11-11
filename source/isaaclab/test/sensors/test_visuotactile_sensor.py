@@ -142,6 +142,7 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
     )
@@ -269,8 +270,8 @@ def test_sensor_cam_set_wrong_prim():
     """Test sensor initialization fails with invalid camera prim path."""
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
     sensor_cfg.camera_cfg.prim_path = "/World/Robot/elastomer_tip/cam_wrong"
-    _ = Articulation(cfg=robot_cfg)
-    _ = VisuoTactileSensor(cfg=sensor_cfg)
+    robot = Articulation(cfg=robot_cfg)
+    sensor = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "Could not find prim with path" in str(excinfo.value)
@@ -367,8 +368,8 @@ def test_sensor_force_field_contact_object_not_found():
 
     sensor_cfg.enable_camera_tactile = False
     sensor_cfg.contact_object_prim_path_expr = "/World/Nut/wrong_prim"
-    _ = Articulation(cfg=robot_cfg)
-    _ = VisuoTactileSensor(cfg=sensor_cfg)
+    robot = Articulation(cfg=robot_cfg)
+    sensor = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "No contact object prim found matching pattern" in str(excinfo.value)
@@ -381,9 +382,9 @@ def test_sensor_force_field_contact_object_no_sdf():
     sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup("nut_rgb_ff")
     sensor_cfg.enable_camera_tactile = False
     sensor_cfg.contact_object_prim_path_expr = "/World/Cube"
-    _ = Articulation(cfg=robot_cfg)
-    _ = VisuoTactileSensor(cfg=sensor_cfg)
-    _ = RigidObject(cfg=cube_cfg)
+    robot = Articulation(cfg=robot_cfg)
+    sensor = VisuoTactileSensor(cfg=sensor_cfg)
+    cube = RigidObject(cfg=cube_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
