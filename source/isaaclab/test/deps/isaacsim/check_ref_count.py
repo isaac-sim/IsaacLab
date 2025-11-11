@@ -35,9 +35,8 @@ simulation_app = SimulationApp({"headless": True})
 
 import ctypes
 import gc
+import logging
 import torch  # noqa: F401
-
-import omni.log
 
 try:
     import isaacsim.storage.native as nucleus_utils
@@ -49,13 +48,16 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.carb import set_carb_setting
 
+# import logger
+logger = logging.getLogger(__name__)
+
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
     msg = (
         "Unable to perform Nucleus login on Omniverse. Assets root path is not set.\n"
         "\tPlease check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
     )
-    omni.log.error(msg)
+    logger.error(msg)
     raise RuntimeError(msg)
 
 

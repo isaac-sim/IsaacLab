@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 import warnings
 from typing import TYPE_CHECKING
 
-import omni.log
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.version import get_version
 
@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
 
     from .surface_gripper_cfg import SurfaceGripperCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SurfaceGripper(AssetBase):
@@ -315,8 +318,8 @@ class SurfaceGripper(AssetBase):
         )
 
         # log information about the surface gripper
-        omni.log.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
-        omni.log.info(f"Number of instances: {self._num_envs}")
+        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers
         self.reset()

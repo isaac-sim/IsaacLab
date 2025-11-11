@@ -6,9 +6,12 @@
 import builtins
 import enum
 import glob
+import logging
 import numpy as np
 import os
 import re
+import sys
+import tempfile
 import time
 import toml
 import torch
@@ -22,7 +25,6 @@ from typing import Any
 import carb
 import flatdict
 import isaacsim.core.utils.stage as stage_utils
-import omni.log
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
@@ -36,7 +38,7 @@ from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .utils import bind_physics_material
+from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
 
 
 class SimulationContext(_SimulationContext):
@@ -131,6 +133,9 @@ class SimulationContext(_SimulationContext):
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
+
+        # setup logger
+        self.logger = self._setup_logger()
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
@@ -254,7 +259,7 @@ class SimulationContext(_SimulationContext):
 
         # add warning about enabling stabilization for large step sizes
         if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
-            omni.log.warn(
+            self.logger.warning(
                 "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
                 " Consider setting the `enable_stabilization` flag to True in the PhysxCfg, or reducing the"
                 " simulation step size if you run into physics issues."
@@ -408,7 +413,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            omni.log.warn(
+            self.logger.warning(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -661,7 +666,7 @@ class SimulationContext(_SimulationContext):
         # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
         #   The physics flag gets enabled when a contact sensor is created.
         if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
+            self.logger.warning(
                 "The `disable_contact_processing` attribute is deprecated and always set to True"
                 " to avoid unnecessary overhead. Contact processing is automatically enabled when"
                 " a contact sensor is created, so manual configuration is no longer required."
@@ -979,6 +984,46 @@ class SimulationContext(_SimulationContext):
                 self.render()
         return
 
+    """
+    Logger.
+    """
+
+    def _setup_logger(self):
+        """Sets up the logger."""
+        root_logger = logging.getLogger()
+        root_logger.setLevel(self.cfg.logging_level)
+
+        # remove existing handlers
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers:
+                root_logger.removeHandler(handler)
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(self.cfg.logging_level)
+
+        formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+        handler.setFormatter(formatter)
+        handler.addFilter(RateLimitFilter(interval_seconds=5))
+        root_logger.addHandler(handler)
+
+        # --- File handler (optional) ---
+        if self.cfg.save_logs_to_file:
+            temp_dir = tempfile.gettempdir()
+            log_file_path = os.path.join(temp_dir, f"isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+            file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter(
+                fmt="%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            file_handler.setFormatter(file_formatter)
+            root_logger.addHandler(file_handler)
+
+            # Print the log file path once at startup
+            print(f"[INFO] IsaacLab logging to file: {log_file_path}")
+
+        return root_logger
+
 
 @contextmanager
 def build_simulation_context(
@@ -1066,7 +1111,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        omni.log.error(traceback.format_exc())
+        sim.logger.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():
