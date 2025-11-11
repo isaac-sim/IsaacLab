@@ -11,7 +11,8 @@ import functools
 import inspect
 import logging
 import re
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
 import omni
@@ -32,7 +33,7 @@ from isaaclab.utils.string import to_camel_case
 from .stage import attach_stage_to_usd_context, get_current_stage
 
 if TYPE_CHECKING:
-    from ..spawners.spawner_cfg import SpawnerCfg
+    from .spawners.spawner_cfg import SpawnerCfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1032,3 +1033,39 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
+
+
+# --- Colored formatter ---
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        "WARNING": "\033[33m",  # orange/yellow
+        "ERROR": "\033[31m",  # red
+        "CRITICAL": "\033[31m",  # red
+        "INFO": "\033[0m",  # reset
+        "DEBUG": "\033[0m",
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelname, self.RESET)
+        message = super().format(record)
+        return f"{color}{message}{self.RESET}"
+
+
+# --- Custom rate-limited warning filter ---
+class RateLimitFilter(logging.Filter):
+    def __init__(self, interval_seconds=5):
+        super().__init__()
+        self.interval = interval_seconds
+        self.last_emitted = {}
+
+    def filter(self, record):
+        """Allow WARNINGs only once every few seconds per message."""
+        if record.levelno != logging.WARNING:
+            return True
+        now = time.time()
+        msg_key = record.getMessage()
+        if msg_key not in self.last_emitted or (now - self.last_emitted[msg_key]) > self.interval:
+            self.last_emitted[msg_key] = now
+            return True
+        return False
