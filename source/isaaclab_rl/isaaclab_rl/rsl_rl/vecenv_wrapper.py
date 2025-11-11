@@ -7,8 +7,9 @@ import gymnasium as gym
 import torch
 from tensordict import TensorDict
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 from rsl_rl.env import VecEnv
+
+from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):

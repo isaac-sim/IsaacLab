@@ -31,13 +31,13 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12'  # Adjust as needed
+        python-version: '3.11'  # Adjust as needed
 
     - name: Install dependencies using ./isaaclab.sh -i
       run: |
         # first install isaac sim
         pip install --upgrade pip
-        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}' --extra-index-url https://pypi.nvidia.com
+        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}' --extra-index-url https://pypi.nvidia.com
         chmod +x ./isaaclab.sh  # Make sure the script is executable
         # install all lab dependencies
         ./isaaclab.sh -i

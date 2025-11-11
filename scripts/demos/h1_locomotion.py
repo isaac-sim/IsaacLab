@@ -49,11 +49,11 @@ from isaacsim.core.utils.stage import get_current_stage
 from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
+from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils.math import quat_apply
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
-from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
