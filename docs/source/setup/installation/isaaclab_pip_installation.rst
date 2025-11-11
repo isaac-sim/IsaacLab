@@ -25,7 +25,7 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
--  Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8:
+-  Install a CUDA-enabled PyTorch 2.9.0 build for CUDA 13.0:
 
    .. code-block:: none
 
@@ -42,7 +42,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
 
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
