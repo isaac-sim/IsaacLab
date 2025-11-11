@@ -12,15 +12,20 @@ from collections.abc import Generator
 import carb
 import omni
 import omni.kit.app
-import usdrt
+
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
+from isaacsim.core.utils import stage as sim_stage
 
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
+# _context is a singleton design in isaacsim and for that reason
+#  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
+#  that singleton to this _context
+sim_stage._context = _context
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -174,7 +179,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
                 _context.stage = previous_stage
 
 
-def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
+def get_current_stage(fabric: bool = False) -> Usd.Stage:
     """Get the current open USD or Fabric stage
 
     Args:
@@ -195,12 +200,6 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
                         pathResolverContext=<invalid repr>)
     """
     stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
-    if fabric:
-        stage_cache = UsdUtils.StageCache.Get()
-        stage_id = stage_cache.GetId(stage).ToLongInt()
-        if stage_id < 0:
-            stage_id = stage_cache.Insert(stage).ToLongInt()
-        return usdrt.Usd.Stage.Attach(stage_id)
     return stage
 
 
