@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
+import logging
 import numpy as np
 from time import time
 
-import omni.log
 from isaacsim.core.utils.extensions import enable_extension
 
 # For testing purposes, we need to mock the XRCore
@@ -17,6 +17,9 @@ with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRPoseValidityFlags
 
 from pxr import Gf
+
+# import logger
+logger = logging.getLogger(__name__)
 
 # Mapping from Manus joint index (0-24) to joint name. Palm (25) is calculated from middle metacarpal and proximal.
 HAND_JOINT_MAP = {
@@ -144,7 +147,7 @@ class ManusViveIntegration:
             if self.scene_T_lighthouse_static is None:
                 self._initialize_coordinate_transformation()
         except Exception as e:
-            omni.log.error(f"Vive tracker update failed: {e}")
+            logger.error(f"Vive tracker update failed: {e}")
 
     def _initialize_coordinate_transformation(self):
         """
@@ -216,7 +219,7 @@ class ManusViveIntegration:
                     choose_A = False
                 elif len(self._pairA_trans_errs) % 10 == 0 or len(self._pairB_trans_errs) % 10 == 0:
                     print("Computing pairing of Vive trackers with wrists")
-                    omni.log.info(
+                    logger.info(
                         f"Pairing Vive trackers with wrists: error of pairing A: {errA}, error of pairing B: {errB}"
                     )
             if choose_A is None:
@@ -245,7 +248,7 @@ class ManusViveIntegration:
                     )
 
         except Exception as e:
-            omni.log.error(f"Failed to initialize coordinate transformation: {e}")
+            logger.error(f"Failed to initialize coordinate transformation: {e}")
 
     def _transform_vive_data(self, device_data: dict) -> dict:
         """Transform Vive tracker poses to scene coordinates.
@@ -433,7 +436,7 @@ def get_openxr_wrist_matrix(hand: str) -> Gf.Matrix4d:
             return None
         return joint.pose_matrix
     except Exception as e:
-        omni.log.warn(f"OpenXR {hand} wrist fetch failed: {e}")
+        logger.warning(f"OpenXR {hand} wrist fetch failed: {e}")
         return None
 
 

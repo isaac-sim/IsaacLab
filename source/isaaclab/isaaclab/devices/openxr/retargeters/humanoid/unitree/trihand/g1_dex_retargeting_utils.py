@@ -10,10 +10,12 @@ import torch
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-import omni.log
 from dex_retargeting.retargeting_config import RetargetingConfig
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+# import logger
+logger = logging.getLogger(__name__)
 
 # yourdfpy loads visual/collision meshes with the hand URDFs; these aren't needed for
 # retargeting and clutter the logs, so we suppress them.
@@ -101,7 +103,7 @@ class G1TriHandDexRetargeting:
         self.dof_names = self.left_dof_names + self.right_dof_names
         self.isaac_lab_hand_joint_names = hand_joint_names
 
-        omni.log.info("[G1DexRetargeter] init done.")
+        logger.info("[G1DexRetargeter] init done.")
 
     def _update_yaml_with_urdf_path(self, yaml_path: str, urdf_path: str):
         """Update YAML file with the correct URDF path.
@@ -118,16 +120,16 @@ class G1TriHandDexRetargeting:
             # Update the URDF path in the configuration
             if "retargeting" in config:
                 config["retargeting"]["urdf_path"] = urdf_path
-                omni.log.info(f"Updated URDF path in {yaml_path} to {urdf_path}")
+                logger.info(f"Updated URDF path in {yaml_path} to {urdf_path}")
             else:
-                omni.log.warn(f"Unable to find 'retargeting' section in {yaml_path}")
+                logger.warning(f"Unable to find 'retargeting' section in {yaml_path}")
 
             # Write the updated configuration back to the file
             with open(yaml_path, "w") as file:
                 yaml.dump(config, file)
 
         except Exception as e:
-            omni.log.error(f"Error updating YAML file {yaml_path}: {e}")
+            logger.error(f"Error updating YAML file {yaml_path}: {e}")
 
     def convert_hand_joints(self, hand_poses: dict[str, np.ndarray], operator2mano: np.ndarray) -> np.ndarray:
         """Prepares the hand joints data for retargeting.

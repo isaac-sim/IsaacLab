@@ -30,13 +30,13 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 """Rest everything follows."""
 
+import logging
 import torch
 
 import isaacsim.core.utils.nucleus as nucleus_utils
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
-import omni.log
 import omni.physx
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
@@ -44,13 +44,16 @@ from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
 
+# import logger
+logger = logging.getLogger(__name__)
+
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
     msg = (
         "Unable to perform Nucleus login on Omniverse. Assets root path is not set.\n"
         "\tPlease check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
     )
-    omni.log.error(msg)
+    logger.error(msg)
     raise RuntimeError(msg)
 
 
