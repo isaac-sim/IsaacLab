@@ -45,8 +45,10 @@ class SurfaceGripper(AssetBase):
          function is called automatically for every simulation step, and does not need to be called by the user.
 
     Note:
-        The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
-        Use `--device cpu` to run the simulation on CPU.
+        The SurfaceGripper requires data on CPU. You can either:
+        
+        1. Run simulation on CPU: ``sim.device='cpu'``
+        2. Run simulation on GPU with CPU readback: ``sim.device='cuda:0'`` and ``sim.enable_cpu_readback=True``
     """
 
     def __init__(self, cfg: SurfaceGripperCfg):
@@ -246,22 +248,32 @@ class SurfaceGripper(AssetBase):
         """Initializes the gripper-related handles and internal buffers.
 
         Raises:
-            ValueError: If the simulation backend is not CPU.
+            ValueError: If GPU simulation is used without CPU readback enabled.
             RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
         Note:
-            The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
-            Use `--device cpu` to run the simulation on CPU.
+            The SurfaceGripper requires data on CPU. When using GPU physics (``sim.device='cuda:0'``),
+            you must enable CPU readback (``sim.enable_cpu_readback=True``) so that data is automatically
+            copied to CPU.
         """
 
         enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
-        # Check that we are using the CPU backend.
-        if self._device != "cpu":
-            raise Exception(
-                "SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU. Use"
-                " `--device cpu` to run the simulation on CPU."
+        # Check that if GPU simulation is used, CPU readback must be enabled
+        # SurfaceGripper needs data on CPU, so either:
+        # 1. Simulation on CPU (self._device == "cpu"), or
+        # 2. Simulation on GPU with enable_cpu_readback=True (data returned on CPU)
+        sim_device = sim_utils.SimulationContext.instance().cfg.device
+        enable_cpu_readback = sim_utils.SimulationContext.instance().cfg.enable_cpu_readback
+        
+        if "cuda" in sim_device.lower() and not enable_cpu_readback:
+            raise ValueError(
+                f"SurfaceGripper requires data on CPU. Current configuration has simulation device '{sim_device}' "
+                f"with enable_cpu_readback={enable_cpu_readback}. "
+                "Please either:\n"
+                "  1. Set sim.device='cpu', or\n"
+                "  2. Set sim.enable_cpu_readback=True to run GPU physics with CPU data readback."
             )
 
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)

@@ -33,3 +33,16 @@ import isaaclab_tasks  # noqa: F401
 def test_environments(task_name, num_envs, device):
     # run environments without stage in memory
     _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
+
+
+@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
+@pytest.mark.isaacsim_ci
+def test_environments_with_cpu_readback(task_name, num_envs, device):
+    """Test environments with CPU readback enabled.
+    
+    This test forces enable_cpu_readback=True for all environments to ensure that
+    the device separation between simulation (GPU) and environment (CPU) works correctly.
+    """
+    # run environments with CPU readback enabled
+    _run_environments(task_name, device, num_envs, create_stage_in_memory=False, enable_cpu_readback=True)

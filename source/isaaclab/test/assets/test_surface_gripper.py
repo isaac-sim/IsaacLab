@@ -206,8 +206,8 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.isaacsim_ci
-def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
-    """Test that the SurfaceGripper raises an error if the device is not CPU."""
+def test_raise_error_if_gpu_without_cpu_readback(sim, device, add_ground_plane) -> None:
+    """Test that the SurfaceGripper raises an error if GPU is used without CPU readback enabled."""
     isaac_sim_version = get_version()
     if int(isaac_sim_version[2]) < 5:
         return
@@ -217,8 +217,60 @@ def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
-    with pytest.raises(Exception):
+    # Should raise ValueError since GPU sim without enable_cpu_readback=True
+    with pytest.raises(ValueError, match="SurfaceGripper requires data on CPU"):
         sim.reset()
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
+def test_gpu_with_cpu_readback(sim, device, add_ground_plane) -> None:
+    """Test that SurfaceGripper works with GPU simulation when CPU readback is enabled.
+
+    This test verifies that:
+    1. GPU simulation with enable_cpu_readback=True works correctly.
+    2. The surface gripper can be initialized on GPU with CPU data.
+    3. The command and state buffers work correctly in this configuration.
+
+    Args:
+        num_articulations: The number of articulations to initialize.
+        device: The device to run the test on.
+        add_ground_plane: Whether to add a ground plane to the simulation.
+    """
+    isaac_sim_version = get_version()
+    if int(isaac_sim_version[2]) < 5:
+        return
+    
+    # Set enable_cpu_readback=True for GPU simulation
+    sim.cfg.enable_cpu_readback = True
+    
+    surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
+    surface_gripper, articulation, _ = generate_surface_gripper(
+        surface_gripper_cfg, articulation_cfg, num_articulations, device
+    )
+
+    sim.reset()
+
+    assert articulation.is_initialized
+    assert surface_gripper.is_initialized
+
+    # Check that the command and state buffers have the correct shapes
+    assert surface_gripper.command.shape == (num_articulations,)
+    assert surface_gripper.state.shape == (num_articulations,)
+
+    # Check that the command and state are initialized to the correct values
+    assert surface_gripper.command == 0.0  # Idle command after a reset
+    assert surface_gripper.state == -1.0  # Open state after a reset
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update articulation
+        articulation.update(sim.cfg.dt)
+        surface_gripper.update(sim.cfg.dt)
 
 
 if __name__ == "__main__":

@@ -302,6 +302,10 @@ class SimulationContext(_SimulationContext):
                 stage=self._initial_stage,
             )
 
+        # apply cpu readback setting after creating the simulation context
+        # this overrides the default behavior set by omni_isaac_sim's PhysicsContext
+        self._apply_cpu_readback_setting()
+
     """
     Properties - Override.
     """
@@ -653,6 +657,30 @@ class SimulationContext(_SimulationContext):
     """
     Helper Functions
     """
+
+    def _apply_cpu_readback_setting(self):
+        """Applies the CPU readback setting from the configuration.
+
+        This method overrides the default suppress readback behavior set by Isaac Sim
+        based on the user-specified configuration. This allows users to control whether
+        physics data is automatically copied from device (GPU) to host (CPU).
+
+        When enable_cpu_readback is False (default), data is kept on GPU when simulation is set to GPU.
+        When explicitly set to True, data will be returned on CPU even when simulation is set to GPU.
+
+        Note:
+            This setting is only applicable when the simulation device is CUDA. For CPU
+            simulations, this setting is ignored as data is already on CPU.
+        """
+        # Only apply if user has enabled cpu readback AND device is CUDA
+        if self.cfg.enable_cpu_readback and "cuda" in self.cfg.device.lower():
+            # User wants CPU readback enabled, so we override the default behavior
+            # Note: enable_cpu_readback=True means suppressReadback=False
+            set_carb_setting(self.carb_settings, "/physics/suppressReadback", False)
+            omni.log.info(
+                "Physics CPU readback enabled: Data will be automatically copied to host (CPU). "
+                "This may reduce performance but makes data readily available on CPU."
+            )
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""

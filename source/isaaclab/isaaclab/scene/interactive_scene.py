@@ -109,16 +109,18 @@ class InteractiveScene:
         for more details.
     """
 
-    def __init__(self, cfg: InteractiveSceneCfg):
+    def __init__(self, cfg: InteractiveSceneCfg, device: str | None = None):
         """Initializes the scene.
 
         Args:
             cfg: The configuration class for the scene.
+            device: The device on which scene tensors should be allocated. If None, defaults to simulation device.
         """
         # check that the config is valid
         cfg.validate()
         # store inputs
         self.cfg = cfg
+        self._device = device
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
@@ -340,6 +342,8 @@ class InteractiveScene:
     @property
     def device(self) -> str:
         """The device on which the scene is created."""
+        if self._device is not None:
+            return self._device
         return sim_utils.SimulationContext.instance().device  # pyright: ignore [reportOptionalMemberAccess]
 
     @property

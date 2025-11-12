@@ -146,3 +146,115 @@ def test_zero_gravity():
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+def test_cpu_readback_default_cuda():
+    """Test default behavior with CUDA device (enable_cpu_readback=False)."""
+    import carb
+
+    # Create simulation context with default settings on CUDA
+    cfg = SimulationCfg(device="cuda:0")  # enable_cpu_readback defaults to False
+    sim = SimulationContext(cfg)
+
+    # Check the carb setting - default (False) should not override omni_isaac_sim's behavior
+    # omni_isaac_sim sets suppressReadback=True for CUDA by default
+    carb_settings = carb.settings.get_settings()
+    suppress_readback = carb_settings.get_as_bool("/physics/suppressReadback")
+
+    # With default settings (enable_cpu_readback=False), we don't override, so omni_isaac_sim's
+    # default behavior applies (suppressReadback=True for CUDA)
+    assert suppress_readback is True, "Default CUDA behavior should have suppressReadback=True"
+
+
+@pytest.mark.isaacsim_ci
+def test_cpu_readback_enabled():
+    """Test enabling CPU readback (enable_cpu_readback=True)."""
+    import carb
+
+    # Create simulation context with CPU readback enabled
+    cfg = SimulationCfg(device="cuda:0", enable_cpu_readback=True)
+    sim = SimulationContext(cfg)
+
+    # Check the carb setting - should be suppressReadback=False
+    carb_settings = carb.settings.get_settings()
+    suppress_readback = carb_settings.get_as_bool("/physics/suppressReadback")
+
+    assert suppress_readback is False, "enable_cpu_readback=True should set suppressReadback=False"
+
+
+@pytest.mark.isaacsim_ci
+def test_cpu_readback_disabled():
+    """Test with CPU readback disabled (enable_cpu_readback=False, explicit)."""
+    import carb
+
+    # Create simulation context with CPU readback explicitly disabled
+    cfg = SimulationCfg(device="cuda:0", enable_cpu_readback=False)
+    sim = SimulationContext(cfg)
+
+    # Check the carb setting - should use omni_isaac_sim's default (suppressReadback=True)
+    carb_settings = carb.settings.get_settings()
+    suppress_readback = carb_settings.get_as_bool("/physics/suppressReadback")
+
+    # enable_cpu_readback=False means we don't override, so default applies
+    assert suppress_readback is True, "enable_cpu_readback=False should use default suppressReadback=True"
+
+
+@pytest.mark.isaacsim_ci
+def test_cpu_readback_override():
+    """Test that enable_cpu_readback properly overrides omni_isaac_sim's default behavior."""
+    import carb
+    import isaacsim.core.utils.stage as stage_utils
+
+    # First create with default settings
+    cfg_default = SimulationCfg(device="cuda:0")
+    sim_default = SimulationContext(cfg_default)
+
+    carb_settings = carb.settings.get_settings()
+    default_value = carb_settings.get_as_bool("/physics/suppressReadback")
+
+    # Clean up
+    sim_default.clear_all_callbacks()
+    sim_default.clear_instance()
+
+    # Create stage again
+    stage_utils.create_new_stage()
+
+    # Now create with explicit enable_cpu_readback=True (opposite of default)
+    cfg_override = SimulationCfg(device="cuda:0", enable_cpu_readback=True)
+    sim_override = SimulationContext(cfg_override)
+
+    override_value = carb_settings.get_as_bool("/physics/suppressReadback")
+
+    # The override should be different from default (if default was True, override should be False)
+    # enable_cpu_readback=True -> suppressReadback=False
+    assert override_value is False, "enable_cpu_readback=True should result in suppressReadback=False"
+
+    # If default was True (GPU optimized), then override should be False (CPU readback enabled)
+    if default_value is True:
+        assert override_value is False, "Override successfully changed suppressReadback from True to False"
+
+    # Clean up
+    sim_override.clear_all_callbacks()
+    sim_override.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+def test_cpu_readback_ignored_on_cpu_device():
+    """Test that enable_cpu_readback is ignored when simulation device is CPU."""
+    import carb
+
+    # Create simulation context with CPU device and enable_cpu_readback=True
+    # This should trigger a warning but not apply any settings
+    cfg = SimulationCfg(device="cpu", enable_cpu_readback=True)
+    sim = SimulationContext(cfg)
+
+    # The flag should be ignored for CPU devices
+    # We can't really check the carb setting as CPU device doesn't use suppressReadback
+    # but we verify that the simulation still initializes successfully
+    assert sim.device == "cpu", "Simulation device should be CPU"
+
+    # Clean up
+    sim.clear_all_callbacks()
+    sim.clear_instance()
+

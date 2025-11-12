@@ -96,6 +96,7 @@ def _run_environments(
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
+    enable_cpu_readback=False,
 ):
     """Run all environments and check environments return valid signals.
 
@@ -107,6 +108,7 @@ def _run_environments(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        enable_cpu_readback: Whether to enable CPU readback for GPU simulations.
     """
 
     # skip test if stage in memory is not supported
@@ -114,8 +116,9 @@ def _run_environments(
     if isaac_sim_version < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
-    # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
-    if "Suction" in task_name and device != "cpu":
+    # skip suction gripper environments if CPU readback is disabled and device is not CPU
+    # (they were updated to support GPU with CPU readback)
+    if "Suction" in task_name and device != "cpu" and not enable_cpu_readback:
         return
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
@@ -158,6 +161,7 @@ def _run_environments(
         multi_agent=multi_agent,
         create_stage_in_memory=create_stage_in_memory,
         disable_clone_in_fabric=disable_clone_in_fabric,
+        enable_cpu_readback=enable_cpu_readback,
     )
     print(f""">>> Closing environment: {task_name}""")
     print("-" * 80)
@@ -171,6 +175,7 @@ def _check_random_actions(
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
+    enable_cpu_readback: bool = False,
 ):
     """Run random actions and check environments return valid signals.
 
@@ -182,6 +187,7 @@ def _check_random_actions(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        enable_cpu_readback: Whether to enable CPU readback for GPU simulations.
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
@@ -196,6 +202,9 @@ def _check_random_actions(
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:
             env_cfg.scene.clone_in_fabric = False
+        # enable CPU readback if requested
+        if enable_cpu_readback:
+            env_cfg.sim.enable_cpu_readback = True
 
         # filter based off multi agents mode and create env
         if multi_agent:

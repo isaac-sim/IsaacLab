@@ -390,6 +390,26 @@ class SimulationCfg:
         running under the hood.
     """
 
+    enable_cpu_readback: bool = False
+    """Enable/disable automatic readback of physics data to CPU. Default is False.
+
+    When set to :obj:`True`, physics simulation data (positions, velocities, etc.) is
+    copied to the CPU, making it readily available on the host. This may be necessary for certain
+    operations that require CPU access to physics data, at the cost of reduced performance.
+
+    When set to :obj:`False` (default), physics data is kept on the GPU and not automatically
+    copied to the CPU. This provides optimal performance when running GPU-accelerated physics by avoiding
+    unnecessary memory transfers.
+
+    Note:
+        This setting is only applicable when :attr:`device` is a CUDA device. When the simulation
+        device is CPU, this flag is ignored as all data is already on the CPU.
+
+        Setting this to :obj:`True` with a CUDA device allows running physics simulation on the GPU
+        while still having CPU access to the data, which can be useful when
+        interfacing with CPU-only code.
+    """
+
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
 

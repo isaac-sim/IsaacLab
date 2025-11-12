@@ -139,7 +139,15 @@ class RslRlBaseRunnerCfg:
     """The seed for the experiment. Default is 42."""
 
     device: str = "cuda:0"
-    """The device for the rl-agent. Default is cuda:0."""
+    """The device for the rl-agent. Default is cuda:0.
+
+    This is where the RL policy and training computations occur. This can be different
+    from the environment device (where task buffers are) and the simulation device
+    (where physics runs). For example:
+    - sim.device = "cuda:0" (GPU physics)
+    - env.device = "cpu" (task buffers with CPU readback)
+    - rl.device = "cuda:0" (RL training on GPU)
+    """
 
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""

@@ -113,6 +113,7 @@ class DirectRLEnv(gym.Env):
 
         # print useful information
         print("[INFO]: Base environment:")
+        print(f"\tSimulation device     : {self.sim.device}")
         print(f"\tEnvironment device    : {self.device}")
         print(f"\tEnvironment seed      : {self.cfg.seed}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
@@ -131,7 +132,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.get_initial_stage()):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = InteractiveScene(self.cfg.scene, device=self.device)
                 self._setup_scene()
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -196,7 +197,7 @@ class DirectRLEnv(gym.Env):
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -271,7 +272,19 @@ class DirectRLEnv(gym.Env):
 
     @property
     def device(self):
-        """The device on which the environment is running."""
+        """The device on which the task computations are performed.
+
+        This can be different from :attr:`sim.device` when using CPU readback.
+        For example, physics can run on GPU while task buffers are on CPU.
+        """
+        # If device is explicitly set in config, use that
+        if hasattr(self.cfg, "device") and self.cfg.device is not None:
+            return self.cfg.device
+        # If CPU readback is enabled, default to CPU for environment device
+        # since simulation data will be automatically copied to CPU
+        if self.cfg.sim.enable_cpu_readback:
+            return "cpu"
+        # Otherwise fall back to simulation device
         return self.sim.device
 
     @property
