@@ -454,7 +454,7 @@ class SimulationContext(_SimulationContext):
             name: The name of the setting.
             value: The value of the setting.
         """
-        # Route through typed setters for correctness and consistency.
+        # Route through typed setters for correctness and consistency for common scalar types.
         if isinstance(value, bool):
             self.carb_settings.set_bool(name, value)
         elif isinstance(value, int):
@@ -463,6 +463,8 @@ class SimulationContext(_SimulationContext):
             self.carb_settings.set_float(name, value)
         elif isinstance(value, str):
             self.carb_settings.set_string(name, value)
+        elif isinstance(value, (list, tuple)):
+            self.carb_settings.set(name, value)
         else:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
