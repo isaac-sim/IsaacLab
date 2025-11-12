@@ -305,7 +305,8 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
         >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
-    from isaaclab.utils.prims import (
+    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
+    from isaacsim.core.utils.prims import (  # isaaclab.utils.prims import (
         get_all_matching_child_prims,
         get_prim_path,
         is_prim_ancestral,
@@ -363,11 +364,14 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
         /OmniverseKit_Right
     """
     # Note: Need to import this here to prevent circular dependencies.
-    from isaaclab.utils.prims import get_prim_path
+    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
+    # from isaaclab.utils.prims import get_prim_path
+    from isaacsim.core.utils.prims import get_prim_path
 
     for prim in traverse_stage(fabric=fabric):
         prim_path = get_prim_path(prim)
         print(prim_path)
+
 
 
 def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
