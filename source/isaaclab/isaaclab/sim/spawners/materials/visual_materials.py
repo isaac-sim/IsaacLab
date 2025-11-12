@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
-import omni.log
 from pxr import Usd
 
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
@@ -17,6 +17,9 @@ from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone
