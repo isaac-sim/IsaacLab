@@ -67,6 +67,7 @@ Guidelines for modifications:
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
 * HoJin Jeon
@@ -100,6 +101,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mihir Kulkarni
 * Mingyu Lee
 * Muhong Guo
 * Narendra Dahile
@@ -140,6 +142,7 @@ Guidelines for modifications:
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
+* Welf Rehberg
 * Xavier Nal
 * Xinjie Yao
 * Xinpeng Liu
