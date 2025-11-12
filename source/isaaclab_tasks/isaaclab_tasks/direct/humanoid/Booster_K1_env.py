@@ -58,24 +58,21 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
 
         spawn=sim_utils.UsdFileCfg(
 
-            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Ball.usd"),
+            usd_path = os.path.expanduser(
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Ball.usdc"),
 
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
 
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
-
-            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
 
             mass_props= sim_utils.MassPropertiesCfg(mass=0.044, density=-1)
         ),
 
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.06)),
 
-        debug_vis=True,
+        debug_vis=False,
 
     )
-
-    ball = DeformableObject(cfg=ball_cfg)
 
     # Goal blue
 
@@ -84,7 +81,8 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
 
         spawn=sim_utils.UsdFileCfg(
 
-            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usd"),
+            usd_path = os.path.expanduser(
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usdc"),
 
             rigid_props = sim_utils.RigidBodyPropertiesCfg(),
             mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
@@ -93,19 +91,16 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         ),
 
         init_state=RigidObjectCfg.InitialStateCfg(),
-
     )
 
-    goal_blue = RigidObject(cfg=goal_blue_cfg)
-
     # Goal red
-
     goal_red_cfg = RigidObjectCfg(
-        prim_path = "/World/Goal_Blue",
+        prim_path = "/World/Goal_Red",
 
         spawn=sim_utils.UsdFileCfg(
 
-            usd_path = os.path.expanduser("~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usd"),
+            usd_path = os.path.expanduser(
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Red.usdc"),
 
             rigid_props = sim_utils.RigidBodyPropertiesCfg(),
             mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
@@ -116,9 +111,6 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         init_state=RigidObjectCfg.InitialStateCfg(),
 
     )
-
-    goal_red = RigidObject(cfg=goal_red_cfg)
-
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
@@ -144,7 +136,6 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         40.0,   # Right_Elbow_Yaw
     
         
-    
         45.0,   # Left_Hip_Pitch (legs - high effort)
         45.0,   # Right_Hip_Pitch
     
