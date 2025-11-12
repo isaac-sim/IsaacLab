@@ -319,9 +319,9 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                                "gear_large": 0.51}
         
         # Close widths for 2F-140 gripper
-        self.hand_close_width = {"gear_small": 0.8,
-                               "gear_medium": 0.8,
-                               "gear_large": 0.8}
+        self.hand_close_width = {"gear_small": 0.69,
+                               "gear_medium": 0.59,
+                               "gear_large": 0.56}
         
         # Override gripper type in the set_robot_to_grasp_pose event
         self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_140"
