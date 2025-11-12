@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 11, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 12, 2025"/>
   </head>
   
   
@@ -793,14 +793,14 @@ To train across multiple nodes/machines, it is required to launch an individual 
 <input checked="checked" id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
 <label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-5">
 rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-6" name="sd-tab-set-2" type="radio">
 <label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rsl_rl" for="sd-tab-item-6">
 rsl_rl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
@@ -811,7 +811,7 @@ skrl</label><div class="sd-tab-content docutils">
 <input checked="checked" id="sd-tab-item-8" name="sd-tab-set-3" type="radio">
 <label class="sd-tab-label" data-sync-group="tab" data-sync-id="torch" for="sd-tab-item-8">
 PyTorch</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
@@ -831,14 +831,14 @@ JAX</label><div class="sd-tab-content docutils">
 <input checked="checked" id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-10">
 rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rsl_rl" for="sd-tab-item-11">
 rsl_rl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
@@ -849,7 +849,7 @@ skrl</label><div class="sd-tab-content docutils">
 <input checked="checked" id="sd-tab-item-13" name="sd-tab-set-5" type="radio">
 <label class="sd-tab-label" data-sync-group="tab" data-sync-id="torch" for="sd-tab-item-13">
 PyTorch</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--master_addr<span class="o">=</span>&lt;ip_of_master&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">5555</span><span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
 </div>
 </div>
@@ -963,7 +963,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 11, 2025.
+  Last updated on Nov 12, 2025.
   <br/>
 </p>
   </div>
