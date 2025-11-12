@@ -29,13 +29,14 @@ class NewtonViewerGL(ViewerGL):
     The training pause can be toggled from the UI via a button and optionally via the 'T' key.
     """
 
-    def __init__(self, *args, train_mode: bool = True, **kwargs):
+    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training: bool = False
         self._paused_rendering: bool = False
         self._fallback_draw_controls: bool = False
         self._is_train_mode: bool = train_mode
         self._visualizer_update_frequency: int = 1
+        self._metadata = metadata or {}
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -174,7 +175,8 @@ class NewtonViewerGL(ViewerGL):
                 imgui.set_next_item_open(True, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Information", flags=header_flags):
                     imgui.separator()
-                    imgui.text(f"Environments: {self.model.num_envs}")
+                    num_envs = self._metadata.get("num_envs", 0)
+                    imgui.text(f"Environments: {num_envs}")
                     axis_names = ["X", "Y", "Z"]
                     imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
                     gravity = wp.to_torch(self.model.gravity)[0]
@@ -290,19 +292,22 @@ class NewtonVisualizer(Visualizer):
         if self._is_initialized:
             return
 
-        # Extract model and state from scene data
+        # Extract model, state, and metadata from scene data
+        metadata = {}
         if scene_data is not None:
             self._model = scene_data.get("model")
             self._state = scene_data.get("state")
+            metadata = scene_data.get("metadata", {})
         
         if self._model is None:
             raise ValueError("Newton visualizer requires a Newton Model to be provided in scene_data['model']")
 
-        # Create the viewer
+        # Create the viewer with metadata
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
             train_mode=self.cfg.train_mode,
+            metadata=metadata,
         )
 
         # Set the model

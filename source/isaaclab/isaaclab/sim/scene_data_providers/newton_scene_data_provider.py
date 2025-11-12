@@ -64,6 +64,7 @@ class NewtonSceneDataProvider(SceneDataProvider):
         Returns:
             Dictionary containing:
             - "physics_backend": "newton"
+            - "num_envs": int
             - "gravity_vector": tuple[float, float, float]
             - "clone_physics_only": bool
         """
@@ -71,6 +72,7 @@ class NewtonSceneDataProvider(SceneDataProvider):
 
         return {
             "physics_backend": "newton",
+            "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
             "gravity_vector": NewtonManager._gravity_vector,
             "clone_physics_only": NewtonManager._clone_physics_only,
         }
