@@ -294,9 +294,9 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
 
         physx=PhysxCfg(
-            gpu_collision_stack_size=2**31,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
+            gpu_collision_stack_size=2**26,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
             gpu_max_rigid_contact_count=2**23,
-            gpu_max_rigid_patch_count=2**23
+            gpu_max_rigid_patch_count=5 * 2**15
         ),
     )
     
