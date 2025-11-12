@@ -30,6 +30,6 @@ from .converters import *  # noqa: F401, F403
 from .scene_data_providers import NewtonSceneDataProvider, SceneDataProvider  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
-from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
+from .simulation_context import SimulationContext, build_simulation_context, enable_visualizers  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403

@@ -119,6 +119,8 @@ def parse_env_cfg(
     device: str = "cuda:0",
     num_envs: int | None = None,
     use_fabric: bool | None = None,
+    visualize: bool = False,
+    train_mode: bool = True,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -129,6 +131,10 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        visualize: Whether to launch visualizer(s). Uses visualizers defined in environment config, or defaults
+            to Newton OpenGL if none configured. Defaults to False.
+        train_mode: Whether to run visualizers in training mode (True) or play/inference mode (False).
+            Only applies if visualize is True. Defaults to True.
 
     Returns:
         The parsed configuration object.
@@ -153,6 +159,10 @@ def parse_env_cfg(
     # number of environments
     if num_envs is not None:
         cfg.scene.num_envs = num_envs
+    # visualizer configuration
+    if visualize:
+        import isaaclab.sim as sim_utils
+        sim_utils.enable_visualizers(cfg, train_mode=train_mode)
 
     return cfg
 

@@ -87,27 +87,7 @@ from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 def main():
     """Play with stable-baselines agent."""
     # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=args_cli.num_envs,
-        use_fabric=not args_cli.disable_fabric,
-    )
-    
-    # handle visualizer launch
-    if args_cli.visualize:
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-
-        if env_cfg.sim.visualizers is None:
-            # No visualizers in config - use default Newton visualizer
-            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
-        else:
-            # Enable configured visualizer(s)
-            if isinstance(env_cfg.sim.visualizers, list):
-                for viz_cfg in env_cfg.sim.visualizers:
-                    viz_cfg.enabled = True
-            else:
-                env_cfg.sim.visualizers.enabled = True
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric, visualize=args_cli.visualize, train_mode=False)
 
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")

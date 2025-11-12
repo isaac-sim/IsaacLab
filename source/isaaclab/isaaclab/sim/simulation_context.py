@@ -1033,3 +1033,39 @@ def build_simulation_context(
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None
             raise exception_to_raise
+
+
+def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
+    """Enable visualizers for an environment configuration.
+    
+    If no visualizers are configured, defaults to Newton OpenGL visualizer.
+    If visualizers are already configured, enables them.
+    
+    This is a utility function for use in scripts that want to enable visualization
+    based on command-line arguments.
+    
+    Args:
+        env_cfg: Environment configuration (DirectRLEnvCfg or ManagerBasedRLEnvCfg) to modify.
+        train_mode: Whether to run visualizers in training mode (True) or play/inference mode (False).
+                   Default is True.
+    
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> if args_cli.visualize:
+        ...     sim_utils.enable_visualizers(env_cfg)  # For training
+        ...     sim_utils.enable_visualizers(env_cfg, train_mode=False)  # For play/inference
+    """
+    from .visualizers import NewtonVisualizerCfg
+    
+    if env_cfg.sim.visualizers is None:
+        # No visualizers in config - use default Newton visualizer
+        env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True, train_mode=train_mode)
+    else:
+        # Enable configured visualizer(s)
+        if isinstance(env_cfg.sim.visualizers, list):
+            for viz_cfg in env_cfg.sim.visualizers:
+                viz_cfg.enabled = True
+                viz_cfg.train_mode = train_mode
+        else:
+            env_cfg.sim.visualizers.enabled = True
+            env_cfg.sim.visualizers.train_mode = train_mode

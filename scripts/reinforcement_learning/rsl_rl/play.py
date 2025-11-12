@@ -102,20 +102,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # handle visualizer launch
+    # enable visualizers if requested
     if args_cli.visualize:
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-
-        if env_cfg.sim.visualizers is None:
-            # No visualizers in config - use default Newton visualizer
-            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
-        else:
-            # Enable configured visualizer(s)
-            if isinstance(env_cfg.sim.visualizers, list):
-                for viz_cfg in env_cfg.sim.visualizers:
-                    viz_cfg.enabled = True
-            else:
-                env_cfg.sim.visualizers.enabled = True
+        import isaaclab.sim as sim_utils
+        sim_utils.enable_visualizers(env_cfg, train_mode=False)
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -135,23 +125,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
 
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
-
-    # Set play mode for visualizers
-    if env_cfg.sim.visualizers is not None:
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-        
-        if isinstance(env_cfg.sim.visualizers, list):
-            for viz_cfg in env_cfg.sim.visualizers:
-                viz_cfg.train_mode = False
-        elif isinstance(env_cfg.sim.visualizers, NewtonVisualizerCfg):
-            env_cfg.sim.visualizers.train_mode = False
-        else:
-            # Create newton_cfg if it doesn't exist
-            from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-
-            newton_cfg = NewtonCfg()
-            newton_cfg.visualizer_train_mode = False
-            env_cfg.sim.newton_cfg = newton_cfg
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)

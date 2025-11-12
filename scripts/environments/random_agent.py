@@ -59,20 +59,10 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     
-    # handle visualizer launch
+    # enable visualizers if requested
     if args_cli.visualize:
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-
-        if env_cfg.sim.visualizers is None:
-            # No visualizers in config - use default Newton visualizer
-            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
-        else:
-            # Enable configured visualizer(s)
-            if isinstance(env_cfg.sim.visualizers, list):
-                for viz_cfg in env_cfg.sim.visualizers:
-                    viz_cfg.enabled = True
-            else:
-                env_cfg.sim.visualizers.enabled = True
+        import isaaclab.sim as sim_utils
+        sim_utils.enable_visualizers(env_cfg)
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 

@@ -119,20 +119,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # handle visualizer launch
+    # enable visualizers if requested
     if args_cli.visualize:
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-
-        if env_cfg.sim.visualizers is None:
-            # No visualizers in config - use default Newton visualizer
-            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
-        else:
-            # Enable configured visualizer(s)
-            if isinstance(env_cfg.sim.visualizers, list):
-                for viz_cfg in env_cfg.sim.visualizers:
-                    viz_cfg.enabled = True
-            else:
-                env_cfg.sim.visualizers.enabled = True
+        import isaaclab.sim as sim_utils
+        sim_utils.enable_visualizers(env_cfg)
 
     # multi-gpu training config
     if args_cli.distributed:
