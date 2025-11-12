@@ -310,8 +310,6 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 120.0
 
-        self.hand_close_pos = 0.8
-
         self.gear_offsets = {'gear_small': [0.076125, 0.0, 0.0],
                             'gear_medium': [0.030375, 0.0, 0.0],
                             'gear_large': [-0.045375, 0.0, 0.0]}

@@ -27,7 +27,7 @@ import isaaclab_tasks.manager_based.manipulation.deploy.mdp.events as gear_assem
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG  # isort: skip
+from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG, UR10e_ROBOTIQ_2F_85_CFG  # isort: skip
 
 
 ##
@@ -179,6 +179,7 @@ class EventCfg:
                 "y": [-0.005, 0.005],
                 "z": [-0.003, 0.003]
             },
+            "gripper_type": "2f_140",  # Default gripper type
         },
     )
 
@@ -187,11 +188,69 @@ class EventCfg:
 
 @configclass
 class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
+    """Base configuration for UR10e Gear Assembly Environment.
+    
+    This class contains common setup shared across different gripper configurations.
+    Subclasses should configure gripper-specific parameters.
+    """
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
-        # switch robot to ur10 with local asset path
+        # Common observation configuration
+        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+
+        # override events
+        self.events = EventCfg()
+
+        # override command generator body
+        self.joint_action_scale = 0.025
+        self.action_scale_joint_space = [self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale]
+        self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+            asset_name="robot", joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], scale=self.joint_action_scale, use_zero_offset=True
+        )
+
+        self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
+        self.policy_action_space = "joint"
+        self.arm_joint_names = [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint",
+        ]
+        self.policy_action_space = "joint"
+        self.action_space = 6
+        self.state_space = 42
+        self.observation_space = 19
+
+        # Set joint_action_scale from the existing arm_action.scale
+        self.joint_action_scale = self.actions.arm_action.scale
+
+        self.action_scale_joint_space = [
+            self.joint_action_scale,
+            self.joint_action_scale,
+            self.joint_action_scale,
+            self.joint_action_scale,
+            self.joint_action_scale,
+            self.joint_action_scale,
+        ]
+        self.fixed_asset_init_pos_center = (1.0200, -0.2100, -0.1)
+        self.fixed_asset_init_pos_range = (0.1, 0.25, 0.1)
+        self.fixed_asset_init_orn_deg = (180.0, 0.0, 90.0)
+        self.fixed_asset_init_orn_deg_range = (5.0, 5.0, 30.0)
+
+
+@configclass
+class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
+    """Configuration for UR10e with Robotiq 2F-140 gripper."""
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        # switch robot to ur10e with 2F-140 gripper
         self.scene.robot = UR10e_ROBOTIQ_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
@@ -203,13 +262,13 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=128,
+                    solver_position_iteration_count=32,
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                     enabled_self_collisions=False,
-                    solver_position_iteration_count=128,
+                    solver_position_iteration_count=32,
                     solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(
@@ -238,7 +297,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             ),
         )
 
-        # default values for gripper actuators cause these joints to be not stiff enough
+        # 2F-140 gripper actuator configuration
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
             effort_limit_sim=1.0,
@@ -249,62 +308,126 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             armature=0.0,
         )
 
-        # gear offsets and grasp positions for the gripper
+        # gear offsets and grasp positions for the 2F-140 gripper
         self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.26],
                             'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.26],
                             'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.26]}
 
+        # Grasp widths for 2F-140 gripper
         self.hand_grasp_width = {"gear_small": 0.64,
                                "gear_medium": 0.54,
                                "gear_large": 0.51}
-
-        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-
-        # override events
-        self.events = EventCfg()
-
-        # overriderride command generator body
-        self.joint_action_scale = 0.025
-        self.action_scale_joint_space = [self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale]
-        self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-            asset_name="robot", joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], scale=self.joint_action_scale, use_zero_offset=True
-        )
-
-        self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
-        self.policy_action_space = "joint"
-        self.arm_joint_names = [
-            "shoulder_pan_joint",
-            "shoulder_lift_joint",
-            "elbow_joint",
-            "wrist_1_joint",
-            "wrist_2_joint",
-            "wrist_3_joint",
-        ]
-        self.policy_action_space = "joint"
-        self.action_space = 6
-        self.state_space = 0
-        self.observation_space = 42
-
-        # Set joint_action_scale from the existing arm_action.scale
-        self.joint_action_scale = self.actions.arm_action.scale
-
-        self.action_scale_joint_space = [
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-        ]
-        self.fixed_asset_init_pos_center = (1.0200, -0.2100, -0.1)
-        self.fixed_asset_init_pos_range = (0.1, 0.25, 0.1)
-        self.fixed_asset_init_orn_deg = (180.0, 0.0, 90.0)
-        self.fixed_asset_init_orn_deg_range = (5.0, 5.0, 30.0)
+        
+        # Close widths for 2F-140 gripper
+        self.hand_close_width = {"gear_small": 0.8,
+                               "gear_medium": 0.8,
+                               "gear_large": 0.8}
+        
+        # Override gripper type in the set_robot_to_grasp_pose event
+        self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_140"
 
 
 @configclass
-class UR10eGearAssemblyEnvCfg_PLAY(UR10eGearAssemblyEnvCfg):
+class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
+    """Configuration for UR10e with Robotiq 2F-85 gripper."""
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        # switch robot to ur10e with 2F-85 gripper
+        self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
+                usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default_2f85.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    disable_gravity=True,
+                    max_depenetration_velocity=5.0,
+                    linear_damping=0.0,
+                    angular_damping=0.0,
+                    max_linear_velocity=1000.0,
+                    max_angular_velocity=3666.0,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=32,
+                    solver_velocity_iteration_count=1,
+                    max_contact_impulse=1e32,
+                ),
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=32,
+                    solver_velocity_iteration_count=1
+                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    contact_offset=0.005,
+                    rest_offset=0.0
+                ),
+            ),
+            # Joint positions based on IK from center of distribution for randomized gear positions
+            # This is done so that the start for the differential IK search after randomizing
+            # is close to the optimal grasp pose
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos={
+                    "shoulder_pan_joint": 2.7228e+00,
+                    "shoulder_lift_joint": -8.3962e-01,
+                    "elbow_joint": 1.3684e+00,
+                    "wrist_1_joint": -2.1048e+00,
+                    "wrist_2_joint": -1.5691e+00,
+                    "wrist_3_joint": -1.9896e+00,
+                    "finger_joint": 0.0,
+                    ".*_inner_finger_joint": 0.0,
+                    ".*_inner_finger_knuckle_joint": 0.0,
+                    ".*_outer_.*_joint": 0.0,
+                },
+                pos=(0.0, 0.0, 0.0),
+                rot=(1.0, 0.0, 0.0, 0.0),
+            ),
+        )
+
+        # 2F-85 gripper actuator configuration (higher effort limits than 2F-140)
+        self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
+            joint_names_expr=[".*_inner_finger_joint"],
+            effort_limit_sim=1.0,
+            velocity_limit_sim=1.0,
+            stiffness=2.0,
+            damping=0.01,
+            friction=0.0,
+            armature=0.0,
+        )
+
+        # gear offsets and grasp positions for the 2F-85 gripper
+        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.19],
+                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.19],
+                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.19]}
+
+        # Grasp widths for 2F-85 gripper
+        self.hand_grasp_width = {"gear_small": 0.64,
+                               "gear_medium": 0.46,
+                               "gear_large": 0.4}
+        
+        # Close widths for 2F-85 gripper
+        self.hand_close_width = {"gear_small": 0.8,
+                               "gear_medium": 0.7,
+                               "gear_large": 0.5}
+        
+        # Override gripper type in the set_robot_to_grasp_pose event
+        self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_85"
+
+
+@configclass
+class UR10e2F140GearAssemblyEnvCfg_PLAY(UR10e2F140GearAssemblyEnvCfg):
+    """Play configuration for UR10e with Robotiq 2F-140 gripper."""
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+        # make a smaller scene for play
+        self.scene.num_envs = 50
+        self.scene.env_spacing = 2.5
+        # disable randomization for play
+        self.observations.policy.enable_corruption = False
+
+
+@configclass
+class UR10e2F85GearAssemblyEnvCfg_PLAY(UR10e2F85GearAssemblyEnvCfg):
+    """Play configuration for UR10e with Robotiq 2F-85 gripper."""
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
