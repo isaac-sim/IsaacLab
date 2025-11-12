@@ -12,7 +12,7 @@ import inspect
 import logging
 import re
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import omni
