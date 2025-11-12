@@ -5,9 +5,14 @@
 
 """Base configuration for visualizers."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .visualizer import Visualizer
 
 
 @configclass
@@ -20,6 +25,13 @@ class VisualizerCfg:
     
     All visualizer backends should inherit from this class and add their specific
     configuration parameters.
+    """
+
+    visualizer_type: str = "base"
+    """Type identifier for this visualizer (e.g., 'newton', 'rerun', 'omniverse').
+    
+    This is used by the factory pattern to instantiate the correct visualizer class.
+    Subclasses should override this with their specific type identifier.
     """
 
     enabled: bool = False
@@ -84,6 +96,30 @@ class VisualizerCfg:
         Returns:
             String identifier for the visualizer type.
         """
-        return self.__class__.__name__.replace("VisualizerCfg", "").replace("Cfg", "")
+        return self.visualizer_type
+
+    def create_visualizer(self) -> Visualizer:
+        """Factory method to create a visualizer instance from this configuration.
+        
+        This method uses the visualizer registry to instantiate the appropriate
+        visualizer class based on the `visualizer_type` field.
+        
+        Returns:
+            Visualizer instance configured with this config.
+        
+        Raises:
+            ValueError: If the visualizer type is not registered.
+        """
+        # Import here to avoid circular imports
+        from . import get_visualizer_class
+
+        visualizer_class = get_visualizer_class(self.visualizer_type)
+        if visualizer_class is None:
+            raise ValueError(
+                f"Visualizer type '{self.visualizer_type}' is not registered. "
+                f"Make sure the visualizer module is imported."
+            )
+        
+        return visualizer_class(self)
 
 

@@ -30,12 +30,13 @@ from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from pxr import Usd
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.sim.scene_data_providers import NewtonSceneDataProvider, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
-from .visualizers import Visualizer, NewtonVisualizer, NewtonVisualizerCfg
+from .visualizers import Visualizer
 
 
 class SimulationContext(_SimulationContext):
@@ -256,6 +257,9 @@ class SimulationContext(_SimulationContext):
         # initialize visualizers
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
+        
+        # Scene data provider for visualizers and renderers (initialized after stage is available)
+        self._scene_provider: SceneDataProvider | None = None
 
         # flag for skipping prim deletion callback
         # when stage in memory is attached
@@ -300,6 +304,9 @@ class SimulationContext(_SimulationContext):
         NewtonManager._clone_physics_only = (
             self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING or self.render_mode == self.RenderMode.NO_RENDERING
         )
+        
+        # Initialize scene data provider now that stage is available
+        self._scene_provider = NewtonSceneDataProvider(self.stage)
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -563,32 +570,38 @@ class SimulationContext(_SimulationContext):
         # Create and initialize each visualizer
         for viz_cfg in visualizer_cfgs:
             try:
-                # Create visualizer instance based on config type
-                if isinstance(viz_cfg, NewtonVisualizerCfg):
-                    visualizer = NewtonVisualizer(viz_cfg)
-                else:
-                    # Skip unsupported visualizer types for now
+                # Use factory pattern to create visualizer from config
+                visualizer = viz_cfg.create_visualizer()
+
+                # Get initial scene data from the scene provider
+                if self._scene_provider is None:
                     omni.log.warn(
-                        f"Visualizer type '{type(viz_cfg).__name__}' is not yet implemented. Skipping."
+                        f"Scene provider not initialized yet for visualizer '{viz_cfg.visualizer_type}'. "
+                        "Visualizer will be initialized later."
                     )
                     continue
-
-                # Initialize with Newton model if available
-                if NewtonManager._model is not None:
-                    scene = {
-                        "model": NewtonManager._model,
-                        "state": NewtonManager._state_0,
-                    }
-                    visualizer.initialize(scene)
+                
+                scene_data = self._scene_provider.get_scene_data()
+                
+                # Check if we have the minimum required data (physics model)
+                if scene_data.get("model") is not None:
+                    visualizer.initialize(scene_data)
                     self._visualizers.append(visualizer)
-                    omni.log.info(f"Initialized visualizer: {type(visualizer).__name__}")
+                    omni.log.info(
+                        f"Initialized visualizer: {type(visualizer).__name__} "
+                        f"(type: {viz_cfg.visualizer_type})"
+                    )
                 else:
                     omni.log.warn(
-                        "Newton model not available yet. Visualizer will be initialized later."
+                        f"Physics model not available yet for visualizer '{viz_cfg.visualizer_type}'. "
+                        "Visualizer will be initialized later."
                     )
 
             except Exception as e:
-                omni.log.error(f"Failed to initialize visualizer '{type(viz_cfg).__name__}': {e}")
+                omni.log.error(
+                    f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' "
+                    f"({type(viz_cfg).__name__}): {e}"
+                )
 
     def step_visualizers(self, dt: float) -> None:
         """Update all active visualizers.
@@ -616,20 +629,15 @@ class SimulationContext(_SimulationContext):
 
                 # Handle training pause - block until resumed
                 while visualizer.is_training_paused() and visualizer.is_running():
-                    if isinstance(visualizer, NewtonVisualizer):
-                        # Update state before rendering during pause
-                        visualizer.update_state(NewtonManager._state_0)
-                    visualizer.step(0.0)  # Step with 0 dt during pause
+                    # Step with 0 dt during pause, pass scene provider for state updates
+                    visualizer.step(0.0, self._scene_provider)
 
                 # Skip rendering if visualizer has rendering paused
                 if visualizer.is_rendering_paused():
                     continue
 
-                # Normal step: update state and visualizer
-                if isinstance(visualizer, NewtonVisualizer):
-                    visualizer.update_state(NewtonManager._state_0)
-                
-                visualizer.step(dt)
+                # Normal step: pass dt and scene provider so visualizer can pull latest state
+                visualizer.step(dt, self._scene_provider)
 
             except Exception as e:
                 omni.log.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")

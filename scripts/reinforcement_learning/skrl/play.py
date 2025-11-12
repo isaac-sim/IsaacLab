@@ -46,7 +46,12 @@ parser.add_argument(
     help="The RL algorithm used for training the skrl agent.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -116,8 +121,22 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
-        newton_visualizer=args_cli.newton_visualizer,
     )
+    
+    # handle visualizer launch
+    if args_cli.visualize:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+
+        if env_cfg.sim.visualizers is None:
+            # No visualizers in config - use default Newton visualizer
+            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
+        else:
+            # Enable configured visualizer(s)
+            if isinstance(env_cfg.sim.visualizers, list):
+                for viz_cfg in env_cfg.sim.visualizers:
+                    viz_cfg.enabled = True
+            else:
+                env_cfg.sim.visualizers.enabled = True
     try:
         experiment_cfg = load_cfg_from_registry(task_name, f"skrl_{algorithm}_cfg_entry_point")
     except ValueError:

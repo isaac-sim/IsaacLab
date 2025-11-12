@@ -34,7 +34,12 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -96,7 +101,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
+
+    # handle visualizer launch
+    if args_cli.visualize:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+
+        if env_cfg.sim.visualizers is None:
+            # No visualizers in config - use default Newton visualizer
+            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
+        else:
+            # Enable configured visualizer(s)
+            if isinstance(env_cfg.sim.visualizers, list):
+                for viz_cfg in env_cfg.sim.visualizers:
+                    viz_cfg.enabled = True
+            else:
+                env_cfg.sim.visualizers.enabled = True
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -117,11 +136,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
 
-    # Set play mode for Newton viewer if using Newton visualizer
-    if args_cli.newton_visualizer:
-        # Set visualizer to play mode in Newton config
-        if hasattr(env_cfg.sim, "newton_cfg"):
-            env_cfg.sim.newton_cfg.visualizer_train_mode = False
+    # Set play mode for visualizers
+    if env_cfg.sim.visualizers is not None:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+        
+        if isinstance(env_cfg.sim.visualizers, list):
+            for viz_cfg in env_cfg.sim.visualizers:
+                viz_cfg.train_mode = False
+        elif isinstance(env_cfg.sim.visualizers, NewtonVisualizerCfg):
+            env_cfg.sim.visualizers.train_mode = False
         else:
             # Create newton_cfg if it doesn't exist
             from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg

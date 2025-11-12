@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
+
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -42,27 +44,34 @@ class Visualizer(ABC):
         self._is_closed = False
 
     @abstractmethod
-    def initialize(self, scene) -> None:
+    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize the visualizer with the simulation scene.
         
         This method is called once after the simulation scene is created and before
         the simulation starts. It should set up any necessary resources for visualization.
         
         Args:
-            scene: The simulation scene to visualize. This could be a Newton Model,
-                   a USD stage, or other scene representation depending on the backend.
+            scene_data: Optional dictionary containing initial scene data. The contents
+                       depend on what's available at initialization time. May include:
+                       - "model": Physics model object
+                       - "state": Initial physics state
+                       - "usd_stage": USD stage
+                       The visualizer should handle None or missing keys gracefully.
         """
         pass
 
     @abstractmethod
-    def step(self, dt: float) -> None:
+    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
         """Update the visualizer for one simulation step.
         
         This method is called each simulation step to update the visualization.
-        The frequency of calls is controlled by the update_frequency parameter in the config.
+        The visualizer should pull any needed data from the scene_provider.
         
         Args:
             dt: Time step in seconds since last visualization update.
+            scene_provider: Provider for accessing current scene data (physics state, USD stage, etc.).
+                           Visualizers should query this for updated data rather than directly
+                           accessing physics managers. May be None if no scene data is available yet.
         """
         pass
 

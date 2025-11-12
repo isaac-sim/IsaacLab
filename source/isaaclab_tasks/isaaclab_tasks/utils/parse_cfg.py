@@ -136,15 +136,6 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
-            
-    Note:
-        To enable visualizers, set them directly in the environment configuration using
-        SimulationCfg.visualizers. For example:
-        
-        .. code-block:: python
-        
-            from isaaclab.sim.visualizers import NewtonVisualizerCfg
-            cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
     """
     # load the default configuration
     cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")

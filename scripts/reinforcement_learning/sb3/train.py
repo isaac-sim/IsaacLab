@@ -32,7 +32,12 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -113,7 +118,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
+
+    # handle visualizer launch
+    if args_cli.visualize:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+
+        if env_cfg.sim.visualizers is None:
+            # No visualizers in config - use default Newton visualizer
+            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
+        else:
+            # Enable configured visualizer(s)
+            if isinstance(env_cfg.sim.visualizers, list):
+                for viz_cfg in env_cfg.sim.visualizers:
+                    viz_cfg.enabled = True
+            else:
+                env_cfg.sim.visualizers.enabled = True
 
     # directory for logging into
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

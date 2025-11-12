@@ -32,7 +32,12 @@ parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -119,7 +124,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
+
+    # handle visualizer launch
+    if args_cli.visualize:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+
+        if env_cfg.sim.visualizers is None:
+            # No visualizers in config - use default Newton visualizer
+            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
+        else:
+            # Enable configured visualizer(s)
+            if isinstance(env_cfg.sim.visualizers, list):
+                for viz_cfg in env_cfg.sim.visualizers:
+                    viz_cfg.enabled = True
+            else:
+                env_cfg.sim.visualizers.enabled = True
 
     # multi-gpu training configuration
     if args_cli.distributed:

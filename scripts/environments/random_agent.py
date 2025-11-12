@@ -18,7 +18,12 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -52,8 +57,22 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
-        newton_visualizer=args_cli.newton_visualizer,
     )
+    
+    # handle visualizer launch
+    if args_cli.visualize:
+        from isaaclab.sim.visualizers import NewtonVisualizerCfg
+
+        if env_cfg.sim.visualizers is None:
+            # No visualizers in config - use default Newton visualizer
+            env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True)
+        else:
+            # Enable configured visualizer(s)
+            if isinstance(env_cfg.sim.visualizers, list):
+                for viz_cfg in env_cfg.sim.visualizers:
+                    viz_cfg.enabled = True
+            else:
+                env_cfg.sim.visualizers.enabled = True
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 

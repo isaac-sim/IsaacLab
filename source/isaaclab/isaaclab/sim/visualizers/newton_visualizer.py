@@ -7,11 +7,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import warp as wp
 from newton.viewer import ViewerGL
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
+
+if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -41,12 +46,8 @@ class NewtonViewerGL(ViewerGL):
         """Check if training is paused."""
         return self._paused_training
 
-    def is_paused(self) -> bool:
-        """Check if rendering is paused."""
-        return self._paused_rendering
-
     def is_rendering_paused(self) -> bool:
-        """Check if rendering is paused (alias for is_paused for consistency)."""
+        """Check if rendering is paused."""
         return self._paused_rendering
 
     def set_visualizer_update_frequency(self, frequency: int) -> None:
@@ -262,6 +263,9 @@ class NewtonVisualizer(Visualizer):
     fast visualization of simulations. It includes IsaacLab-specific features
     like training controls, rendering pause, and update frequency adjustment.
     
+    This class is registered with the visualizer registry as "newton" and can be
+    instantiated via NewtonVisualizerCfg.create_visualizer().
+    
     Args:
         cfg: Configuration for the Newton visualizer.
     """
@@ -275,27 +279,24 @@ class NewtonVisualizer(Visualizer):
         self._model = None
         self._state = None
 
-    def initialize(self, scene) -> None:
+    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize the Newton visualizer with the simulation scene.
         
         Args:
-            scene: Dictionary containing 'model' and 'state' for Newton simulation,
-                   or the Newton Model object directly.
+            scene_data: Optional dictionary containing initial scene data. Expected keys:
+                       - "model": Newton Model object (required)
+                       - "state": Newton State object (optional)
         """
         if self._is_initialized:
             return
 
-        # Extract model and state from scene
-        if isinstance(scene, dict):
-            self._model = scene.get("model")
-            self._state = scene.get("state")
-        else:
-            # Assume scene is the Newton Model
-            self._model = scene
-            self._state = None
-
+        # Extract model and state from scene data
+        if scene_data is not None:
+            self._model = scene_data.get("model")
+            self._state = scene_data.get("state")
+        
         if self._model is None:
-            raise ValueError("Newton visualizer requires a Newton Model to be provided in the scene")
+            raise ValueError("Newton visualizer requires a Newton Model to be provided in scene_data['model']")
 
         # Create the viewer
         self._viewer = NewtonViewerGL(
@@ -334,11 +335,13 @@ class NewtonVisualizer(Visualizer):
 
         self._is_initialized = True
 
-    def step(self, dt: float) -> None:
+    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
         """Update the visualizer for one simulation step.
         
         Args:
             dt: Time step in seconds since last visualization update.
+            scene_provider: Provider for accessing current scene data. The visualizer
+                           will pull the latest Newton state from this provider.
         
         Note:
             Pause handling (training and rendering) is managed by SimulationContext.
@@ -351,6 +354,10 @@ class NewtonVisualizer(Visualizer):
 
         # Update simulation time
         self._sim_time += dt
+
+        # Get the latest state from the scene provider
+        if scene_provider is not None:
+            self._state = scene_provider.get_state()
 
         # Render the current frame
         # Note: We always call begin_frame/end_frame to maintain ImGui state

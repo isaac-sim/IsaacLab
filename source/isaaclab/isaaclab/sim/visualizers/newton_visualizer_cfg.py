@@ -33,6 +33,10 @@ class NewtonVisualizerCfg(VisualizerCfg):
         not visual shapes.
     """
 
+    # Visualizer type identifier
+    visualizer_type: str = "newton"
+    """Type identifier for Newton visualizer. Used by the factory pattern."""
+
     # Override defaults for Newton visualizer
     camera_position: tuple[float, float, float] = (10.0, 0.0, 3.0)
     """Initial position of the camera. Default is (10.0, 0.0, 3.0)."""

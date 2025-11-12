@@ -13,10 +13,6 @@ class NewtonCfg:
     """Configuration for Newton-related parameters.
 
     These parameters are used to configure the Newton physics simulation.
-    
-    Note:
-        Visualizer-related settings have been moved to NewtonVisualizerCfg in
-        isaaclab.sim.visualizers.newton_visualizer_cfg.
     """
 
     num_substeps: int = 1
