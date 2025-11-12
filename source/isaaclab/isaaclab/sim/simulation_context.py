@@ -798,6 +798,22 @@ class SimulationContext(_SimulationContext):
             self.cfg.physx.solve_articulation_contact_last
         )
 
+        # -- Disable sleeping globally
+        # Check if disable_sleeping is False with GPU pipeline enabled
+        if not self.cfg.physx.disable_sleeping:
+            # Check if GPU pipeline is enabled via the suppressReadback flag
+            suppress_readback = self.carb_settings.get_as_bool("/physics/suppressReadback")
+            if suppress_readback:
+                raise RuntimeError(
+                    "PhysX configuration error: 'disable_sleeping' is set to False while GPU pipeline is enabled "
+                    "(/physics/suppressReadback=True). This combination will cause PhysX to fail scene creation. "
+                    "Please set 'cfg.physx.disable_sleeping = True' or disable GPU pipeline."
+                )
+        # This overrides any sleeping settings on individual bodies
+        physx_prim.CreateAttribute("physxSceneAPI:disableSleeping", Sdf.ValueTypeNames.Bool).Set(
+            self.cfg.physx.disable_sleeping
+        )
+
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
         #  need to convert the gravity vector to a direction and magnitude pair explicitly.

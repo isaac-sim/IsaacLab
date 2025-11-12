@@ -146,3 +146,57 @@ def test_zero_gravity():
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_setting():
+    """Test that the disable_sleeping PhysX setting is applied correctly."""
+
+    # Test with disable_sleeping set to True (default)
+    cfg = SimulationCfg()
+    assert cfg.physx.disable_sleeping is True
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene prim and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    # Check that the attribute exists and is set to True
+    disable_sleeping_attr = physics_scene_prim.GetAttribute("physxSceneAPI:disableSleeping")
+    assert disable_sleeping_attr.IsValid()
+    assert disable_sleeping_attr.Get() is True
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_false_with_cpu():
+    """Test that disable_sleeping can be set to False when using CPU simulation."""
+
+    # Test with disable_sleeping set to False and CPU device
+    cfg = SimulationCfg(device="cpu")
+    cfg.physx.disable_sleeping = False
+
+    sim = SimulationContext(cfg)
+
+    # Get the physics scene prim and check the attribute
+    stage = sim.stage
+    physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+    assert physics_scene_prim.IsValid()
+
+    # Check that the attribute exists and is set to False
+    disable_sleeping_attr = physics_scene_prim.GetAttribute("physxSceneAPI:disableSleeping")
+    assert disable_sleeping_attr.IsValid()
+    assert disable_sleeping_attr.Get() is False
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_sleeping_false_with_gpu_raises_error():
+    """Test that disable_sleeping=False with GPU simulation raises an error."""
+    # Test with disable_sleeping set to False and GPU device
+    cfg = SimulationCfg(device="cuda:0")
+    cfg.physx.disable_sleeping = False
+
+    # This should raise a RuntimeError because GPU pipeline + disable_sleeping=False is not supported
+    with pytest.raises(RuntimeError, match="disable_sleeping.*GPU pipeline"):
+        SimulationContext(cfg)

@@ -180,6 +180,18 @@ class PhysxCfg:
 
     """
 
+    disable_sleeping: bool = True
+    """Disable sleeping for all objects in the physics scene on a global level. Default is True.
+
+    This flag disables sleeping for all objects in the scene, overriding any sleeping settings on individual bodies.
+    If sleeping is required on any individual body, this flag must be set to False.
+
+    .. warning::
+
+        If :attr:`disable_sleeping` is set to False and the GPU pipeline is enabled, PhysX will issue an error
+        message and fail scene creation as this is not supported.
+    """
+
 
 @configclass
 class RenderCfg:

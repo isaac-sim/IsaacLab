@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.49.0 (2025-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new PhysX configuration parameter to :class:`~isaaclab.sim.PhysxCfg`:
+
+  - :attr:`~isaaclab.sim.PhysxCfg.disable_sleeping`: Disables sleeping for all objects in the physics scene on a global level.
+    This flag is set to ``True`` by default and overrides any sleeping settings on individual bodies. If sleeping is required
+    on any individual body, this flag must be set to ``False``. Note that if ``disable_sleeping`` is set to ``False`` and the
+    directGPU pipeline is enabled, PhysX will issue an error and fail scene creation.
+
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
