@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import omni
+import logging
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def convert_camera_intrinsics_to_usd(
@@ -33,11 +36,11 @@ def convert_camera_intrinsics_to_usd(
 
     # warn about non-square pixels
     if abs(f_x - f_y) > 1e-4:
-        omni.log.warn("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
+        logger.warning("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
 
     # warn about aperture offsets
     if abs((c_x - float(width) / 2) > 1e-4 or (c_y - float(height) / 2) > 1e-4):
-        omni.log.warn(
+        logger.warning(
             "Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height"
         )
 
