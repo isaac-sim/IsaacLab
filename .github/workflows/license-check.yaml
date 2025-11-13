@@ -34,11 +34,11 @@ jobs:
         python-version: '3.11'  # Adjust as needed
 
     - name: Install dependencies using ./isaaclab.sh -i
+      env:
+        ISAACSIM_ACCEPT_EULA: "YES"
       run: |
         # first install isaac sim
         pip install --upgrade pip
-        # Accept Isaac Sim pip EULA
-        export ISAACSIM_ACCEPT_EULA="YES"
         pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}' --extra-index-url https://pypi.nvidia.com
         chmod +x ./isaaclab.sh  # Make sure the script is executable
         # Install torch
