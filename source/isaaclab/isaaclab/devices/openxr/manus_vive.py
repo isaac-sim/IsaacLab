@@ -7,6 +7,8 @@
 Manus and Vive for teleoperation and interaction.
 """
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -32,13 +34,6 @@ with contextlib.suppress(ModuleNotFoundError):
 from isaacsim.core.prims import SingleXFormPrim
 
 from .manus_vive_utils import HAND_JOINT_MAP, ManusViveIntegration
-
-
-@dataclass
-class ManusViveCfg(DeviceCfg):
-    """Configuration for Manus and Vive."""
-
-    xr_cfg: XrCfg | None = None
 
 
 class ManusVive(DeviceBase):
@@ -246,3 +241,11 @@ class ManusVive(DeviceBase):
         elif "reset" in msg:
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
+
+
+@dataclass
+class ManusViveCfg(DeviceCfg):
+    """Configuration for Manus and Vive."""
+
+    xr_cfg: XrCfg | None = None
+    class_type: type[DeviceBase] = ManusVive
