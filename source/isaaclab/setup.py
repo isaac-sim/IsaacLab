@@ -37,9 +37,6 @@ INSTALL_REQUIRES = [
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
-    # resolve pip dependency errors
-    "tqdm>=4.42.1",
-    "decorator>=4.3.2",
     # livestream
     "starlette==0.45.3",
     # testing
