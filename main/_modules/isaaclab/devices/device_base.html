@@ -611,8 +611,14 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">DeviceCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for teleoperation devices.&quot;&quot;&quot;</span>
 
+    <span class="c1"># Whether teleoperation should start active by default</span>
+    <span class="n">teleoperation_active_default</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># Torch device string to place output tensors on</span>
     <span class="n">sim_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+    <span class="c1"># Retargeters that transform device data into robot commands</span>
     <span class="n">retargeters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">RetargeterCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="c1"># Concrete device class to construct for this config. Set by each device module.</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;DeviceBase&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 
 <span class="nd">@dataclass</span>

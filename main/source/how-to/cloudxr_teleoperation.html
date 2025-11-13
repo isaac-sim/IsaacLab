@@ -1513,16 +1513,13 @@ The custom keys can be any string value that matches the callback registration.<
 </pre></div>
 </div>
 <ol class="arabic simple" start="3">
-<li><p>Register your retargeter with the factory by adding it to the <code class="docutils literal notranslate"><span class="pre">RETARGETER_MAP</span></code>:</p></li>
+<li><p>Register your retargeter by setting <code class="docutils literal notranslate"><span class="pre">retargeter_type</span></code> on the config class:</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Import your retargeter at the top of your module</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">my_package.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyCustomRetargeter</span><span class="p">,</span> <span class="n">MyCustomRetargeterCfg</span>
 
-<span class="c1"># Add your retargeter to the factory</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.teleop_device_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">RETARGETER_MAP</span>
-
-<span class="c1"># Register your retargeter type with its constructor</span>
-<span class="n">RETARGETER_MAP</span><span class="p">[</span><span class="n">MyCustomRetargeterCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">MyCustomRetargeter</span>
+<span class="c1"># Link the config to the implementation for factory construction</span>
+<span class="n">MyCustomRetargeterCfg</span><span class="o">.</span><span class="n">retargeter_type</span> <span class="o">=</span> <span class="n">MyCustomRetargeter</span>
 </pre></div>
 </div>
 <ol class="arabic simple" start="4">

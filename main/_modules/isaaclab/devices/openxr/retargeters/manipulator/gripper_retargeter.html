@@ -595,6 +595,8 @@
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
@@ -602,13 +604,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRDevice</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span><span class="p">,</span> <span class="n">RetargeterCfg</span>
-
-
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">GripperRetargeterCfg</span><span class="p">(</span><span class="n">RetargeterCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for gripper retargeter.&quot;&quot;&quot;</span>
-
-    <span class="n">bound_hand</span><span class="p">:</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span> <span class="o">=</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span>
 
 
 <div class="viewcode-block" id="GripperRetargeter"><a class="viewcode-back" href="../../../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.GripperRetargeter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">GripperRetargeter</span><span class="p">(</span><span class="n">RetargeterBase</span><span class="p">):</span>
@@ -683,6 +678,14 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_previous_gripper_command</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_gripper_command</span></div>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GripperRetargeterCfg</span><span class="p">(</span><span class="n">RetargeterCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for gripper retargeter.&quot;&quot;&quot;</span>
+
+    <span class="n">bound_hand</span><span class="p">:</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span> <span class="o">=</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span>
+    <span class="n">retargeter_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">RetargeterBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">GripperRetargeter</span>
 </pre></div>
 
                 </article>

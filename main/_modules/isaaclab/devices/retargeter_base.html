@@ -606,6 +606,8 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration for hand tracking retargeters.&quot;&quot;&quot;</span>
 
     <span class="n">sim_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+    <span class="c1"># Concrete retargeter class to construct for this config. Set by each retargeter module.</span>
+    <span class="n">retargeter_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="s2">&quot;RetargeterBase&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 
 <div class="viewcode-block" id="RetargeterBase"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RetargeterBase</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>

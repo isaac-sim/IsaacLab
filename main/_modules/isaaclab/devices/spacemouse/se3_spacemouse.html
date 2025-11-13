@@ -598,6 +598,8 @@
 
 <span class="sd">&quot;&quot;&quot;Spacemouse controller for SE(3) control.&quot;&quot;&quot;</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">hid</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
@@ -609,16 +611,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span><span class="p">,</span> <span class="n">DeviceCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_buffer</span>
-
-
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Se3SpaceMouseCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for SE3 space mouse devices.&quot;&quot;&quot;</span>
-
-    <span class="n">gripper_term</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">pos_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span>
-    <span class="n">rot_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
-    <span class="n">retargeters</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 
 <div class="viewcode-block" id="Se3SpaceMouse"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.Se3SpaceMouse">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Se3SpaceMouse</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
@@ -803,6 +795,17 @@
                             <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;R&quot;</span><span class="p">]()</span>
                     <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_read_rotation</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_rotation</span></div>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Se3SpaceMouseCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for SE3 space mouse devices.&quot;&quot;&quot;</span>
+
+    <span class="n">gripper_term</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">pos_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span>
+    <span class="n">rot_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
+    <span class="n">retargeters</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">DeviceBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">Se3SpaceMouse</span>
 </pre></div>
 
                 </article>

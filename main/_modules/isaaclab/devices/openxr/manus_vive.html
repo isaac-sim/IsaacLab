@@ -600,6 +600,8 @@
 <span class="sd">Manus and Vive for teleoperation and interaction.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
@@ -625,13 +627,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">SingleXFormPrim</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manus_vive_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">HAND_JOINT_MAP</span><span class="p">,</span> <span class="n">ManusViveIntegration</span>
-
-
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ManusViveCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for Manus and Vive.&quot;&quot;&quot;</span>
-
-    <span class="n">xr_cfg</span><span class="p">:</span> <span class="n">XrCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 
 <div class="viewcode-block" id="ManusVive"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ManusVive</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
@@ -839,6 +834,14 @@
         <span class="k">elif</span> <span class="s2">&quot;reset&quot;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
             <span class="k">if</span> <span class="s2">&quot;RESET&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;RESET&quot;</span><span class="p">]()</span></div>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ManusViveCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for Manus and Vive.&quot;&quot;&quot;</span>
+
+    <span class="n">xr_cfg</span><span class="p">:</span> <span class="n">XrCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">DeviceBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">ManusVive</span>
 </pre></div>
 
                 </article>

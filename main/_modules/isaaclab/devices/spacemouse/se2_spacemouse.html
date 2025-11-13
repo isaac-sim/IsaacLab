@@ -598,6 +598,8 @@
 
 <span class="sd">&quot;&quot;&quot;Spacemouse controller for SE(2) control.&quot;&quot;&quot;</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">hid</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
@@ -610,16 +612,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span><span class="p">,</span> <span class="n">DeviceCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_buffer</span>
-
-
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Se2SpaceMouseCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for SE2 space mouse devices.&quot;&quot;&quot;</span>
-
-    <span class="n">v_x_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
-    <span class="n">v_y_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span>
-    <span class="n">omega_z_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-    <span class="n">sim_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
 
 
 <div class="viewcode-block" id="Se2SpaceMouse"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.Se2SpaceMouse">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Se2SpaceMouse</span><span class="p">(</span><span class="n">DeviceBase</span><span class="p">):</span>
@@ -761,6 +753,16 @@
                         <span class="c1"># additional callbacks</span>
                         <span class="k">if</span> <span class="s2">&quot;R&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">:</span>
                             <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;R&quot;</span><span class="p">]</span></div>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Se2SpaceMouseCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for SE2 space mouse devices.&quot;&quot;&quot;</span>
+
+    <span class="n">v_x_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
+    <span class="n">v_y_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span>
+    <span class="n">omega_z_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">DeviceBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">Se2SpaceMouse</span>
 </pre></div>
 
                 </article>
