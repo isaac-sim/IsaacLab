@@ -23,6 +23,7 @@ Tactile sensors require specific configuration parameters to define their behavi
 .. code-block:: python
 
     from isaaclab.sensors.tacsl_sensor import VisuoTactileSensorCfg
+    from isaaclab.sensors import TiledCameraCfg
     from isaaclab_assets.sensors import GELSIGHT_R15_CFG
     import isaaclab.sim as sim_utils
 
@@ -113,8 +114,8 @@ To use the tactile sensor in a simulation environment, run the demo:
 
 .. code-block:: bash
 
-    cd scripts/demos/sensors/tacsl
-    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
+    cd scripts/demos/sensors
+    python tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
 
 Available command-line options include:
 
@@ -136,7 +137,7 @@ For a complete list of available options:
 
 .. code-block:: bash
 
-    python tacsl_example.py -h
+    python tacsl_sensor.py -h
 
 .. note::
    The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
