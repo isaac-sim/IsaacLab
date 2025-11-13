@@ -3126,8 +3126,8 @@ support the correct data type when converting from numpy arrays to warp arrays o
 <section id="id23">
 <h4>Added<a class="headerlink" href="#id23" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.resolve_prim_pose" title="isaaclab.sim.utils.resolve_prim_pose"><code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_prim_pose()</span></code></a> to resolve the pose of a prim with respect to another prim.</p></li>
-<li><p>Added <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.resolve_prim_scale" title="isaaclab.sim.utils.resolve_prim_scale"><code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_prim_scale()</span></code></a> to resolve the scale of a prim in the world frame.</p></li>
+<li><p>Added <code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_prim_pose()</span></code> to resolve the pose of a prim with respect to another prim.</p></li>
+<li><p>Added <code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_prim_scale()</span></code> to resolve the scale of a prim in the world frame.</p></li>
 </ul>
 </section>
 </section>
@@ -3203,8 +3203,8 @@ for unsubscribing from keyboard events “unsubscribe_to_keyboard_events” inst
 <section id="id39">
 <h4>Added<a class="headerlink" href="#id39" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">traverse_instance_prims</span></code> to <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_all_matching_child_prims" title="isaaclab.sim.utils.get_all_matching_child_prims"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a> and
-<a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_first_matching_child_prim" title="isaaclab.sim.utils.get_first_matching_child_prim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a> to control whether to traverse instance prims
+<li><p>Added argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">traverse_instance_prims</span></code> to <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code> and
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code> to control whether to traverse instance prims
 during the traversal. Earlier, instanced prims were skipped since <code class="xref py py-meth docutils literal notranslate"><span class="pre">Usd.Prim.GetChildren()</span></code> did not return
 instanced prims, which is now fixed.</p></li>
 </ul>
@@ -3212,9 +3212,9 @@ instanced prims, which is now fixed.</p></li>
 <section id="id40">
 <h4>Changed<a class="headerlink" href="#id40" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Made parsing of instanced prims in <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_all_matching_child_prims" title="isaaclab.sim.utils.get_all_matching_child_prims"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a> and
-<a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_first_matching_child_prim" title="isaaclab.sim.utils.get_first_matching_child_prim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a> as the default behavior.</p></li>
-<li><p>Added parsing of instanced prims in <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.make_uninstanceable" title="isaaclab.sim.utils.make_uninstanceable"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code></a> to make all prims uninstanceable.</p></li>
+<li><p>Made parsing of instanced prims in <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code> and
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code> as the default behavior.</p></li>
+<li><p>Added parsing of instanced prims in <code class="xref py py-meth docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code> to make all prims uninstanceable.</p></li>
 </ul>
 </section>
 </section>
@@ -3273,8 +3273,8 @@ Previously, it was returning the device from the simulation manager, which was c
 <section id="id52">
 <h4>Added<a class="headerlink" href="#id52" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">traverse_instance_prims</span></code> to <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_all_matching_child_prims" title="isaaclab.sim.utils.get_all_matching_child_prims"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a> and
-<a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_first_matching_child_prim" title="isaaclab.sim.utils.get_first_matching_child_prim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a> to control whether to traverse instance prims
+<li><p>Added argument <code class="xref py py-attr docutils literal notranslate"><span class="pre">traverse_instance_prims</span></code> to <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code> and
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code> to control whether to traverse instance prims
 during the traversal. Earlier, instanced prims were skipped since <code class="xref py py-meth docutils literal notranslate"><span class="pre">Usd.Prim.GetChildren()</span></code> did not return
 instanced prims, which is now fixed.</p></li>
 </ul>
@@ -3282,9 +3282,9 @@ instanced prims, which is now fixed.</p></li>
 <section id="id53">
 <h4>Changed<a class="headerlink" href="#id53" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Made parsing of instanced prims in <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_all_matching_child_prims" title="isaaclab.sim.utils.get_all_matching_child_prims"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a> and
-<a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_first_matching_child_prim" title="isaaclab.sim.utils.get_first_matching_child_prim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a> as the default behavior.</p></li>
-<li><p>Added parsing of instanced prims in <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.make_uninstanceable" title="isaaclab.sim.utils.make_uninstanceable"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code></a> to make all prims uninstanceable.</p></li>
+<li><p>Made parsing of instanced prims in <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code> and
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code> as the default behavior.</p></li>
+<li><p>Added parsing of instanced prims in <code class="xref py py-meth docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code> to make all prims uninstanceable.</p></li>
 </ul>
 </section>
 </section>
@@ -7194,7 +7194,7 @@ from the USD joint drive configuration.</p></li>
 <section id="id743">
 <h4>Changed<a class="headerlink" href="#id743" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Changed the warning print in <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.apply_nested" title="isaaclab.sim.utils.apply_nested"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab.sim.utils.apply_nested()</span></code></a> method
+<li><p>Changed the warning print in <code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab.sim.utils.apply_nested()</span></code> method
 to be more descriptive. Earlier, it was printing a warning for every instanced prim.
 Now, it only prints a warning if it could not apply the attribute to any of the prims.</p></li>
 </ul>
@@ -7211,7 +7211,7 @@ obtain the absolute path of a file on the Nucleus server or locally.</p></li>
 <ul class="simple">
 <li><p>Fixed hiding of STOP button in the <code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code> class when running the
 simulation in headless mode.</p></li>
-<li><p>Fixed a bug with <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.clone" title="isaaclab.sim.utils.clone"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab.sim.utils.clone()</span></code></a> failing when the input prim path
+<li><p>Fixed a bug with <code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab.sim.utils.clone()</span></code> failing when the input prim path
 had no parent (example: “/Table”).</p></li>
 </ul>
 </section>
