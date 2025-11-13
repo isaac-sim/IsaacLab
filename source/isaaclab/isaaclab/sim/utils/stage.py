@@ -9,6 +9,7 @@ import threading
 import typing
 from collections.abc import Generator
 
+import logging
 import carb
 import omni
 import omni.kit.app
@@ -19,6 +20,8 @@ from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
+# import logger
+logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
 # _context is a singleton design in isaacsim and for that reason
@@ -86,7 +89,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # early attach warning msg
     if attaching_early:
-        omni.log.warn(
+        logger.warning(
             "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
             " memory."
         )
@@ -159,7 +162,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
-        omni.log.warn("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
         # check stage
@@ -409,12 +412,12 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-    # omni.log.info("Loading Asset from path {} ".format(usd_path))
+    # logger.info("Loading Asset from path {} ".format(usd_path))
     # Handle units
     sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
     if not sdf_layer:
         pass
-        # omni.log.info(f"Could not get Sdf layer for {usd_path}")
+        # logger.info(f"Could not get Sdf layer for {usd_path}")
     else:
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         ret_val = get_metrics_assembler_interface().check_layers(
@@ -477,7 +480,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
-        omni.log.warn(
+        logger.warning(
             "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
             " stage attached to USD context."
         )
