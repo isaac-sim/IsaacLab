@@ -611,7 +611,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">torch_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
@@ -621,6 +620,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">attach_stage_to_usd_context</span><span class="p">,</span> <span class="n">use_stage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoiseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.seed</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_seed</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionType</span><span class="p">,</span> <span class="n">AgentID</span><span class="p">,</span> <span class="n">EnvStepReturn</span><span class="p">,</span> <span class="n">ObsType</span><span class="p">,</span> <span class="n">StateType</span>
@@ -1058,7 +1058,7 @@
         <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
             <span class="k">pass</span>
         <span class="c1"># set seed for torch and other libraries</span>
-        <span class="k">return</span> <span class="n">torch_utils</span><span class="o">.</span><span class="n">set_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">configure_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="DirectMARLEnv.render"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv.render">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recompute</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Run rendering without stepping through the physics.</span>
