@@ -35,7 +35,9 @@ jobs:
 
     - name: Install dependencies using ./isaaclab.sh -i
       env:
-        ISAACSIM_ACCEPT_EULA: "YES"
+        OMNI_KIT_ACCEPT_EULA: yes
+        ACCEPT_EULA: Y
+        ISAACSIM_ACCEPT_EULA: YES
       run: |
         # first install isaac sim
         pip install --upgrade pip
