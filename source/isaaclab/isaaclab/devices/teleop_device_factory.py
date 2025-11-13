@@ -7,12 +7,12 @@
 
 import contextlib
 import inspect
+import logging
 from collections.abc import Callable
-
-import omni.log
 
 from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
+from isaaclab.devices.haply import HaplyDevice, HaplyDeviceCfg
 from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from isaaclab.devices.openxr.retargeters import (
     G1LowerBodyStandingRetargeter,
@@ -37,6 +37,9 @@ with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
     from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
 
+# import logger
+logger = logging.getLogger(__name__)
+
 # Map device types to their constructor and expected config type
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
     Se3KeyboardCfg: Se3Keyboard,
@@ -45,6 +48,7 @@ DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
     Se2KeyboardCfg: Se2Keyboard,
     Se2GamepadCfg: Se2Gamepad,
     Se2SpaceMouseCfg: Se2SpaceMouse,
+    HaplyDeviceCfg: HaplyDevice,
     OpenXRDeviceCfg: OpenXRDevice,
     ManusViveCfg: ManusVive,
 }
@@ -120,5 +124,5 @@ def create_teleop_device(
     for key, callback in callbacks.items():
         device.add_callback(key, callback)
 
-    omni.log.info(f"Created teleoperation device: {device_name}")
+    logger.info(f"Created teleoperation device: {device_name}")
     return device

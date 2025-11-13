@@ -2,7 +2,7 @@ Changelog
 ---------
 
 
-0.48.1 (2025-11-10)
+0.48.2 (2025-11-13)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -10,6 +10,18 @@ Added
 
 * Add navigation state API to IsaacLabManagerBasedRLMimicEnv
 * Add optional custom recorder config to MimicEnvCfg
+
+
+0.48.1 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.haply.HaplyDevice` class for SE(3) teleoperation with dual Haply Inverse3 and Versegrip devices,
+  supporting robot manipulation with haptic feedback.
+* Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
+  ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
 
 
 0.48.0 (2025-11-03)
