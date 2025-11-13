@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch>=2.7",
+    "torch>=2.9",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -59,7 +59,7 @@ INSTALL_REQUIRES += [
     f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu130"]
 
 # Installation operation
 setup(

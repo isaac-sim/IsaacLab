@@ -39,6 +39,10 @@ jobs:
         pip install --upgrade pip
         pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}' --extra-index-url https://pypi.nvidia.com
         chmod +x ./isaaclab.sh  # Make sure the script is executable
+        # Install torch
+        pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
+        # Accept Isaac Sim pip EULA
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
         # install all lab dependencies
         ./isaaclab.sh -i
 

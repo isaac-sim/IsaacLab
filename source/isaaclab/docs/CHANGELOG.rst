@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.49.0 (2025-11-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Isaac Lab to be compatible with Isaac Sim 6.0.0.
+* Updated the required Python version to 3.12 for Isaac Lab installation.
+* Updated the required PyTorch version to 2.9.0+cu13 and torchvision to 0.24.0 for Isaac Lab installation.
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
