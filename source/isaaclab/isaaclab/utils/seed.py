@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# This method has been adjusted from
+# https://github.com/isaac-sim/IsaacSim/blob/main/source/extensions/isaacsim.core.utils/python/impl/torch/maths.py
+
 import numpy as np
 import os
 import random
