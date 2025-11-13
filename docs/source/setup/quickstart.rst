@@ -66,7 +66,7 @@ To begin, we first define our virtual environment.
                env_isaaclab\Scripts\activate
 
 
-Next, install a CUDA-enabled PyTorch 2.9.0 build.
+Next, install a CUDA-enabled PyTorch build.
 
    .. code-block:: bash
 

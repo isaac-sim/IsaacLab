@@ -25,27 +25,6 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
--  Install a CUDA-enabled PyTorch 2.9.0 build for CUDA 13.0:
-
-   .. code-block:: none
-
-      pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
-
--  If you want to use ``rl_games`` for training and inferencing, install the
-   its Python 3.11+ enabled fork:
-
-   .. code-block:: none
-
-      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
-
--  Install the Isaac Lab packages along with Isaac Sim:
-
-   .. code-block:: none
-
-      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
-
-   In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
-   in the following commands.
 
 -  Install the Isaac Lab packages along with Isaac Sim:
 
