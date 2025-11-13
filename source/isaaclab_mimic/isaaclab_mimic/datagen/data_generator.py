@@ -692,7 +692,7 @@ class DataGenerator:
 
         prev_src_demo_datagen_info_pool_size = 0
 
-        if self.env_cfg.datagen_config.use_navigation_p_controller:
+        if self.env_cfg.datagen_config.use_navigation_controller:
             was_navigating = False
 
         # While loop that runs per time step
@@ -888,21 +888,22 @@ class DataGenerator:
                 generated_success = generated_success or exec_results["success"]
 
             # Get the navigation state
-            if self.env_cfg.datagen_config.use_navigation_p_controller:
+            if self.env_cfg.datagen_config.use_navigation_controller:
                 processed_nav_subtask = False
                 navigation_state = self.env.get_navigation_state(env_id)
+                assert navigation_state is not None, "Navigation state cannot be None when using navigation controller"
                 is_navigating = navigation_state["is_navigating"]
                 navigation_goal_reached = navigation_state["navigation_goal_reached"]
 
             for eef_name in self.env_cfg.subtask_configs.keys():
                 current_eef_subtask_step_indices[eef_name] += 1
 
-                # Execute locomanip navigation p-controller if it is enabled via the use_navigation_p_controller flag
-                if self.env_cfg.datagen_config.use_navigation_p_controller:
+                # Execute locomanip navigation controller if it is enabled via the use_navigation_controller flag
+                if self.env_cfg.datagen_config.use_navigation_controller:
                     if "body" not in self.env_cfg.subtask_configs.keys():
                         error_msg = (
                             'End effector with name "body" not found in subtask configs. "body" must be a valid end'
-                            " effector to use the navigation p-controller.\n"
+                            " effector to use the navigation controller.\n"
                         )
                         omni.log.error(error_msg)
                         raise RuntimeError(error_msg)
@@ -976,7 +977,7 @@ class DataGenerator:
                         current_eef_subtask_step_indices[eef_name] = None
                         current_eef_subtask_indices[eef_name] += 1
 
-            if self.env_cfg.datagen_config.use_navigation_p_controller:
+            if self.env_cfg.datagen_config.use_navigation_controller:
                 was_navigating = copy.deepcopy(is_navigating)
 
             # Check if all eef_subtasks_done values are True

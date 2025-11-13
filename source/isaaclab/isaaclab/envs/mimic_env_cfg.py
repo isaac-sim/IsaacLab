@@ -77,8 +77,8 @@ class DataGenConfig:
     use_skillgen: bool = False
     """Whether to use skillgen to generate motion trajectories."""
 
-    use_navigation_p_controller: bool = False
-    """Whether to use a navigation p-controller to generate loco-manipulation trajectories."""
+    use_navigation_controller: bool = False
+    """Whether to use a navigation controller to generate loco-manipulation trajectories."""
 
 
 @configclass

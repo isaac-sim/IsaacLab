@@ -10,6 +10,10 @@ from collections.abc import Sequence
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLEnv
 
+def optional_method(func):
+    """Decorator to mark a method as optional."""
+    func.__is_optional__ = True
+    return func
 
 class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
     """The superclass for the Isaac Lab Mimic environments.
@@ -157,11 +161,14 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         """
         return dict(env_name=self.spec.id, type=2, env_kwargs=dict())
 
+    @optional_method
     def get_navigation_state(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
-        Gets the navigation state of the robot. Required when use of the navigation p-controller is
+        Optional method. Only required when using navigation controller locomanipulation data generation.
+
+        Gets the navigation state of the robot. Required when use of the navigation controller is
         enabled. The navigation state includes a boolean flag "is_navigating" to indicate when the
-        robot is under control by the navigation p-controller, and a boolean flag "navigation_goal_reached"
+        robot is under control by the navigation controller, and a boolean flag "navigation_goal_reached"
         to indicate when the navigation goal has been reached.
 
         Args:
