@@ -5,11 +5,11 @@
 
 import builtins
 import contextlib
+import logging
 import threading
 import typing
 from collections.abc import Generator
 
-import logging
 import carb
 import omni
 import omni.kit.app
