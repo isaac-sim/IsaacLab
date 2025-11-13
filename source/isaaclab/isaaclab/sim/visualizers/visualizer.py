@@ -135,4 +135,29 @@ class Visualizer(ABC):
             True if close() has been called.
         """
         return self._is_closed
+    
+    def supports_markers(self) -> bool:
+        """Check if this visualizer supports visualization markers.
+        
+        Visualization markers are geometric shapes (spheres, arrows, frames, etc.) 
+        used for debug visualization. They are typically managed by the scene/environment
+        but rendered by the visualizer.
+        
+        Returns:
+            True if the visualizer can display VisualizationMarkers, False otherwise.
+            Default implementation returns False.
+        """
+        return False
+    
+    def supports_live_plots(self) -> bool:
+        """Check if this visualizer supports live plots.
+        
+        Live plots display time-series data (observations, rewards, etc.) in real-time
+        via UI widgets. They are typically managed by manager-based environments.
+        
+        Returns:
+            True if the visualizer can display live plots, False otherwise.
+            Default implementation returns False.
+        """
+        return False
 

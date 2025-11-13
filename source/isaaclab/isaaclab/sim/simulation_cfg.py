@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
-from .visualizers import VisualizerCfg
+from .visualizers import VisualizerCfg, NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
 
 
 @configclass
@@ -197,8 +197,9 @@ class SimulationCfg:
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    visualizers: list[VisualizerCfg] | VisualizerCfg | None = None
-    """Visualizer settings. Default is None (no visualizer).
+    # visualizers: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg(enabled=True)
+    visualizers: list[VisualizerCfg] | VisualizerCfg | None = OVVisualizerCfg(enabled=True)
+    """Visualizer settings. Default is Newton (no visualizer).
     
     This field supports multiple visualizer backends for debug visualization and monitoring
     during simulation. It accepts:

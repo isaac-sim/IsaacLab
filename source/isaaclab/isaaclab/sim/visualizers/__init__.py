@@ -11,7 +11,7 @@ debug visualization and monitoring of the simulation, separate from rendering fo
 
 Supported visualizers:
 - Newton OpenGL Visualizer: Lightweight OpenGL-based visualizer
-- Omniverse Visualizer: High-fidelity Omniverse-based visualizer (coming soon)
+- Omniverse Visualizer: High-fidelity Omniverse-based visualizer using Isaac Sim viewport
 - Rerun Visualizer: Web-based visualizer using the rerun library (coming soon)
 
 Visualizer Registry
@@ -39,6 +39,7 @@ from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 # Import visualizer implementations
 from .newton_visualizer import NewtonVisualizer
+from .ov_visualizer import OVVisualizer
 
 # Global registry for visualizer types (defined after Visualizer import)
 _VISUALIZER_REGISTRY: dict[str, Any] = {}
@@ -48,6 +49,7 @@ __all__ = [
     "VisualizerCfg",
     "NewtonVisualizer",
     "NewtonVisualizerCfg",
+    "OVVisualizer",
     "OVVisualizerCfg",
     "RerunVisualizerCfg",
     "register_visualizer",
@@ -93,5 +95,7 @@ def get_visualizer_class(name: str) -> Type[Visualizer] | None:
 # Register built-in visualizers
 # Note: Registration happens here to avoid circular imports
 _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
+_VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
+_VISUALIZER_REGISTRY["ov"] = OVVisualizer  # Alias for convenience
 
 

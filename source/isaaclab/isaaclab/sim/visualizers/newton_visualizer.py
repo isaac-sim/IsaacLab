@@ -288,6 +288,10 @@ class NewtonVisualizer(Visualizer):
             scene_data: Optional dictionary containing initial scene data. Expected keys:
                        - "model": Newton Model object (required)
                        - "state": Newton State object (optional)
+                       - "metadata": Scene metadata (contains physics_backend)
+        
+        Raises:
+            RuntimeError: If Newton model is not available or if physics backend is incompatible.
         """
         if self._is_initialized:
             return
@@ -299,8 +303,20 @@ class NewtonVisualizer(Visualizer):
             self._state = scene_data.get("state")
             metadata = scene_data.get("metadata", {})
         
+        # Validate physics backend compatibility
+        physics_backend = metadata.get("physics_backend", "unknown")
+        if physics_backend != "newton" and physics_backend != "unknown":
+            raise RuntimeError(
+                f"Newton visualizer requires Newton physics backend, but '{physics_backend}' is running. "
+                f"Please use a compatible visualizer for {physics_backend} physics (e.g., OVVisualizer)."
+            )
+        
+        # Validate required data
         if self._model is None:
-            raise ValueError("Newton visualizer requires a Newton Model to be provided in scene_data['model']")
+            raise RuntimeError(
+                "Newton visualizer requires a Newton Model in scene_data['model']. "
+                "Make sure Newton physics is initialized before creating the visualizer."
+            )
 
         # Create the viewer with metadata
         self._viewer = NewtonViewerGL(
@@ -405,6 +421,23 @@ class NewtonVisualizer(Visualizer):
             return False
 
         return self._viewer.is_running()
+    
+    def supports_markers(self) -> bool:
+        """Check if Newton visualizer supports visualization markers.
+        
+        Returns:
+            False - Newton visualizer currently does not support VisualizationMarkers
+            (they are USD-based and Newton uses its own rendering).
+        """
+        return False
+    
+    def supports_live_plots(self) -> bool:
+        """Check if Newton visualizer supports live plots.
+        
+        Returns:
+            True - Newton visualizer supports live plots via ImGui integration.
+        """
+        return True
 
     def is_training_paused(self) -> bool:
         """Check if training is paused by the visualizer.

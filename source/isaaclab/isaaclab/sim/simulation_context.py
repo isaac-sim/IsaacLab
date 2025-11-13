@@ -583,19 +583,14 @@ class SimulationContext(_SimulationContext):
                 
                 scene_data = self._scene_provider.get_scene_data()
                 
-                # Check if we have the minimum required data (physics model)
-                if scene_data.get("model") is not None:
-                    visualizer.initialize(scene_data)
-                    self._visualizers.append(visualizer)
-                    omni.log.info(
-                        f"Initialized visualizer: {type(visualizer).__name__} "
-                        f"(type: {viz_cfg.visualizer_type})"
-                    )
-                else:
-                    omni.log.warn(
-                        f"Physics model not available yet for visualizer '{viz_cfg.visualizer_type}'. "
-                        "Visualizer will be initialized later."
-                    )
+                # Let each visualizer validate its own requirements
+                # (e.g., NewtonVisualizer needs Newton model, OVVisualizer needs USD stage)
+                visualizer.initialize(scene_data)
+                self._visualizers.append(visualizer)
+                omni.log.info(
+                    f"Initialized visualizer: {type(visualizer).__name__} "
+                    f"(type: {viz_cfg.visualizer_type})"
+                )
 
             except Exception as e:
                 omni.log.error(
@@ -1055,12 +1050,7 @@ def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
         ...     sim_utils.enable_visualizers(env_cfg)  # For training
         ...     sim_utils.enable_visualizers(env_cfg, train_mode=False)  # For play/inference
     """
-    from .visualizers import NewtonVisualizerCfg
-    
-    if env_cfg.sim.visualizers is None:
-        # No visualizers in config - use default Newton visualizer
-        env_cfg.sim.visualizers = NewtonVisualizerCfg(enabled=True, train_mode=train_mode)
-    else:
+    if env_cfg.sim.visualizers :
         # Enable configured visualizer(s)
         if isinstance(env_cfg.sim.visualizers, list):
             for viz_cfg in env_cfg.sim.visualizers:
