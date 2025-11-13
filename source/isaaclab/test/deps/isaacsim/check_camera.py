@@ -52,8 +52,8 @@ from isaacsim.core.utils.viewports import set_camera_view
 from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom
 
-import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.nucleus as nucleus_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:

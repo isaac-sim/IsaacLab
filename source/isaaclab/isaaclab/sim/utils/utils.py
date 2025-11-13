@@ -32,7 +32,6 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
-from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -292,6 +291,7 @@ def clone(func: Callable) -> Callable:
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
+
             _schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
