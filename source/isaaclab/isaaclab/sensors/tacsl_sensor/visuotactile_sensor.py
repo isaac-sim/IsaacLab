@@ -166,10 +166,14 @@ class VisuoTactileSensor(SensorBase):
         """Resets the sensor internals."""
         # reset the timestamps
         super().reset(env_ids)
-        self.reset_timing_statistics()
+
+        # Reset all timing statistics to zero
+        self._camera_timing_total = 0.0
+        self._force_field_timing_total = 0.0
+        self._timing_call_count = 0
 
         # Reset camera sensor if enabled
-        if self._camera_sensor is not None:
+        if self._camera_sensor:
             self._camera_sensor.reset(env_ids)
 
     """
@@ -195,7 +199,7 @@ class VisuoTactileSensor(SensorBase):
         if self.cfg.debug_vis:
             self._initialize_visualization()
 
-    def get_initial_render(self):
+    def get_initial_render(self) -> dict | None:
         """Get the initial tactile sensor render for baseline comparison.
 
         This method captures the initial state of the tactile sensor when no contact
@@ -210,10 +214,8 @@ class VisuoTactileSensor(SensorBase):
         Raises:
             RuntimeError: If camera sensor is not initialized or initial render fails.
         """
-        if not self.cfg.enable_camera_tactile or self._camera_sensor is None:
+        if not self.cfg.enable_camera_tactile:
             return None
-        if not self._camera_sensor.is_initialized:
-            raise RuntimeError("Camera sensor is not initialized")
 
         self._camera_sensor.update(dt=0.0)
 
@@ -297,20 +299,22 @@ class VisuoTactileSensor(SensorBase):
         self._initialize_force_field_buffers()
         omni.log.info("Force field tactile sensing initialized.")
 
-    def _create_physx_views(self) -> bool:
+    def _create_physx_views(self) -> None:
         """Create PhysX views for contact object and elastomer bodies.
 
         This method sets up the necessary PhysX views for force field computation:
-        1. Finds and validates the object prim and its collision mesh
-        2. Creates SDF view for collision detection
-        3. Creates rigid body views for both object and elastomer
-
-        Returns:
-            True if PhysX views were successfully created, False otherwise.
+        1. Creates rigid body view for elastomer
+        2. If contact object prim path expression is not None, then:
+            a. Finds and validates the object prim and its collision mesh
+            b. Creates SDF view for collision detection
+            c. Creates rigid body view for object
 
         """
+        elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
+        self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
+
         if self.cfg.contact_object_prim_path_expr is None:
-            return False
+            return
 
         contact_object_mesh, contact_object_rigid_body = self._find_contact_object_components()
         # Create SDF view for collision detection
@@ -327,9 +331,6 @@ class VisuoTactileSensor(SensorBase):
         # Create rigid body views for contact object and elastomer
         body_path_pattern = contact_object_rigid_body.GetPath().pathString.replace("env_0", "env_*")
         self._contact_object_body_view = self._physics_sim_view.create_rigid_body_view([body_path_pattern])
-        elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
-        self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
-        return True
 
     def _find_contact_object_components(self) -> tuple[Any, Any]:
         """Find and validate contact object SDF mesh and its parent rigid body.
@@ -516,7 +517,7 @@ class VisuoTactileSensor(SensorBase):
 
     def _initialize_visualization(self):
         """Initialize visualization markers for tactile points."""
-        if self.cfg.visualizer_cfg is not None:
+        if self.cfg.visualizer_cfg:
             self._visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
@@ -544,7 +545,7 @@ class VisuoTactileSensor(SensorBase):
         self._timing_call_count += 1
 
         # Update camera-based tactile data
-        if self.cfg.enable_camera_tactile and self._camera_sensor is not None:
+        if self.cfg.enable_camera_tactile:
             self._camera_timer.start()
             self._update_camera_tactile(internal_env_ids)
             if self._timing_call_count > 2:
@@ -552,7 +553,7 @@ class VisuoTactileSensor(SensorBase):
             self._camera_timer.stop()
 
         # Update force field tactile data
-        if self.cfg.enable_force_field and self._tactile_pos_local is not None:
+        if self.cfg.enable_force_field:
             self._force_field_timer.start()
             self._update_force_field(internal_env_ids)
             if self._timing_call_count > 2:
@@ -585,7 +586,7 @@ class VisuoTactileSensor(SensorBase):
         elif "depth" in camera_data.output:
             depth_key = "depth"
 
-        if depth_key is not None:
+        if depth_key:
             self._data.tactile_camera_depth[env_ids] = camera_data.output[depth_key][env_ids].clone()
             diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_camera_depth[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
@@ -610,9 +611,6 @@ class VisuoTactileSensor(SensorBase):
             Requires both elastomer and contact object body views to be initialized. Returns
             early if tactile points or body views are not available.
         """
-        if self._elastomer_body_view is None :
-            return
-
         # Step 1: Get elastomer pose and precompute pose components
         elastomer_pos_w, elastomer_quat_w = self._elastomer_body_view.get_transforms().split([3, 4], dim=-1)
         elastomer_quat_w = math_utils.convert_quat(elastomer_quat_w, to="wxyz")
@@ -620,7 +618,9 @@ class VisuoTactileSensor(SensorBase):
         # Transform tactile points to world coordinates, used for visualization
         self._transform_tactile_points_to_world(elastomer_pos_w, elastomer_quat_w)
 
-        if not self._is_contact_object_available():
+        # earlly return if contact object body view is not available
+        # this could happen if the contact object is not specified when tactile_points are required for visualization
+        if self._contact_object_body_view is None:
             return
 
         # Step 2: Transform tactile points to contact object local frame for SDF queries
@@ -649,14 +649,6 @@ class VisuoTactileSensor(SensorBase):
             elastomer_quat_w,
             env_ids,
         )
-
-    def _is_contact_object_available(self) -> bool:
-        """Check if contact object components are properly initialized for force computation.
-
-        Returns:
-            True if all contact object components are available, False otherwise.
-        """
-        return self._contact_object_body_view is not None and hasattr(self, "_contact_object_sdf_view")
 
     def _transform_tactile_points_to_world(self, pos_w: torch.Tensor, quat_w: torch.Tensor):
         """Transform tactile points from local to world coordinates.
@@ -901,12 +893,6 @@ class VisuoTactileSensor(SensorBase):
             "total_fps": 1 / (camera_avg + force_field_avg) if (camera_avg + force_field_avg) > 0 else 0.0,
         }
 
-    def reset_timing_statistics(self):
-        """Reset all timing statistics to zero."""
-        self._camera_timing_total = 0.0
-        self._force_field_timing_total = 0.0
-        self._timing_call_count = 0
-
     #########################################################################################
     # Debug visualization
     #########################################################################################
@@ -922,7 +908,7 @@ class VisuoTactileSensor(SensorBase):
             # set their visibility to true
             self._tactile_visualizer.set_visibility(True)
         else:
-            if self._tactile_visualizer is not None:
+            if self._tactile_visualizer:
                 self._tactile_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
@@ -949,10 +935,7 @@ class VisuoTactileSensor(SensorBase):
         else:
             vis_points = self._data.tactile_points_pos_w
 
-        if vis_points is None:
-            return
-
-        if vis_points.numel() == 0:
+        if vis_points is None or vis_points.numel() == 0:
             return
 
         viz_points = vis_points.view(-1, 3)  # Shape: (num_envs * num_points, 3)

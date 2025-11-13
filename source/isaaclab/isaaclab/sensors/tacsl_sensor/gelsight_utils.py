@@ -35,7 +35,7 @@ def get_gelsight_render_data(base_data_path: str | None, data_dir: str, file_nam
     Returns:
         The local path to the file, or None if unavailable.
     """
-    if base_data_path is not None:
+    if base_data_path:
         # Custom path provided - use it directly without copying
         file_path = os.path.join(base_data_path, data_dir, file_name)
         if os.path.exists(file_path):
@@ -211,7 +211,7 @@ class GelsightRender:
 
         height_map = self._gaussian_filtering(height_map.unsqueeze(-1), self.kernel).squeeze(-1)
 
-        grad_mag, grad_dir, _ = self._generate_normals(height_map)
+        grad_mag, grad_dir = self._generate_normals(height_map)
 
         idx_x = torch.floor(grad_mag / self.x_binr).long()
         idx_y = torch.floor((grad_dir + np.pi) / self.y_binr).long()
@@ -261,7 +261,7 @@ class GelsightRender:
         grad_mag = torch.nn.functional.pad(grad_mag[:, 1:-1, 1:-1], pad=(1, 1, 1, 1))
         grad_dir = torch.nn.functional.pad(grad_dir[:, 1:-1, 1:-1], pad=(1, 1, 1, 1))
 
-        return grad_mag, grad_dir, None
+        return grad_mag, grad_dir
 
     def _get_filtering_kernel(self, kernel_sz: int = 5) -> np.ndarray:
         """Create a Gaussian filtering kernel.

@@ -343,7 +343,28 @@ def spawn_from_usd_with_physics_material_on_prim(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ) -> Usd.Prim:
-    """Spawn an asset from a USD file and override the settings with the given config."""
+    """Spawn an asset from a USD file and apply physics material to specified prims.
+
+    This function extends the :meth:`spawn_from_usd` function by allowing application of compliant contact
+    physics materials to specified prims within the spawned asset. This is useful for configuring
+    contact behavior of specific parts within the asset.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance containing the USD file path and physics material settings.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset with the physics material applied to the specified prims.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
 
     prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
     stiff = cfg.compliant_contact_stiffness
