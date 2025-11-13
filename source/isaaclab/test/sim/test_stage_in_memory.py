@@ -17,6 +17,7 @@ import omni
 import omni.physx
 import omni.usd
 import pytest
+import usdrt
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.version import get_version
 
@@ -211,7 +212,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
             base_env_path=base_env_path,
             prim_paths=target_paths,
             replicate_physics=True,
-            clone_in_fabric=False,
+            clone_in_fabric=True,
         )
         prim_path_regex = "/World/envs/env_.*"
 
@@ -228,7 +229,8 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     assert not stage_utils.is_current_stage_in_memory()
 
     # verify prims now exist in fabric stage using usdrt apis
-    stage = stage_utils.get_current_stage()
+    stage_id = stage_utils.get_current_stage_id()
+    usdrt_stage = usdrt.Usd.Stage.Attach(stage_id)
     for i in range(num_clones):
-        prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot")
+        prim = usdrt_stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot")
         assert prim.IsValid()
