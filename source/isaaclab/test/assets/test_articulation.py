@@ -1372,10 +1372,16 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, None])
+@pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.isaacsim_ci
 def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
-    """Test setting of the effort limit for implicit actuators."""
+    """Test setting of effort limit for implicit actuators.
+
+    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
+    - Case 1: If USD value == actuator config value: values match correctly
+    - Case 2: If USD value != actuator config value: actuator config value is used
+    - Case 3: If actuator config value is None: USD value is used as default
+    """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
         effort_limit_sim=effort_limit_sim,
@@ -1419,10 +1425,18 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, None])
+@pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
 @pytest.mark.isaacsim_ci
 def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
-    """Test setting of effort limit for explicit actuators."""
+    """Test setting of effort limit for explicit actuators.
+
+    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
+    - Case 1: If USD value == actuator config value: values match correctly
+    - Case 2: If USD value != actuator config value: actuator config value is used
+    - Case 3: If actuator config value is None: USD value is used as default
+
+    """
+
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_explicit",
         effort_limit_sim=effort_limit_sim,
@@ -1435,6 +1449,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     )
     # Play sim
     sim.reset()
+
+    # usd default effort limit is set to 80
+    usd_default_effort_limit = 80.0
 
     # collect limit init values
     physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device)
@@ -1452,8 +1469,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         # check physx effort limit does not match the one explicit actuator has
         assert not (torch.allclose(actuator_effort_limit, physx_effort_limit))
     else:
-        # check actuator effort_limit is the same as the PhysX default
-        torch.testing.assert_close(actuator_effort_limit, physx_effort_limit)
+        # When effort_limit is None, actuator should use USD default values
+        expected_actuator_effort_limit = torch.full_like(physx_effort_limit, usd_default_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
 
     # when using explicit actuators, the limits are set to high unless user overrides
     if effort_limit_sim is not None:
@@ -1462,6 +1480,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
+    torch.testing.assert_close(actuator_effort_limit_sim, expected_effort_limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
 

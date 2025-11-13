@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import omni.kit.commands
-import omni.log
 from pxr import Usd
 
 import isaaclab.sim.utils.prims as prim_utils
@@ -17,6 +17,9 @@ from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone

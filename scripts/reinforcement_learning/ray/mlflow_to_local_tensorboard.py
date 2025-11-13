@@ -66,6 +66,7 @@ def process_run(args):
 
 def download_experiment_tensorboard_logs(uri: str, experiment_name: str, download_dir: str) -> None:
     """Download MLflow experiment logs and convert to TensorBoard format."""
+    # import logger
     logger = logging.getLogger(__name__)
 
     try:

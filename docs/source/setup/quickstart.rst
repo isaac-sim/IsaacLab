@@ -134,6 +134,22 @@ Installation is now as easy as navigating to the repo and then calling the root 
          isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
+Quick Start Using Isaac Launchable
+----------------------------------
+
+For users first learning Isaac Lab, without sufficient local compute resources, the `Isaac Launchable <https://github.com/isaac-sim/isaac-launchable>`_ project is a quick way to get started without manual installation.
+
+Through this project, users can interact with Isaac Sim and Isaac Lab purely from a web browser, with one tab running Visual Studio Code for development and command execution, and another tab providing the streamed user interface for Isaac Sim.
+
+This method uses `NVIDIA Brev <https://brev.nvidia.com/>`_, a platform that offers easily configurable pay-by-the-hour cloud compute. Brev Launchables are preconfigured, optimized compute and software environments.
+
+To try now, click the button below. To learn more about how to use this project, or how to create your own Launchable, please see the project repo `here <https://github.com/isaac-sim/isaac-launchable>`_.
+
+.. image:: https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg
+   :target: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-35JP2ywERLgqtD0b0MIeK1HnF46
+   :alt: Click here to deploy
+
+
 Launch Training
 -------------------
 
