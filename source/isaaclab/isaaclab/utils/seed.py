@@ -25,10 +25,7 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
         The seed value that was set.
     """
     if seed is None or seed == -1:
-        if torch_deterministic:
-            seed = 42
-        else:
-            seed = np.random.randint(0, 10000)
+        seed = 42 if torch_deterministic else random.randint(0, 10000)
 
     random.seed(seed)
     np.random.seed(seed)
