@@ -211,4 +211,4 @@ class Se2GamepadCfg(DeviceCfg):
     v_y_sensitivity: float = 1.0
     omega_z_sensitivity: float = 1.0
     dead_zone: float = 0.01
-    device_type: type[DeviceBase] = Se2Gamepad
+    class_type: type[DeviceBase] = Se2Gamepad

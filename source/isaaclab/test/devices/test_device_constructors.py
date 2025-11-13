@@ -605,5 +605,5 @@ def test_create_teleop_device_unsupported_config():
     devices_cfg: dict[str, DeviceCfg] = cast(dict[str, DeviceCfg], {"unsupported": UnsupportedCfg()})
 
     # Try to create a device with unsupported configuration
-    with pytest.raises(ValueError, match="does not declare device_type"):
+    with pytest.raises(ValueError, match="does not declare class_type"):
         create_teleop_device("unsupported", devices_cfg)

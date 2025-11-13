@@ -265,4 +265,4 @@ class Se3GamepadCfg(DeviceCfg):
     dead_zone: float = 0.01  # For gamepad devices
     pos_sensitivity: float = 1.0
     rot_sensitivity: float = 1.6
-    device_type: type[DeviceBase] = Se3Gamepad
+    class_type: type[DeviceBase] = Se3Gamepad

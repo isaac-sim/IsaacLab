@@ -306,4 +306,4 @@ class OpenXRDeviceCfg(DeviceCfg):
     """Configuration for OpenXR devices."""
 
     xr_cfg: XrCfg | None = None
-    device_type: type[DeviceBase] = OpenXRDevice
+    class_type: type[DeviceBase] = OpenXRDevice

@@ -41,14 +41,14 @@ def create_teleop_device(
     callbacks = callbacks or {}
 
     # Determine constructor from the configuration itself
-    device_constructor = getattr(device_cfg, "device_type", None)
+    device_constructor = getattr(device_cfg, "class_type", None)
     if device_constructor is None:
         raise ValueError(
-            f"Device configuration '{device_name}' does not declare device_type. "
-            "Set cfg.device_type to the concrete DeviceBase subclass."
+            f"Device configuration '{device_name}' does not declare class_type. "
+            "Set cfg.class_type to the concrete DeviceBase subclass."
         )
     if not issubclass(device_constructor, DeviceBase):
-        raise TypeError(f"device_type for '{device_name}' must be a subclass of DeviceBase; got {device_constructor}")
+        raise TypeError(f"class_type for '{device_name}' must be a subclass of DeviceBase; got {device_constructor}")
 
     # Try to create retargeters if they are configured
     retargeters = []

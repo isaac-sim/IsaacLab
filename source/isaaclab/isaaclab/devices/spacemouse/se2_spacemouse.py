@@ -169,4 +169,4 @@ class Se2SpaceMouseCfg(DeviceCfg):
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
     omega_z_sensitivity: float = 1.0
-    device_type: type[DeviceBase] = Se2SpaceMouse
+    class_type: type[DeviceBase] = Se2SpaceMouse

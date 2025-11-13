@@ -208,4 +208,4 @@ class Se3KeyboardCfg(DeviceCfg):
     pos_sensitivity: float = 0.4
     rot_sensitivity: float = 0.8
     retargeters: None = None
-    device_type: type[DeviceBase] = Se3Keyboard
+    class_type: type[DeviceBase] = Se3Keyboard

@@ -25,7 +25,7 @@ class DeviceCfg:
     # Retargeters that transform device data into robot commands
     retargeters: list[RetargeterCfg] = field(default_factory=list)
     # Concrete device class to construct for this config. Set by each device module.
-    device_type: type["DeviceBase"] | None = None
+    class_type: type["DeviceBase"] | None = None
 
 
 @dataclass

@@ -248,4 +248,4 @@ class ManusViveCfg(DeviceCfg):
     """Configuration for Manus and Vive."""
 
     xr_cfg: XrCfg | None = None
-    device_type: type[DeviceBase] = ManusVive
+    class_type: type[DeviceBase] = ManusVive
