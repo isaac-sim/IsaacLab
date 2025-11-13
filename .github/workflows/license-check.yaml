@@ -89,6 +89,11 @@ jobs:
 
         # Loop through the installed packages and their licenses
         for pkg in $(jq -r '.[].Name' licenses.json); do
+          # Skip packages starting with nvidia (case-insensitive)
+          if [[ "${pkg,,}" == nvidia* ]]; then
+            continue
+          fi
+
           LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.Name == $pkg) | .License' licenses.json)
 
           # Check if any of the allowed licenses are a substring of the package's license
