@@ -33,7 +33,6 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 import logging
 import torch
 
-import isaacsim.core.utils.nucleus as nucleus_utils
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
@@ -45,6 +44,7 @@ from pxr import PhysxSchema, UsdPhysics
 
 # import logger
 logger = logging.getLogger(__name__)
+import isaaclab.sim.utils.nucleus as nucleus_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
