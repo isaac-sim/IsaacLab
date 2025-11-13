@@ -10,10 +10,12 @@ from collections.abc import Sequence
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLEnv
 
+
 def optional_method(func):
     """Decorator to mark a method as optional."""
     func.__is_optional__ = True
     return func
+
 
 class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
     """The superclass for the Isaac Lab Mimic environments.
