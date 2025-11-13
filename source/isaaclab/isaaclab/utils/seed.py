@@ -11,7 +11,7 @@ import torch
 import warp as wp
 
 
-def set_seed(seed: int | None, torch_deterministic: bool = False) -> int:
+def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
     """Set seed across all random number generators (torch, numpy, random, warp).
 
     Args:
