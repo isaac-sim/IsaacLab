@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 12, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 13, 2025"/>
   </head>
   
   
@@ -316,6 +316,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
@@ -724,6 +725,17 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#haply">Haply</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice"><code class="docutils literal notranslate"><span class="pre">HaplyDevice</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.__init__"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.reset"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.add_callback"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.add_callback()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.advance"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.advance()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.push_force"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.push_force()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#openxr">OpenXR</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.OpenXRDevice"><code class="docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.OpenXRDevice.TrackingTarget"><code class="docutils literal notranslate"><span class="pre">OpenXRDevice.TrackingTarget</span></code></a><ul class="nav section-nav flex-column">
@@ -794,6 +806,7 @@
 <li><p><strong>Spacemouse</strong>: 3D mouse with 6 degrees of freedom.</p></li>
 <li><p><strong>Gamepad</strong>: Gamepad with 2D two joysticks and buttons. Example: Xbox controller.</p></li>
 <li><p><strong>OpenXR</strong>: Uses hand tracking of index/thumb tip avg to drive the target pose. Gripping is done with pinching.</p></li>
+<li><p><strong>Haply</strong>: Haptic device (Inverse3 + VerseGrip) with position, orientation tracking and force feedback.</p></li>
 </ul>
 <p>All device interfaces inherit from the <a class="reference internal" href="#isaaclab.devices.DeviceBase" title="isaaclab.devices.DeviceBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceBase</span></code></a> class, which provides a
 common interface for all devices. The device interface reads the input data when
@@ -827,22 +840,25 @@ the peripheral device.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.Se3SpaceMouse" title="isaaclab.devices.Se3SpaceMouse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Se3SpaceMouse</span></code></a></p></td>
 <td><p>A space-mouse controller for sending SE(3) commands as delta poses.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice" title="isaaclab.devices.HaplyDevice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HaplyDevice</span></code></a></p></td>
+<td><p>A Haply device controller for sending SE(3) commands with force feedback.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a></p></td>
 <td><p>An OpenXR-powered device for teleoperation and interaction.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive" title="isaaclab.devices.ManusVive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ManusVive</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive" title="isaaclab.devices.ManusVive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ManusVive</span></code></a></p></td>
 <td><p>Manus gloves and Vive trackers for teleoperation and interaction.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter" title="isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter" title="isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code></a></p></td>
 <td><p>Retargeter specifically for gripper control based on hand tracking data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3AbsRetargeter" title="isaaclab.devices.openxr.retargeters.Se3AbsRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3AbsRetargeter" title="isaaclab.devices.openxr.retargeters.Se3AbsRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to end-effector commands using absolute positioning.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3RelRetargeter" title="isaaclab.devices.openxr.retargeters.Se3RelRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3RelRetargeter" title="isaaclab.devices.openxr.retargeters.Se3RelRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to end-effector commands using relative positioning.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GR1T2Retargeter" title="isaaclab.devices.openxr.retargeters.GR1T2Retargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GR1T2Retargeter" title="isaaclab.devices.openxr.retargeters.GR1T2Retargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.</p></td>
 </tr>
 </tbody>
@@ -1663,6 +1679,141 @@ take any arguments.</p></li>
 </dd></dl>
 
 </section>
+<section id="haply">
+<h2>Haply<a class="headerlink" href="#haply" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.devices.</span></span><span class="sig-name descname"><span class="pre">HaplyDevice</span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.devices.DeviceBase" title="isaaclab.devices.device_base.DeviceBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceBase</span></code></a></p>
+<p>A Haply device controller for sending SE(3) commands with force feedback.</p>
+<p>This class provides an interface to Haply robotic devices (Inverse3 + VerseGrip)
+for teleoperation. It communicates via WebSocket and supports:</p>
+<ul class="simple">
+<li><p>Position tracking from Inverse3 device</p></li>
+<li><p>Orientation and button inputs from VerseGrip device</p></li>
+<li><p>Directional force feedback to Inverse3</p></li>
+<li><p>Real-time data streaming at configurable rates</p></li>
+</ul>
+<p>The device provides raw data:</p>
+<ul class="simple">
+<li><p>Position: 3D position (x, y, z) in meters from Inverse3</p></li>
+<li><p>Orientation: Quaternion (x, y, z, w) from VerseGrip</p></li>
+<li><p>Buttons: Three buttons (a, b, c) from VerseGrip with state (pressed/not pressed)</p></li>
+</ul>
+<p>Note: All button logic (e.g., gripper control, reset, mode switching) should be
+implemented in the application layer using the raw button states from advance().</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Requires the Haply SDK to be running and accessible via WebSocket.
+Install dependencies: pip install websockets</p>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice.__init__" title="isaaclab.devices.HaplyDevice.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, retargeters])</p></td>
+<td><p>Initialize the Haply device interface.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice.reset" title="isaaclab.devices.HaplyDevice.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>()</p></td>
+<td><p>Reset the device internal state.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice.add_callback" title="isaaclab.devices.HaplyDevice.add_callback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_callback</span></code></a>(key, func)</p></td>
+<td><p>Add additional functions to bind to button events.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice.advance" title="isaaclab.devices.HaplyDevice.advance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">advance</span></code></a>()</p></td>
+<td><p>Provides the result from Haply device state.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.HaplyDevice.push_force" title="isaaclab.devices.HaplyDevice.push_force"><code class="xref py py-obj docutils literal notranslate"><span class="pre">push_force</span></code></a>(forces, position)</p></td>
+<td><p>Push force vector to Haply Inverse3 device.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">HaplyDeviceCfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retargeters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#isaaclab.devices.RetargeterBase" title="isaaclab.devices.retargeter_base.RetargeterBase"><span class="pre">isaaclab.devices.retargeter_base.RetargeterBase</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the Haply device interface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – Configuration object for Haply device settings.</p></li>
+<li><p><strong>retargeters</strong> – Optional list of retargeting components that transform device data
+into robot commands. If None or empty, the device outputs its native data format.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ImportError" title="(in Python v3.14)"><strong>ImportError</strong></a> – If websockets module is not installed.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><strong>RuntimeError</strong></a> – If connection to Haply device fails.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the device internal state.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice.add_callback">
+<span class="sig-name descname"><span class="pre">add_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice.add_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice.add_callback" title="Permalink to this definition">#</a></dt>
+<dd><p>Add additional functions to bind to button events.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – The button to check against. Valid values are “a”, “b”, “c”.</p></li>
+<li><p><strong>func</strong> – The function to call when button is pressed. The callback function should not
+take any arguments.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice.advance" title="Permalink to this definition">#</a></dt>
+<dd><p>Provides the result from Haply device state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>A tensor containing the raw device data:</dt><dd><ul class="simple">
+<li><dl class="simple">
+<dt>10 elements: [x, y, z, qx, qy, qz, qw, button_a, button_b, button_c]</dt><dd><p>where (x, y, z) is position, (qx, qy, qz, qw) is quaternion orientation,
+and buttons are 1.0 (pressed) or 0.0 (not pressed)</p>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)">torch.Tensor</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.HaplyDevice.push_force">
+<span class="sig-name descname"><span class="pre">push_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">forces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">position</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/haply/se3_haply.html#HaplyDevice.push_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.HaplyDevice.push_force" title="Permalink to this definition">#</a></dt>
+<dd><p>Push force vector to Haply Inverse3 device.</p>
+<p>Overrides DeviceBase.push_force() to provide force feedback for Haply Inverse3.
+Forces are clipped to [-limit_force, limit_force] range for safety.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>forces</strong> – Tensor of shape (N, 3) with forces [fx, fy, fz].</p></li>
+<li><p><strong>position</strong> – Tensor of shape (N) with indices specifying which forces to use.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 <section id="openxr">
 <h2>OpenXR<a class="headerlink" href="#openxr" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
@@ -2283,6 +2434,17 @@ Retargeted hand joint angles</p>
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#haply">Haply</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice"><code class="docutils literal notranslate"><span class="pre">HaplyDevice</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.__init__"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.reset"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.add_callback"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.add_callback()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.advance"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.advance()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.HaplyDevice.push_force"><code class="docutils literal notranslate"><span class="pre">HaplyDevice.push_force()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#openxr">OpenXR</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.OpenXRDevice"><code class="docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.OpenXRDevice.TrackingTarget"><code class="docutils literal notranslate"><span class="pre">OpenXRDevice.TrackingTarget</span></code></a><ul class="nav section-nav flex-column">
@@ -2366,7 +2528,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 12, 2025.
+  Last updated on Nov 13, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 12, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 13, 2025"/>
   </head>
   
   
@@ -313,6 +313,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
@@ -671,6 +672,8 @@
         <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.__init__">(isaaclab.controllers.pink_ik.PinkIKController method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.__init__">(isaaclab.devices.DeviceBase method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice.__init__">(isaaclab.devices.HaplyDevice method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.__init__">(isaaclab.devices.ManusVive method)</a>
 </li>
@@ -1058,6 +1061,8 @@
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.add_callback">add_callback() (isaaclab.devices.DeviceBase method)</a>
 
       <ul>
+        <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice.add_callback">(isaaclab.devices.HaplyDevice method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.add_callback">(isaaclab.devices.ManusVive method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.add_callback">(isaaclab.devices.OpenXRDevice method)</a>
@@ -1090,6 +1095,8 @@
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.advance">advance() (isaaclab.devices.DeviceBase method)</a>
 
       <ul>
+        <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice.advance">(isaaclab.devices.HaplyDevice method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.advance">(isaaclab.devices.ManusVive method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.advance">(isaaclab.devices.OpenXRDevice method)</a>
@@ -3674,6 +3681,8 @@
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.TrackingTarget.HAND_LEFT">HAND_LEFT (isaaclab.devices.OpenXRDevice.TrackingTarget attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.TrackingTarget.HAND_RIGHT">HAND_RIGHT (isaaclab.devices.OpenXRDevice.TrackingTarget attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice">HaplyDevice (class in isaaclab.devices)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.has_debug_vis_implementation">has_debug_vis_implementation (isaaclab.assets.Articulation property)</a>
 
@@ -6414,6 +6423,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.push_by_setting_velocity">push_by_setting_velocity() (in module isaaclab.envs.mdp.events)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice.push_force">push_force() (isaaclab.devices.HaplyDevice method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.pyramid_sloped_terrain">pyramid_sloped_terrain() (in module isaaclab.terrains.height_field.hf_terrains)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains.pyramid_stairs_terrain">pyramid_stairs_terrain() (in module isaaclab.terrains.height_field.hf_terrains)</a>
@@ -6763,6 +6774,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.reset">(isaaclab.devices.DeviceBase method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.HaplyDevice.reset">(isaaclab.devices.HaplyDevice method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.reset">(isaaclab.devices.ManusVive method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.reset">(isaaclab.devices.OpenXRDevice method)</a>
@@ -6862,10 +6875,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_root_state_with_random_orientation">reset_root_state_with_random_orientation() (in module isaaclab.envs.mdp.events)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_scene_to_default">reset_scene_to_default() (in module isaaclab.envs.mdp.events)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_scene_to_default">reset_scene_to_default() (in module isaaclab.envs.mdp.events)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.reset_to">reset_to() (isaaclab.envs.ManagerBasedEnv method)</a>
 
       <ul>
@@ -9182,7 +9195,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 12, 2025.
+  Last updated on Nov 13, 2025.
   <br/>
 </p>
   </div>

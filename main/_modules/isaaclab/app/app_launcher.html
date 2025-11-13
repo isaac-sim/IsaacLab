@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 12, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 13, 2025"/>
   </head>
   
   
@@ -313,6 +313,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
@@ -1475,7 +1476,6 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_rendering_mode_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Store RTX rendering mode in carb settings.&quot;&quot;&quot;</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_carb_setting</span>
 
         <span class="n">rendering_mode</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">)</span>
 
@@ -1487,12 +1487,11 @@
 
         <span class="c1"># store rendering mode in carb settings</span>
         <span class="n">carb_settings</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/rendering/rendering_mode&quot;</span><span class="p">,</span> <span class="n">rendering_mode</span><span class="p">)</span>
+        <span class="n">carb_settings</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/isaaclab/rendering/rendering_mode&quot;</span><span class="p">,</span> <span class="n">rendering_mode</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_animation_recording_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">launcher_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Store animation recording settings in carb settings.&quot;&quot;&quot;</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_carb_setting</span>
 
         <span class="c1"># check if recording is enabled</span>
         <span class="n">recording_enabled</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;anim_recording_enabled&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
@@ -1512,9 +1511,9 @@
 
         <span class="c1"># store config in carb settings</span>
         <span class="n">carb_settings</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/anim_recording/enabled&quot;</span><span class="p">,</span> <span class="n">recording_enabled</span><span class="p">)</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/anim_recording/start_time&quot;</span><span class="p">,</span> <span class="n">start_time</span><span class="p">)</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/anim_recording/stop_time&quot;</span><span class="p">,</span> <span class="n">stop_time</span><span class="p">)</span>
+        <span class="n">carb_settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/anim_recording/enabled&quot;</span><span class="p">,</span> <span class="n">recording_enabled</span><span class="p">)</span>
+        <span class="n">carb_settings</span><span class="o">.</span><span class="n">set_float</span><span class="p">(</span><span class="s2">&quot;/isaaclab/anim_recording/start_time&quot;</span><span class="p">,</span> <span class="n">start_time</span><span class="p">)</span>
+        <span class="n">carb_settings</span><span class="o">.</span><span class="n">set_float</span><span class="p">(</span><span class="s2">&quot;/isaaclab/anim_recording/stop_time&quot;</span><span class="p">,</span> <span class="n">stop_time</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_signal_handle_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle the interrupt signal from the keyboard.&quot;&quot;&quot;</span>
@@ -1710,7 +1709,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 12, 2025.
+  Last updated on Nov 13, 2025.
   <br/>
 </p>
   </div>
