@@ -10,7 +10,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, Rsl
 @configclass
 class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     seed = 7858
-    num_steps_per_env = 128
+    num_steps_per_env = 64
     max_iterations = 1500
     save_interval = 50
     experiment_name = "gear_assembly_ur10e"
