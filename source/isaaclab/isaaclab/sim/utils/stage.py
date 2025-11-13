@@ -373,7 +373,6 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
         print(prim_path)
 
 
-
 def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
     """Add USD reference to the opened stage at specified prim path.
 
