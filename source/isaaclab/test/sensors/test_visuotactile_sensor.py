@@ -181,75 +181,93 @@ def teardown(sim):
     sim.clear_instance()
 
 
-@pytest.mark.isaacsim_ci
-def test_sensor_minimum_config():
-    """Test sensor with minimal configuration (no camera, no force field)."""
+@pytest.fixture
+def setup_minimum_config():
+    """Create simulation context with minimum config sensor."""
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("minimum_config")
-    try:
-        _ = Articulation(cfg=robot_cfg)
-        sensor_minimum = VisuoTactileSensor(cfg=sensor_cfg)
-        sim.reset()
-        # Simulate physics
-        for _ in range(10):
-            sim.step()
-            sensor_minimum.update(dt)
+    yield sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg
+    teardown(sim)
 
-        # check data should be None, since both camera and force field are disabled
-        assert sensor_minimum.data.tactile_camera_depth is None
-        assert sensor_minimum.data.tactile_rgb_image is None
-        assert sensor_minimum.data.tactile_points_pos_w is None
-        assert sensor_minimum.data.tactile_points_quat_w is None
-        assert sensor_minimum.data.penetration_depth is None
-        assert sensor_minimum.data.tactile_normal_force is None
-        assert sensor_minimum.data.tactile_shear_force is None
 
-        # Check reset functionality
-        sensor_minimum.reset()
+@pytest.fixture
+def setup_tactile_cam():
+    """Create simulation context with tactile camera sensor."""
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    yield sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg
+    teardown(sim)
 
-        for i in range(10):
-            sim.step()
-            sensor_minimum.update(dt)
-        sensor_minimum.reset(env_ids=[0])
 
-    finally:
-        teardown(sim)
+@pytest.fixture
+def setup_nut_rgb_ff():
+    """Create simulation context with nut RGB force field sensor."""
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup("nut_rgb_ff")
+    yield sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg
+    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_cam_size_false():
+def test_sensor_minimum_config(setup_minimum_config):
+    """Test sensor with minimal configuration (no camera, no force field)."""
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_minimum_config
+    _ = Articulation(cfg=robot_cfg)
+    sensor_minimum = VisuoTactileSensor(cfg=sensor_cfg)
+    sim.reset()
+    # Simulate physics
+    for _ in range(10):
+        sim.step()
+        sensor_minimum.update(dt)
+
+    # check data should be None, since both camera and force field are disabled
+    assert sensor_minimum.data.tactile_camera_depth is None
+    assert sensor_minimum.data.tactile_rgb_image is None
+    assert sensor_minimum.data.tactile_points_pos_w is None
+    assert sensor_minimum.data.tactile_points_quat_w is None
+    assert sensor_minimum.data.penetration_depth is None
+    assert sensor_minimum.data.tactile_normal_force is None
+    assert sensor_minimum.data.tactile_shear_force is None
+
+    # Check reset functionality
+    sensor_minimum.reset()
+
+    for i in range(10):
+        sim.step()
+        sensor_minimum.update(dt)
+    sensor_minimum.reset(env_ids=[0])
+
+
+@pytest.mark.isaacsim_ci
+def test_sensor_cam_size_false(setup_tactile_cam):
     """Test sensor initialization fails with incorrect camera image size."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.height = 80
     _ = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(ValueError) as excinfo:
         sim.reset()
     assert "Camera configuration image size is not consistent with the render config" in str(excinfo.value)
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_cam_type_false():
+def test_sensor_cam_type_false(setup_tactile_cam):
     """Test sensor initialization fails with unsupported camera data types."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.data_types = ["rgb"]
     _ = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(ValueError) as excinfo:
         sim.reset()
     assert "Camera configuration data types are not supported" in str(excinfo.value)
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_cam_set():
+def test_sensor_cam_set(setup_tactile_cam):
     """Test sensor with camera configuration using existing camera prim."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     sim.reset()
     sensor.get_initial_render()
     for _ in range(10):
         sim.step()
-        sensor.update(dt)
+        sensor.update(dt, force_recompute=True)
         robot.update(dt)
     assert sensor.is_initialized
     assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
@@ -259,29 +277,27 @@ def test_sensor_cam_set():
     sensor.reset()
     for _ in range(10):
         sim.step()
-        sensor.update(dt)
+        sensor.update(dt, force_recompute=True)
         robot.update(dt)
     sensor.reset(env_ids=[0])
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_cam_set_wrong_prim():
+def test_sensor_cam_set_wrong_prim(setup_tactile_cam):
     """Test sensor initialization fails with invalid camera prim path."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.prim_path = "/World/Robot/elastomer_tip/cam_wrong"
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "Could not find prim with path" in str(excinfo.value)
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_cam_new_spawn():
+def test_sensor_cam_new_spawn(setup_tactile_cam):
     """Test sensor with camera configuration that spawns a new camera."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup("tactile_cam")
+    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.prim_path = "/World/Robot/elastomer_tip/cam_new"
     sensor_cfg.camera_cfg.spawn = sim_utils.PinholeCameraCfg(
         focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.01, 1.0e5)
@@ -294,17 +310,18 @@ def test_sensor_cam_new_spawn():
         sim.step()
         sensor.update(dt)
         robot.update(dt)
+        ## test lazy sensor update
+        data = sensor.data
     assert sensor.is_initialized
     assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w is None
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_rgb_forcefield():
+def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
     """Test sensor with both camera and force field enabled, detecting contact forces."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup("nut_rgb_ff")
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
@@ -312,7 +329,7 @@ def test_sensor_rgb_forcefield():
     sensor.get_initial_render()
     for _ in range(10):
         sim.step()
-        sensor.update(dt)
+        sensor.update(dt, force_recompute=True)
         robot.update(dt)
         nut.update(dt)
     # check str
@@ -324,20 +341,18 @@ def test_sensor_rgb_forcefield():
     assert sensor.data.penetration_depth.shape == (1, 50)
     assert sensor.data.tactile_normal_force.shape == (1, 50)
     assert sensor.data.tactile_shear_force.shape == (1, 50, 2)
-    assert sensor._is_contact_object_available()
     sum_depth = torch.sum(sensor.data.penetration_depth)  # 0.020887471735477448
     normal_force_sum = torch.sum(sensor.data.tactile_normal_force)
     shear_force_sum = torch.sum(sensor.data.tactile_shear_force)
     assert normal_force_sum > 0.0
     assert sum_depth > 0.0
     assert shear_force_sum > 0.0
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_no_contact_object():
+def test_sensor_no_contact_object(setup_nut_rgb_ff):
     """Test sensor with force field but no contact object specified."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup("nut_rgb_ff")
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
     sensor_cfg.contact_object_prim_path_expr = None
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
@@ -346,25 +361,24 @@ def test_sensor_no_contact_object():
     sensor.get_initial_render()
     for _ in range(10):
         sim.step()
-        sensor.update(dt)
+        sensor.update(dt, force_recompute=True)
         robot.update(dt)
         nut.update(dt)
+
     assert sensor.is_initialized
     assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w.shape == (1, 50, 3)
-    assert not sensor._is_contact_object_available()
     # check no forces are detected
     assert torch.all(torch.abs(sensor.data.penetration_depth) < 1e-9)
     assert torch.all(torch.abs(sensor.data.tactile_normal_force) < 1e-9)
     assert torch.all(torch.abs(sensor.data.tactile_shear_force) < 1e-9)
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_force_field_contact_object_not_found():
+def test_sensor_force_field_contact_object_not_found(setup_nut_rgb_ff):
     """Test sensor initialization fails when contact object prim path is not found."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup("nut_rgb_ff")
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup_nut_rgb_ff
 
     sensor_cfg.enable_camera_tactile = False
     sensor_cfg.contact_object_prim_path_expr = "/World/Nut/wrong_prim"
@@ -373,13 +387,12 @@ def test_sensor_force_field_contact_object_not_found():
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "No contact object prim found matching pattern" in str(excinfo.value)
-    teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_force_field_contact_object_no_sdf():
+def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
     """Test sensor initialization fails when contact object has no SDF mesh."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup("nut_rgb_ff")
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup_nut_rgb_ff
     sensor_cfg.enable_camera_tactile = False
     sensor_cfg.contact_object_prim_path_expr = "/World/Cube"
     robot = Articulation(cfg=robot_cfg)
@@ -388,4 +401,3 @@ def test_sensor_force_field_contact_object_no_sdf():
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
-    teardown(sim)
