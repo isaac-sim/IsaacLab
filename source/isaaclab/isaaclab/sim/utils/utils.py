@@ -10,7 +10,9 @@ from __future__ import annotations
 import contextlib
 import functools
 import inspect
+import logging
 import re
+import time
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
@@ -18,7 +20,6 @@ import carb
 import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
-import omni.log
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
@@ -31,12 +32,14 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
+from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
-
-from . import schemas
 
 if TYPE_CHECKING:
     from .spawners.spawner_cfg import SpawnerCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 Attribute - Setters.
@@ -76,7 +79,7 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     else:
         # think: do we ever need to create the attribute if it doesn't exist?
         #   currently, we are not doing this since the schemas are already created with some defaults.
-        omni.log.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
+        logger.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
         raise TypeError(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
 
 
@@ -201,7 +204,7 @@ def apply_nested(func: Callable) -> Callable:
                 count_success += 1
         # check if we were successful in applying the function to any prim
         if count_success == 0:
-            omni.log.warn(
+            logger.warning(
                 f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
                 " This might be because of the following reasons:"
                 "\n\t(1) The desired attribute does not exist on any of the prims."
@@ -288,7 +291,7 @@ def clone(func: Callable) -> Callable:
                 sem.GetSemanticDataAttr().Set(semantic_value)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
-            schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
+            schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
@@ -424,7 +427,7 @@ def bind_physics_material(
     has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
     has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
-        omni.log.verbose(
+        logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, a deformable body, nor a particle system."
         )
@@ -1022,14 +1025,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
     for variant_set_name, variant_selection in variants.items():
         # Check if the variant set exists on the prim.
         if not existing_variant_sets.HasVariantSet(variant_set_name):
-            omni.log.warn(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
+            logger.warning(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
-            omni.log.info(
+            logger.info(
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
@@ -1080,7 +1083,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # early attach warning msg
     if attaching_early:
-        omni.log.warn(
+        logger.warning(
             "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
             " memory."
         )
@@ -1140,7 +1143,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
-        omni.log.warn("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
         with stage_utils.use_stage(stage):
@@ -1155,7 +1158,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
-        omni.log.warn(
+        logger.warning(
             "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
             " stage attached to USD context."
         )
@@ -1179,3 +1182,44 @@ def get_current_stage_id() -> int:
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
+
+
+"""
+Logger.
+"""
+
+
+# --- Colored formatter ---
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        "WARNING": "\033[33m",  # orange/yellow
+        "ERROR": "\033[31m",  # red
+        "CRITICAL": "\033[31m",  # red
+        "INFO": "\033[0m",  # reset
+        "DEBUG": "\033[0m",
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelname, self.RESET)
+        message = super().format(record)
+        return f"{color}{message}{self.RESET}"
+
+
+# --- Custom rate-limited warning filter ---
+class RateLimitFilter(logging.Filter):
+    def __init__(self, interval_seconds=5):
+        super().__init__()
+        self.interval = interval_seconds
+        self.last_emitted = {}
+
+    def filter(self, record):
+        """Allow WARNINGs only once every few seconds per message."""
+        if record.levelno != logging.WARNING:
+            return True
+        now = time.time()
+        msg_key = record.getMessage()
+        if msg_key not in self.last_emitted or (now - self.last_emitted[msg_key]) > self.interval:
+            self.last_emitted[msg_key] = now
+            return True
+        return False
