@@ -190,6 +190,8 @@ autodoc_mock_imports = [
     "nvidia.srl",
     "flatdict",
     "IPython",
+    "cv2",
+    "imageio",
     "ipywidgets",
     "mpl_toolkits",
 ]
