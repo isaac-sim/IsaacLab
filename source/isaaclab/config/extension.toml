@@ -1,7 +1,6 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-
 version = "0.48.4"
 
 
