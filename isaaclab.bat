@@ -53,7 +53,7 @@ if errorlevel 1 (
     echo [INFO] Installing PyTorch !TORCH_VER! with CUDA !CUDA_TAG!...
     call "!python_exe!" -m pip install "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
 ) else (
-    for /f "tokens=2" %%V in ('"!python_exe!" -m pip show torch ^| findstr /B /C:"Version:"') do set "TORCH_CUR=%%V"
+    for /f "tokens=2" %%V in ('!python_exe! -m pip show torch ^| findstr /B /C:"Version:"') do set "TORCH_CUR=%%V"
     echo [INFO] Found PyTorch version !TORCH_CUR!.
     if /I not "!TORCH_CUR!"=="!TORCH_VER!+!CUDA_TAG!" (
         echo [INFO] Replacing PyTorch !TORCH_CUR! -> !TORCH_VER!+!CUDA_TAG!...
