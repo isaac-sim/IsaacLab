@@ -3,18 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import dataclass
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
-
-@dataclass
-class G1LowerBodyStandingRetargeterCfg(RetargeterCfg):
-    """Configuration for the G1 lower body standing retargeter."""
-
-    hip_height: float = 0.72
-    """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
 
 
 class G1LowerBodyStandingRetargeter(RetargeterBase):
@@ -26,3 +20,12 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
     def retarget(self, data: dict) -> torch.Tensor:
         return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
+
+
+@dataclass
+class G1LowerBodyStandingRetargeterCfg(RetargeterCfg):
+    """Configuration for the G1 lower body standing retargeter."""
+
+    hip_height: float = 0.72
+    """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
+    retargeter_type: type[RetargeterBase] = G1LowerBodyStandingRetargeter

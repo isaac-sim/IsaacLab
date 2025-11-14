@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.48.3 (2025-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved retargeter and device declaration out of factory and into the devices/retargeters themselves.
+
+
+0.48.2 (2025-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed from using :meth:`isaacsim.core.utils.torch.set_seed` to :meth:`~isaaclab.utils.seed.configure_seed`
+
+
 0.48.1 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
