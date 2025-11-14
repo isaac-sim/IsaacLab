@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 import torch
@@ -17,15 +19,6 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 # This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
-
-
-@dataclass
-class GR1T2RetargeterCfg(RetargeterCfg):
-    """Configuration for the GR1T2 retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class GR1T2Retargeter(RetargeterBase):
@@ -156,3 +149,13 @@ class GR1T2Retargeter(RetargeterBase):
         usd_right_roll_link_in_world_quat = PoseUtils.quat_from_matrix(usd_right_roll_link_in_world_mat)
 
         return np.concatenate([usd_right_roll_link_in_world_pos, usd_right_roll_link_in_world_quat])
+
+
+@dataclass
+class GR1T2RetargeterCfg(RetargeterCfg):
+    """Configuration for the GR1T2 retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = GR1T2Retargeter

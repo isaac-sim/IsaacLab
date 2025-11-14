@@ -89,8 +89,6 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
 
-#. Multi-node training may require direct connections between Spark machines or additional network configurations.
-
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 
 Troubleshooting

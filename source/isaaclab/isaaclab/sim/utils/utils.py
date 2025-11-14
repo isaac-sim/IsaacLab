@@ -32,9 +32,8 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
+from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
-
-from . import schemas
 
 if TYPE_CHECKING:
     from .spawners.spawner_cfg import SpawnerCfg

@@ -146,7 +146,7 @@ This method uses `NVIDIA Brev <https://brev.nvidia.com/>`_, a platform that offe
 To try now, click the button below. To learn more about how to use this project, or how to create your own Launchable, please see the project repo `here <https://github.com/isaac-sim/isaac-launchable>`_.
 
 .. image:: https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg
-   :target: https://brev.nvidia.com/launchable/deploy?launchableID=env-31ezDWyp4LvtDQr5rUhAWOUMFhn
+   :target: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-35JP2ywERLgqtD0b0MIeK1HnF46
    :alt: Click here to deploy
 
 
