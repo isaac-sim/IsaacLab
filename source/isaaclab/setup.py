@@ -59,7 +59,7 @@ INSTALL_REQUIRES += [
     f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu130"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Installation operation
 setup(

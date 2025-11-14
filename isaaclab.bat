@@ -44,7 +44,7 @@ rem expects: !python_exe! set by :extract_python_exe
 setlocal EnableExtensions EnableDelayedExpansion
 set "TORCH_VER=2.9.0"
 set "TV_VER=0.24.0"
-set "CUDA_TAG=cu130"
+set "CUDA_TAG=cu128"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/%CUDA_TAG%"
 
 rem Do we already have torch?
