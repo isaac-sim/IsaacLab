@@ -1134,9 +1134,7 @@ def is_current_stage_in_memory() -> bool:
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """Context manager that sets a thread-local stage, if supported.
 
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
-
-    For Isaac Sim >= 5.0, this function sets the thread-local stage context in both the regular
+    For Isaac Sim >= 6.0, this function sets the thread-local stage context in both the regular
     and experimental stage utils modules. This is necessary because Isaac Sim has two separate
     stage utility modules with independent thread-local storage:
     - ``isaacsim.core.utils.stage`` (used by PhysicsContext)
@@ -1152,9 +1150,10 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         None
     """
     isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
+    if isaac_sim_version < 6:
+        # Set context in both modules to ensure all Isaac Sim subsystems see the correct stage
+        with stage_utils.use_stage(stage):
+            yield
     else:
         # Import both stage utils modules for Isaac Sim 5.0+
         import isaacsim.core.experimental.utils.stage as experimental_stage_utils
