@@ -39,6 +39,11 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     If False, the asset configurations are spawned in the order they are provided in the list.
     If True, a random asset configuration is selected for each spawn.
+
+    .. warning::
+
+        This attribute is deprecated. Use
+        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` instead.
     """
 
 
@@ -64,4 +69,9 @@ class MultiUsdFileCfg(UsdFileCfg):
 
     If False, the asset configurations are spawned in the order they are provided in the list.
     If True, a random asset configuration is selected for each spawn.
+
+    .. warning::
+
+        This attribute is deprecated. Use
+        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` instead.
     """

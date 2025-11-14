@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+
+0.49.0 (2025-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+* Removed hard dependency on the Isaac Sim Cloner for scene replication. Replication now uses internal utilities
+  :func:`~isaaclab.scene.cloner.usd_replicate` and :func:`~isaaclab.scene.cloner.physx_replicate`, reducing coupling
+  to Isaac Sim. Public APIs in :class:`~isaaclab.scene.interactive_scene.InteractiveScene` remain unchanged; code
+  directly importing the external Cloner should migrate to these utilities.
+
+
+Added
+^^^^^
+
+* Added optional random prototype selection during environment cloning in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene` via
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning`.
+  Defaults to ``True``; round-robin (modulo) mapping remains available by setting it to ``False``.
+
+* Added flexible per-object cloning path in
+  :class:`~isaaclab.scene.interactive_scene.InteractiveScene`: when environments are heterogeneous
+  (different prototypes across envs), replication switches to per-object instead of whole-env cloning.
+  This reduces PhysX cloning time in heterogeneous scenes.
+
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :attr:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice` and
+  :attr:`~isaaclab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice`. Use
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` to control whether
+  assets are selected randomly (``True``) or via round-robin (``False``) across environments.
+
+
 0.48.4 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 

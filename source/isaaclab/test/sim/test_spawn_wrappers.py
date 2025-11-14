@@ -37,9 +37,7 @@ def sim():
 
 def test_spawn_multiple_shapes_with_global_settings(sim):
     """Test spawning of shapes randomly with global rigid body settings."""
-    num_clones = 10
-    for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+    prim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
 
     cfg = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -58,19 +56,18 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        random_choice=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
-    prim = cfg.func("/World/env_.*/Cone", cfg)
+    prim = cfg.func("/World/template/Cone/asset_.*", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
-    assert len(prim_paths) == num_clones
+    assert prim_utils.get_prim_path(prim) == "/World/template/Cone/asset_0"
+    prim_paths = prim_utils.find_matching_prim_paths("/World/template/Cone/asset_.*")
+    assert len(prim_paths) == 3
 
     for prim_path in prim_paths:
         prim = prim_utils.get_prim_at_path(prim_path)
@@ -79,9 +76,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
 
 def test_spawn_multiple_shapes_with_individual_settings(sim):
     """Test spawning of shapes randomly with individual rigid object settings."""
-    num_clones = 10
-    for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+    prim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
 
     mass_variations = [2.0, 3.0, 4.0]
     cfg = sim_utils.MultiAssetSpawnerCfg(
@@ -109,14 +104,13 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
         ],
-        random_choice=True,
     )
-    prim = cfg.func("/World/env_.*/Cone", cfg)
+    prim = cfg.func("/World/template/Cone/asset_.*", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
-    assert len(prim_paths) == num_clones
+    assert prim_utils.get_prim_path(prim) == "/World/template/Cone/asset_0"
+    prim_paths = prim_utils.find_matching_prim_paths("/World/template/Cone/asset_.*")
+    assert len(prim_paths) == 3
 
     for prim_path in prim_paths:
         prim = prim_utils.get_prim_at_path(prim_path)
@@ -130,16 +124,13 @@ Tests - Multiple USDs.
 
 def test_spawn_multiple_files_with_global_settings(sim):
     """Test spawning of files randomly with global articulation settings."""
-    num_clones = 10
-    for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+    prim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
 
     cfg = sim_utils.MultiUsdFileCfg(
         usd_path=[
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
         ],
-        random_choice=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             retain_accelerations=False,
@@ -154,9 +145,9 @@ def test_spawn_multiple_files_with_global_settings(sim):
         ),
         activate_contact_sensors=True,
     )
-    prim = cfg.func("/World/env_.*/Robot", cfg)
+    prim = cfg.func("/World/template/Robot/asset_.*", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Robot"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Robot")
-    assert len(prim_paths) == num_clones
+    assert prim_utils.get_prim_path(prim) == "/World/template/Robot/asset_0"
+    prim_paths = prim_utils.find_matching_prim_paths("/World/template/Robot/asset_.*")
+    assert len(prim_paths) == 2

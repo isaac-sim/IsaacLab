@@ -45,9 +45,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")

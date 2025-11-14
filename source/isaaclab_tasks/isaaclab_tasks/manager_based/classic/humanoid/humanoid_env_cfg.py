@@ -197,7 +197,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Humanoid walking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

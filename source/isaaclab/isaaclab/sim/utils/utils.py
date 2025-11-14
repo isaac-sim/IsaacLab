@@ -20,7 +20,6 @@ import carb
 import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
-from isaacsim.core.cloner import Cloner
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
@@ -237,9 +236,6 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
-        # get stage handle
-        stage = get_current_stage()
-
         # cast prim_path to str type in case its an Sdf.Path
         prim_path = str(prim_path)
         # check prim path is global
@@ -263,10 +259,10 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # resolve prim paths for spawning
+        prim_spawn_path = prim_path.replace(".*", "0")
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -291,28 +287,7 @@ def clone(func: Callable) -> Callable:
                 sem.GetSemanticDataAttr().Set(semantic_value)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
-            schemas.activate_contact_sensors(prim_paths[0])
-        # clone asset using cloner API
-        if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+            schemas.activate_contact_sensors(prim_spawn_path, cfg.activate_contact_sensors)
         # return the source prim
         return prim
 
