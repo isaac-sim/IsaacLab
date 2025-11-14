@@ -33,7 +33,7 @@ from isaaclab.utils.string import to_camel_case
 from .stage import attach_stage_to_usd_context, get_current_stage
 
 if TYPE_CHECKING:
-    from .spawners.spawner_cfg import SpawnerCfg
+    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
 # import logger
 logger = logging.getLogger(__name__)
