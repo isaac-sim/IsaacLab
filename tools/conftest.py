@@ -194,6 +194,9 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
     failed_tests = []
     test_status = {}
 
+    # Ensure tests directory exists for reports
+    os.makedirs("tests", exist_ok=True)
+
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
         # get file name from path
@@ -437,6 +440,8 @@ def pytest_sessionstart(session):
     # create new full report
     full_report = JUnitXml()
     # read all reports and merge them
+    # Ensure tests directory exists
+    os.makedirs("tests", exist_ok=True)
     for report in os.listdir("tests"):
         if report.endswith(".xml"):
             print(report)
