@@ -63,6 +63,8 @@ import time
 import torch
 import yaml
 
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
 from isaaclab.envs import (
     DirectMARLEnv,
     DirectMARLEnvCfg,
@@ -72,7 +74,6 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
