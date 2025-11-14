@@ -14,7 +14,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg
+    from .actuator_base_cfg import ActuatorBaseCfg
 
 
 class ActuatorBase(ABC):
