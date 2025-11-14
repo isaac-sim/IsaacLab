@@ -30,7 +30,6 @@ Changed
 * Changed from using :meth:`isaacsim.core.utils.torch.set_seed` to :meth:`~isaaclab.utils.seed.configure_seed`
 
 
-
 0.48.1 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
