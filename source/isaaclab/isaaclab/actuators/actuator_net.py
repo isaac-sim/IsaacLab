@@ -24,7 +24,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):

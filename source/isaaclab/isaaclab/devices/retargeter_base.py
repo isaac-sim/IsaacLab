@@ -13,6 +13,8 @@ class RetargeterCfg:
     """Base configuration for hand tracking retargeters."""
 
     sim_device: str = "cpu"
+    # Concrete retargeter class to construct for this config. Set by each retargeter module.
+    retargeter_type: type["RetargeterBase"] | None = None
 
 
 class RetargeterBase(ABC):

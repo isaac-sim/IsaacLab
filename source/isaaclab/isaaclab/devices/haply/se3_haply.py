@@ -5,6 +5,8 @@
 
 """Haply device controller for SE3 control with force feedback."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import numpy as np
@@ -23,23 +25,6 @@ except ImportError:
 
 from ..device_base import DeviceBase, DeviceCfg
 from ..retargeter_base import RetargeterBase
-
-
-@dataclass
-class HaplyDeviceCfg(DeviceCfg):
-    """Configuration for Haply device.
-
-    Attributes:
-        websocket_uri: WebSocket URI for Haply SDK connection
-        pos_sensitivity: Position sensitivity scaling factor
-        data_rate: Data exchange rate in Hz
-        limit_force: Maximum force magnitude in Newtons (safety limit)
-    """
-
-    websocket_uri: str = "ws://localhost:10001"
-    pos_sensitivity: float = 1.0
-    data_rate: float = 200.0
-    limit_force: float = 2.0
 
 
 class HaplyDevice(DeviceBase):
@@ -387,3 +372,21 @@ class HaplyDevice(DeviceBase):
                     await asyncio.sleep(2.0)
                 else:
                     break
+
+
+@dataclass
+class HaplyDeviceCfg(DeviceCfg):
+    """Configuration for Haply device.
+
+    Attributes:
+        websocket_uri: WebSocket URI for Haply SDK connection
+        pos_sensitivity: Position sensitivity scaling factor
+        data_rate: Data exchange rate in Hz
+        limit_force: Maximum force magnitude in Newtons (safety limit)
+    """
+
+    websocket_uri: str = "ws://localhost:10001"
+    pos_sensitivity: float = 1.0
+    data_rate: float = 200.0
+    limit_force: float = 2.0
+    class_type: type[DeviceBase] = HaplyDevice

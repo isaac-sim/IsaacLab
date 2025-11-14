@@ -2,6 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -11,21 +13,6 @@ from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-
-
-@dataclass
-class Se3RelRetargeterCfg(RetargeterCfg):
-    """Configuration for relative position retargeter."""
-
-    zero_out_xy_rotation: bool = True
-    use_wrist_rotation: bool = False
-    use_wrist_position: bool = True
-    delta_pos_scale_factor: float = 10.0
-    delta_rot_scale_factor: float = 10.0
-    alpha_pos: float = 0.5
-    alpha_rot: float = 0.5
-    enable_visualization: bool = False
-    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class Se3RelRetargeter(RetargeterBase):
@@ -206,3 +193,19 @@ class Se3RelRetargeter(RetargeterBase):
             quat = Rotation.from_matrix(self._visualization_rot).as_quat()
             rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
             self._goal_marker.visualize(translations=trans, orientations=rot)
+
+
+@dataclass
+class Se3RelRetargeterCfg(RetargeterCfg):
+    """Configuration for relative position retargeter."""
+
+    zero_out_xy_rotation: bool = True
+    use_wrist_rotation: bool = False
+    use_wrist_position: bool = True
+    delta_pos_scale_factor: float = 10.0
+    delta_rot_scale_factor: float = 10.0
+    alpha_pos: float = 0.5
+    alpha_rot: float = 0.5
+    enable_visualization: bool = False
+    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = Se3RelRetargeter

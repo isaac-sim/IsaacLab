@@ -5,6 +5,8 @@
 
 """OpenXR-powered device for teleoperation and interaction."""
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -26,14 +28,8 @@ XRPoseValidityFlags = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRPoseValidityFlags
+
 from isaacsim.core.prims import SingleXFormPrim
-
-
-@dataclass
-class OpenXRDeviceCfg(DeviceCfg):
-    """Configuration for OpenXR devices."""
-
-    xr_cfg: XrCfg | None = None
 
 
 class OpenXRDevice(DeviceBase):
@@ -303,3 +299,11 @@ class OpenXRDevice(DeviceBase):
         elif "reset" in msg:
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
+
+
+@dataclass
+class OpenXRDeviceCfg(DeviceCfg):
+    """Configuration for OpenXR devices."""
+
+    xr_cfg: XrCfg | None = None
+    class_type: type[DeviceBase] = OpenXRDevice

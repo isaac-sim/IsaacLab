@@ -21,6 +21,7 @@ Guidelines for modifications:
 
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Brian McCann
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian

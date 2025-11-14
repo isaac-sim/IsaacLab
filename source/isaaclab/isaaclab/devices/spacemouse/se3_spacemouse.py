@@ -5,6 +5,8 @@
 
 """Spacemouse controller for SE(3) control."""
 
+from __future__ import annotations
+
 import hid
 import numpy as np
 import threading
@@ -16,16 +18,6 @@ from scipy.spatial.transform import Rotation
 
 from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
-
-
-@dataclass
-class Se3SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE3 space mouse devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
 
 
 class Se3SpaceMouse(DeviceBase):
@@ -210,3 +202,14 @@ class Se3SpaceMouse(DeviceBase):
                             self._additional_callbacks["R"]()
                     if data[1] == 3:
                         self._read_rotation = not self._read_rotation
+
+
+@dataclass
+class Se3SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE3 space mouse devices."""
+
+    gripper_term: bool = True
+    pos_sensitivity: float = 0.4
+    rot_sensitivity: float = 0.8
+    retargeters: None = None
+    class_type: type[DeviceBase] = Se3SpaceMouse

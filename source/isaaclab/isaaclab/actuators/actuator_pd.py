@@ -16,7 +16,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
-    from .actuator_cfg import (
+    from .actuator_pd_cfg import (
         DCMotorCfg,
         DelayedPDActuatorCfg,
         IdealPDActuatorCfg,

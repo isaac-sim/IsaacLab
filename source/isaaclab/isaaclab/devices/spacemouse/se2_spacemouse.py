@@ -5,6 +5,8 @@
 
 """Spacemouse controller for SE(2) control."""
 
+from __future__ import annotations
+
 import hid
 import numpy as np
 import threading
@@ -17,16 +19,6 @@ from isaaclab.utils.array import convert_to_torch
 
 from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
-
-
-@dataclass
-class Se2SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE2 space mouse devices."""
-
-    v_x_sensitivity: float = 0.8
-    v_y_sensitivity: float = 0.4
-    omega_z_sensitivity: float = 1.0
-    sim_device: str = "cpu"
 
 
 class Se2SpaceMouse(DeviceBase):
@@ -168,3 +160,13 @@ class Se2SpaceMouse(DeviceBase):
                         # additional callbacks
                         if "R" in self._additional_callbacks:
                             self._additional_callbacks["R"]
+
+
+@dataclass
+class Se2SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE2 space mouse devices."""
+
+    v_x_sensitivity: float = 0.8
+    v_y_sensitivity: float = 0.4
+    omega_z_sensitivity: float = 1.0
+    class_type: type[DeviceBase] = Se2SpaceMouse
