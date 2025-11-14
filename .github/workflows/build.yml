@@ -252,6 +252,7 @@ jobs:
         # Run pytest directly with filter to exclude isaaclab_tasks
         & python -m pytest tools `
           --ignore=tools/conftest.py `
+          -m "windows" `
           -k "not isaaclab_tasks" `
           -v `
           --junitxml=reports/general-tests-windows-report.xml
