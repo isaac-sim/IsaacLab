@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 13, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 14, 2025"/>
   </head>
   
   
@@ -841,6 +841,8 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.min_delay</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.max_delay</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.joint_names_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.effort_limit"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.velocity_limit"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.velocity_limit</span></code></a></li>
@@ -852,8 +854,6 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.dynamic_friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.dynamic_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.viscous_friction</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.min_delay</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.max_delay</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -927,19 +927,19 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.stiffness"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.network_file</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.pos_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.joint_names_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.velocity_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.effort_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.velocity_limit_sim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.armature"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.armature</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.dynamic_friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.dynamic_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.viscous_friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.viscous_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.saturation_effort</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.network_file</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.pos_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.vel_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.vel_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.torque_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.torque_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.input_order"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.input_order</span></code></a></li>
@@ -1355,7 +1355,7 @@ and (feed-forward) joint efforts.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBaseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorBaseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#ActuatorBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorBaseCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorBaseCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_base_cfg.html#ActuatorBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorBaseCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for default actuators in an articulation.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -1842,8 +1842,8 @@ since the actuator model already clips efforts using <a class="reference interna
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.ImplicitActuatorCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ImplicitActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#ImplicitActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ImplicitActuatorCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.actuator_cfg.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBaseCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ImplicitActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd_cfg.html#ImplicitActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ImplicitActuatorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.actuator_base_cfg.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBaseCfg</span></code></a></p>
 <p>Configuration for an implicit actuator.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -2332,8 +2332,8 @@ since the actuator model already clips efforts using <a class="reference interna
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.IdealPDActuatorCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">IdealPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#IdealPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.IdealPDActuatorCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.actuator_cfg.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBaseCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">IdealPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd_cfg.html#IdealPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.IdealPDActuatorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.actuator_base_cfg.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBaseCfg</span></code></a></p>
 <p>Configuration for an ideal PD actuator.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -2842,8 +2842,8 @@ since the actuator model already clips efforts using <a class="reference interna
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.DCMotorCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DCMotorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#DCMotorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DCMotorCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.IdealPDActuatorCfg" title="isaaclab.actuators.actuator_cfg.IdealPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuatorCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DCMotorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd_cfg.html#DCMotorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DCMotorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.IdealPDActuatorCfg" title="isaaclab.actuators.actuator_pd_cfg.IdealPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuatorCfg</span></code></a></p>
 <p>Configuration for direct control (DC) motor actuator model.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3330,12 +3330,18 @@ since the actuator model already clips efforts using <a class="reference interna
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DelayedPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#DelayedPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.IdealPDActuatorCfg" title="isaaclab.actuators.actuator_cfg.IdealPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuatorCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DelayedPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd_cfg.html#DelayedPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.IdealPDActuatorCfg" title="isaaclab.actuators.actuator_pd_cfg.IdealPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuatorCfg</span></code></a></p>
 <p>Configuration for a delayed PD actuator.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay" title="isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_delay</span></code></a></p></td>
+<td><p>Minimum number of physics time-steps with which the actuator command may be delayed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay" title="isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_delay</span></code></a></p></td>
+<td><p>Maximum number of physics time-steps with which the actuator command may be delayed.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr" title="isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
 <td><p>Articulation's joint names that are part of the group.</p></td>
 </tr>
@@ -3369,15 +3375,21 @@ since the actuator model already clips efforts using <a class="reference interna
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction" title="isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">viscous_friction</span></code></a></p></td>
 <td><p>The viscous friction coefficient of the joints in the group.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay" title="isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_delay</span></code></a></p></td>
-<td><p>Minimum number of physics time-steps with which the actuator command may be delayed.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay" title="isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_delay</span></code></a></p></td>
-<td><p>Maximum number of physics time-steps with which the actuator command may be delayed.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.min_delay">
+<span class="sig-name descname"><span class="pre">min_delay</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay" title="Permalink to this definition">#</a></dt>
+<dd><p>Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.max_delay">
+<span class="sig-name descname"><span class="pre">max_delay</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0.</p>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr">
 <span class="sig-name descname"><span class="pre">joint_names_expr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr" title="Permalink to this definition">#</a></dt>
@@ -3523,18 +3535,6 @@ it is modeled as an effort (torque or force).</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction">
 <span class="sig-name descname"><span class="pre">viscous_friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction" title="Permalink to this definition">#</a></dt>
 <dd><p>The viscous friction coefficient of the joints in the group. Defaults to None.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.min_delay">
-<span class="sig-name descname"><span class="pre">min_delay</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay" title="Permalink to this definition">#</a></dt>
-<dd><p>Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.DelayedPDActuatorCfg.max_delay">
-<span class="sig-name descname"><span class="pre">max_delay</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay" title="Permalink to this definition">#</a></dt>
-<dd><p>Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3824,8 +3824,8 @@ and (feed-forward) joint efforts.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.RemotizedPDActuatorCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">RemotizedPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#RemotizedPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.RemotizedPDActuatorCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg" title="isaaclab.actuators.actuator_cfg.DelayedPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">RemotizedPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd_cfg.html#RemotizedPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.RemotizedPDActuatorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DelayedPDActuatorCfg" title="isaaclab.actuators.actuator_pd_cfg.DelayedPDActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg</span></code></a></p>
 <p>Configuration for a remotized PD actuator.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -4344,8 +4344,8 @@ and (feed-forward) joint efforts.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorNetMLPCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#ActuatorNetMLPCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DCMotorCfg" title="isaaclab.actuators.actuator_cfg.DCMotorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DCMotorCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorNetMLPCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_net_cfg.html#ActuatorNetMLPCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DCMotorCfg" title="isaaclab.actuators.actuator_pd_cfg.DCMotorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DCMotorCfg</span></code></a></p>
 <p>Configuration for MLP-based actuator model.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -4353,23 +4353,29 @@ and (feed-forward) joint efforts.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.stiffness" title="isaaclab.actuators.ActuatorNetMLPCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
 <td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr" title="isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping" title="isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file" title="isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">network_file</span></code></a></p></td>
+<td><p>Path to the file containing network weights.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale" title="isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_scale</span></code></a></p></td>
+<td><p>Scaling of the joint position errors input to the network.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr" title="isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
 <td><p>Articulation's joint names that are part of the group.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit" title="isaaclab.actuators.ActuatorNetMLPCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit" title="isaaclab.actuators.ActuatorNetMLPCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
 <td><p>Force/Torque limit of the joints in the group.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit" title="isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit" title="isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
 <td><p>Velocity limit of the joints in the group.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim" title="isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim" title="isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a></p></td>
 <td><p>Effort limit of the joints in the group applied to the simulation physics solver.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim" title="isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim" title="isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a></p></td>
 <td><p>Velocity limit of the joints in the group applied to the simulation physics solver.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping" title="isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
-<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.armature" title="isaaclab.actuators.ActuatorNetMLPCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
 <td><p>Armature of the joints in the group.</p></td>
@@ -4385,12 +4391,6 @@ and (feed-forward) joint efforts.</p></li>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort" title="isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">saturation_effort</span></code></a></p></td>
 <td><p>Peak motor force/torque of the electric DC motor (in N-m).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file" title="isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">network_file</span></code></a></p></td>
-<td><p>Path to the file containing network weights.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale" title="isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_scale</span></code></a></p></td>
-<td><p>Scaling of the joint position errors input to the network.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorNetMLPCfg.vel_scale" title="isaaclab.actuators.ActuatorNetMLPCfg.vel_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vel_scale</span></code></a></p></td>
 <td><p>Scaling of the joint velocities input to the network.</p></td>
@@ -4415,6 +4415,28 @@ and (feed-forward) joint efforts.</p></li>
 the stiffness gets set into the physics engine directly. For explicit actuators, the stiffness is used
 by the actuator model to compute the joint efforts.</p>
 <p>If None, the stiffness is set to the value from the USD joint prim.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.damping">
+<span class="sig-name descname"><span class="pre">damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Damping gains (also known as d-gain) of the joints in the group.</p>
+<p>The behavior of the damping is different for implicit and explicit actuators. For implicit actuators,
+the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used
+by the actuator model to compute the joint efforts.</p>
+<p>If None, the damping is set to the value from the USD joint prim.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.network_file">
+<span class="sig-name descname"><span class="pre">network_file</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file" title="Permalink to this definition">#</a></dt>
+<dd><p>Path to the file containing network weights.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.pos_scale">
+<span class="sig-name descname"><span class="pre">pos_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scaling of the joint position errors input to the network.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4505,16 +4527,6 @@ damping parameters of the joint to ensure the limits are not violated.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.damping">
-<span class="sig-name descname"><span class="pre">damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping" title="Permalink to this definition">#</a></dt>
-<dd><p>Damping gains (also known as d-gain) of the joints in the group.</p>
-<p>The behavior of the damping is different for implicit and explicit actuators. For implicit actuators,
-the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used
-by the actuator model to compute the joint efforts.</p>
-<p>If None, the damping is set to the value from the USD joint prim.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.armature">
 <span class="sig-name descname"><span class="pre">armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.armature" title="Permalink to this definition">#</a></dt>
 <dd><p>Armature of the joints in the group. Defaults to None.</p>
@@ -4558,18 +4570,6 @@ it is modeled as an effort (torque or force).</p>
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort">
 <span class="sig-name descname"><span class="pre">saturation_effort</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort" title="Permalink to this definition">#</a></dt>
 <dd><p>Peak motor force/torque of the electric DC motor (in N-m).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.network_file">
-<span class="sig-name descname"><span class="pre">network_file</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file" title="Permalink to this definition">#</a></dt>
-<dd><p>Path to the file containing network weights.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetMLPCfg.pos_scale">
-<span class="sig-name descname"><span class="pre">pos_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale" title="Permalink to this definition">#</a></dt>
-<dd><p>Scaling of the joint position errors input to the network.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4894,8 +4894,8 @@ since the actuator model already clips efforts using <a class="reference interna
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorNetLSTMCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorNetLSTMCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_cfg.html#ActuatorNetLSTMCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorNetLSTMCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DCMotorCfg" title="isaaclab.actuators.actuator_cfg.DCMotorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DCMotorCfg</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">ActuatorNetLSTMCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_net_cfg.html#ActuatorNetLSTMCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorNetLSTMCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.DCMotorCfg" title="isaaclab.actuators.actuator_pd_cfg.DCMotorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DCMotorCfg</span></code></a></p>
 <p>Configuration for LSTM-based actuator model.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -5337,6 +5337,8 @@ it is modeled as an effort (torque or force).</p>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.min_delay</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.max_delay</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.joint_names_expr"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.joint_names_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.effort_limit"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.velocity_limit"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.velocity_limit</span></code></a></li>
@@ -5348,8 +5350,6 @@ it is modeled as an effort (torque or force).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.dynamic_friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.dynamic_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.viscous_friction"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.viscous_friction</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.min_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.min_delay</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.DelayedPDActuatorCfg.max_delay"><code class="docutils literal notranslate"><span class="pre">DelayedPDActuatorCfg.max_delay</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -5423,19 +5423,19 @@ it is modeled as an effort (torque or force).</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.stiffness"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.network_file</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.pos_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.joint_names_expr"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.joint_names_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.velocity_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.effort_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.velocity_limit_sim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.armature"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.armature</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.dynamic_friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.dynamic_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.viscous_friction"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.viscous_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.saturation_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.saturation_effort</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.network_file"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.network_file</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.pos_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.vel_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.vel_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.torque_scale"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.torque_scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorNetMLPCfg.input_order"><code class="docutils literal notranslate"><span class="pre">ActuatorNetMLPCfg.input_order</span></code></a></li>
@@ -5519,7 +5519,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 13, 2025.
+  Last updated on Nov 14, 2025.
   <br/>
 </p>
   </div>
