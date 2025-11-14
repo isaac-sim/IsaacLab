@@ -112,13 +112,12 @@ ensure_cuda_torch() {
 
     # choose pins per arch
     local torch_ver tv_ver cuda_ver
+    torch_ver="2.9.0"
+    tv_ver="0.24.0"
+
     if is_arm; then
-        torch_ver="2.9.0"
-        tv_ver="0.24.0"
         cuda_ver="130"
     else
-        torch_ver="2.7.0"
-        tv_ver="0.22.0"
         cuda_ver="128"
     fi
 

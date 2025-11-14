@@ -628,8 +628,8 @@ class SimulationContext(_SimulationContext):
     """
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
-        _ = super()._init_stage(*args, **kwargs)
         with use_stage(self.get_initial_stage()):
+            _ = super()._init_stage(*args, **kwargs)
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)

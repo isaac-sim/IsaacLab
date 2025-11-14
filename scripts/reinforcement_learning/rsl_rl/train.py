@@ -81,6 +81,8 @@ import os
 import torch
 from datetime import datetime
 
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
 from isaaclab.envs import (
     DirectMARLEnv,
     DirectMARLEnvCfg,
@@ -90,7 +92,6 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
