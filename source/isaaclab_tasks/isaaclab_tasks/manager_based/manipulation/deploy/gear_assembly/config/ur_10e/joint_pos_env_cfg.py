@@ -126,7 +126,7 @@ class EventCfg:
         mode="reset",
         params={
             # "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            "gear_types": ["gear_small", "gear_medium"]
+            "gear_types": ["gear_large"]
         },
     )
 
