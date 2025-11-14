@@ -386,18 +386,18 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         # 2F-85 gripper actuator configuration (higher effort limits than 2F-140)
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
-            effort_limit_sim=1.0,
-            velocity_limit_sim=1.0,
-            stiffness=2.0,
-            damping=0.01,
+            effort_limit_sim=10.0,
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.05,
             friction=0.0,
             armature=0.0,
         )
 
         # gear offsets and grasp positions for the 2F-85 gripper
-        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.19],
-                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.19],
-                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.19]}
+        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.18],
+                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.18],
+                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.18]}
 
         # Grasp widths for 2F-85 gripper
         self.hand_grasp_width = {"gear_small": 0.64,
@@ -405,9 +405,9 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                                "gear_large": 0.4}
         
         # Close widths for 2F-85 gripper
-        self.hand_close_width = {"gear_small": 0.8,
-                               "gear_medium": 0.7,
-                               "gear_large": 0.5}
+        self.hand_close_width = {"gear_small": 0.69,
+                               "gear_medium": 0.51,
+                               "gear_large": 0.45}
         
         # Override gripper type in the set_robot_to_grasp_pose event
         self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_85"
