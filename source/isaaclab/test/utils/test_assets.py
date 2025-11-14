@@ -26,7 +26,7 @@ def test_nucleus_connection():
 def test_check_file_path_nucleus():
     """Test checking a file path on the Nucleus server."""
     # robot file path
-    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    usd_path = f"{assets_utils.ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd"
     # check file path
     assert assets_utils.check_file_path(usd_path) == 2
 
@@ -34,7 +34,7 @@ def test_check_file_path_nucleus():
 def test_check_file_path_invalid():
     """Test checking an invalid file path."""
     # robot file path
-    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_xyz.usd"
+    usd_path = f"{assets_utils.ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_xyz.usd"
     # check file path
     assert assets_utils.check_file_path(usd_path) == 0
 
@@ -42,11 +42,11 @@ def test_check_file_path_invalid():
 def test_check_usd_path_with_timeout():
     """Test checking a USD path with timeout."""
     # robot file path
-    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    usd_path = f"{assets_utils.ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd"
     # check file path
     assert assets_utils.check_usd_path_with_timeout(usd_path) is True
 
     # invalid file path
-    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_xyz.usd"
+    usd_path = f"{assets_utils.ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_xyz.usd"
     # check file path
     assert assets_utils.check_usd_path_with_timeout(usd_path) is False

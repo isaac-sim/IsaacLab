@@ -24,7 +24,7 @@ from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture
@@ -122,8 +122,8 @@ def test_stage_in_memory_with_usds(sim):
     # define parameters
     num_clones = 10
     usd_paths = [
-        f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
-        f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+        f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd",
+        f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_d/anymal_d.usd",
     ]
 
     # grab stage in memory and set as current stage via the with statement
@@ -186,7 +186,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # define parameters
-    usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+    usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
     num_clones = 100
 
     # grab stage in memory and set as current stage via the with statement
