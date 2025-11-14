@@ -21,9 +21,6 @@ import pytest
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-# Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
-
 
 def create_test_episode(device):
     """create a test episode with dummy data."""
