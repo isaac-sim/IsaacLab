@@ -125,8 +125,7 @@ class EventCfg:
         func=gear_assembly_events.randomize_gear_type,
         mode="reset",
         params={
-            # "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            "gear_types": ["gear_large"]
+            "gear_types": ["gear_small", "gear_medium", "gear_large"]
         },
     )
 
