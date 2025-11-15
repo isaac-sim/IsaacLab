@@ -17,132 +17,62 @@ from .visualizer import Visualizer
 
 
 class OVVisualizer(Visualizer):
-    """Omniverse-based visualizer using Isaac Sim viewport.
+    """Omniverse visualizer using Isaac Sim viewport.
     
-    This visualizer leverages the existing Isaac Sim application and viewport for visualization.
-    It provides:
-    - Automatic rendering of the USD stage in the viewport
-    - Support for VisualizationMarkers (via USD prims, automatically visible)
-    - Support for LivePlots (via Isaac Lab UI, automatically displayed)
-    - Configurable viewport camera positioning
-    
-    The visualizer can operate in two modes:
-    1. **Attached mode**: Uses an existing Isaac Sim app instance (typical case)
-    2. **Standalone mode**: Launches a new Isaac Sim app if none exists (fallback)
-    
-    Note:
-        VisualizationMarkers and LivePlots are managed by the scene and environment,
-        not directly by this visualizer. This class primarily ensures the viewport
-        is configured correctly to display them.
+    Renders USD stage with VisualizationMarkers and LivePlots.
+    Can attach to existing app or launch standalone.
     """
     
     def __init__(self, cfg: OVVisualizerCfg):
-        """Initialize OV visualizer.
-        
-        Args:
-            cfg: Configuration for OV visualizer.
-        """
         super().__init__(cfg)
         self.cfg: OVVisualizerCfg = cfg
         
-        # Simulation app instance
         self._simulation_app = None
         self._app_launched_by_visualizer = False
-        
-        # Viewport references
         self._viewport_window = None
         self._viewport_api = None
-        
-        # Internal state
         self._is_initialized = False
         self._sim_time = 0.0
         self._step_counter = 0
     
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize OV visualizer with scene data.
-        
-        This method:
-        1. Validates required data (USD stage)
-        2. Checks if Isaac Sim app is running, launches if needed
-        3. Configures the viewport camera
-        4. Prepares for visualization of markers and plots
-        
-        Args:
-            scene_data: Scene data from SceneDataProvider. Contains:
-                - "usd_stage": The USD stage (required)
-                - "metadata": Scene metadata (physics backend, num_envs, etc.)
-        
-        Raises:
-            RuntimeError: If USD stage is not available.
-        
-        Note:
-            OV visualizer works with any physics backend (Newton, PhysX, etc.)
-            as long as a USD stage is available.
-        """
+        """Initialize OV visualizer."""
         if self._is_initialized:
-            omni.log.warn("[OVVisualizer] Already initialized. Skipping re-initialization.")
+            omni.log.warn("[OVVisualizer] Already initialized.")
             return
         
-        # Extract scene data
         metadata = {}
         usd_stage = None
         if scene_data is not None:
             usd_stage = scene_data.get("usd_stage")
             metadata = scene_data.get("metadata", {})
         
-        # Validate required data
         if usd_stage is None:
-            raise RuntimeError(
-                "OV visualizer requires a USD stage in scene_data['usd_stage']. "
-                "Make sure the simulation context is initialized before creating the visualizer."
-            )
+            raise RuntimeError("OV visualizer requires a USD stage.")
         
-        # Check if Isaac Sim app is running
         self._ensure_simulation_app()
-        
-        # Setup viewport
         self._setup_viewport(usd_stage, metadata)
         
-        # Log initialization
         physics_backend = metadata.get("physics_backend", "unknown")
         num_envs = metadata.get("num_envs", 0)
-        omni.log.info(
-            f"[OVVisualizer] Initialized with {num_envs} environments "
-            f"(physics: {physics_backend})"
-        )
+        omni.log.info(f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)")
         
         self._is_initialized = True
     
     def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
-        """Update visualizer each step.
-        
-        For the OV visualizer, most rendering is handled automatically by Isaac Sim.
-        This method primarily updates internal timing.
-        
-        Args:
-            dt: Time step in seconds.
-            scene_provider: Optional scene data provider (not used in minimal implementation).
-        """
+        """Update visualizer (rendering handled automatically by Isaac Sim)."""
         if not self._is_initialized:
-            omni.log.warn("[OVVisualizer] Not initialized. Call initialize() first.")
             return
-        
-        # Update internal state
         self._sim_time += dt
         self._step_counter += 1
-        
-        # Note: Viewport rendering is handled automatically by Isaac Sim's render loop
-        # VisualizationMarkers are updated by their respective owners
-        # LivePlots are updated by ManagerLiveVisualizer
     
     def close(self) -> None:
         """Clean up visualizer resources."""
         if not self._is_initialized:
             return
         
-        # Close app if we launched it
         if self._app_launched_by_visualizer and self._simulation_app is not None:
-            omni.log.info("[OVVisualizer] Closing Isaac Sim app launched by visualizer.")
+            omni.log.info("[OVVisualizer] Closing Isaac Sim app.")
             self._simulation_app.close()
             self._simulation_app = None
         
@@ -157,27 +87,15 @@ class OVVisualizer(Visualizer):
         return self._simulation_app.is_running()
     
     def is_training_paused(self) -> bool:
-        """Check if training is paused.
-        
-        Note: OV visualizer does not have a built-in pause mechanism.
-        Returns False (never pauses training).
-        """
+        """Check if training is paused (always False for OV)."""
         return False
     
     def supports_markers(self) -> bool:
-        """Check if this visualizer supports visualization markers.
-        
-        Returns:
-            True - OV visualizer supports markers via USD prims.
-        """
+        """Supports markers via USD prims."""
         return True
     
     def supports_live_plots(self) -> bool:
-        """Check if this visualizer supports live plots.
-        
-        Returns:
-            True - OV visualizer supports live plots via Isaac Lab UI.
-        """
+        """Supports live plots via Isaac Lab UI."""
         return True
     
     # ------------------------------------------------------------------
@@ -228,41 +146,48 @@ class OVVisualizer(Visualizer):
             self._simulation_app = None
     
     def _setup_viewport(self, usd_stage, metadata: dict) -> None:
-        """Setup viewport with camera positioning.
-        
-        Args:
-            usd_stage: USD stage to display.
-            metadata: Scene metadata.
-        """
+        """Setup viewport with camera and window size."""
         try:
-            import omni.kit.viewport.utility as vp_utils
-            from omni.kit.viewport.utility import get_active_viewport
+            from omni.kit.viewport.utility import get_active_viewport, create_viewport_window
+            import omni.ui as ui
             
-            # Get the active viewport
-            if self.cfg.viewport_name:
-                # Try to get specific viewport by name
-                self._viewport_window = get_active_viewport()  # For now, use active
+            # Create new viewport or use existing
+            if self.cfg.create_viewport and self.cfg.viewport_name:
+                # Create new viewport
+                self._viewport_window = create_viewport_window(
+                    title=self.cfg.viewport_name,
+                    width=self.cfg.window_width,
+                    height=self.cfg.window_height,
+                )
+                # Make viewport visible in UI
+                if self._viewport_window:
+                    self._viewport_window.visible = True
+                    self._viewport_window.docked = False
+                omni.log.info(f"[OVVisualizer] Created viewport '{self.cfg.viewport_name}'")
             else:
+                # Use existing viewport
                 self._viewport_window = get_active_viewport()
+                # Try to resize if window API is available
+                if self._viewport_window and hasattr(self._viewport_window, 'width'):
+                    try:
+                        self._viewport_window.width = self.cfg.window_width
+                        self._viewport_window.height = self.cfg.window_height
+                    except:
+                        pass
             
             if self._viewport_window is None:
-                omni.log.warn("[OVVisualizer] Could not get viewport window.")
+                omni.log.warn("[OVVisualizer] Could not get/create viewport.")
                 return
             
-            # Get viewport API for camera control
             self._viewport_api = self._viewport_window.viewport_api
             
-            # Set camera position if specified
-            if self.cfg.camera_position is not None and self.cfg.camera_target is not None:
-                self._set_viewport_camera(
-                    self.cfg.camera_position,
-                    self.cfg.camera_target
-                )
+            # Set camera
+            self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
             
-            omni.log.info("[OVVisualizer] Viewport configured successfully.")
+            omni.log.info("[OVVisualizer] Viewport configured.")
             
         except ImportError as e:
-            omni.log.warn(f"[OVVisualizer] Viewport utilities not available: {e}")
+            omni.log.warn(f"[OVVisualizer] Viewport utilities unavailable: {e}")
         except Exception as e:
             omni.log.error(f"[OVVisualizer] Error setting up viewport: {e}")
     
@@ -271,40 +196,25 @@ class OVVisualizer(Visualizer):
         position: tuple[float, float, float],
         target: tuple[float, float, float]
     ) -> None:
-        """Set viewport camera position and target.
-        
-        Args:
-            position: Camera position (x, y, z).
-            target: Camera target/look-at point (x, y, z).
-        """
+        """Set viewport camera position and target."""
         if self._viewport_api is None:
             return
         
         try:
             from pxr import Gf
             
-            # Create camera transformation
             eye = Gf.Vec3d(*position)
             target_pos = Gf.Vec3d(*target)
-            up = Gf.Vec3d(0, 0, 1)  # Z-up
+            up = Gf.Vec3d(0, 0, 1)
             
-            # Set camera transform
-            # Note: The exact API might vary depending on Isaac Sim version
-            # This is a common pattern, but may need adjustment
-            transform = Gf.Matrix4d()
-            transform.SetLookAt(eye, target_pos, up)
-            
-            # Try to apply to viewport
-            # The API for this can vary, so we'll try a few approaches
+            # Try viewport API methods
             if hasattr(self._viewport_api, 'set_view'):
                 self._viewport_api.set_view(eye, target_pos, up)
             elif hasattr(self._viewport_window, 'set_camera_position'):
                 self._viewport_window.set_camera_position(*position, True)
                 self._viewport_window.set_camera_target(*target, True)
             
-            omni.log.info(
-                f"[OVVisualizer] Set camera: pos={position}, target={target}"
-            )
+            omni.log.info(f"[OVVisualizer] Camera: pos={position}, target={target}")
             
         except Exception as e:
-            omni.log.warn(f"[OVVisualizer] Could not set camera transform: {e}")
+            omni.log.warn(f"[OVVisualizer] Could not set camera: {e}")

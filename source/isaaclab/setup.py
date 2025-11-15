@@ -50,11 +50,11 @@ INSTALL_REQUIRES = [
     "usd-core==25.05.0",
     "mujoco>=3.3.8.dev821851540",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@bbd757cace561de47512b560517ee728c8416de5",
-    "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
+    # "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
+    "newton @ git+https://github.com/newton-physics/newton.git@c4baa06c3e8ea0a3090037b2b197e9aa453265f1",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
 ]
-
 
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":

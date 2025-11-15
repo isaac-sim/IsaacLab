@@ -12,39 +12,29 @@ from .visualizer_cfg import VisualizerCfg
 
 @configclass
 class OVVisualizerCfg(VisualizerCfg):
-    """Configuration for Omniverse-based visualizer.
+    """Configuration for Omniverse visualizer using Isaac Sim viewport.
     
-    This visualizer uses the Isaac Sim application viewport for visualization.
-    It automatically displays:
-    - The USD stage (all environment prims)
-    - VisualizationMarkers (via USD prims)
-    - LivePlots (via Isaac Lab UI widgets)
-    
-    The visualizer can operate in two modes:
-    1. Attached mode: Uses an existing Isaac Sim app instance
-    2. Standalone mode: Launches a new Isaac Sim app if none exists
+    Displays USD stage, VisualizationMarkers, and LivePlots.
+    Can attach to existing app or launch standalone.
     """
     
     visualizer_type: str = "omniverse"
+    """Type identifier for Omniverse visualizer."""
     
-    # Viewport settings
-    viewport_name: str = "/OmniverseKit/Viewport"
-    """Name of the viewport to use. If None, uses the default active viewport."""
+    viewport_name: str | None = "/OmniverseKit/Viewport"
+    """Viewport name to use. If None, uses active viewport."""
     
-    camera_position: tuple[float, float, float] | None = (10.0, 10.0, 10.0)
-    """Initial camera position for viewport (x, y, z). If None, keeps current camera pose."""
+    create_viewport: bool = False
+    """Create new viewport with specified name and camera pose."""
     
-    camera_target: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z). If None, keeps current target."""
+    window_width: int = 1920
+    """Viewport width in pixels."""
     
-    # App launch settings (for standalone mode)
+    window_height: int = 1080
+    """Viewport height in pixels."""
+    
     launch_app_if_missing: bool = True
-    """If True and no app is running, launch a new Isaac Sim app instance."""
+    """Launch Isaac Sim if not already running."""
     
     app_experience: str = "isaac-sim.python.kit"
-    """Isaac Sim app experience file to use when launching standalone app."""
-    
-    # Environment visibility (for partial visualization - future use)
-    # NOTE: Partial visualization (REQ-11) is not implemented in this minimal version
-    # visualize_all_envs: bool = True
-    # env_indices_to_visualize: list[int] | None = None
+    """Isaac Sim experience file for standalone launch."""

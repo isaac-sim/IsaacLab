@@ -32,26 +32,12 @@ except ImportError:
 
 
 class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
-    """Isaac Lab wrapper around Newton's ViewerRerun.
+    """Isaac Lab wrapper for Newton's ViewerRerun.
     
-    This wrapper adds Isaac Lab-specific features on top of Newton's base ViewerRerun:
-    
-    - Integration with Isaac Lab's VisualizationMarkers system
-    - Integration with Isaac Lab's LivePlots system
-    - Environment metadata display
-    - Custom Rerun blueprint for Isaac Lab workflow
-    - Partial environment visualization support
-    
-    The wrapper uses composition to extend Newton's ViewerRerun without modifying
-    the base Newton library, similar to how NewtonViewerGL wraps ViewerGL.
-    
-    Note:
-        This class requires Newton physics backend and rerun-sdk to be installed.
-    """
+    Adds VisualizationMarkers, LivePlots, metadata display, and partial visualization."""
 
     def __init__(
         self,
-        # Newton ViewerRerun parameters
         server: bool = True,
         address: str = "127.0.0.1:9876",
         launch_viewer: bool = True,
@@ -59,51 +45,30 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         keep_historical_data: bool = False,
         keep_scalar_history: bool = True,
         record_to_rrd: str | None = None,
-        # Isaac Lab-specific parameters
-        train_mode: bool = True,
         metadata: dict | None = None,
-        visualize_markers: bool = True,
-        visualize_plots: bool = True,
+        enable_markers: bool = True,
+        enable_live_plots: bool = True,
         env_indices: list[int] | None = None,
     ):
-        """Initialize Isaac Lab Rerun viewer wrapper.
-        
-        Args:
-            server: If True, start rerun in server mode (gRPC).
-            address: Address and port for rerun server mode.
-            launch_viewer: If True, launch a local rerun viewer client.
-            app_id: Application ID for rerun (defaults to 'newton-viewer').
-            keep_historical_data: If True, keep historical data in the timeline.
-            keep_scalar_history: If True, keep historical scalar data.
-            record_to_rrd: Path to record viewer to .rrd file.
-            train_mode: Whether in training mode (affects behavior/UI).
-            metadata: Scene metadata (num_envs, physics backend, etc.).
-            visualize_markers: Whether to actively log VisualizationMarkers.
-            visualize_plots: Whether to actively log LivePlot data.
-            env_indices: Which environments to visualize (None = all).
-        """
+        """Initialize Newton ViewerRerun wrapper."""
         if not _RERUN_AVAILABLE:
-            raise ImportError(
-                "Rerun visualizer requires rerun-sdk and Newton to be installed. "
-                "Install with: pip install rerun-sdk"
-            )
+            raise ImportError("Rerun visualizer requires rerun-sdk and Newton. Install: pip install rerun-sdk")
         
-        # Call parent constructor with only Newton parameters
+        # Call parent with only Newton parameters
         super().__init__(
             server=server,
             address=address,
             launch_viewer=launch_viewer,
             app_id=app_id,
-            # keep_historical_data=keep_historical_data,
-            # keep_scalar_history=keep_scalar_history,
-            # record_to_rrd=record_to_rrd,
+            keep_historical_data=keep_historical_data,
+            keep_scalar_history=keep_scalar_history,
+            record_to_rrd=record_to_rrd,
         )
         
-        # Isaac Lab specific state
+        # Isaac Lab state
         self._metadata = metadata or {}
-        self._train_mode = train_mode
-        self._visualize_markers = visualize_markers
-        self._visualize_plots = visualize_plots
+        self._enable_markers = enable_markers
+        self._enable_live_plots = enable_live_plots
         self._env_indices = env_indices
         
         # Storage for registered markers and plots
@@ -130,13 +95,13 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         else:
             metadata_text += f"**Visualized Environments:** All ({num_envs})\n"
         
-        # Mode info
-        mode = "Training" if self._train_mode else "Inference/Play"
-        metadata_text += f"**Mode:** {mode}\n"
+        # Physics backend info
+        physics_backend = self._metadata.get("physics_backend", "unknown")
+        metadata_text += f"**Physics:** {physics_backend}\n"
         
         # Visualization features
-        metadata_text += f"**Markers Enabled:** {self._visualize_markers}\n"
-        metadata_text += f"**Plots Enabled:** {self._visualize_plots}\n"
+        metadata_text += f"**Markers Enabled:** {self._enable_markers}\n"
+        metadata_text += f"**Plots Enabled:** {self._enable_live_plots}\n"
         
         # Additional metadata
         for key, value in self._metadata.items():
@@ -291,67 +256,18 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
 
 
 class RerunVisualizer(Visualizer):
-    """Rerun-based visualizer for Isaac Lab using rerun-sdk.
+    """Rerun web-based visualizer with time scrubbing, recording, and data inspection.
     
-    This visualizer provides web-based visualization with advanced features:
-    
-    - **Time Scrubbing**: Rewind and replay simulation timeline
-    - **Data Inspection**: Inspect transforms, meshes, and data in detail
-    - **Recording**: Save to .rrd files for offline analysis
-    - **Active Logging**: Explicitly logs markers and plots (unlike passive OV visualizer)
-    
-    The Rerun visualizer wraps Newton's ViewerRerun and requires the Newton physics
-    backend. It uses active logging, meaning all visualization data (markers, plots)
-    must be explicitly logged each frame, unlike the OV visualizer where USD-based
-    markers automatically appear.
-    
-    Requirements:
-        - Newton physics backend (scene_data must contain Newton Model and State)
-        - rerun-sdk package: ``pip install rerun-sdk``
-    
-    Future Support:
-        - PhysX backend support (planned for future release)
-        - Additional marker types (cylinders, cones, boxes)
-        - Full LivePlot integration (currently stub)
-    
-    Example:
-        
-        .. code-block:: python
-        
-            from isaaclab.sim import SimulationCfg
-            from isaaclab.sim.visualizers import RerunVisualizerCfg
-            
-            sim_cfg = SimulationCfg(
-                dt=0.01,
-                visualizers=RerunVisualizerCfg(
-                    enabled=True,
-                    launch_viewer=True,
-                    keep_historical_data=False,  # Constant memory
-                ),
-            )
-    """
+    Requires Newton physics backend and rerun-sdk (pip install rerun-sdk)."""
 
     def __init__(self, cfg: RerunVisualizerCfg):
-        """Initialize Rerun visualizer.
-        
-        Args:
-            cfg: Configuration for Rerun visualizer.
-        
-        Raises:
-            ImportError: If rerun-sdk or Newton is not installed.
-        """
+        """Initialize Rerun visualizer."""
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
         
-        # Check dependencies
         if not _RERUN_AVAILABLE:
-            raise ImportError(
-                "Rerun visualizer requires rerun-sdk and Newton to be installed.\n"
-                "Install with: pip install rerun-sdk\n"
-                "Make sure Newton physics is also available in your environment."
-            )
+            raise ImportError("Rerun visualizer requires rerun-sdk and Newton. Install: pip install rerun-sdk")
         
-        # Will be initialized in initialize()
         self._viewer: NewtonViewerRerun | None = None
         self._model = None
         self._state = None
@@ -359,23 +275,7 @@ class RerunVisualizer(Visualizer):
         self._sim_time = 0.0
     
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize Rerun visualizer with scene data.
-        
-        This method:
-        1. Validates required data (Newton Model and State)
-        2. Checks physics backend compatibility
-        3. Creates NewtonViewerRerun instance with Isaac Lab extensions
-        4. Sets up the model for visualization
-        
-        Args:
-            scene_data: Scene data from SceneDataProvider. Must contain:
-                - "model": Newton Model (required)
-                - "state": Newton State (required)
-                - "metadata": Scene metadata (physics backend, num_envs, etc.)
-        
-        Raises:
-            RuntimeError: If Newton Model/State is not available or physics backend is incompatible.
-        """
+        """Initialize visualizer with Newton Model and State."""
         if self._is_initialized:
             omni.log.warn("[RerunVisualizer] Already initialized. Skipping re-initialization.")
             return
@@ -421,10 +321,9 @@ class RerunVisualizer(Visualizer):
                 keep_historical_data=self.cfg.keep_historical_data,
                 keep_scalar_history=self.cfg.keep_scalar_history,
                 record_to_rrd=self.cfg.record_to_rrd,
-                train_mode=self.cfg.train_mode,
                 metadata=metadata,
-                visualize_markers=self.cfg.visualize_markers,
-                visualize_plots=self.cfg.visualize_plots,
+                enable_markers=self.cfg.enable_markers,
+                enable_live_plots=self.cfg.enable_live_plots,
                 env_indices=self.cfg.env_indices,
             )
             

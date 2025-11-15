@@ -29,12 +29,11 @@ class NewtonViewerGL(ViewerGL):
     The training pause can be toggled from the UI via a button and optionally via the 'T' key.
     """
 
-    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, **kwargs):
+    def __init__(self, *args, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training: bool = False
         self._paused_rendering: bool = False
         self._fallback_draw_controls: bool = False
-        self._is_train_mode: bool = train_mode
         self._visualizer_update_frequency: int = 1
         self._metadata = metadata or {}
 
@@ -70,23 +69,15 @@ class NewtonViewerGL(ViewerGL):
     # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
         imgui.separator()
-
-        # Use simple flag to adjust labels
-        if self._is_train_mode:
-            imgui.text("IsaacLab Training Controls")
-            pause_label = "Resume Training" if self._paused_training else "Pause Training"
-        else:
-            imgui.text("IsaacLab Playback Controls")
-            pause_label = "Resume Playing" if self._paused_training else "Pause Playing"
-
+        imgui.text("Isaac Lab Training Controls")
+        
+        pause_label = "Resume Training" if self._paused_training else "Pause Training"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
 
-        # Only show rendering controls when in training mode
-        if self._is_train_mode:
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
-            if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
+        rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+        if imgui.button(rendering_label):
+            self._paused_rendering = not self._paused_rendering
 
         imgui.text("Visualizer Update Frequency")
 
@@ -322,7 +313,6 @@ class NewtonVisualizer(Visualizer):
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
-            train_mode=self.cfg.train_mode,
             metadata=metadata,
         )
 
