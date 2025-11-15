@@ -40,6 +40,7 @@ from .rerun_visualizer_cfg import RerunVisualizerCfg
 # Import visualizer implementations
 from .newton_visualizer import NewtonVisualizer
 from .ov_visualizer import OVVisualizer
+from .rerun_visualizer import RerunVisualizer
 
 # Global registry for visualizer types (defined after Visualizer import)
 _VISUALIZER_REGISTRY: dict[str, Any] = {}
@@ -51,6 +52,7 @@ __all__ = [
     "NewtonVisualizerCfg",
     "OVVisualizer",
     "OVVisualizerCfg",
+    "RerunVisualizer",
     "RerunVisualizerCfg",
     "register_visualizer",
     "get_visualizer_class",
@@ -97,5 +99,5 @@ def get_visualizer_class(name: str) -> Type[Visualizer] | None:
 _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
 _VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
 _VISUALIZER_REGISTRY["ov"] = OVVisualizer  # Alias for convenience
-
+_VISUALIZER_REGISTRY["rerun"] = RerunVisualizer
 

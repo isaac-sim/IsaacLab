@@ -1,11 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for Rerun Visualizer."""
+"""Configuration for the Rerun visualizer."""
 
-from typing import Literal
+from __future__ import annotations
 
 from isaaclab.utils import configclass
 
@@ -14,146 +14,156 @@ from .visualizer_cfg import VisualizerCfg
 
 @configclass
 class RerunVisualizerCfg(VisualizerCfg):
-    """Configuration for Rerun Visualizer.
+    """Configuration for the Rerun visualizer using rerun-sdk.
     
-    The Rerun Visualizer integrates with the rerun visualization library, enabling
-    real-time or offline visualization with advanced features like time scrubbing
-    and data inspection through a web-based interface.
+    The Rerun visualizer provides web-based visualization with advanced features:
     
-    Features:
-    - Web-based visualization interface
     - Time scrubbing and playback controls
-    - 3D scene navigation
-    - Data inspection and filtering
-    - Recording and export capabilities
-    - Remote viewing support
+    - 3D scene navigation and inspection
+    - Data filtering and analysis
+    - Recording to .rrd files for offline replay
+    - Built-in timeline and data inspection tools
+    
+    This visualizer requires the Newton physics backend and the rerun-sdk package:
+    
+    .. code-block:: bash
+    
+        pip install rerun-sdk
     
     Note:
-        Requires the rerun-sdk package to be installed: pip install rerun-sdk
+        The Rerun visualizer wraps Newton's ViewerRerun, which requires a Newton Model
+        and State. It will not work with other physics backends (e.g., PhysX) until
+        future support is added.
+    
+    Example:
+        
+        .. code-block:: python
+        
+            from isaaclab.sim.visualizers import RerunVisualizerCfg
+            
+            visualizer_cfg = RerunVisualizerCfg(
+                enabled=True,
+                server_mode=True,
+                launch_viewer=True,
+                keep_historical_data=False,  # Constant memory for training
+                record_to_rrd="recording.rrd",  # Save to file
+            )
     """
 
-    # Override defaults for Rerun visualizer
-    camera_position: tuple[float, float, float] = (10.0, 10.0, 10.0)
-    """Initial position of the camera. Default is (10.0, 10.0, 10.0)."""
+    visualizer_type: str = "rerun"
+    """Type identifier for the Rerun visualizer. Defaults to "rerun"."""
 
-    # Rerun-specific settings
+    # Connection settings
     server_mode: bool = True
-    """Whether to run in server mode. Default is True.
+    """Whether to run Rerun in server mode (gRPC). Defaults to True.
     
-    In server mode, Rerun starts a server that viewers can connect to.
-    When False, data is logged to a file or sent to an external viewer.
+    If True, Rerun will start a gRPC server that the web viewer connects to.
+    If False, data is logged directly (useful for recording to file only).
     """
 
     server_address: str = "127.0.0.1:9876"
-    """Server address for Rerun. Default is "127.0.0.1:9876".
+    """Server address and port for gRPC mode. Defaults to "127.0.0.1:9876".
     
-    Format: "host:port". Only used when server_mode is True.
+    Only used if server_mode=True. The web viewer will connect to this address.
     """
 
     launch_viewer: bool = True
-    """Whether to automatically launch the web viewer. Default is True.
+    """Whether to auto-launch the web viewer. Defaults to True.
     
-    When True, the Rerun web viewer will be automatically opened in a browser.
+    If True, a web browser will open showing the Rerun viewer interface.
+    The viewer provides 3D visualization, timeline controls, and data inspection.
     """
 
     app_id: str = "isaaclab-simulation"
-    """Application identifier for Rerun. Default is "isaaclab-simulation".
+    """Application identifier for Rerun. Defaults to "isaaclab-simulation".
     
-    This is used to identify the application in the Rerun viewer and for
-    organizing recordings.
+    This is displayed in the Rerun viewer title and used to distinguish
+    multiple Rerun sessions.
     """
 
-    recording_path: str | None = None
-    """Path to save recordings. Default is None (don't save).
+    # Data management
+    keep_historical_data: bool = False
+    """Whether to keep historical transform data in viewer timeline. Defaults to False.
     
-    When specified, the Rerun data will be saved to this path for later replay.
-    Supported formats: .rrd (Rerun recording format)
+    - If False: Only current frame is kept, memory usage is constant (good for training)
+    - If True: Full timeline is kept, enables time scrubbing (good for debugging)
+    
+    For long training runs with many environments, False is recommended to avoid
+    memory issues. For analysis and debugging, True allows rewinding the simulation.
     """
 
-    spawn_mode: Literal["connect", "spawn", "save"] = "spawn"
-    """How to handle the Rerun viewer. Default is "spawn".
+    keep_scalar_history: bool = True
+    """Whether to keep historical scalar/plot data in viewer. Defaults to True.
     
-    - "connect": Connect to an existing Rerun viewer
-    - "spawn": Spawn a new Rerun viewer process
-    - "save": Save to a file without opening a viewer
+    Scalar data (plots, metrics) is typically small, so keeping history is
+    reasonable even for long runs. This enables viewing plot trends over time.
     """
 
-    max_queue_size: int = 100
-    """Maximum number of messages to queue. Default is 100.
+    # Recording
+    record_to_rrd: str | None = None
+    """Path to save recording as .rrd file. Defaults to None (no recording).
     
-    Controls memory usage for buffering visualization data.
+    If specified (e.g., "my_recording.rrd"), all logged data will be saved to
+    this file for offline replay and analysis. The file can be opened later with:
+    
+    .. code-block:: bash
+    
+        rerun my_recording.rrd
+    
+    Example paths:
+        - "recording.rrd" - saves to current directory
+        - "/tmp/recordings/run_{timestamp}.rrd" - absolute path with timestamp
+        - None - no recording saved
     """
 
-    flush_timeout: float = 2.0
-    """Timeout for flushing data to Rerun in seconds. Default is 2.0."""
-
+    # Visualization options
     log_transforms: bool = True
-    """Whether to log rigid body transforms. Default is True."""
+    """Whether to log rigid body transforms. Defaults to True.
+    
+    Transform logging shows the position and orientation of all rigid bodies
+    in the scene. This is the core visualization data.
+    """
 
     log_meshes: bool = True
-    """Whether to log mesh data. Default is True.
+    """Whether to log mesh geometry. Defaults to True.
     
-    When enabled, collision and visual meshes will be logged to Rerun.
+    Mesh logging shows the 3D shapes of objects. If False, only transforms
+    (positions/orientations) are shown as coordinate frames.
     """
 
-    log_cameras: bool = True
-    """Whether to log camera data. Default is True."""
-
-    log_point_clouds: bool = False
-    """Whether to log point cloud data. Default is False."""
-
-    log_images: bool = False
-    """Whether to log images from cameras. Default is False.
+    visualize_markers: bool = True
+    """Whether to actively log VisualizationMarkers to Rerun. Defaults to True.
     
-    Note: Logging images can significantly increase data size and bandwidth.
+    If True, markers created via VisualizationMarkers (arrows, frames, spheres, etc.)
+    will be converted to Rerun entities and logged each frame. This requires active
+    logging (unlike OV visualizer where markers auto-appear in the viewport).
+    
+    Supported marker types:
+        - Arrows (via log_lines)
+        - Coordinate frames (via log_lines for XYZ axes)
+        - Spheres (via log_points)
     """
 
-    log_tensors: bool = False
-    """Whether to log tensor data (observations, actions, etc.). Default is False.
+    visualize_plots: bool = True
+    """Whether to actively log LivePlot data to Rerun. Defaults to True.
     
-    When enabled, can log observation buffers, action buffers, and other tensors.
+    If True, scalar data from LivePlots will be logged as time series in Rerun.
+    This allows viewing training metrics, rewards, and other scalars alongside
+    the 3D visualization.
+    
+    Note: Currently a stub - full implementation coming soon.
     """
 
-    time_mode: Literal["sim_time", "wall_time", "step_count"] = "sim_time"
-    """Time mode for logging. Default is "sim_time".
+    # Performance and filtering
+    max_instances_per_env: int | None = None
+    """Maximum number of instances to visualize per environment. Defaults to None (all).
     
-    - "sim_time": Use simulation time as the timeline
-    - "wall_time": Use wall clock time
-    - "step_count": Use step count as the timeline
+    For scenes with many instances per environment, this limits how many are
+    visualized to improve performance. None means visualize all instances.
     """
 
-    entity_path_prefix: str = "/world"
-    """Prefix for entity paths in Rerun. Default is "/world".
-    
-    All logged entities will be under this prefix in the Rerun hierarchy.
-    """
-
-    log_static_once: bool = True
-    """Whether to log static scene data only once. Default is True.
-    
-    When True, static meshes and other unchanging data are logged only at the
-    start, reducing data size and bandwidth.
-    """
-
-    up_axis: Literal["+x", "-x", "+y", "-y", "+z", "-z"] = "+z"
-    """The up axis for the 3D space. Default is "+z".
-    
-    This should match your simulation's coordinate system.
-    """
-
-    mesh_quality: Literal["low", "medium", "high"] = "medium"
-    """Quality level for mesh data. Default is "medium".
-    
-    Higher quality preserves more detail but increases data size.
-    """
-
-    enable_compression: bool = True
-    """Whether to enable data compression. Default is True.
-    
-    Compression reduces bandwidth and storage requirements but adds CPU overhead.
-    """
-
-    verbose: bool = False
-    """Whether to enable verbose logging. Default is False."""
-
+    # Future: PhysX backend support
+    # When PhysX support is added, these fields will be used:
+    # physics_backend: Literal["newton", "physx"] | None = None
+    # """Physics backend to use. Auto-detected if None."""
 
