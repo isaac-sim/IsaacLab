@@ -60,9 +60,9 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             address=address,
             launch_viewer=launch_viewer,
             app_id=app_id,
-            keep_historical_data=keep_historical_data,
-            keep_scalar_history=keep_scalar_history,
-            record_to_rrd=record_to_rrd,
+            # keep_historical_data=keep_historical_data,
+            # keep_scalar_history=keep_scalar_history,
+            # record_to_rrd=record_to_rrd,
         )
         
         # Isaac Lab state
@@ -117,7 +117,7 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         Args:
             markers: VisualizationMarkers instance to log each frame.
         """
-        if self._visualize_markers:
+        if self._enable_markers:
             self._registered_markers.append(markers)
             omni.log.info(f"[RerunVisualizer] Registered markers: {markers}")
     
@@ -127,7 +127,7 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         Args:
             plots: Dictionary mapping plot names to LivePlot instances.
         """
-        if self._visualize_plots:
+        if self._enable_live_plots:
             self._registered_plots.update(plots)
             omni.log.info(f"[RerunVisualizer] Registered {len(plots)} plot(s)")
     
@@ -151,7 +151,7 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             - Optimize batch logging for large marker counts
             - Add color/material support for better visual distinction
         """
-        if not self._visualize_markers or len(self._registered_markers) == 0:
+        if not self._enable_markers or len(self._registered_markers) == 0:
             return
         
         try:
@@ -190,7 +190,7 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             - Maintain proper timeline synchronization
             - Support different plot types (line, bar, etc.)
         """
-        if not self._visualize_plots or len(self._registered_plots) == 0:
+        if not self._enable_live_plots or len(self._registered_plots) == 0:
             return
         
         try:
@@ -313,6 +313,9 @@ class RerunVisualizer(Visualizer):
         
         # Create Newton ViewerRerun wrapper
         try:
+            if self.cfg.record_to_rrd:
+                omni.log.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
+            
             self._viewer = NewtonViewerRerun(
                 server=self.cfg.server_mode,
                 address=self.cfg.server_address,
@@ -389,11 +392,11 @@ class RerunVisualizer(Visualizer):
                 self._viewer.log_state(self._state)
         
         # Actively log markers (if enabled)
-        if self.cfg.visualize_markers:
+        if self.cfg.enable_markers:
             self._viewer.log_markers()
         
         # Actively log plot data (if enabled)
-        if self.cfg.visualize_plots:
+        if self.cfg.enable_live_plots:
             self._viewer.log_plot_data()
         
         # End frame
@@ -403,17 +406,22 @@ class RerunVisualizer(Visualizer):
         self._sim_time += dt
     
     def close(self) -> None:
-        """Clean up Rerun visualizer resources.
-        
-        This closes the Rerun viewer, disconnects from the server, and
-        finalizes any recording files.
-        """
+        """Clean up Rerun visualizer resources and finalize recordings."""
         if not self._is_initialized or self._viewer is None:
             return
         
         try:
+            if self.cfg.record_to_rrd:
+                omni.log.info(f"[RerunVisualizer] Finalizing recording to: {self.cfg.record_to_rrd}")
             self._viewer.close()
             omni.log.info("[RerunVisualizer] Closed successfully.")
+            if self.cfg.record_to_rrd:
+                import os
+                if os.path.exists(self.cfg.record_to_rrd):
+                    size = os.path.getsize(self.cfg.record_to_rrd)
+                    omni.log.info(f"[RerunVisualizer] Recording saved: {self.cfg.record_to_rrd} ({size} bytes)")
+                else:
+                    omni.log.warn(f"[RerunVisualizer] Recording file not found: {self.cfg.record_to_rrd}")
         except Exception as e:
             omni.log.warn(f"[RerunVisualizer] Error during close: {e}")
         

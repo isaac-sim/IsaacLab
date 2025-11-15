@@ -34,7 +34,6 @@ class NewtonViewerGL(ViewerGL):
         self._paused_training: bool = False
         self._paused_rendering: bool = False
         self._fallback_draw_controls: bool = False
-        self._visualizer_update_frequency: int = 1
         self._metadata = metadata or {}
 
         try:
@@ -50,22 +49,6 @@ class NewtonViewerGL(ViewerGL):
         """Check if rendering is paused."""
         return self._paused_rendering
 
-    def set_visualizer_update_frequency(self, frequency: int) -> None:
-        """Set the visualizer update frequency.
-        
-        Args:
-            frequency: Number of simulation steps between visualizer updates.
-        """
-        self._visualizer_update_frequency = max(1, frequency)
-
-    def get_visualizer_update_frequency(self) -> int:
-        """Get the current visualizer update frequency.
-        
-        Returns:
-            Number of simulation steps between visualizer updates.
-        """
-        return self._visualizer_update_frequency
-
     # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
         imgui.separator()
@@ -78,21 +61,6 @@ class NewtonViewerGL(ViewerGL):
         rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused_rendering = not self._paused_rendering
-
-        imgui.text("Visualizer Update Frequency")
-
-        current_frequency = self._visualizer_update_frequency
-        changed, new_frequency = imgui.slider_int(
-            "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
-        )
-        if changed:
-            self._visualizer_update_frequency = new_frequency
-
-        if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "Controls visualizer update frequency\nlower values-> more responsive visualizer but slower"
-                " training\nhigher values-> less responsive visualizer but faster training"
-            )
 
     # Override only SPACE key to use rendering pause, preserve all other shortcuts
     def on_key_press(self, symbol, modifiers):
@@ -341,24 +309,13 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.sky_lower = self.cfg.ground_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
-        # Set update frequency
-        self._viewer.set_visualizer_update_frequency(self.cfg.update_frequency)
-
         self._is_initialized = True
 
     def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
         """Update the visualizer for one simulation step.
         
-        Args:
-            dt: Time step in seconds since last visualization update.
-            scene_provider: Provider for accessing current scene data. The visualizer
-                           will pull the latest Newton state from this provider.
-        
-        Note:
-            Pause handling (training and rendering) is managed by SimulationContext.
-            This method only performs the actual rendering when called.
-            The visualizer MUST be called every frame to maintain proper ImGui state,
-            even if we skip rendering some frames based on update_frequency.
+        Note: The visualizer MUST be called every frame to maintain proper ImGui state.
+        Pause handling (training and rendering) is managed by SimulationContext.
         """
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
@@ -370,9 +327,7 @@ class NewtonVisualizer(Visualizer):
         if scene_provider is not None:
             self._state = scene_provider.get_state()
 
-        # Render the current frame
-        # Note: We always call begin_frame/end_frame to maintain ImGui state
-        # The update frequency is handled internally by the viewer
+        # Render the current frame (always call to maintain ImGui state)
         try:
             self._viewer.begin_frame(self._sim_time)
             try:

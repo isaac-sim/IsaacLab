@@ -31,6 +31,12 @@ class NewtonVisualizerCfg(VisualizerCfg):
     window_height: int = 1080
     """Window height in pixels."""
 
+    camera_position: tuple[float, float, float] = (10.0, 0.0, 3.0)
+    """Initial camera position (x, y, z)."""
+
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera target/look-at point (x, y, z)."""
+
     # Newton-specific settings
     fps: int = 60
     """Target FPS."""

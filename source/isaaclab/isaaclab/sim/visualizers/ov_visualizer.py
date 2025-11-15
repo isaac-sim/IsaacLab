@@ -148,43 +148,35 @@ class OVVisualizer(Visualizer):
     def _setup_viewport(self, usd_stage, metadata: dict) -> None:
         """Setup viewport with camera and window size."""
         try:
-            from omni.kit.viewport.utility import get_active_viewport, create_viewport_window
-            import omni.ui as ui
+            import omni.kit.viewport.utility as vp_utils
             
             # Create new viewport or use existing
             if self.cfg.create_viewport and self.cfg.viewport_name:
-                # Create new viewport
-                self._viewport_window = create_viewport_window(
-                    title=self.cfg.viewport_name,
+                # Create new viewport with proper API
+                self._viewport_window = vp_utils.create_viewport_window(
+                    name=self.cfg.viewport_name,
                     width=self.cfg.window_width,
                     height=self.cfg.window_height,
+                    position_x=50,  # Window position on screen
+                    position_y=50,
                 )
-                # Make viewport visible in UI
-                if self._viewport_window:
-                    self._viewport_window.visible = True
-                    self._viewport_window.docked = False
                 omni.log.info(f"[OVVisualizer] Created viewport '{self.cfg.viewport_name}'")
             else:
-                # Use existing viewport
-                self._viewport_window = get_active_viewport()
-                # Try to resize if window API is available
-                if self._viewport_window and hasattr(self._viewport_window, 'width'):
-                    try:
-                        self._viewport_window.width = self.cfg.window_width
-                        self._viewport_window.height = self.cfg.window_height
-                    except:
-                        pass
+                # Use existing active viewport
+                self._viewport_window = vp_utils.get_active_viewport_window()
+                omni.log.info("[OVVisualizer] Using existing active viewport")
             
             if self._viewport_window is None:
                 omni.log.warn("[OVVisualizer] Could not get/create viewport.")
                 return
             
+            # Get viewport API for camera control
             self._viewport_api = self._viewport_window.viewport_api
             
-            # Set camera
+            # Set camera pose using Isaac Sim utility
             self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
             
-            omni.log.info("[OVVisualizer] Viewport configured.")
+            omni.log.info(f"[OVVisualizer] Viewport configured (size: {self.cfg.window_width}x{self.cfg.window_height})")
             
         except ImportError as e:
             omni.log.warn(f"[OVVisualizer] Viewport utilities unavailable: {e}")
@@ -196,25 +188,28 @@ class OVVisualizer(Visualizer):
         position: tuple[float, float, float],
         target: tuple[float, float, float]
     ) -> None:
-        """Set viewport camera position and target."""
+        """Set viewport camera position and target using Isaac Sim utilities."""
         if self._viewport_api is None:
             return
         
         try:
-            from pxr import Gf
+            # Import Isaac Sim viewport utilities
+            import isaacsim.core.utils.viewports as vp_utils
             
-            eye = Gf.Vec3d(*position)
-            target_pos = Gf.Vec3d(*target)
-            up = Gf.Vec3d(0, 0, 1)
+            # Get the camera prim path for this viewport
+            camera_path = self._viewport_api.get_active_camera()
+            if not camera_path:
+                camera_path = "/OmniverseKit_Persp"  # Default camera
             
-            # Try viewport API methods
-            if hasattr(self._viewport_api, 'set_view'):
-                self._viewport_api.set_view(eye, target_pos, up)
-            elif hasattr(self._viewport_window, 'set_camera_position'):
-                self._viewport_window.set_camera_position(*position, True)
-                self._viewport_window.set_camera_target(*target, True)
+            # Use Isaac Sim utility to set camera view
+            vp_utils.set_camera_view(
+                eye=list(position),
+                target=list(target),
+                camera_prim_path=camera_path,
+                viewport_api=self._viewport_api
+            )
             
-            omni.log.info(f"[OVVisualizer] Camera: pos={position}, target={target}")
+            omni.log.info(f"[OVVisualizer] Camera set: pos={position}, target={target}, camera={camera_path}")
             
         except Exception as e:
             omni.log.warn(f"[OVVisualizer] Could not set camera: {e}")

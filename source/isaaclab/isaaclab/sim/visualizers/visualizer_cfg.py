@@ -25,9 +25,6 @@ class VisualizerCfg:
     enabled: bool = False
     """Whether the visualizer is enabled."""
 
-    update_frequency: int = 1
-    """Update frequency in simulation steps (1 = every step)."""
-
     env_indices: list[int] | None = None
     """Environment indices to visualize. None = all environments."""
 
@@ -36,12 +33,6 @@ class VisualizerCfg:
 
     enable_live_plots: bool = True
     """Enable live plotting of data."""
-
-    camera_position: tuple[float, float, float] = (10.0, 0.0, 3.0)
-    """Initial camera position (x, y, z)."""
-
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z)."""
 
     def get_visualizer_type(self) -> str:
         """Get the visualizer type identifier."""

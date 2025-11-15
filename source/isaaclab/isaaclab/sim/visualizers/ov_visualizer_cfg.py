@@ -21,17 +21,23 @@ class OVVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "omniverse"
     """Type identifier for Omniverse visualizer."""
     
-    viewport_name: str | None = "/OmniverseKit/Viewport"
+    viewport_name: str | None = "Goldenstate" # "/OmniverseKit/Viewport"
     """Viewport name to use. If None, uses active viewport."""
     
-    create_viewport: bool = False
+    create_viewport: bool = True #False
     """Create new viewport with specified name and camera pose."""
     
-    window_width: int = 1920
+    window_width: int = 777 # 1920 
     """Viewport width in pixels."""
     
-    window_height: int = 1080
+    window_height: int = 777 # 1080
     """Viewport height in pixels."""
+    
+    camera_position: tuple[float, float, float] = (10.0, 10.0, 10.0)
+    """Initial camera position (x, y, z)."""
+    
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera target/look-at point (x, y, z)."""
     
     launch_app_if_missing: bool = True
     """Launch Isaac Sim if not already running."""
