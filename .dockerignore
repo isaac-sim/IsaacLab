@@ -12,6 +12,7 @@ docs/
 **/output/*
 **/outputs/*
 **/videos/*
+**/wandb/*
 *.tmp
 # ignore docker
 docker/cluster/exports/
