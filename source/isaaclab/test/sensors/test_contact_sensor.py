@@ -21,7 +21,7 @@ from enum import Enum
 import carb
 import pytest
 from flaky import flaky
-from pxr import PhysxSchema
+from pxr import Gf, PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -440,6 +440,68 @@ def test_contact_sensor_threshold(setup_simulation, device):
                 ), f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
 
 
+@pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -1.0), (0.0, -10.0, -1.0)])
+@pytest.mark.isaacsim_ci
+def test_friction_reporting(setup_simulation, grav_dir):
+    """
+    Test friction force reporting for contact sensors.
+
+    This test places a contact sensor enabled cube onto a ground plane under different gravity directions.
+    It then compares the normalized friction force dir with the direction of gravity to ensure they are aligned.
+    """
+    sim_dt, _, _, _, carb_settings_iface = setup_simulation
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    device = "cuda:0"
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+
+        filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
+
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+            track_friction_forces=True,
+            filter_prim_paths_expr=filter_prim_paths_expr,
+        )
+
+        scene = InteractiveScene(scene_cfg)
+
+        # set custom gravity
+        UsdPhysics.Scene.Get(scene.stage, "/physicsScene").CreateGravityDirectionAttr().Set(Gf.Vec3f(*grav_dir))
+
+        sim.reset()
+
+        scene["contact_sensor"].reset()
+        scene["shape"].write_root_pose_to_sim(
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+        )
+
+        # step sim once to compute friction forces
+        _perform_sim_step(sim, scene, sim_dt)
+
+        friction_force = scene["contact_sensor"]._data.friction_forces_w[0, 0, :]
+        friction_magnitude = friction_force.norm().item()
+
+        assert friction_magnitude > 1e-6, "Friction forces should be non-zero"
+
+        grav = torch.tensor(grav_dir, device=device)
+        norm_friction = friction_force / friction_force.norm()
+        norm_gravity = grav / grav.norm()
+        dot = torch.dot(norm_friction.squeeze(), norm_gravity)
+
+        assert torch.isclose(
+            torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-2
+        ), "Friction force should be roughly opposite gravity direction"
+
+
 """
 Internal helpers.
 """
@@ -619,7 +681,7 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
     # check shape of the contact_pos_w tensor
     num_bodies = sensor.num_bodies
     assert sensor._data.friction_forces_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
-    # check friction forces
+    # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert not torch.any(torch.isnan(sensor._data.friction_forces_w)).item()
         friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_physx_view.get_friction_data(
