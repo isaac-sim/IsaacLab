@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.49.0 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Implemented drive model improvements for implicit actuators allowing them to configure a new feature within physx to apply
+  constraints on actuator effort dependent on the torque and velocity on the articulation.
+* Introduced a NamedTuple config classes as a way to organize related parameters, and extended the configuration parsing to
+  work with related (mutually dependent) parameters in the configurations.
+
 0.48.4 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -100,7 +111,6 @@ Added
 ^^^^^
 
 * Added parameter :attr:`~isaaclab.terrains.TerrainImporterCfg.use_terrain_origins` to allow generated sub terrains with grid origins.
-
 
 0.47.7 (2025-10-31)
 ~~~~~~~~~~~~~~~~~~~

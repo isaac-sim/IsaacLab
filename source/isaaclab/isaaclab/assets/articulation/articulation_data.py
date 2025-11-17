@@ -289,6 +289,10 @@ class ArticulationData:
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
+    default_joint_drive_model_parameters: torch.Tensor = None
+    """Default joint drive model parameters. Shape is (num_instances, num_drive_models, 3). The last indices reflect
+       the speed_effort_gradient, the max_actuator_velocity, and the velocity_dependent_resistance respectively."""
+
     ##
     # Joint commands -- Set into simulation.
     ##
@@ -383,6 +387,9 @@ class ArticulationData:
 
     joint_effort_limits: torch.Tensor = None
     """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_drive_model_parameters = None
+    """Joint drive model parameters provided to the simulation. Shape is (num_instances, num_joints, 3)."""
 
     ##
     # Joint properties - Custom.

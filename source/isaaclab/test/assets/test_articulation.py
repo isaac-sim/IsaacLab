@@ -48,6 +48,7 @@ def generate_articulation_cfg(
     effort_limit: float | None = None,
     velocity_limit_sim: float | None = None,
     effort_limit_sim: float | None = None,
+    drive_model: tuple[float, float, float] | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -67,11 +68,13 @@ def generate_articulation_cfg(
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
         effort_limit_sim: Effort limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
+        drive_model: Drive model parameters for the actuators.
+            Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
         The articulation configuration for the requested articulation type.
-
     """
+
     if articulation_type == "humanoid":
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
@@ -102,6 +105,7 @@ def generate_articulation_cfg(
                     velocity_limit=velocity_limit,
                     stiffness=2000.0,
                     damping=100.0,
+                    drive_model=drive_model,
                 ),
             },
             init_state=ArticulationCfg.InitialStateCfg(
@@ -126,6 +130,7 @@ def generate_articulation_cfg(
                     velocity_limit=velocity_limit,
                     stiffness=0.0,
                     damping=10.0,
+                    drive_model=drive_model,
                 ),
             },
         )
@@ -1367,6 +1372,84 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("drive_model", [(100.0, 200.0, 0.1), None])
+@pytest.mark.skipif(int(get_version()[2]) < 5, reason="Simulator version must be 5 or greater")
+@pytest.mark.isaacsim_ci
+def test_setting_drive_model_explicit(sim, num_articulations, device, drive_model):
+    """Test setting of velocity limit for explicit actuators."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_explicit", drive_model=drive_model)
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=device,
+    )
+    # Play sim
+    sim.reset()
+
+    # collect dm init values
+    physx_dm = articulation.root_physx_view.get_dof_drive_model_properties().to(device)
+    actuator_dm = articulation.actuators["joint"].drive_model
+
+    # check data buffer for joint_
+    torch.testing.assert_close(articulation.data.joint_drive_model_parameters, physx_dm)
+
+    if drive_model is not None:
+        expected_actuator_dm = torch.zeros(
+            (articulation.num_instances, articulation.num_joints, 3),
+            device=articulation.device,
+        )
+        expected_actuator_dm[:, :, 0] = drive_model[0]
+        expected_actuator_dm[:, :, 1] = drive_model[1]
+        expected_actuator_dm[:, :, 2] = drive_model[2]
+
+        # check actuator is set
+        torch.testing.assert_close(actuator_dm, expected_actuator_dm)
+    else:
+        # check actuator velocity_limit is the same as the PhysX default
+        torch.testing.assert_close(actuator_dm, physx_dm)
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("drive_model", [(100.0, 200.0, 0.1), None])
+@pytest.mark.skipif(int(get_version()[2]) < 5, reason="Simulator version must be 5 or greater")
+@pytest.mark.isaacsim_ci
+def test_setting_drive_model_implicit(sim, num_articulations, device, drive_model):
+    """Test setting of velocity limit for explicit actuators."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit", drive_model=drive_model)
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=device,
+    )
+    # Play sim
+    sim.reset()
+
+    # collect dm init values
+    physx_dm = articulation.root_physx_view.get_dof_drive_model_properties().to(device)
+    actuator_dm = articulation.actuators["joint"].drive_model
+
+    # check data buffer for joint_
+    torch.testing.assert_close(articulation.data.joint_drive_model_parameters, physx_dm)
+
+    if drive_model is not None:
+        expected_actuator_dm = torch.zeros(
+            (articulation.num_instances, articulation.num_joints, 3),
+            device=articulation.device,
+        )
+        expected_actuator_dm[:, :, 0] = drive_model[0]
+        expected_actuator_dm[:, :, 1] = drive_model[1]
+        expected_actuator_dm[:, :, 2] = drive_model[2]
+
+        # check actuator is set
+        torch.testing.assert_close(actuator_dm, expected_actuator_dm)
+    else:
+        # check actuator velocity_limit is the same as the PhysX default
+        torch.testing.assert_close(actuator_dm, physx_dm)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
