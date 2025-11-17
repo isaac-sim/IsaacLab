@@ -111,6 +111,7 @@ Added
 * Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
   ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
 
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
