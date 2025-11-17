@@ -39,6 +39,7 @@ class ContactSensorData:
             * If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
             * If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1.
             will not be calculated.
+
     """
 
     friction_forces_w: torch.Tensor | None = None
@@ -56,6 +57,7 @@ class ContactSensorData:
             * If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
             * If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1.
             will not be calculated.
+
     """
 
     quat_w: torch.Tensor | None = None
