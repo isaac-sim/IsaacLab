@@ -384,7 +384,7 @@ class ContactSensor(SensorBase):
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
                 self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
             )
-            self._data.contact_pos_w[env_ids] = self._unpack_contact_data(
+            self._data.contact_pos_w[env_ids] = self._unpack_contact_buffer_data(
                 buffer_contact_points, buffer_count, buffer_start_indices
             )[env_ids]
 
@@ -393,7 +393,7 @@ class ContactSensor(SensorBase):
             friction_forces, _, buffer_count, buffer_start_indices = self.contact_physx_view.get_friction_data(
                 dt=self._sim_physics_dt
             )
-            self._data.friction_forces_w[env_ids] = self._unpack_contact_data(
+            self._data.friction_forces_w[env_ids] = self._unpack_contact_buffer_data(
                 friction_forces, buffer_count, buffer_start_indices, avg=False, default=0.0
             )[env_ids]
 
@@ -427,7 +427,7 @@ class ContactSensor(SensorBase):
                 is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
             )
 
-    def _unpack_contact_data(
+    def _unpack_contact_buffer_data(
         self,
         contact_data: torch.Tensor,
         buffer_count: torch.Tensor,
@@ -448,33 +448,31 @@ class ContactSensor(SensorBase):
                     contact_data[start_index_ij : (start_index_ij + count_ij), :], dim=0
                 )
 
-        For more details, see the RigidContactView.get_contact_data() documentation:
-        https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
+        For more details, see the `RigidContactView.get_contact_data() documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_contact_data>`_.
 
         Args:
-            contact_data (torch.Tensor): Flat tensor of contact data, shape (N_envs * N_bodies, 3).
-            buffer_count (torch.Tensor): Number of contact points per (env, body, filter), shape (N_envs * N_bodies, N_filters).
-            buffer_start_indices (torch.Tensor): Start indices for each (env, body, filter), shape (N_envs * N_bodies, N_filters).
-            avg (bool, optional): If True, average the contact data for each group; if False, sum the data. Defaults to True.
-            default (float, optional): Default value to use for groups with zero contacts. Defaults to NaN.
+            contact_data: Flat tensor of contact data, shape (N_envs * N_bodies, 3).
+            buffer_count: Number of contact points per (env, body, filter), shape (N_envs * N_bodies, N_filters).
+            buffer_start_indices: Start indices for each (env, body, filter), shape (N_envs * N_bodies, N_filters).
+            avg: If True, average the contact data for each group; if False, sum the data. Defaults to True.
+            default: Default value to use for groups with zero contacts. Defaults to NaN.
 
         Returns:
-            torch.Tensor: Aggregated contact data, shape (N_envs, N_bodies, N_filters, 3).
+            Aggregated contact data, shape (N_envs, N_bodies, N_filters, 3).
         """
         counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
         n_rows, total = counts.numel(), int(counts.sum())
         agg = torch.full((n_rows, 3), default, device=self._device, dtype=contact_data.dtype)
         if total > 0:
             row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
-            total = row_ids.numel()
 
             block_starts = counts.cumsum(0) - counts
-            deltas = torch.arange(total, device=counts.device) - block_starts.repeat_interleave(counts)
+            deltas = torch.arange(row_ids.numel(), device=counts.device) - block_starts.repeat_interleave(counts)
             flat_idx = starts[row_ids] + deltas
 
             pts = contact_data.index_select(0, flat_idx)
             agg = agg.zero_().index_add_(0, row_ids, pts)
-            agg = agg / counts.unsqueeze(-1) if avg else agg
+            agg = agg / counts.clamp_min(1).unsqueeze(-1) if avg else agg
             agg[counts == 0] = default
 
         return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
