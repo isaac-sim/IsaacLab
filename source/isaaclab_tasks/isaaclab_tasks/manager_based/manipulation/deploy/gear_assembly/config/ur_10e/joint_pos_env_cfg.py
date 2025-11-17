@@ -256,7 +256,7 @@ class EventCfg:
 @configclass
 class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     """Base configuration for UR10e Gear Assembly Environment.
-    
+
     This class contains common setup shared across different gripper configurations.
     Subclasses should configure gripper-specific parameters.
     """
@@ -267,8 +267,13 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Robot-specific parameters (can be overridden for other robots)
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
         self.num_arm_joints = 6  # Number of arm joints (excluding gripper)
-        self.rot_offset = [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
+        self.grasp_rot_offset = [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
         self.gripper_joint_setter_func = None  # Gripper-specific joint setter function (set in subclass)
+
+        # Gear orientation termination thresholds (in degrees)
+        self.gear_orientation_roll_threshold_deg = 7.0  # Maximum allowed roll deviation
+        self.gear_orientation_pitch_threshold_deg = 7.0  # Maximum allowed pitch deviation
+        self.gear_orientation_yaw_threshold_deg = 180.0  # Maximum allowed yaw deviation
 
         # Common observation configuration
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
@@ -276,6 +281,11 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # override events
         self.events = EventCfg()
+
+        # Update termination thresholds from config
+        self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = self.gear_orientation_roll_threshold_deg
+        self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = self.gear_orientation_pitch_threshold_deg
+        self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = self.gear_orientation_yaw_threshold_deg
 
         # override command generator body
         self.joint_action_scale = 0.025

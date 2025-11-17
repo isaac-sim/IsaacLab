@@ -279,6 +279,16 @@ class TerminationsCfg:
         },
     )
 
+    gear_orientation_exceeded = DoneTerm(
+        func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
+        params={
+            "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
+            "pitch_threshold_deg": 7.0,  # Maximum pitch deviation in degrees
+            "yaw_threshold_deg": 180.0,  # Maximum yaw deviation in degrees
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
+
 @configclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings

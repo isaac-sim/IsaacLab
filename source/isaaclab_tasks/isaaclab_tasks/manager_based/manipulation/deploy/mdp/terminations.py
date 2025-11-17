@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-__all__ = ["reset_when_gear_dropped"]
+__all__ = ["reset_when_gear_dropped", "reset_when_gear_orientation_exceeds_threshold"]
 
 
 def reset_when_gear_dropped(
@@ -32,7 +32,7 @@ def reset_when_gear_dropped(
     
     Robot-specific parameters are retrieved from env.cfg (all required):
     - end_effector_body_name: Name of the end effector body
-    - rot_offset: Rotation offset to apply to gear orientation (quaternion [w, x, y, z])
+    - grasp_rot_offset: Rotation offset to apply to gear orientation (quaternion [w, x, y, z])
 
     Args:
         env: The environment containing the assets
@@ -56,15 +56,15 @@ def reset_when_gear_dropped(
             "Please define this parameter in your robot-specific configuration file. "
             "Example: self.end_effector_body_name = 'wrist_3_link'"
         )
-    if not hasattr(env.cfg, 'rot_offset'):
+    if not hasattr(env.cfg, 'grasp_rot_offset'):
         raise ValueError(
-            "Robot-specific parameter 'rot_offset' not found in env.cfg. "
+            "Robot-specific parameter 'grasp_rot_offset' not found in env.cfg. "
             "Please define this parameter in your robot-specific configuration file. "
-            "Example: self.rot_offset = [0.0, 0.707, 0.707, 0.0]"
+            "Example: self.grasp_rot_offset = [0.0, 0.707, 0.707, 0.0]"
         )
     
     end_effector_body_name = env.cfg.end_effector_body_name
-    rot_offset = env.cfg.rot_offset
+    grasp_rot_offset = env.cfg.grasp_rot_offset
 
     robot_asset: Articulation = env.scene[robot_asset_cfg.name]
     device = env.device
@@ -115,9 +115,9 @@ def reset_when_gear_dropped(
     gear_quat_world = all_gear_quat[env_indices, gear_type_indices]  # (num_envs, 4)
     
     # Apply rotation offset to all gears if provided
-    if rot_offset is not None:
-        rot_offset_tensor = torch.tensor(rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
-        gear_quat_world = math_utils.quat_mul(gear_quat_world, rot_offset_tensor)
+    if grasp_rot_offset is not None:
+        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
+        gear_quat_world = math_utils.quat_mul(gear_quat_world, grasp_rot_offset_tensor)
     
     # Get grasp offsets for all environments (vectorized)
     gear_grasp_offsets = torch.stack([
@@ -141,6 +141,119 @@ def reset_when_gear_dropped(
     if height_threshold is not None:
         gear_heights = gear_pos_world[:, 2]  # Z coordinates
         reset_flags |= gear_heights < height_threshold
-    
+
+    return reset_flags
+
+
+def reset_when_gear_orientation_exceeds_threshold(
+    env: ManagerBasedEnv,
+    roll_threshold_deg: float = 30.0,
+    pitch_threshold_deg: float = 30.0,
+    yaw_threshold_deg: float = 180.0,
+    robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Check if the gear's orientation relative to the gripper exceeds thresholds and return reset flags.
+
+    This function computes the relative orientation between the gear and the end effector (gripper),
+    converts it to Euler angles (roll, pitch, yaw), and checks if any angle exceeds the configured thresholds.
+
+    Robot-specific parameters are retrieved from env.cfg (all required):
+    - end_effector_body_name: Name of the end effector body
+    - grasp_rot_offset: Rotation offset to apply to gear orientation (quaternion [w, x, y, z])
+
+    Args:
+        env: The environment containing the assets
+        roll_threshold_deg: Maximum allowed roll angle deviation in degrees
+        pitch_threshold_deg: Maximum allowed pitch angle deviation in degrees
+        yaw_threshold_deg: Maximum allowed yaw angle deviation in degrees
+        robot_asset_cfg: Configuration for the robot asset
+
+    Returns:
+        Boolean tensor indicating which environments should be reset
+    """
+    if not hasattr(env, '_current_gear_type'):
+        raise ValueError("Environment does not have '_current_gear_type' attribute. Ensure randomize_gear_type event is configured.")
+
+    # Get robot-specific parameters from environment config (all required - no defaults)
+    if not hasattr(env.cfg, 'end_effector_body_name'):
+        raise ValueError(
+            "Robot-specific parameter 'end_effector_body_name' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.end_effector_body_name = 'wrist_3_link'"
+        )
+    if not hasattr(env.cfg, 'grasp_rot_offset'):
+        raise ValueError(
+            "Robot-specific parameter 'grasp_rot_offset' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.grasp_rot_offset = [0.0, 0.707, 0.707, 0.0]"
+        )
+
+    end_effector_body_name = env.cfg.end_effector_body_name
+    grasp_rot_offset = env.cfg.grasp_rot_offset
+
+    robot_asset: Articulation = env.scene[robot_asset_cfg.name]
+    device = env.device
+    num_envs = env.num_envs
+
+    # Initialize reset flags
+    reset_flags = torch.zeros(num_envs, dtype=torch.bool, device=device)
+
+    # Get the end effector orientation using robot-specific body name
+    try:
+        eef_indices, _ = robot_asset.find_bodies([end_effector_body_name])
+        if len(eef_indices) == 0:
+            carb.log_warn(f"{end_effector_body_name} not found in robot body names. Cannot check gear orientation condition.")
+            return reset_flags
+
+        eef_idx = eef_indices[0]
+        eef_quat_world = robot_asset.data.body_link_quat_w[:, eef_idx]  # Shape: (num_envs, 4)
+
+    except Exception as e:
+        carb.log_warn(f"Could not get end effector orientation: {e}")
+        return reset_flags
+
+    # OPTIMIZED: Fully vectorized gear orientation detection
+    # Stack all gear quaternions
+    all_gear_quat = torch.stack([
+        env.scene["factory_gear_small"].data.root_link_quat_w,
+        env.scene["factory_gear_medium"].data.root_link_quat_w,
+        env.scene["factory_gear_large"].data.root_link_quat_w,
+    ], dim=1)  # (num_envs, 3, 4)
+
+    # Convert gear types to indices
+    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+    gear_type_indices = torch.tensor(
+        [gear_type_map[env._current_gear_type[i]] for i in range(num_envs)],
+        device=device,
+        dtype=torch.long
+    )
+
+    # Select gear data using advanced indexing
+    env_indices = torch.arange(num_envs, device=device)
+    gear_quat_world = all_gear_quat[env_indices, gear_type_indices]  # (num_envs, 4)
+
+    # Apply rotation offset to all gears if provided
+    if grasp_rot_offset is not None:
+        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
+        gear_quat_world = math_utils.quat_mul(gear_quat_world, grasp_rot_offset_tensor)
+
+    # Compute relative orientation: q_rel = q_gear * q_eef^-1
+    eef_quat_inv = math_utils.quat_conjugate(eef_quat_world)
+    relative_quat = math_utils.quat_mul(gear_quat_world, eef_quat_inv)
+
+    # Convert relative quaternion to Euler angles (roll, pitch, yaw)
+    # Using XYZ extrinsic convention (returns tuple of tensors)
+    roll, pitch, yaw = math_utils.euler_xyz_from_quat(relative_quat)
+
+    # Convert thresholds from degrees to radians
+    roll_threshold_rad = torch.deg2rad(torch.tensor(roll_threshold_deg, device=device))
+    pitch_threshold_rad = torch.deg2rad(torch.tensor(pitch_threshold_deg, device=device))
+    yaw_threshold_rad = torch.deg2rad(torch.tensor(yaw_threshold_deg, device=device))
+
+    # Check if any angle exceeds its threshold
+    reset_flags = (torch.abs(roll) > roll_threshold_rad) | \
+                  (torch.abs(pitch) > pitch_threshold_rad) | \
+                  (torch.abs(yaw) > yaw_threshold_rad)
+
     return reset_flags
 

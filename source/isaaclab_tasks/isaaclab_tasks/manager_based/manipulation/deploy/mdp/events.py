@@ -72,7 +72,7 @@ def set_robot_to_grasp_pose(
     Robot-specific parameters are retrieved from env.cfg (all required):
     - end_effector_body_name: Name of the end effector body for IK
     - num_arm_joints: Number of arm joints (excluding gripper)
-    - rot_offset: Rotation offset for grasp pose (quaternion [w, x, y, z])
+    - grasp_rot_offset: Rotation offset for grasp pose (quaternion [w, x, y, z])
     - gripper_joint_setter_func: Function to set gripper joint positions
     """
     # Get robot-specific parameters from environment config (all required - no defaults)
@@ -88,11 +88,11 @@ def set_robot_to_grasp_pose(
             "Please define this parameter in your robot-specific configuration file. "
             "Example: self.num_arm_joints = 6"
         )
-    if not hasattr(env.cfg, 'rot_offset'):
+    if not hasattr(env.cfg, 'grasp_rot_offset'):
         raise ValueError(
-            "Robot-specific parameter 'rot_offset' not found in env.cfg. "
+            "Robot-specific parameter 'grasp_rot_offset' not found in env.cfg. "
             "Please define this parameter in your robot-specific configuration file. "
-            "Example: self.rot_offset = [0.0, 0.707, 0.707, 0.0]"
+            "Example: self.grasp_rot_offset = [0.0, 0.707, 0.707, 0.0]"
         )
     if not hasattr(env.cfg, 'gripper_joint_setter_func'):
         raise ValueError(
@@ -100,17 +100,17 @@ def set_robot_to_grasp_pose(
             "Please define this parameter in your robot-specific configuration file. "
             "Example: self.gripper_joint_setter_func = set_finger_joint_pos_custom"
         )
-    
+
     end_effector_body_name = env.cfg.end_effector_body_name
     num_arm_joints = env.cfg.num_arm_joints
-    rot_offset = env.cfg.rot_offset
+    grasp_rot_offset = env.cfg.grasp_rot_offset
     gripper_joint_setter_func = env.cfg.gripper_joint_setter_func
-    
+
     # Convert rotation offset to tensor if provided
-    if rot_offset is not None:
-        rot_offset_tensor = torch.tensor(rot_offset, device=env.device).unsqueeze(0).expand(len(env_ids), -1)
+    if grasp_rot_offset is not None:
+        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=env.device).unsqueeze(0).expand(len(env_ids), -1)
     else:
-        rot_offset_tensor = None
+        grasp_rot_offset_tensor = None
     
     # Check if environment has gear type selection
     if not hasattr(env, '_current_gear_type'):
@@ -157,10 +157,10 @@ def set_robot_to_grasp_pose(
         grasp_object_quat = all_gear_quat[local_env_indices, gear_type_indices]
         
         # First apply rotation offset to get the object's orientation
-        if rot_offset_tensor is not None:
+        if grasp_rot_offset_tensor is not None:
             # Apply rotation offset by quaternion multiplication
-            # rot_offset is assumed to be in quaternion format (w, x, y, z)
-            grasp_object_quat = math_utils.quat_mul(grasp_object_quat, rot_offset_tensor)
+            # grasp_rot_offset is assumed to be in quaternion format (w, x, y, z)
+            grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)
         
         # OPTIMIZED: Vectorized grasp offsets application
         # Get grasp offsets for all environments
@@ -292,6 +292,8 @@ def set_robot_to_grasp_pose(
     finger_joints = all_joints[num_arm_joints:]
     finger_joint_names = all_joints_names[num_arm_joints:]
 
+
+
     # Set gripper joint positions using robot-specific setter function
     for row_idx, env_id in enumerate(env_ids_list):
         gear_key = env._current_gear_type[env_id]
@@ -300,6 +302,10 @@ def set_robot_to_grasp_pose(
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    
+    # for i in range(5):
+    #     env.sim.render()
+    #     input("Press Enter to continue...")
 
     # Set finger joints to closed position based on gear type for each environment
     for row_idx, env_id in enumerate(env_ids_list):
@@ -308,6 +314,9 @@ def set_robot_to_grasp_pose(
         gripper_joint_setter_func(joint_pos, [row_idx], finger_joints, hand_close_width)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
+    # for i in range(5):
+    #     env.sim.render()
+    #     input("Press Enter to continue...")
 
 def randomize_gears_and_base_pose(
     env: ManagerBasedEnv,
