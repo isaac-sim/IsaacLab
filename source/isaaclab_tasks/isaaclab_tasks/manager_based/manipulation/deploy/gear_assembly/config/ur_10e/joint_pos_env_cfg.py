@@ -135,8 +135,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (1.5, 1.5),
+            "dynamic_friction_range": (1.5, 1.5),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -147,8 +147,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (1.5, 1.5),
+            "dynamic_friction_range": (1.5, 1.5),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -159,8 +159,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (1.5, 1.5),
+            "dynamic_friction_range": (1.5, 1.5),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
