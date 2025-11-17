@@ -35,9 +35,29 @@ class ContactSensorData:
     Note:
 
         * If the :attr:`ContactSensorCfg.track_contact_points` is False, then this quantity is None.
-        * If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is an empty tensor.
-        * If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1, then this quantity
-          will not be calculated.
+        * If the :attr:`ContactSensorCfg.track_contact_points` is True, a ValueError will be raised if:
+
+          * If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+          * If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1.
+            will not be calculated.
+
+    """
+
+    friction_forces_w: torch.Tensor | None = None
+    """Sum of the friction forces between sensor body and filter prim in world frame.
+
+    Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
+    and M is the number of filtered bodies.
+
+    Collision pairs not in contact will result in NaN.
+
+    Note:
+
+        * If the :attr:`ContactSensorCfg.track_friction_forces` is False, then this quantity is None.
+        * If the :attr:`ContactSensorCfg.track_friction_forces` is True, a ValueError will be raised if:
+
+          * The :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+          * The :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1.
 
     """
 

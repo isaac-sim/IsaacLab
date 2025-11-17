@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.48.5 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+
+
 0.48.4 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -39,6 +48,7 @@ Added
   supporting robot manipulation with haptic feedback.
 * Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
   ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
+
 
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
