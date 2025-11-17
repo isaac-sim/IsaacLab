@@ -21,13 +21,13 @@ from enum import Enum
 import carb
 import pytest
 from flaky import flaky
-from pxr import Gf, PhysxSchema, UsdPhysics
+from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim import SimulationContext, SimulationCfg, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
