@@ -1,6 +1,7 @@
 Changelog
 ---------
 
+<<<<<<< HEAD
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -60,6 +61,15 @@ Changed
 ^^^^^^^
 
 * Changed import from ``isaacsim.core.utils.stage`` to ``isaaclab.sim.utils.stage`` to reduce IsaacLab dependencies.
+=======
+0.48.5 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+>>>>>>> 9b868d3842 (changelog)
 
 
 0.48.4 (2025-11-14)
