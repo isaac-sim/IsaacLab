@@ -13,7 +13,7 @@ from . import agents
 
 # UR10e with 2F-140 gripper
 gym.register(
-    id="Isaac-GearAssembly-UR10e-2F140-v0",
+    id="Isaac-Deploy-GearAssembly-UR10e-2F140-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +23,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-GearAssembly-UR10e-2F140-Play-v0",
+    id="Isaac-Deploy-GearAssembly-UR10e-2F140-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -33,7 +33,7 @@ gym.register(
 
 # UR10e with 2F-85 gripper
 gym.register(
-    id="Isaac-GearAssembly-UR10e-2F85-v0",
+    id="Isaac-Deploy-GearAssembly-UR10e-2F85-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -43,7 +43,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-GearAssembly-UR10e-2F85-Play-v0",
+    id="Isaac-Deploy-GearAssembly-UR10e-2F85-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

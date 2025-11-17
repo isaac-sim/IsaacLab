@@ -27,16 +27,18 @@ def reset_when_gear_dropped(
     distance_threshold: float = 0.1,
     height_threshold: Optional[float] = None,
     robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    rot_offset: Optional[list[float]] = None,
 ) -> torch.Tensor:
     """Check if the gear has fallen out of the gripper and return reset flags.
+    
+    Robot-specific parameters are retrieved from env.cfg (all required):
+    - end_effector_body_name: Name of the end effector body
+    - rot_offset: Rotation offset to apply to gear orientation (quaternion [w, x, y, z])
 
     Args:
         env: The environment containing the assets
         distance_threshold: Maximum allowed distance between gear grasp point and gripper (in meters)
         height_threshold: Optional minimum height for the gear (in meters, world frame)
         robot_asset_cfg: Configuration for the robot asset
-        rot_offset: Rotation offset to apply to gear orientation (quaternion [w, x, y, z])
 
     Returns:
         Boolean tensor indicating which environments should be reset
@@ -47,6 +49,23 @@ def reset_when_gear_dropped(
     if not hasattr(env.cfg, 'gear_offsets_grasp'):
         raise ValueError("Environment config does not have 'gear_offsets_grasp' attribute.")
 
+    # Get robot-specific parameters from environment config (all required - no defaults)
+    if not hasattr(env.cfg, 'end_effector_body_name'):
+        raise ValueError(
+            "Robot-specific parameter 'end_effector_body_name' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.end_effector_body_name = 'wrist_3_link'"
+        )
+    if not hasattr(env.cfg, 'rot_offset'):
+        raise ValueError(
+            "Robot-specific parameter 'rot_offset' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.rot_offset = [0.0, 0.707, 0.707, 0.0]"
+        )
+    
+    end_effector_body_name = env.cfg.end_effector_body_name
+    rot_offset = env.cfg.rot_offset
+
     robot_asset: Articulation = env.scene[robot_asset_cfg.name]
     device = env.device
     num_envs = env.num_envs
@@ -54,15 +73,15 @@ def reset_when_gear_dropped(
     # Initialize reset flags
     reset_flags = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-    # Get the wrist_3_link (end effector) position
+    # Get the end effector position using robot-specific body name
     try:
-        wrist_3_indices, _ = robot_asset.find_bodies(["wrist_3_link"])
-        if len(wrist_3_indices) == 0:
-            carb.log_warn("wrist_3_link not found in robot body names. Cannot check gear drop condition.")
+        eef_indices, _ = robot_asset.find_bodies([end_effector_body_name])
+        if len(eef_indices) == 0:
+            carb.log_warn(f"{end_effector_body_name} not found in robot body names. Cannot check gear drop condition.")
             return reset_flags
 
-        wrist_3_idx = wrist_3_indices[0]
-        eef_pos_world = robot_asset.data.body_link_pos_w[:, wrist_3_idx]  # Shape: (num_envs, 3)
+        eef_idx = eef_indices[0]
+        eef_pos_world = robot_asset.data.body_link_pos_w[:, eef_idx]  # Shape: (num_envs, 3)
 
     except Exception as e:
         carb.log_warn(f"Could not get end effector pose: {e}")

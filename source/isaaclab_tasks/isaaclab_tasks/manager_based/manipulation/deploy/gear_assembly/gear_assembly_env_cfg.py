@@ -276,7 +276,6 @@ class TerminationsCfg:
             "distance_threshold": 0.15,  # 15cm from gripper
             "height_threshold": None,  # Disable height check (set to a value like 0.5 to enable)
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],  # 90-degree rotation to match grasp pose
         },
     )
 

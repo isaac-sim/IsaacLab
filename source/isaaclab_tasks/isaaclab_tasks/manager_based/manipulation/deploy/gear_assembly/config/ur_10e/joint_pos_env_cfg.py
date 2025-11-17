@@ -31,6 +31,75 @@ from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG, U
 
 
 ##
+# Gripper-specific helper functions
+##
+
+def set_finger_joint_pos_robotiq_2f140(
+    joint_pos: torch.Tensor,
+    reset_ind_joint_pos: list[int],
+    finger_joints: list[int],
+    finger_joint_position: float,
+):
+    """Set finger joint positions for Robotiq 2F-140 gripper.
+    
+    Args:
+        joint_pos: Joint positions tensor
+        reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
+        finger_joints: List of finger joint indices
+        finger_joint_position: Target position for finger joints
+    """
+    for idx in reset_ind_joint_pos:
+        # For 2F-140 gripper (8 joints expected)
+        # Joint structure: [finger_joint, finger_joint, outer_joints x2, inner_finger_joints x2, pad_joints x2]
+        if len(finger_joints) < 8:
+            raise ValueError(f"2F-140 gripper requires at least 8 finger joints, got {len(finger_joints)}")
+
+        joint_pos[idx, finger_joints[0]] = finger_joint_position
+        joint_pos[idx, finger_joints[1]] = finger_joint_position
+
+        # outer finger joints set to 0
+        joint_pos[idx, finger_joints[2]] = 0
+        joint_pos[idx, finger_joints[3]] = 0
+
+        # inner finger joints: multiply by -1
+        joint_pos[idx, finger_joints[4]] = -finger_joint_position
+        joint_pos[idx, finger_joints[5]] = -finger_joint_position
+
+        joint_pos[idx, finger_joints[6]] = finger_joint_position
+        joint_pos[idx, finger_joints[7]] = finger_joint_position
+
+
+def set_finger_joint_pos_robotiq_2f85(
+    joint_pos: torch.Tensor,
+    reset_ind_joint_pos: list[int],
+    finger_joints: list[int],
+    finger_joint_position: float,
+):
+    """Set finger joint positions for Robotiq 2F-85 gripper.
+    
+    Args:
+        joint_pos: Joint positions tensor
+        reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
+        finger_joints: List of finger joint indices
+        finger_joint_position: Target position for finger joints
+    """
+    for idx in reset_ind_joint_pos:
+        # For 2F-85 gripper (6 joints expected)
+        # Joint structure: [finger_joint, finger_joint, inner_finger_joints x2, inner_finger_knuckle_joints x2]
+        if len(finger_joints) < 6:
+            raise ValueError(f"2F-85 gripper requires at least 6 finger joints, got {len(finger_joints)}")
+
+        # Multiply specific indices by -1: [2, 4, 5]
+        # These correspond to ['left_inner_finger_joint', 'right_inner_finger_knuckle_joint', 'left_inner_finger_knuckle_joint']
+        joint_pos[idx, finger_joints[0]] = finger_joint_position
+        joint_pos[idx, finger_joints[1]] = finger_joint_position
+        joint_pos[idx, finger_joints[2]] = -finger_joint_position
+        joint_pos[idx, finger_joints[3]] = finger_joint_position
+        joint_pos[idx, finger_joints[4]] = -finger_joint_position
+        joint_pos[idx, finger_joints[5]] = -finger_joint_position
+
+
+##
 # Environment configuration
 ##
 
@@ -173,13 +242,11 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],
             "pos_randomization_range": {
                 "x": [-0.0, 0.0],
                 "y": [-0.005, 0.005],
                 "z": [-0.003, 0.003]
             },
-            "gripper_type": "2f_140",  # Default gripper type
         },
     )
 
@@ -196,6 +263,12 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Robot-specific parameters (can be overridden for other robots)
+        self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
+        self.num_arm_joints = 6  # Number of arm joints (excluding gripper)
+        self.rot_offset = [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
+        self.gripper_joint_setter_func = None  # Gripper-specific joint setter function (set in subclass)
 
         # Common observation configuration
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
@@ -308,6 +381,9 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
             armature=0.0,
         )
 
+        # Set gripper-specific joint setter function
+        self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f140
+
         # gear offsets and grasp positions for the 2F-140 gripper
         self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.26],
                             'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.26],
@@ -322,9 +398,6 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.hand_close_width = {"gear_small": 0.69,
                                "gear_medium": 0.59,
                                "gear_large": 0.56}
-        
-        # Override gripper type in the set_robot_to_grasp_pose event
-        self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_140"
 
 
 @configclass
@@ -393,6 +466,9 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
             armature=0.0,
         )
 
+        # Set gripper-specific joint setter function
+        self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f85
+
         # gear offsets and grasp positions for the 2F-85 gripper
         self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.18],
                             'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.18],
@@ -407,9 +483,6 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.hand_close_width = {"gear_small": 0.69,
                                "gear_medium": 0.51,
                                "gear_large": 0.45}
-        
-        # Override gripper type in the set_robot_to_grasp_pose event
-        self.events.set_robot_to_grasp_pose.params["gripper_type"] = "2f_85"
 
 
 @configclass

@@ -65,11 +65,47 @@ def set_robot_to_grasp_pose(
     pos_threshold: float = 1e-6,
     rot_threshold: float = 1e-6,
     max_iterations: int = 10,
-    rot_offset: Optional[list[float]] = None,
     pos_randomization_range: Optional[dict] = None,
-    num_arm_joints: int = 6,
-    gripper_type: str = "2f_140",
 ):
+    """Set robot to grasp pose using robot-specific parameters from env config.
+    
+    Robot-specific parameters are retrieved from env.cfg (all required):
+    - end_effector_body_name: Name of the end effector body for IK
+    - num_arm_joints: Number of arm joints (excluding gripper)
+    - rot_offset: Rotation offset for grasp pose (quaternion [w, x, y, z])
+    - gripper_joint_setter_func: Function to set gripper joint positions
+    """
+    # Get robot-specific parameters from environment config (all required - no defaults)
+    if not hasattr(env.cfg, 'end_effector_body_name'):
+        raise ValueError(
+            "Robot-specific parameter 'end_effector_body_name' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.end_effector_body_name = 'wrist_3_link'"
+        )
+    if not hasattr(env.cfg, 'num_arm_joints'):
+        raise ValueError(
+            "Robot-specific parameter 'num_arm_joints' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.num_arm_joints = 6"
+        )
+    if not hasattr(env.cfg, 'rot_offset'):
+        raise ValueError(
+            "Robot-specific parameter 'rot_offset' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.rot_offset = [0.0, 0.707, 0.707, 0.0]"
+        )
+    if not hasattr(env.cfg, 'gripper_joint_setter_func'):
+        raise ValueError(
+            "Robot-specific parameter 'gripper_joint_setter_func' not found in env.cfg. "
+            "Please define this parameter in your robot-specific configuration file. "
+            "Example: self.gripper_joint_setter_func = set_finger_joint_pos_custom"
+        )
+    
+    end_effector_body_name = env.cfg.end_effector_body_name
+    num_arm_joints = env.cfg.num_arm_joints
+    rot_offset = env.cfg.rot_offset
+    gripper_joint_setter_func = env.cfg.gripper_joint_setter_func
+    
     # Convert rotation offset to tensor if provided
     if rot_offset is not None:
         rot_offset_tensor = torch.tensor(rot_offset, device=env.device).unsqueeze(0).expand(len(env_ids), -1)
@@ -149,43 +185,42 @@ def set_robot_to_grasp_pose(
         # Convert to environment-relative coordinates by subtracting environment origins
         grasp_object_pos = grasp_object_pos_world
         
-        # Get end effector pose of the robot
-        # Get the specific wrist_3_link pose
+        # Get end effector pose of the robot using robot-specific body name
         try:
-            # Find the index of the wrist_3_link body
-            wrist_3_indices, wrist_3_names = robot_asset.find_bodies(["wrist_3_link"])
-            wrist_3_idx = wrist_3_indices[0]
+            # Find the index of the end effector body
+            eef_indices, eef_names = robot_asset.find_bodies([end_effector_body_name])
+            eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
             
-            if len(wrist_3_indices) == 1:
-                wrist_3_idx = wrist_3_indices[0]  # Get the first (and should be only) index
+            if len(eef_indices) == 1:
+                eef_idx = eef_indices[0]  # Get the first (and should be only) index
                 
-                # Get the specific wrist_3_link pose
-                eef_pos_world = robot_asset.data.body_link_pos_w[env_ids, wrist_3_idx]  # Shape: (len(env_ids), 3)
-                eef_quat = robot_asset.data.body_link_quat_w[env_ids, wrist_3_idx]  # Shape: (len(env_ids), 4)
+                # Get the specific end effector body pose
+                eef_pos_world = robot_asset.data.body_link_pos_w[env_ids, eef_idx]  # Shape: (len(env_ids), 3)
+                eef_quat = robot_asset.data.body_link_quat_w[env_ids, eef_idx]  # Shape: (len(env_ids), 4)
                 
                 # Convert to environment-relative coordinates
                 eef_pos = eef_pos_world
 
                 # You can also get the full pose as [pos, quat] (7-dimensional)
-                eef_pos = robot_asset.data.body_pos_w[env_ids, wrist_3_idx]
-                eef_quat = robot_asset.data.body_quat_w[env_ids, wrist_3_idx]
+                eef_pos = robot_asset.data.body_pos_w[env_ids, eef_idx]
+                eef_quat = robot_asset.data.body_quat_w[env_ids, eef_idx]
 
-            elif len(wrist_3_indices) > 1:
-                print("wrist_3_link found multiple times in robot body names")
+            elif len(eef_indices) > 1:
+                print(f"{end_effector_body_name} found multiple times in robot body names")
                 print(f"Available body names: {robot_asset.body_names}")
             else:
-                print("wrist_3_link not found in robot body names")
+                print(f"{end_effector_body_name} not found in robot body names")
                 print(f"Available body names: {robot_asset.body_names}")
                 
         except Exception as e:
             print(f"Could not get end effector pose: {e}")
             print("You may need to adjust the body name or access method based on your robot configuration")
 
-        # Compute error to target using wrist_3_link as current and grasp_object as target
-        if len(wrist_3_indices) > 0:
-            # Get current end effector pose (wrist_3_link)
-            current_eef_pos = eef_pos  # wrist_3_link position
-            current_eef_quat = eef_quat  # wrist_3_link orientation
+        # Compute error to target using end effector as current and grasp_object as target
+        if len(eef_indices) > 0:
+            # Get current end effector pose
+            current_eef_pos = eef_pos  # end effector position
+            current_eef_quat = eef_quat  # end effector orientation
             
             # Get target pose (grasp object)
             target_eef_pos = grasp_object_pos  # grasp object position
@@ -210,15 +245,15 @@ def set_robot_to_grasp_pose(
                 break
 
             # Solve DLS problem for inverse kinematics
-            # Get jacobian for the wrist_3_link using the same approach as task_space_actions.py
+            # Get jacobian for the end effector body using the same approach as task_space_actions.py
             try:
                 # Get all jacobians from the robot
                 jacobians = robot_asset.root_physx_view.get_jacobians().clone()
-				
-                # Select the jacobian for the wrist_3_link body
+
+                # Select the jacobian for the end effector body
                 # For fixed-base robots, Jacobian excludes the base body (index 0)
-                # So if wrist_3_idx is 6, the Jacobian index should be 5
-                jacobi_body_idx = wrist_3_idx - 1
+                # So if eef_idx is 6, the Jacobian index should be 5
+                jacobi_body_idx = eef_idx - 1
                 
                 
                 jacobian = jacobians[env_ids, jacobi_body_idx, :, :]  # Only first 6 joints (arm, not gripper)
@@ -253,14 +288,15 @@ def set_robot_to_grasp_pose(
     
     joint_pos = robot_asset.data.joint_pos[env_ids].clone()
     
-    # @ireti: We need to change this so it workes with teh public 2f140 gripper that uses mimic joints
+    # Get finger joints (all joints after arm joints)
     finger_joints = all_joints[num_arm_joints:]
     finger_joint_names = all_joints_names[num_arm_joints:]
 
+    # Set gripper joint positions using robot-specific setter function
     for row_idx, env_id in enumerate(env_ids_list):
         gear_key = env._current_gear_type[env_id]
         hand_grasp_width = env.cfg.hand_grasp_width[gear_key]
-        set_finger_joint_pos_robotiq(joint_pos, [row_idx], finger_joints, hand_grasp_width, gripper_type)
+        gripper_joint_setter_func(joint_pos, [row_idx], finger_joints, hand_grasp_width)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
@@ -269,7 +305,7 @@ def set_robot_to_grasp_pose(
     for row_idx, env_id in enumerate(env_ids_list):
         gear_key = env._current_gear_type[env_id]
         hand_close_width = env.cfg.hand_close_width[gear_key]
-        set_finger_joint_pos_robotiq(joint_pos, [row_idx], finger_joints, hand_close_width, gripper_type)
+        gripper_joint_setter_func(joint_pos, [row_idx], finger_joints, hand_close_width)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
 
@@ -382,60 +418,3 @@ def randomize_gears_and_base_pose(
         velocities = velocities_by_asset[asset_name]
         asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
         asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
-
-def set_finger_joint_pos_robotiq(
-    joint_pos: torch.Tensor,
-    reset_ind_joint_pos: list[int],
-    finger_joints: list[int],
-    finger_joint_position: float,
-    gripper_type: str = "2f_140",
-):
-    """Set finger joint positions for Robotiq grippers.
-    
-    Args:
-        joint_pos: Joint positions tensor
-        reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
-        finger_joints: List of finger joint indices
-        finger_joint_position: Target position for finger joints
-        gripper_type: Type of gripper ("2f_140" or "2f_85")
-    """
-    # Get hand close positions for each environment based on gear type
-    # reset_ind_joint_pos contains row indices into the sliced joint_pos tensor
-    for idx in reset_ind_joint_pos:
-        if gripper_type == "2f_140":
-            # For 2F-140 gripper (8 joints expected)
-            # Joint structure: [finger_joint, finger_joint, outer_joints x2, inner_finger_joints x2, pad_joints x2]
-            if len(finger_joints) < 8:
-                raise ValueError(f"2F-140 gripper requires at least 8 finger joints, got {len(finger_joints)}")
-            
-            joint_pos[idx, finger_joints[0]] = finger_joint_position
-            joint_pos[idx, finger_joints[1]] = finger_joint_position
-            
-            # outer finger joints set to 0
-            joint_pos[idx, finger_joints[2]] = 0
-            joint_pos[idx, finger_joints[3]] = 0
-            
-            # inner finger joints: multiply by -1
-            joint_pos[idx, finger_joints[4]] = -finger_joint_position
-            joint_pos[idx, finger_joints[5]] = -finger_joint_position
-            
-            joint_pos[idx, finger_joints[6]] = finger_joint_position
-            joint_pos[idx, finger_joints[7]] = finger_joint_position
-            
-        elif gripper_type == "2f_85":
-            # For 2F-85 gripper (6 joints expected)
-            # Joint structure: [finger_joint, finger_joint, inner_finger_joints x2, inner_finger_knuckle_joints x2]
-            if len(finger_joints) < 6:
-                raise ValueError(f"2F-85 gripper requires at least 6 finger joints, got {len(finger_joints)}")
-            
-            # Multiply specific indices by -1: [2, 4, 5]
-            # These correspond to ['left_inner_finger_joint', 'right_inner_finger_knuckle_joint', 'left_inner_finger_knuckle_joint']
-            joint_pos[idx, finger_joints[0]] = finger_joint_position
-            joint_pos[idx, finger_joints[1]] = finger_joint_position
-            joint_pos[idx, finger_joints[2]] = -finger_joint_position
-            joint_pos[idx, finger_joints[3]] = finger_joint_position
-            joint_pos[idx, finger_joints[4]] = -finger_joint_position
-            joint_pos[idx, finger_joints[5]] = -finger_joint_position
-            
-        else:
-            raise ValueError(f"Gripper type '{gripper_type}' not supported. Must be '2f_140' or '2f_85'.")
