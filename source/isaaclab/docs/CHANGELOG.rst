@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.48.5 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+
+
 0.48.4 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 

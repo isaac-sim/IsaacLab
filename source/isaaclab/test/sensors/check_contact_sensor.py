@@ -105,6 +105,7 @@ def main():
         prim_path="/World/envs/env_.*/Robot/.*_FOOT",
         track_air_time=True,
         track_contact_points=True,
+        track_friction_forces=True,
         debug_vis=False,  # not args_cli.headless,
         filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
     )
