@@ -52,6 +52,7 @@ class ContactSensorData:
     Collision pairs not in contact will result in NaN.
 
     Note:
+
         * If the :attr:`ContactSensorCfg.track_friction_forces` is False, then this quantity is None.
         * If the :attr:`ContactSensorCfg.track_friction_forces` is True, a ValueError will be raised if:
 
