@@ -73,6 +73,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Hougant Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
