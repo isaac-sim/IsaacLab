@@ -65,11 +65,11 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
 
 @configclass
-class RslRlActorCriticPerceptiveCfg(RslRlPpoActorCriticCfg):
+class RslRlActorCriticCNNCfg(RslRlPpoActorCriticCfg):
     """Configuration for the PPO actor-critic networks with perceptual layers."""
 
     @configclass
-    class CNNConfig:
+    class CNNCfg:
         output_channels: tuple[int] | list[int] = MISSING
         """The number of output channels for each convolutional layer for the CNN."""
 
@@ -100,13 +100,13 @@ class RslRlActorCriticPerceptiveCfg(RslRlPpoActorCriticCfg):
         flatten: bool = True
         """Whether to flatten the output of the CNN."""
 
-    class_name: str = "ActorCriticPerceptive"
-    """The policy class name. Default is ActorCriticPerceptive."""
+    class_name: str = "ActorCriticCNN"
+    """The policy class name. Default is ActorCriticCNN."""
 
-    actor_cnn_cfg: list[CNNConfig] | CNNConfig | None = MISSING
+    actor_cnn_cfg: list[CNNCfg] | CNNCfg | None = MISSING
     """The CNN configuration for the actor network."""
 
-    critic_cnn_cfg: list[CNNConfig] | CNNConfig | None = MISSING
+    critic_cnn_cfg: list[CNNCfg] | CNNCfg | None = MISSING
     """The CNN configuration for the critic network."""
 
 

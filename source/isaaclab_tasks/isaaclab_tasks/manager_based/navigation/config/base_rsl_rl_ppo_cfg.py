@@ -5,7 +5,11 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlActorCriticPerceptiveCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import (
+    RslRlActorCriticCNNCfg,
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoAlgorithmCfg,
+)
 
 
 @configclass
@@ -18,20 +22,20 @@ class NavBasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         "policy": ["proprioceptive", "exteroceptive"],
         "critic": ["proprioceptive", "exteroceptive"],
     }
-    policy = RslRlActorCriticPerceptiveCfg(
+    policy = RslRlActorCriticCNNCfg(
         init_noise_std=1.0,
         actor_obs_normalization=False,
         critic_obs_normalization=False,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
-        actor_cnn_cfg=RslRlActorCriticPerceptiveCfg.CNNConfig(
+        actor_cnn_cfg=RslRlActorCriticCNNCfg.CNNCfg(
             output_channels=[32, 64],
             kernel_size=[7, 5],
             activation="elu",
             max_pool=[True, False],
             global_pool="avg",
         ),
-        critic_cnn_cfg=RslRlActorCriticPerceptiveCfg.CNNConfig(
+        critic_cnn_cfg=RslRlActorCriticCNNCfg.CNNCfg(
             output_channels=[32, 64],
             kernel_size=[7, 5],
             activation="elu",
