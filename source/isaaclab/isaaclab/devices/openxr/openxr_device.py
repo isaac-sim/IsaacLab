@@ -265,8 +265,8 @@ class OpenXRDevice(DeviceBase):
             try:
                 left_dev = XRCore.get_singleton().get_input_device("/user/hand/left")
                 right_dev = XRCore.get_singleton().get_input_device("/user/hand/right")
-                left_ctrl = self._query_controller(left_dev) if left_dev is not None else np.array([])
-                right_ctrl = self._query_controller(right_dev) if right_dev is not None else np.array([])
+                left_ctrl = self._query_controller(left_dev, is_left=True) if left_dev is not None else np.array([])
+                right_ctrl = self._query_controller(right_dev, is_left=False) if right_dev is not None else np.array([])
                 if left_ctrl.size:
                     data[DeviceBase.TrackingTarget.CONTROLLER_LEFT] = left_ctrl
                 if right_ctrl.size:
@@ -421,7 +421,7 @@ class OpenXRDevice(DeviceBase):
         if self._anchor_sync is not None:
             self._anchor_sync.toggle_anchor_rotation()
 
-    def _query_controller(self, input_device) -> np.ndarray:
+    def _query_controller(self, input_device, is_left: bool) -> np.ndarray:
         """Query motion controller pose and inputs as a 2x7 array.
 
         Row 0 (POSE): [x, y, z, w, x, y, z]
@@ -440,6 +440,15 @@ class OpenXRDevice(DeviceBase):
         squeeze = 0.0
         button_0 = 0.0
         button_1 = 0.0
+
+        # Handle play/reset controls
+        if input_device.has_input_gesture("thumbstick", "click"):
+            thumbstick_click = float(input_device.get_input_gesture_value("thumbstick", "click"))
+            if thumbstick_click:
+                if is_left:
+                    self._additional_callbacks["START"]()
+                else:
+                    self._additional_callbacks["RESET"]()
 
         if input_device.has_input_gesture("thumbstick", "x"):
             thumbstick_x = float(input_device.get_input_gesture_value("thumbstick", "x"))
