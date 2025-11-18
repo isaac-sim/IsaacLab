@@ -4,7 +4,6 @@
     "version": "2.0.0",
     "tasks": [
         {
-            // setup python env
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
@@ -12,10 +11,10 @@
             },
             "windows": {
                 "command": "${workspaceFolder}/isaaclab.bat -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
-            }
+            },
+            "problemMatcher": []
         },
         {
-            // run formatter
             "label": "run_formatter",
             "type": "shell",
             "linux": {
