@@ -18,12 +18,131 @@ from isaaclab.utils.math import sample_uniform
 import isaaclab.utils.math as math_utils
 import isaaclab.sim as sim_utils
 
+# Import keypoint function for cache initialization
+from .rewards import get_keypoint_offsets_full_6d
+
 from isaaclab_tasks.direct.automate import factory_control as fc
 import random
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+
+def initialize_shared_gear_cache(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+):
+    """Initialize shared cached tensors used across all MDP functions (events, observations, rewards, terminations).
+    
+    This function creates a centralized cache on the environment instance that contains commonly used tensors.
+    By allocating these tensors once during reset, we avoid duplicate allocations across different modules
+    and ensure consistent tensor reuse throughout the environment lifecycle.
+    
+    **IMPORTANT**: This function MUST be called during the 'startup' event mode in your environment configuration
+    before any other MDP functions that depend on the shared cache.
+    
+    Example configuration in your env_cfg.py:
+    ```python
+    events = EventCfg(
+        startup = [
+            EventTermCfg(func=mdp.initialize_shared_gear_cache, mode="startup"),
+        ],
+        reset = [
+            EventTermCfg(func=mdp.randomize_gear_type, mode="reset"),
+            EventTermCfg(func=mdp.set_robot_to_grasp_pose, mode="reset", ...),
+            # ... other reset events
+        ],
+    )
+    ```
+    
+    The shared cache includes:
+    - env_indices: Tensor indices for all environments (used for advanced indexing)
+    - gear_type_map: Mapping from gear type names to indices
+    - gear_type_indices: Buffer to store current gear type indices per environment
+    - gear_grasp_offset_tensors: Pre-computed grasp offsets for each gear type
+    - gear_offset_tensors: Pre-computed general offsets for each gear type
+    - reset_flags: Reusable boolean tensor for termination checks [num_envs]
+    - all_gear_pos_buffer: Buffer for stacked gear positions [num_envs, 3, 3]
+    - all_gear_quat_buffer: Buffer for stacked gear quaternions [num_envs, 3, 4]
+    - grasp_rot_offset_tensor: Pre-computed rotation offset for grasping (if configured)
+    - gear_grasp_offsets_buffer: Working buffer for grasp offset computations
+    - local_env_indices_buffer: Buffer for environment indexing operations
+    - offsets_buffer: Working buffer for general offset computations
+    - identity_quat: Identity quaternion [1,0,0,0] repeated for all environments [num_envs, 4]
+    - keypoint_offsets_base: Base (unscaled) keypoint offsets for 7 cube corner points [7, 3]
+    - identity_quat_keypoints: Identity quaternion for keypoint transforms [num_envs * 7, 4]
+    - keypoint_offsets_buffer: Working buffer for batched/scaled keypoint offsets [num_envs, 7, 3]
+    
+    Args:
+        env: The environment instance
+        env_ids: Environment IDs being reset (unused, required for event manager compatibility)
+    """
+    if not hasattr(env, '_shared_gear_cache'):
+        device = env.device
+        num_envs = env.num_envs
+        
+        # Get configuration parameters
+        gear_offsets_grasp = getattr(env.cfg, 'gear_offsets_grasp', {})
+        gear_offsets = getattr(env.cfg, 'gear_offsets', {})
+        grasp_rot_offset = getattr(env.cfg, 'grasp_rot_offset', None)
+        
+        env._shared_gear_cache = {
+            # ===== Common tensors used by ALL modules =====
+            'env_indices': torch.arange(num_envs, device=device),
+            'gear_type_map': {"gear_small": 0, "gear_medium": 1, "gear_large": 2},
+            'gear_type_indices': torch.zeros(num_envs, device=device, dtype=torch.long),
+            
+            # ===== Gear grasp offset tensors (used by events.py and terminations.py) =====
+            'gear_grasp_offset_tensors': {
+                'gear_small': torch.tensor(gear_offsets_grasp.get('gear_small', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+                'gear_medium': torch.tensor(gear_offsets_grasp.get('gear_medium', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+                'gear_large': torch.tensor(gear_offsets_grasp.get('gear_large', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+            },
+            
+            # ===== Gear offset tensors (used by observations.py) =====
+            'gear_offset_tensors': {
+                'gear_small': torch.tensor(gear_offsets.get('gear_small', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+                'gear_medium': torch.tensor(gear_offsets.get('gear_medium', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+                'gear_large': torch.tensor(gear_offsets.get('gear_large', [0.0, 0.0, 0.0]), device=device, dtype=torch.float32),
+            },
+            
+            # ===== Reusable buffers for events.py =====
+            'gear_grasp_offsets_buffer': torch.zeros(num_envs, 3, device=device, dtype=torch.float32),
+            'local_env_indices_buffer': torch.arange(num_envs, device=device),
+            
+            # ===== Reusable buffers for terminations.py =====
+            'reset_flags': torch.zeros(num_envs, dtype=torch.bool, device=device),
+            'all_gear_pos_buffer': torch.zeros(num_envs, 3, 3, device=device, dtype=torch.float32),  # [num_envs, 3 gears, 3 pos]
+            'all_gear_quat_buffer': torch.zeros(num_envs, 3, 4, device=device, dtype=torch.float32),  # [num_envs, 3 gears, 4 quat]
+            
+            # ===== Reusable buffers for observations.py =====
+            'offsets_buffer': torch.zeros(num_envs, 3, device=device, dtype=torch.float32),
+            'identity_quat': torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device, dtype=torch.float32).repeat(num_envs, 1).contiguous(),
+            
+            # ===== Reusable buffers for rewards.py (keypoint computations) =====
+            # Get base keypoint offsets (7 keypoints for full 6D pose alignment)
+            # These are unscaled offsets that will be scaled by keypoint_scale parameter in reward functions
+        }
+        
+        # Initialize keypoint offsets (7 keypoints for cube corners + center)
+        base_keypoint_offsets = get_keypoint_offsets_full_6d(add_cube_center_kp=False, device=device)
+        num_keypoints = base_keypoint_offsets.shape[0]  # Should be 7
+        
+        env._shared_gear_cache.update({
+            'keypoint_offsets_base': base_keypoint_offsets,  # [7, 3] base keypoint offsets (unscaled)
+            'identity_quat_keypoints': torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device, dtype=torch.float32).repeat(num_envs * num_keypoints, 1).contiguous(),
+            'keypoint_offsets_buffer': torch.zeros(num_envs, num_keypoints, 3, device=device, dtype=torch.float32),  # Buffer for scaled/batched keypoints
+        })
+        
+        # Add grasp rotation offset if configured
+        if grasp_rot_offset is not None:
+            env._shared_gear_cache['grasp_rot_offset_tensor'] = torch.tensor(
+                grasp_rot_offset, device=device
+            ).unsqueeze(0).repeat(num_envs, 1)
+        
+        print(f"[INFO] Shared gear cache initialized successfully!")
+    else:
+        print("[INFO] Shared gear cache already exists, skipping initialization.")
 
 def set_default_joint_pose(
     env: ManagerBasedEnv,
@@ -106,9 +225,18 @@ def set_robot_to_grasp_pose(
     grasp_rot_offset = env.cfg.grasp_rot_offset
     gripper_joint_setter_func = env.cfg.gripper_joint_setter_func
 
-    # Convert rotation offset to tensor if provided
-    if grasp_rot_offset is not None:
-        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=env.device).unsqueeze(0).expand(len(env_ids), -1)
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this function."
+        )
+    
+    cache = env._shared_gear_cache
+    
+    # Get rotation offset tensor from cache if available
+    if 'grasp_rot_offset_tensor' in cache:
+        grasp_rot_offset_tensor = cache['grasp_rot_offset_tensor'][env_ids]
     else:
         grasp_rot_offset_tensor = None
     
@@ -121,13 +249,18 @@ def set_robot_to_grasp_pose(
     joint_pos = robot_asset.data.joint_pos[env_ids].clone()
     joint_vel = robot_asset.data.joint_vel[env_ids].clone()
 
+    # Slice buffers for current batch size (no new allocations)
+    num_reset_envs = len(env_ids)
+    gear_type_indices = cache['gear_type_indices'][:num_reset_envs]
+    local_env_indices = cache['local_env_indices_buffer'][:num_reset_envs]
+    gear_grasp_offsets = cache['gear_grasp_offsets_buffer'][:num_reset_envs]
+
     while i < max_iterations:
         robot_asset: Articulation = env.scene[robot_asset_cfg.name]
         # Add gaussian noise to joint states
         joint_pos = robot_asset.data.joint_pos[env_ids].clone()
         joint_vel = robot_asset.data.joint_vel[env_ids].clone()
 
-        # OPTIMIZED: Vectorized gear data fetching
         env_ids_list = env_ids.tolist() if isinstance(env_ids, torch.Tensor) else list(env_ids)
         
         # Stack all gear positions and quaternions
@@ -143,16 +276,12 @@ def set_robot_to_grasp_pose(
             env.scene["factory_gear_large"].data.root_link_quat_w,
         ], dim=1)[env_ids]  # (len(env_ids), 3, 4)
         
-        # Convert gear types to indices for the resetting environments
-        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        gear_type_indices = torch.tensor(
-            [gear_type_map[env._current_gear_type[env_id]] for env_id in env_ids_list],
-            device=env.device,
-            dtype=torch.long
-        )
+        # Update gear_type_indices using pre-allocated buffer (already sliced)
+        gear_type_map = cache['gear_type_map']
+        for idx, env_id in enumerate(env_ids_list):
+            gear_type_indices[idx] = gear_type_map[env._current_gear_type[env_id]]
         
         # Select gear data using advanced indexing
-        local_env_indices = torch.arange(len(env_ids), device=env.device)
         grasp_object_pos_world = all_gear_pos[local_env_indices, gear_type_indices]
         grasp_object_quat = all_gear_quat[local_env_indices, gear_type_indices]
         
@@ -162,13 +291,9 @@ def set_robot_to_grasp_pose(
             # grasp_rot_offset is assumed to be in quaternion format (w, x, y, z)
             grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)
         
-        # OPTIMIZED: Vectorized grasp offsets application
-        # Get grasp offsets for all environments
-        gear_grasp_offsets = torch.stack([
-            torch.tensor(env.cfg.gear_offsets_grasp[env._current_gear_type[env_id]], 
-                         device=env.device, dtype=grasp_object_pos_world.dtype)
-            for env_id in env_ids_list
-        ])  # (len(env_ids), 3)
+        # Get grasp offsets for all environments using cached buffers (already sliced)
+        for idx, env_id in enumerate(env_ids_list):
+            gear_grasp_offsets[idx] = cache['gear_grasp_offset_tensors'][env._current_gear_type[env_id]]
         
         if pos_randomization_range is not None:
             pos_keys = ["x", "y", "z"]
@@ -269,8 +394,6 @@ def set_robot_to_grasp_pose(
                 joint_pos += delta_dof_pos
                 joint_vel = torch.zeros_like(joint_pos)
 
-                # Set into the physics simulation
-
                 
             except Exception as e:
                 print(f"Error in IK computation: {e}")
@@ -302,10 +425,6 @@ def set_robot_to_grasp_pose(
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
     robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
-    
-    # for i in range(5):
-    #     env.sim.render()
-    #     input("Press Enter to continue...")
 
     # Set finger joints to closed position based on gear type for each environment
     for row_idx, env_id in enumerate(env_ids_list):
@@ -314,9 +433,8 @@ def set_robot_to_grasp_pose(
         gripper_joint_setter_func(joint_pos, [row_idx], finger_joints, hand_close_width)
 
     robot_asset.set_joint_position_target(joint_pos, joint_ids=all_joints, env_ids=env_ids)
-    # for i in range(5):
-    #     env.sim.render()
-    #     input("Press Enter to continue...")
+
+    # input("Press Enter to continue...")
 
 def randomize_gears_and_base_pose(
     env: ManagerBasedEnv,
@@ -324,18 +442,28 @@ def randomize_gears_and_base_pose(
     pose_range: dict = {},
     velocity_range: dict = {},
     gear_pos_range: dict = {},
-    rot_randomization_range: dict = {},
-
 ):
     """Randomize both the gear base pose and the poses of all gear types with the same value,
     then apply the per-env `gear_pos_range` only to the gear selected by `randomize_gear_type`.
-    
-    OPTIMIZED: Vectorized approach using masks instead of Python loops over environments.
     """
     if not hasattr(env, '_current_gear_type'):
         raise ValueError("Environment does not have '_current_gear_type' attribute. Ensure randomize_gear_type event is configured.")
 
     device = env.device
+
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this function."
+        )
+    
+    cache = env._shared_gear_cache
+    
+    # Define gear-specific constants (these don't change and don't need to be in the cache)
+    gear_asset_names = ["factory_gear_small", "factory_gear_medium", "factory_gear_large"]
+    base_asset_name = "factory_gear_base"
+    possible_gear_assets = ["factory_gear_small", "factory_gear_medium", "factory_gear_large"]
 
     # Shared pose samples for all assets (base and all gears)
     pose_keys = ["x", "y", "z", "roll", "pitch", "yaw"]
@@ -351,16 +479,6 @@ def randomize_gears_and_base_pose(
     range_list_vel = [velocity_range.get(key, (0.0, 0.0)) for key in pose_keys]
     ranges_vel = torch.tensor(range_list_vel, device=device)
     rand_vel_samples = math_utils.sample_uniform(ranges_vel[:, 0], ranges_vel[:, 1], (len(env_ids), 6), device=device)
-
-    # Prepare assets: base + all possible gears (only those present in scene will be processed)
-    base_asset_name = "factory_gear_base"
-    possible_gear_assets = [
-        "factory_gear_small",
-        "factory_gear_medium",
-        "factory_gear_large",
-        # "table",
-    ]
-
 
     positions_by_asset = {}
     orientations_by_asset = {}
@@ -383,25 +501,17 @@ def randomize_gears_and_base_pose(
     ranges_gear = torch.tensor(range_list_gear, device=device)
     rand_gear_offsets = math_utils.sample_uniform(ranges_gear[:, 0], ranges_gear[:, 1], (len(env_ids), 3), device=device)
 
-    # Per-env gear orientation offset (rot_randomization_range) applied only to the selected gear
-    range_list_rot = [rot_randomization_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
-    ranges_rot = torch.tensor(range_list_rot, device=device)
-    rand_rot_offsets = math_utils.sample_uniform(ranges_rot[:, 0], ranges_rot[:, 1], (len(env_ids), 3), device=device)
-    rand_rot_quats = math_utils.quat_from_euler_xyz(rand_rot_offsets[:, 0], rand_rot_offsets[:, 1], rand_rot_offsets[:, 2])
-
-    # OPTIMIZED: Create masks for each gear type instead of Python loop
+    # Create masks for each gear type instead of Python loop
     env_ids_list = env_ids.tolist() if isinstance(env_ids, torch.Tensor) else list(env_ids)
 
-    # Create gear type mapping for vectorization
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_asset_names = ["factory_gear_small", "factory_gear_medium", "factory_gear_large"]
-
-    # Convert current gear types to indices (single list comprehension)
-    gear_type_indices = torch.tensor(
-        [gear_type_map[env._current_gear_type[env_id]] for env_id in env_ids_list],
-        device=device,
-        dtype=torch.long
-    )
+    # Slice buffer for current batch size (no new allocations)
+    num_reset_envs = len(env_ids)
+    gear_type_indices = cache['gear_type_indices'][:num_reset_envs]
+    
+    # Update gear_type_indices using pre-allocated buffer
+    gear_type_map = cache['gear_type_map']
+    for idx, env_id in enumerate(env_ids_list):
+        gear_type_indices[idx] = gear_type_map[env._current_gear_type[env_id]]
 
     # Apply offsets using vectorized operations with masks (no Python loop over envs)
     for gear_idx, asset_name in enumerate(gear_asset_names):
@@ -412,11 +522,6 @@ def randomize_gears_and_base_pose(
             # Apply position offsets only to selected environments (vectorized)
             positions_by_asset[asset_name][mask] = (
                 positions_by_asset[asset_name][mask] + rand_gear_offsets[mask]
-            )
-
-            # Apply orientation offsets only to selected environments (vectorized)
-            orientations_by_asset[asset_name][mask] = math_utils.quat_mul(
-                orientations_by_asset[asset_name][mask], rand_rot_quats[mask]
             )
 
     # Write back to sim for all prepared assets (fully vectorized)

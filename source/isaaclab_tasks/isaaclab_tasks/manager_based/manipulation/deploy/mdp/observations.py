@@ -37,6 +37,9 @@ def gear_shaft_pos_w(
     base_pos = asset.data.root_pos_w
     base_quat = asset.data.root_quat_w
     
+    # Access shared cache (initialized during prestartup events)
+    cache = env._shared_gear_cache
+    
     # get current gear type from environment, use default if not set
     if not hasattr(env, '_current_gear_type'):
         print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
@@ -45,18 +48,13 @@ def gear_shaft_pos_w(
     else:
         current_gear_type = env._current_gear_type  # type: ignore
     
-    # get offset for the specific gear type
-    gear_offsets = getattr(env.cfg, 'gear_offsets', {})
+    # Update offsets using cached gear offset tensors from shared cache
+    offsets = cache['offsets_buffer']
+    for i in range(env.num_envs):
+        offsets[i] = cache['gear_offset_tensors'][current_gear_type[i]]
     
-    offsets = torch.stack([
-        torch.tensor(gear_offsets[current_gear_type[i]], 
-                     device=base_pos.device, dtype=base_pos.dtype)
-        for i in range(env.num_envs)
-    ])  # Shape: (num_envs, 3)
-    
-    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], 
-                                 device=base_pos.device, dtype=base_pos.dtype)
-    identity_quat = identity_quat.unsqueeze(0).expand(env.num_envs, -1)
+    # Use cached identity_quat
+    identity_quat = cache['identity_quat']
     
     _, shaft_pos = tf_combine(base_quat, base_pos, identity_quat, offsets)
 
@@ -103,6 +101,15 @@ def gear_pos_w(
     Returns:
         Gear position tensor of shape (num_envs, 3)
     """
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this observation function."
+        )
+    
+    cache = env._shared_gear_cache
+    
     # get current gear type from environment, use default if not set
     if not hasattr(env, '_current_gear_type'):
         print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
@@ -117,15 +124,13 @@ def gear_pos_w(
         env.scene["factory_gear_large"].data.root_pos_w,
     ], dim=1)  # Shape: (num_envs, 3, 3)
     
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[current_gear_type[i]] for i in range(env.num_envs)],
-        device=env.device,
-        dtype=torch.long
-    )
+    # Update gear_type_indices using cached tensor
+    gear_type_indices = cache['gear_type_indices']
+    gear_type_map = cache['gear_type_map']
+    for i in range(env.num_envs):
+        gear_type_indices[i] = gear_type_map[current_gear_type[i]]
     
-    env_indices = torch.arange(env.num_envs, device=env.device)
-    gear_positions = all_gear_positions[env_indices, gear_type_indices]
+    gear_positions = all_gear_positions[cache['env_indices'], gear_type_indices]
     
     return gear_positions - env.scene.env_origins
 
@@ -140,6 +145,15 @@ def gear_quat_w(
     Returns:
         Gear orientation tensor of shape (num_envs, 4)
     """
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this observation function."
+        )
+    
+    cache = env._shared_gear_cache
+    
     # get current gear type from environment, use default if not set
     if not hasattr(env, '_current_gear_type'):
         print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
@@ -154,15 +168,13 @@ def gear_quat_w(
         env.scene["factory_gear_large"].data.root_quat_w,
     ], dim=1)  # Shape: (num_envs, 3, 4)
     
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[current_gear_type[i]] for i in range(env.num_envs)],
-        device=env.device,
-        dtype=torch.long
-    )
+    # Update gear_type_indices using cached tensor
+    gear_type_indices = cache['gear_type_indices']
+    gear_type_map = cache['gear_type_map']
+    for i in range(env.num_envs):
+        gear_type_indices[i] = gear_type_map[current_gear_type[i]]
     
-    env_indices = torch.arange(env.num_envs, device=env.device)
-    gear_quat = all_gear_quat[env_indices, gear_type_indices]
+    gear_quat = all_gear_quat[cache['env_indices'], gear_type_indices]
     
     w_negative = gear_quat[:, 0] < 0
     gear_positive_quat = gear_quat.clone()

@@ -47,6 +47,7 @@ def compute_keypoint_distance(
     keypoint_scale: float = 1.0,
     add_cube_center_kp: bool = True,
     device: torch.device | None = None,
+    cache: dict | None = None,
 ) -> torch.Tensor:
     """Compute keypoint distance between current and target poses.
 
@@ -62,6 +63,7 @@ def compute_keypoint_distance(
         keypoint_scale: Scale factor for keypoint offsets
         add_cube_center_kp: Whether to include the center keypoint (0, 0, 0)
         device: Device to create tensors on
+        cache: Optional cache dictionary to reuse tensors
 
     Returns:
         Keypoint distance tensor of shape (num_envs, num_keypoints) where each element
@@ -72,13 +74,29 @@ def compute_keypoint_distance(
 
     num_envs = current_pos.shape[0]
 
-    # Get keypoint offsets
-    keypoint_offsets = get_keypoint_offsets_full_6d(add_cube_center_kp, device)
-    keypoint_offsets = keypoint_offsets * keypoint_scale
+    # Cache must be provided and pre-initialized during prestartup
+    if cache is None:
+        raise RuntimeError(
+            "Cache is required for compute_keypoint_distance. "
+            "Ensure 'initialize_shared_gear_cache' is called during prestartup events."
+        )
+    
+    # Verify cache has required keys
+    if 'identity_quat_keypoints' not in cache or 'keypoint_offsets_base' not in cache:
+        raise RuntimeError(
+            "Shared cache not properly initialized. Required keys are missing. "
+            "Ensure 'initialize_shared_gear_cache' is called during prestartup events."
+        )
+    
+    # Get base keypoint offsets from cache and scale them
+    keypoint_offsets = cache['keypoint_offsets_base'] * keypoint_scale
     num_keypoints = keypoint_offsets.shape[0]
-
-    # Expand keypoints for all environments: (num_envs, num_keypoints, 3)
-    keypoint_offsets_batch = keypoint_offsets.unsqueeze(0).expand(num_envs, -1, -1)
+    
+    # Use buffer to create batched keypoints (in-place operation, no new allocation)
+    keypoint_offsets_batch = cache['keypoint_offsets_buffer']
+    keypoint_offsets_batch[:] = keypoint_offsets.unsqueeze(0)
+    
+    identity_quat = cache['identity_quat_keypoints']
     
     # Flatten for batch processing: (num_envs * num_keypoints, 3)
     keypoint_offsets_flat = keypoint_offsets_batch.reshape(-1, 3)
@@ -88,9 +106,6 @@ def compute_keypoint_distance(
     current_pos_expanded = current_pos.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 3)
     target_quat_expanded = target_quat.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 4)
     target_pos_expanded = target_pos.unsqueeze(1).expand(-1, num_keypoints, -1).reshape(-1, 3)
-    
-    # Create identity quaternion for all transforms
-    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).expand(num_envs * num_keypoints, -1)
     
     # Transform all keypoints at once
     _, keypoints_current_flat = tf_combine(current_quat_expanded, current_pos_expanded, identity_quat, keypoint_offsets_flat)
@@ -258,6 +273,15 @@ def keypoint_entity_error(
         Keypoint distance tensor of shape (num_envs,) where each element
         is the mean L2 norm distance between corresponding keypoints
     """
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this reward function."
+        )
+    
+    cache = env._shared_gear_cache
+    
     # extract the assets (to enable type hinting)
     asset_1 = env.scene[asset_cfg_1.name]  # RigidObject
     
@@ -282,18 +306,15 @@ def keypoint_entity_error(
             env.scene["factory_gear_large"].data.body_quat_w[:, 0],
         ], dim=1)  # (num_envs, 3, 4)
         
-        # Convert gear types to indices
-        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        gear_type_indices = torch.tensor(
-            [gear_type_map.get(current_gear_type[i], 1) for i in range(env.num_envs)],
-            device=curr_pos_1.device,
-            dtype=torch.long
-        )
+        # Update gear_type_indices using cached tensor
+        gear_type_indices = cache['gear_type_indices']
+        gear_type_map = cache['gear_type_map']
+        for i in range(env.num_envs):
+            gear_type_indices[i] = gear_type_map.get(current_gear_type[i], 1)
         
         # Select positions and quaternions using advanced indexing
-        env_indices = torch.arange(env.num_envs, device=curr_pos_1.device)
-        curr_pos_2_all = all_gear_pos[env_indices, gear_type_indices]
-        curr_quat_2_all = all_gear_quat[env_indices, gear_type_indices]
+        curr_pos_2_all = all_gear_pos[cache['env_indices'], gear_type_indices]
+        curr_quat_2_all = all_gear_quat[cache['env_indices'], gear_type_indices]
         
         # Compute keypoint distance for all environments at once
         keypoint_dist_sep = compute_keypoint_distance(
@@ -303,7 +324,8 @@ def keypoint_entity_error(
             target_quat=curr_quat_2_all,
             keypoint_scale=keypoint_scale,
             add_cube_center_kp=add_cube_center_kp,
-            device=curr_pos_1.device
+            device=curr_pos_1.device,
+            cache=cache
         )
     else:
         # Fallback to factory_gear_medium if _current_gear_type is not available
@@ -322,7 +344,8 @@ def keypoint_entity_error(
             target_quat=curr_quat_2,
             keypoint_scale=keypoint_scale,
             add_cube_center_kp=add_cube_center_kp,
-            device=curr_pos_1.device
+            device=curr_pos_1.device,
+            cache=cache
         )
     
     # Return mean distance across keypoints to match expected reward shape (num_envs,)
@@ -355,6 +378,15 @@ def keypoint_entity_error_exp(
         Exponential keypoint reward tensor of shape (num_envs,) where each element
         is the exponential reward value
     """
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this reward function."
+        )
+    
+    cache = env._shared_gear_cache
+    
     # extract the assets (to enable type hinting)
     asset_1 = env.scene[asset_cfg_1.name]  # RigidObject
     
@@ -379,18 +411,15 @@ def keypoint_entity_error_exp(
             env.scene["factory_gear_large"].data.body_quat_w[:, 0],
         ], dim=1)  # (num_envs, 3, 4)
         
-        # Convert gear types to indices
-        gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        gear_type_indices = torch.tensor(
-            [gear_type_map.get(current_gear_type[i], 1) for i in range(env.num_envs)],
-            device=curr_pos_1.device,
-            dtype=torch.long
-        )
+        # Update gear_type_indices using cached tensor
+        gear_type_indices = cache['gear_type_indices']
+        gear_type_map = cache['gear_type_map']
+        for i in range(env.num_envs):
+            gear_type_indices[i] = gear_type_map.get(current_gear_type[i], 1)
         
         # Select positions and quaternions using advanced indexing
-        env_indices = torch.arange(env.num_envs, device=curr_pos_1.device)
-        curr_pos_2_all = all_gear_pos[env_indices, gear_type_indices]
-        curr_quat_2_all = all_gear_quat[env_indices, gear_type_indices]
+        curr_pos_2_all = all_gear_pos[cache['env_indices'], gear_type_indices]
+        curr_quat_2_all = all_gear_quat[cache['env_indices'], gear_type_indices]
         
         # Compute keypoint distance for all environments at once
         keypoint_dist_sep = compute_keypoint_distance(
@@ -400,7 +429,8 @@ def keypoint_entity_error_exp(
             target_quat=curr_quat_2_all,
             keypoint_scale=keypoint_scale,
             add_cube_center_kp=add_cube_center_kp,
-            device=curr_pos_1.device
+            device=curr_pos_1.device,
+            cache=cache
         )
         
         # compute exponential reward
@@ -434,7 +464,8 @@ def keypoint_entity_error_exp(
             target_quat=curr_quat_2,
             keypoint_scale=keypoint_scale,
             add_cube_center_kp=add_cube_center_kp,
-            device=curr_pos_1.device
+            device=curr_pos_1.device,
+            cache=cache
         )
         
         # compute exponential reward

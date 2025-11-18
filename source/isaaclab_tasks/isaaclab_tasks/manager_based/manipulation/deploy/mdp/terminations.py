@@ -25,7 +25,6 @@ __all__ = ["reset_when_gear_dropped", "reset_when_gear_orientation_exceeds_thres
 def reset_when_gear_dropped(
     env: ManagerBasedEnv,
     distance_threshold: float = 0.1,
-    height_threshold: Optional[float] = None,
     robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Check if the gear has fallen out of the gripper and return reset flags.
@@ -37,7 +36,6 @@ def reset_when_gear_dropped(
     Args:
         env: The environment containing the assets
         distance_threshold: Maximum allowed distance between gear grasp point and gripper (in meters)
-        height_threshold: Optional minimum height for the gear (in meters, world frame)
         robot_asset_cfg: Configuration for the robot asset
 
     Returns:
@@ -70,8 +68,22 @@ def reset_when_gear_dropped(
     device = env.device
     num_envs = env.num_envs
 
-    # Initialize reset flags
-    reset_flags = torch.zeros(num_envs, dtype=torch.bool, device=device)
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this termination function."
+        )
+
+    # Reuse cached tensors from shared cache
+    cache = env._shared_gear_cache
+    env_indices = cache['env_indices']
+    gear_type_map = cache['gear_type_map']
+    reset_flags = cache['reset_flags']
+    reset_flags.fill_(False)  # Reset to False for this iteration
+    
+    # Get grasp rotation offset tensor if available
+    grasp_rot_offset_tensor = cache.get('grasp_rot_offset_tensor', None)
 
     # Get the end effector position using robot-specific body name
     try:
@@ -87,44 +99,35 @@ def reset_when_gear_dropped(
         carb.log_warn(f"Could not get end effector pose: {e}")
         return reset_flags
 
-    # OPTIMIZED: Fully vectorized gear drop detection
-    # Stack all gear positions and quaternions
-    all_gear_pos = torch.stack([
-        env.scene["factory_gear_small"].data.root_link_pos_w,
-        env.scene["factory_gear_medium"].data.root_link_pos_w,
-        env.scene["factory_gear_large"].data.root_link_pos_w,
-    ], dim=1)  # (num_envs, 3, 3)
+    # Use cached buffers for gear positions and quaternions (avoid torch.stack allocation)
+    all_gear_pos = cache['all_gear_pos_buffer']
+    all_gear_pos[:, 0, :] = env.scene["factory_gear_small"].data.root_link_pos_w
+    all_gear_pos[:, 1, :] = env.scene["factory_gear_medium"].data.root_link_pos_w
+    all_gear_pos[:, 2, :] = env.scene["factory_gear_large"].data.root_link_pos_w
     
-    all_gear_quat = torch.stack([
-        env.scene["factory_gear_small"].data.root_link_quat_w,
-        env.scene["factory_gear_medium"].data.root_link_quat_w,
-        env.scene["factory_gear_large"].data.root_link_quat_w,
-    ], dim=1)  # (num_envs, 3, 4)
+    all_gear_quat = cache['all_gear_quat_buffer']
+    all_gear_quat[:, 0, :] = env.scene["factory_gear_small"].data.root_link_quat_w
+    all_gear_quat[:, 1, :] = env.scene["factory_gear_medium"].data.root_link_quat_w
+    all_gear_quat[:, 2, :] = env.scene["factory_gear_large"].data.root_link_quat_w
     
-    # Convert gear types to indices
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[env._current_gear_type[i]] for i in range(num_envs)],
-        device=device,
-        dtype=torch.long
-    )
+    # Convert gear types to indices - use shared cache buffer
+    gear_type_indices = cache['gear_type_indices']
+    for i in range(num_envs):
+        gear_type_indices[i] = gear_type_map[env._current_gear_type[i]]
     
     # Select gear data using advanced indexing
-    env_indices = torch.arange(num_envs, device=device)
     gear_pos_world = all_gear_pos[env_indices, gear_type_indices]  # (num_envs, 3)
     gear_quat_world = all_gear_quat[env_indices, gear_type_indices]  # (num_envs, 4)
     
     # Apply rotation offset to all gears if provided
-    if grasp_rot_offset is not None:
-        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
+    if grasp_rot_offset_tensor is not None:
         gear_quat_world = math_utils.quat_mul(gear_quat_world, grasp_rot_offset_tensor)
     
-    # Get grasp offsets for all environments (vectorized)
-    gear_grasp_offsets = torch.stack([
-        torch.tensor(env.cfg.gear_offsets_grasp[env._current_gear_type[i]], 
-                     device=device, dtype=torch.float32)
-        for i in range(num_envs)
-    ])  # (num_envs, 3)
+    # Get grasp offsets for all environments using cached tensors from shared cache
+    # Reuse the gear_grasp_offsets_buffer from shared cache
+    gear_grasp_offsets = cache['gear_grasp_offsets_buffer']
+    for i in range(num_envs):
+        gear_grasp_offsets[i] = cache['gear_grasp_offset_tensors'][env._current_gear_type[i]]
     
     # Transform grasp offsets to world frame (vectorized)
     gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(
@@ -135,12 +138,7 @@ def reset_when_gear_dropped(
     distances = torch.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)  # (num_envs,)
     
     # Check distance threshold (vectorized)
-    reset_flags = distances > distance_threshold
-    
-    # Check height threshold if provided (vectorized)
-    if height_threshold is not None:
-        gear_heights = gear_pos_world[:, 2]  # Z coordinates
-        reset_flags |= gear_heights < height_threshold
+    reset_flags[:] = distances > distance_threshold
 
     return reset_flags
 
@@ -195,8 +193,35 @@ def reset_when_gear_orientation_exceeds_threshold(
     device = env.device
     num_envs = env.num_envs
 
-    # Initialize reset flags
-    reset_flags = torch.zeros(num_envs, dtype=torch.bool, device=device)
+    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
+    if not hasattr(env, '_shared_gear_cache'):
+        raise RuntimeError(
+            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
+            "during startup or reset events before this termination function."
+        )
+
+    # Reuse cached tensors from shared cache
+    cache = env._shared_gear_cache
+    
+    # Initialize orientation-specific cached values on first call
+    if not hasattr(env, '_gear_orientation_thresholds'):
+        env._gear_orientation_thresholds = {
+            'roll_threshold_rad': torch.deg2rad(torch.tensor(roll_threshold_deg, device=device)),
+            'pitch_threshold_rad': torch.deg2rad(torch.tensor(pitch_threshold_deg, device=device)),
+            'yaw_threshold_rad': torch.deg2rad(torch.tensor(yaw_threshold_deg, device=device)),
+        }
+    
+    thresholds = env._gear_orientation_thresholds
+    env_indices = cache['env_indices']
+    gear_type_map = cache['gear_type_map']
+    reset_flags = cache['reset_flags']
+    reset_flags.fill_(False)  # Reset to False for this iteration
+    roll_threshold_rad = thresholds['roll_threshold_rad']
+    pitch_threshold_rad = thresholds['pitch_threshold_rad']
+    yaw_threshold_rad = thresholds['yaw_threshold_rad']
+    
+    # Get grasp rotation offset tensor if available
+    grasp_rot_offset_tensor = cache.get('grasp_rot_offset_tensor', None)
 
     # Get the end effector orientation using robot-specific body name
     try:
@@ -212,29 +237,22 @@ def reset_when_gear_orientation_exceeds_threshold(
         carb.log_warn(f"Could not get end effector orientation: {e}")
         return reset_flags
 
-    # OPTIMIZED: Fully vectorized gear orientation detection
-    # Stack all gear quaternions
-    all_gear_quat = torch.stack([
-        env.scene["factory_gear_small"].data.root_link_quat_w,
-        env.scene["factory_gear_medium"].data.root_link_quat_w,
-        env.scene["factory_gear_large"].data.root_link_quat_w,
-    ], dim=1)  # (num_envs, 3, 4)
+    # Use cached buffer for gear quaternions (avoid torch.stack allocation)
+    all_gear_quat = cache['all_gear_quat_buffer']
+    all_gear_quat[:, 0, :] = env.scene["factory_gear_small"].data.root_link_quat_w
+    all_gear_quat[:, 1, :] = env.scene["factory_gear_medium"].data.root_link_quat_w
+    all_gear_quat[:, 2, :] = env.scene["factory_gear_large"].data.root_link_quat_w
 
-    # Convert gear types to indices
-    gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-    gear_type_indices = torch.tensor(
-        [gear_type_map[env._current_gear_type[i]] for i in range(num_envs)],
-        device=device,
-        dtype=torch.long
-    )
+    # Convert gear types to indices - use shared cache buffer
+    gear_type_indices = cache['gear_type_indices']
+    for i in range(num_envs):
+        gear_type_indices[i] = gear_type_map[env._current_gear_type[i]]
 
     # Select gear data using advanced indexing
-    env_indices = torch.arange(num_envs, device=device)
     gear_quat_world = all_gear_quat[env_indices, gear_type_indices]  # (num_envs, 4)
 
     # Apply rotation offset to all gears if provided
-    if grasp_rot_offset is not None:
-        grasp_rot_offset_tensor = torch.tensor(grasp_rot_offset, device=device).unsqueeze(0).expand(num_envs, -1)
+    if grasp_rot_offset_tensor is not None:
         gear_quat_world = math_utils.quat_mul(gear_quat_world, grasp_rot_offset_tensor)
 
     # Compute relative orientation: q_rel = q_gear * q_eef^-1
@@ -245,15 +263,28 @@ def reset_when_gear_orientation_exceeds_threshold(
     # Using XYZ extrinsic convention (returns tuple of tensors)
     roll, pitch, yaw = math_utils.euler_xyz_from_quat(relative_quat)
 
-    # Convert thresholds from degrees to radians
-    roll_threshold_rad = torch.deg2rad(torch.tensor(roll_threshold_deg, device=device))
-    pitch_threshold_rad = torch.deg2rad(torch.tensor(pitch_threshold_deg, device=device))
-    yaw_threshold_rad = torch.deg2rad(torch.tensor(yaw_threshold_deg, device=device))
 
     # Check if any angle exceeds its threshold
-    reset_flags = (torch.abs(roll) > roll_threshold_rad) | \
-                  (torch.abs(pitch) > pitch_threshold_rad) | \
-                  (torch.abs(yaw) > yaw_threshold_rad)
+    reset_flags[:] = (torch.abs(roll) > roll_threshold_rad) | \
+                     (torch.abs(pitch) > pitch_threshold_rad) | \
+                     (torch.abs(yaw) > yaw_threshold_rad)
+
+    # # Print values that crossed the threshold for environments being reset
+    # if reset_flags.any():
+    #     reset_env_indices = torch.where(reset_flags)[0]
+    #     for idx in reset_env_indices:
+    #         roll_deg = torch.rad2deg(roll[idx]).item()
+    #         pitch_deg = torch.rad2deg(pitch[idx]).item()
+    #         yaw_deg = torch.rad2deg(yaw[idx]).item()
+    #         exceeded = []
+    #         if torch.abs(roll[idx]) > roll_threshold_rad:
+    #             exceeded.append(f"roll={roll_deg:.2f}° (threshold={roll_threshold_deg}°)")
+    #         if torch.abs(pitch[idx]) > pitch_threshold_rad:
+    #             exceeded.append(f"pitch={pitch_deg:.2f}° (threshold={pitch_threshold_deg}°)")
+    #         if torch.abs(yaw[idx]) > yaw_threshold_rad:
+    #             exceeded.append(f"yaw={yaw_deg:.2f}° (threshold={yaw_threshold_deg}°)")
+    #         print(f"Env {idx.item()} reset due to orientation threshold exceeded: {', '.join(exceeded)}")
+    #         input("Press Enter to continue...")
 
     return reset_flags
 

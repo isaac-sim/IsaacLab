@@ -107,6 +107,10 @@ def set_finger_joint_pos_robotiq_2f85(
 class EventCfg:
     """Configuration for events."""
 
+    # Prestartup events - initialize shared cache BEFORE managers are created
+    # This ensures the cache exists when observation/reward/termination functions are called during initialization
+    initialize_cache = EventTerm(func=mdp.initialize_shared_gear_cache, mode="prestartup")
+
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="reset",
@@ -135,8 +139,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (1.5, 1.5),
-            "dynamic_friction_range": (1.5, 1.5),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -147,8 +151,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (1.5, 1.5),
-            "dynamic_friction_range": (1.5, 1.5),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -159,8 +163,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (1.5, 1.5),
-            "dynamic_friction_range": (1.5, 1.5),
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -183,8 +187,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (5.0, 5.0),
+            "dynamic_friction_range": (5.0, 5.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -195,6 +199,7 @@ class EventCfg:
         mode="reset",
         params={
             "gear_types": ["gear_small", "gear_medium", "gear_large"]
+            # "gear_types": ["gear_medium"]
         },
     )
 
@@ -207,12 +212,6 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                # "x": [0.0, 0.0],
-                # "y": [0.0, 0.0],
-                # "z": [0.0, 0.0],
-                # "roll": [-0.0, 0.0], # 0 degree
-                # "pitch": [-0.0, 0.0], # 0 degree
-                # "yaw": [-0.0, 0.0], # 0 degree
                 "x": [-0.1, 0.1],
                 "y": [-0.25, 0.25],
                 "z": [-0.1,  0.1],
@@ -224,14 +223,6 @@ class EventCfg:
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
                 "z": [0.0575, 0.0775], # 0.045 + 0.0225
-                # "x": [-0.0, 0.0],
-                # "y": [-0.0, 0.0],
-                # "z": [0.0675, 0.0675],
-            },
-            "rot_randomization_range": {
-                "roll": [-math.pi/36, math.pi/36], # 5 degree
-                "pitch": [-math.pi/36, math.pi/36], # 5 degree
-                "yaw": [-math.pi/36, math.pi/36], # 5 degree
             },
             "velocity_range": {},
         },
@@ -271,8 +262,8 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.gripper_joint_setter_func = None  # Gripper-specific joint setter function (set in subclass)
 
         # Gear orientation termination thresholds (in degrees)
-        self.gear_orientation_roll_threshold_deg = 7.0  # Maximum allowed roll deviation
-        self.gear_orientation_pitch_threshold_deg = 7.0  # Maximum allowed pitch deviation
+        self.gear_orientation_roll_threshold_deg = 15.0  # Maximum allowed roll deviation
+        self.gear_orientation_pitch_threshold_deg = 15.0  # Maximum allowed pitch deviation
         self.gear_orientation_yaw_threshold_deg = 180.0  # Maximum allowed yaw deviation
 
         # Common observation configuration
@@ -289,41 +280,9 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # override command generator body
         self.joint_action_scale = 0.025
-        self.action_scale_joint_space = [self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale, self.joint_action_scale]
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
             asset_name="robot", joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], scale=self.joint_action_scale, use_zero_offset=True
         )
-
-        self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
-        self.policy_action_space = "joint"
-        self.arm_joint_names = [
-            "shoulder_pan_joint",
-            "shoulder_lift_joint",
-            "elbow_joint",
-            "wrist_1_joint",
-            "wrist_2_joint",
-            "wrist_3_joint",
-        ]
-        self.policy_action_space = "joint"
-        self.action_space = 6
-        self.state_space = 42
-        self.observation_space = 19
-
-        # Set joint_action_scale from the existing arm_action.scale
-        self.joint_action_scale = self.actions.arm_action.scale
-
-        self.action_scale_joint_space = [
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-        ]
-        self.fixed_asset_init_pos_center = (1.0200, -0.2100, -0.1)
-        self.fixed_asset_init_pos_range = (0.1, 0.25, 0.1)
-        self.fixed_asset_init_orn_deg = (180.0, 0.0, 90.0)
-        self.fixed_asset_init_orn_deg_range = (5.0, 5.0, 30.0)
 
 
 @configclass
@@ -383,10 +342,10 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         # 2F-140 gripper actuator configuration
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
-            effort_limit_sim=1.0,
-            velocity_limit_sim=1.0,
-            stiffness=2.0,
-            damping=0.01,
+            effort_limit_sim=10.0,
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.05,
             friction=0.0,
             armature=0.0,
         )

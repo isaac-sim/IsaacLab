@@ -220,6 +220,10 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    # Prestartup events - initialize shared cache BEFORE managers are created
+    # This ensures the cache exists when observation/reward/termination functions are called during initialization
+    initialize_cache = EventTerm(func=mdp.initialize_shared_gear_cache, mode="prestartup")
+
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
     reset_gear = EventTerm(
@@ -274,7 +278,6 @@ class TerminationsCfg:
         func=gear_assembly_terminations.reset_when_gear_dropped,
         params={
             "distance_threshold": 0.15,  # 15cm from gripper
-            "height_threshold": None,  # Disable height check (set to a value like 0.5 to enable)
             "robot_asset_cfg": SceneEntityCfg("robot"),
         },
     )
@@ -303,7 +306,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
 
         physx=PhysxCfg(
-            gpu_collision_stack_size=2**31,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
+            gpu_collision_stack_size=2**28,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23
         ),
