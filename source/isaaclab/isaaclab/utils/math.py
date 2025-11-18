@@ -8,13 +8,15 @@
 # needed to import for allowing type-hinting: torch.Tensor | np.ndarray
 from __future__ import annotations
 
+import logging
 import math
 import numpy as np
 import torch
 import torch.nn.functional
 from typing import Literal
 
-import omni.log
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 General
@@ -694,7 +696,7 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
     # deprecation
-    omni.log.warn(
+    logger.warning(
         "The function 'quat_rotate' will be deprecated in favor of the faster method 'quat_apply'."
         " Please use 'quat_apply' instead...."
     )
@@ -714,7 +716,7 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    omni.log.warn(
+    logger.warning(
         "The function 'quat_rotate_inverse' will be deprecated in favor of the faster method 'quat_apply_inverse'."
         " Please use 'quat_apply_inverse' instead...."
     )

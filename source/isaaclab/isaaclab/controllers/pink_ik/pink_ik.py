@@ -221,13 +221,12 @@ class PinkIKController:
                 self.pink_configuration,
                 self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks,
                 dt,
-                solver="osqp",
+                solver="daqp",
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
             joint_angle_changes = velocity * dt
         except (AssertionError, Exception) as e:
             # Print warning and return the current joint positions as the target
-            # Not using omni.log since its not available in CI during docs build
             if self.cfg.show_ik_warnings:
                 print(
                     "Warning: IK quadratic solver could not find a solution! Did not update the target joint"

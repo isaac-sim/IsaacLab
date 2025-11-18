@@ -21,7 +21,6 @@ import random
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
@@ -30,6 +29,7 @@ from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()

@@ -8,6 +8,7 @@
 This module provides utility functions to help with controller implementations.
 """
 
+import logging
 import os
 import re
 
@@ -15,9 +16,10 @@ from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.asset.exporter.urdf")
 
-import nvidia.srl.tools.logger as logger
-import omni.log
 from nvidia.srl.from_usd.to_urdf import UsdToUrdf
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool = True) -> tuple[str, str]:
@@ -35,7 +37,7 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
         "edge_names_to_remove": None,
         "root": None,
         "parent_link_is_body_1": None,
-        "log_level": logger.level_from_name("ERROR"),
+        "log_level": logging.ERROR,
     }
 
     urdf_output_dir = os.path.join(output_path, "urdf")
@@ -90,11 +92,11 @@ def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: b
         old_str = f'<joint name="{joint}" type="revolute">'
         new_str = f'<joint name="{joint}" type="fixed">'
         if verbose:
-            omni.log.warn(f"Replacing {joint} with fixed joint")
-            omni.log.warn(old_str)
-            omni.log.warn(new_str)
+            logger.warning(f"Replacing {joint} with fixed joint")
+            logger.warning(old_str)
+            logger.warning(new_str)
             if old_str not in content:
-                omni.log.warn(f"Error: Could not find revolute joint named '{joint}' in URDF file")
+                logger.warning(f"Error: Could not find revolute joint named '{joint}' in URDF file")
         content = content.replace(old_str, new_str)
 
     with open(urdf_path, "w") as file:
@@ -127,9 +129,9 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
             old_str = f'<joint name="{joint}" type="revolute">'
             new_str = f'<joint name="{joint}" type="fixed">'
             if verbose:
-                omni.log.warn(f"Replacing {joint} with fixed joint")
-                omni.log.warn(old_str)
-                omni.log.warn(new_str)
+                logger.warning(f"Replacing {joint} with fixed joint")
+                logger.warning(old_str)
+                logger.warning(new_str)
             content = content.replace(old_str, new_str)
 
     with open(urdf_path, "w") as file:
