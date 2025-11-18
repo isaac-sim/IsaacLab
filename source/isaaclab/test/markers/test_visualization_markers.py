@@ -14,13 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.math import random_orientation
 from isaaclab.utils.timer import Timer
 

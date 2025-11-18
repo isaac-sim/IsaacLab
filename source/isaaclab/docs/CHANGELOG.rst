@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.48.5 (2025-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.stage`` to ``isaaclab.sim.utils.stage`` to reduce IsaacLab dependencies.
+
+
 0.48.4 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
