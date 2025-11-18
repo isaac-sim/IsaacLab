@@ -1,0 +1,72 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+seed: 42
+
+# Models are instantiated using skrl's model instantiator utility
+models:
+  separate: True
+  policy:
+    clip_actions: False
+    clip_log_std: True
+    initial_log_std: 1.0
+    min_log_std: -20.0
+    max_log_std: 2.0
+    input_shape: "Shape.STATES"
+    hiddens: [512, 512]
+    hidden_activation: ["tanh", "tanh"]
+    output_shape: "Shape.ACTIONS"
+    output_activation: ""
+    output_scale: 1.0
+
+  value:
+    clip_actions: False
+    input_shape: "Shape.STATES"
+    hiddens: [512, 512]
+    hidden_activation: ["tanh", "tanh"]
+    output_shape: "Shape.ONE"
+    output_activation: ""
+    output_scale: 1.0
+
+# PPO agent configuration
+agent:
+  rollouts: 1  # Number of rollouts to gather 48,000 steps
+  learning_epochs: 10
+  mini_batches: 40
+  discount_factor: 1.0
+  lambda: 0.95
+  learning_rate: 5.e-5
+  state_preprocessor: "RunningStandardScaler"  # Normalization for observations
+  value_preprocessor: "RunningStandardScaler"  # Normalization for rewards
+  random_timesteps: 0
+  learning_starts: 0
+  grad_norm_clip: 1.0
+  ratio_clip: 0.2
+  value_clip: 0.2
+  clip_predicted_values: True
+  entropy_loss_scale: 0
+  value_loss_scale: 1.0
+  kl_threshold: 0.01  # This is for early stopping if KL divergence exceeds this threshold
+  rewards_shaper_scale: 0.01  # Rewards shaping scale
+  # Logging and checkpoint configuration
+  experiment:
+    directory: "franka_lift"
+    experiment_name: "step_rl_Fancy_Gym_HP"
+    write_interval: 50
+    checkpoint_interval: 50
+    wandb: True
+    wandb_kwargs:
+      project: "box_pushing"  # wandb project name
+      group: "skrl"
+      entity: "far3l_team"  # wandb organization name
+      notes: "testing skrl"
+      sync_tensorboard: True  # Sync TensorBoard logs with wandb (if TensorBoard is used)
+      save_code: True  # Save code to wandb for reproducibility
+      tensorboard: True  # Enable TensorBoard integration
+
+# Sequential trainer
+trainer:
+  timesteps: 100  # Total number of timesteps for each update
+  environment_info: "log"
