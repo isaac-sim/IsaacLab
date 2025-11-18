@@ -148,7 +148,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.target_prim_expr]
+                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
             # update position of the target meshes
@@ -156,8 +156,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
-            if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
-                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
+            if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
+                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
                 pos_w -= pos_offset
                 ori_w = math_utils.quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 

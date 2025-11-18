@@ -141,13 +141,11 @@ def main():
     _ = TerrainImporter(terrain_importer_cfg)
 
     mesh_targets: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = [
-        MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/ground", track_mesh_transforms=False),
+        MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/ground", track_mesh_transforms=False),
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(
-                target_prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True
-            )
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(

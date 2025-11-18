@@ -65,11 +65,11 @@ class MultiMeshRayCaster(RayCaster):
                 prim_path="{ENV_REGEX_NS}/Robot",
                 mesh_prim_paths=[
                     "/World/Ground",
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
                 ],
                 ray_alignment="world",
                 pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
@@ -105,15 +105,13 @@ class MultiMeshRayCaster(RayCaster):
         for target in self.cfg.mesh_prim_paths:
             # Legacy support for string targets. Treat them as global targets.
             if isinstance(target, str):
-                self._raycast_targets_cfg.append(
-                    cfg.RaycastTargetCfg(target_prim_expr=target, track_mesh_transforms=False)
-                )
+                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False))
             else:
                 self._raycast_targets_cfg.append(target)
 
         # Resolve regex namespace if set
         for cfg in self._raycast_targets_cfg:
-            cfg.target_prim_expr = cfg.target_prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
+            cfg.prim_expr = cfg.prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
 
         # overwrite the data class
         self._data = MultiMeshRayCasterData()
@@ -165,7 +163,7 @@ class MultiMeshRayCaster(RayCaster):
         multi_mesh_ids: dict[str, list[list[int]]] = {}
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
-            target_prim_path = target_cfg.target_prim_expr
+            target_prim_path = target_cfg.prim_expr
             # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in multi_mesh_ids:
                 carb.log_warn(
@@ -298,7 +296,7 @@ class MultiMeshRayCaster(RayCaster):
                 )
 
         # throw an error if no meshes are found
-        if all([target_cfg.target_prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
+        if all([target_cfg.prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -310,11 +308,11 @@ class MultiMeshRayCaster(RayCaster):
         # Update the mesh positions and rotations
         mesh_idx = 0
         for target_cfg in self._raycast_targets_cfg:
-            n_meshes = self._num_meshes_per_env[target_cfg.target_prim_expr]
+            n_meshes = self._num_meshes_per_env[target_cfg.prim_expr]
 
             # update position of the target meshes
             pos_w, ori_w = [], []
-            for prim in sim_utils.find_matching_prims(target_cfg.target_prim_expr):
+            for prim in sim_utils.find_matching_prims(target_cfg.prim_expr):
                 translation, quat = sim_utils.resolve_prim_pose(prim)
                 pos_w.append(translation)
                 ori_w.append(quat)
@@ -330,11 +328,11 @@ class MultiMeshRayCaster(RayCaster):
         for env_idx in range(self._num_envs):
             meshes_in_env = []
             for target_cfg in self._raycast_targets_cfg:
-                meshes_in_env.extend(multi_mesh_ids[target_cfg.target_prim_expr][env_idx])
+                meshes_in_env.extend(multi_mesh_ids[target_cfg.prim_expr][env_idx])
             multi_mesh_ids_flattened.append(meshes_in_env)
 
         self._mesh_views = [
-            self.mesh_views[target_cfg.target_prim_expr] if target_cfg.track_mesh_transforms else None
+            self.mesh_views[target_cfg.prim_expr] if target_cfg.track_mesh_transforms else None
             for target_cfg in self._raycast_targets_cfg
         ]
 
@@ -361,7 +359,7 @@ class MultiMeshRayCaster(RayCaster):
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.target_prim_expr]
+                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
             # update position of the target meshes
@@ -369,8 +367,8 @@ class MultiMeshRayCaster(RayCaster):
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
-            if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
-                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
+            if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
+                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
                 pos_w -= pos_offset
                 ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 

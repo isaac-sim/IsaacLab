@@ -23,7 +23,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     class RaycastTargetCfg:
         """Configuration for different ray-cast targets."""
 
-        target_prim_expr: str = MISSING
+        prim_expr: str = MISSING
         """The regex to specify the target prim to ray cast against."""
 
         is_shared: bool = False

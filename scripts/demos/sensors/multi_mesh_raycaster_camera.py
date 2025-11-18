@@ -74,24 +74,12 @@ if args_cli.asset_type == "allegro_hand":
         ),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"
-            ),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"
-            ),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
         ],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
@@ -111,11 +99,11 @@ elif args_cli.asset_type == "anymal_d":
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0, -0.1, 1.5), rot=(0.0, 1.0, 0.0, 0.0)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
         ],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
@@ -174,7 +162,7 @@ elif args_cli.asset_type == "multi":
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0, 0.0, 1.5), rot=(0.0, 1.0, 0.0, 0.0)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Object"),
+            MultiMeshRayCasterCameraCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Object"),
         ],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
