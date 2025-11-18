@@ -59,6 +59,7 @@ def sample_box_poses(
     # set into the physics simulation
     box_poses = torch.cat([positions, orientations], dim=-1)
     asset.write_root_pose_to_sim(box_poses, env_ids=env_ids)
+    return box_poses
 
 
 def reset_robot_cfg_with_IK(
@@ -111,7 +112,7 @@ def reset_robot_cfg_with_IK(
     )
 
 
-def reset_box_root_state_uniform_with_precomputed_robot_IK(
+def reset_robot_cfg_with_cached_IK(
     env: BoxPushingEnv,
     env_ids: torch.Tensor,
     pose_range: dict[str, tuple[float, float]],
@@ -123,13 +124,7 @@ def reset_box_root_state_uniform_with_precomputed_robot_IK(
     robot: Articulation = env.scene["robot"]
     box_poses[:, :3] -= robot.data.root_pos_w[env_ids]
 
-    ######
-    # IK #
-    ######
-
-    # getting IK
-
-    joint_pos_des = env.get_ik_solutions(box_poses)
+    joint_pos_des = env.get_cached_ik_solutions(box_poses[:, :3])
 
     # setting desired joint angles in simulation
     robot_entity_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])

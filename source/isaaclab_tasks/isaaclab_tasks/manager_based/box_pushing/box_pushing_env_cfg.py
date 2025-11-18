@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import torch
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -157,29 +157,42 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for randomization."""
 
-    def __init__(self, r2r, use_ik_reset: bool = True) -> None:
+    def __init__(
+        self,
+        r2r,
+        use_ik_reset: bool = True,
+        use_cached_ik: bool = True,
+        pose_range: dict[str, tuple[float, float]] | None = None,
+    ) -> None:
 
         self.reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
-        if r2r and use_ik_reset:
+        pose_range = pose_range or {
+            "x": (-0.15, 0.15),
+            "y": (-0.45, 0.45),
+            "z": (0.0, 0.0),
+            "yaw": (0.0, 2 * torch.pi),
+        }
+
+        if r2r:
             self.reset_box_pose = EventTerm(
                 func=mdp.sample_box_poses,
                 mode="reset",
-                params={
-                    "pose_range": {
-                        "x": (-0.15, 0.15),
-                        "y": (-0.45, 0.45),
-                        "z": (0.0, 0.0),
-                        "yaw": (0.0, 2 * torch.pi),
-                    },
-                    "asset_cfg": SceneEntityCfg("object", body_names="Object"),
-                },
+                params={"pose_range": pose_range, "asset_cfg": SceneEntityCfg("object", body_names="Object")},
             )
 
-            self.reset_object_position = EventTerm(
-                func=mdp.reset_robot_cfg_with_IK,
-                mode="reset",
-            )
+        if r2r and use_ik_reset:
+            if use_cached_ik:
+                self.reset_object_position = EventTerm(
+                    func=mdp.reset_robot_cfg_with_cached_IK,
+                    mode="reset",
+                    params={"pose_range": pose_range, "asset_cfg": SceneEntityCfg("object", body_names="Object")},
+                )
+            else:
+                self.reset_object_position = EventTerm(
+                    func=mdp.reset_robot_cfg_with_IK,
+                    mode="reset",
+                )
 
 
 @configclass
@@ -276,8 +289,20 @@ class BoxPushingEnvCfg(ManagerBasedRLEnvCfg):
 
     # Toggle whether IK-based resets are used (expensive but diverse).
     use_ik_reset: bool = True
+    use_cached_ik: bool = True
+
+    ik_cache_num_samples: int = 2048
 
     ik_grid_precision = 100
+
+    pose_sampling_range: dict[str, tuple[float, float]] = field(
+        default_factory=lambda: {
+            "x": (-0.15, 0.15),
+            "y": (-0.45, 0.45),
+            "z": (0.0, 0.0),
+            "yaw": (0.0, 2 * torch.pi),
+        }
+    )
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
@@ -312,4 +337,9 @@ class BoxPushingEnvCfg(ManagerBasedRLEnvCfg):
         if self.commands is None:
             self.commands = CommandsCfg(self.r2r)
         if self.events is None:
-            self.events = EventCfg(self.r2r, self.use_ik_reset)
+            self.events = EventCfg(
+                self.r2r,
+                self.use_ik_reset,
+                self.use_cached_ik,
+                pose_range=self.pose_sampling_range,
+            )

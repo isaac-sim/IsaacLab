@@ -128,6 +128,7 @@ class FrankaBoxPushingEnvCfg_PLAY(FrankaBoxPushingEnvCfg):
 @configclass
 class FrankaBoxPushingNoIKEnvCfg(FrankaBoxPushingEnvCfg):
     use_ik_reset = False
+    use_cached_ik = False
 
 
 @configclass
