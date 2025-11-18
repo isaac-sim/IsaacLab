@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 14, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 18, 2025"/>
   </head>
   
   
@@ -617,15 +617,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">attach_stage_to_usd_context</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">stage</span> <span class="k">as</span> <span class="n">stage_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.configclass</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_quat</span>
 
@@ -744,7 +742,7 @@
         <span class="c1"># get next free path for the prim</span>
         <span class="n">prim_path</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_next_free_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="c1"># create a new prim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_instancer_manager</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">PointInstancer</span><span class="o">.</span><span class="n">Define</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">)</span>
         <span class="c1"># store inputs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="n">prim_path</span>
@@ -994,7 +992,7 @@
             <span class="k">if</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Gprim</span><span class="p">):</span>
                 <span class="c1"># early attach stage to usd context if stage is in memory</span>
                 <span class="c1"># since stage in memory is not supported by the &quot;ChangePropertyCommand&quot; kit command</span>
-                <span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">stage_utils</span><span class="o">.</span><span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
                 <span class="c1"># invisible to secondary rays such as depth images</span>
                 <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
@@ -1056,7 +1054,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 14, 2025.
+  Last updated on Nov 18, 2025.
   <br/>
 </p>
   </div>

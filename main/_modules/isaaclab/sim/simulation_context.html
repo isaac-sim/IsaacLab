@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 14, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 18, 2025"/>
   </head>
   
   
@@ -617,7 +617,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">flatdict</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.api.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
@@ -626,7 +625,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_new_stage_in_memory</span><span class="p">,</span> <span class="n">use_stage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">stage</span> <span class="k">as</span> <span class="n">stage_utils</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.simulation_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">DomeLightCfg</span><span class="p">,</span> <span class="n">GroundPlaneCfg</span>
@@ -731,7 +730,7 @@
 
         <span class="c1"># create stage in memory if requested</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">create_stage_in_memory</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initial_stage</span> <span class="o">=</span> <span class="n">create_new_stage_in_memory</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initial_stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">create_new_stage_in_memory</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_initial_stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
 
@@ -1222,7 +1221,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_init_stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
         <span class="n">_</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_init_stage</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_initial_stage</span><span class="p">()):</span>
+        <span class="k">with</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">use_stage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_initial_stage</span><span class="p">()):</span>
             <span class="c1"># a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes</span>
             <span class="c1"># when in headless mode</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">set_setting</span><span class="p">(</span><span class="s2">&quot;/app/player/playSimulations&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
@@ -1777,7 +1776,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 14, 2025.
+  Last updated on Nov 18, 2025.
   <br/>
 </p>
   </div>
