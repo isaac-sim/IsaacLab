@@ -16,10 +16,15 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
     def __init__(self, cfg: G1LowerBodyStandingRetargeterCfg):
         """Initialize the retargeter."""
+        super().__init__(cfg)
         self.cfg = cfg
 
     def retarget(self, data: dict) -> torch.Tensor:
         return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        # This retargeter does not consume any device data
+        return []
 
 
 @dataclass
