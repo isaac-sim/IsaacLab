@@ -5,6 +5,8 @@
 
 """OpenXR-powered device for teleoperation and interaction."""
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -26,24 +28,20 @@ XRPoseValidityFlags = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRPoseValidityFlags
+
 from isaacsim.core.prims import SingleXFormPrim
-
-
-@dataclass
-class OpenXRDeviceCfg(DeviceCfg):
-    """Configuration for OpenXR devices."""
-
-    xr_cfg: XrCfg | None = None
 
 
 class OpenXRDevice(DeviceBase):
     """An OpenXR-powered device for teleoperation and interaction.
 
     This device tracks hand joints using OpenXR and makes them available as:
+
     1. A dictionary of tracking data (when used without retargeters)
     2. Retargeted commands for robot control (when retargeters are provided)
 
     Raw data format (_get_raw_data output):
+
     * A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)
     * Each hand tracking entry contains a dictionary of joint poses
     * Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
@@ -52,6 +50,7 @@ class OpenXRDevice(DeviceBase):
 
     Teleop commands:
     The device responds to several teleop commands that can be subscribed to via add_callback():
+
     * "START": Resume hand tracking data flow
     * "STOP": Pause hand tracking data flow
     * "RESET": Reset the tracking and signal simulation reset
@@ -300,3 +299,11 @@ class OpenXRDevice(DeviceBase):
         elif "reset" in msg:
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
+
+
+@dataclass
+class OpenXRDeviceCfg(DeviceCfg):
+    """Configuration for OpenXR devices."""
+
+    xr_cfg: XrCfg | None = None
+    class_type: type[DeviceBase] = OpenXRDevice

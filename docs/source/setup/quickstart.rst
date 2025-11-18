@@ -29,20 +29,48 @@ pip install route using virtual environments.
 
 To begin, we first define our virtual environment.
 
+.. tab-set::
 
-.. code-block:: bash
+   .. tab-item:: conda
 
-    # create a virtual environment named env_isaaclab with python3.11
-    conda create -n env_isaaclab python=3.11
-    # activate the virtual environment
-    conda activate env_isaaclab
+      .. code-block:: bash
+
+         # create a virtual environment named env_isaaclab with python3.11
+         conda create -n env_isaaclab python=3.11
+         # activate the virtual environment
+         conda activate env_isaaclab
+
+   .. tab-item:: uv
+
+      .. tab-set::
+         :sync-group: os
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux
+            :sync: linux
+
+            .. code-block:: bash
+
+               # create a virtual environment named env_isaaclab with python3.11
+               uv venv --python 3.11 env_isaaclab
+               # activate the virtual environment
+               source env_isaaclab/bin/activate
+
+         .. tab-item:: :icon:`fa-brands fa-windows` Windows
+            :sync: windows
+
+            .. code-block:: batch
+
+               # create a virtual environment named env_isaaclab with python3.11
+               uv venv --python 3.11 env_isaaclab
+               # activate the virtual environment
+               env_isaaclab\Scripts\activate
 
 
 Next, install a CUDA-enabled PyTorch 2.7.0 build.
 
    .. code-block:: bash
 
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+      pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -68,7 +96,7 @@ and now we can install the Isaac Sim packages.
 
 .. code-block:: none
 
-    pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
+    pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 
@@ -106,6 +134,22 @@ Installation is now as easy as navigating to the repo and then calling the root 
          isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
+Quick Start Using Isaac Launchable
+----------------------------------
+
+For users first learning Isaac Lab, without sufficient local compute resources, the `Isaac Launchable <https://github.com/isaac-sim/isaac-launchable>`_ project is a quick way to get started without manual installation.
+
+Through this project, users can interact with Isaac Sim and Isaac Lab purely from a web browser, with one tab running Visual Studio Code for development and command execution, and another tab providing the streamed user interface for Isaac Sim.
+
+This method uses `NVIDIA Brev <https://brev.nvidia.com/>`_, a platform that offers easily configurable pay-by-the-hour cloud compute. Brev Launchables are preconfigured, optimized compute and software environments.
+
+To try now, click the button below. To learn more about how to use this project, or how to create your own Launchable, please see the project repo `here <https://github.com/isaac-sim/isaac-launchable>`_.
+
+.. image:: https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg
+   :target: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-35JP2ywERLgqtD0b0MIeK1HnF46
+   :alt: Click here to deploy
+
+
 Launch Training
 -------------------
 
@@ -125,7 +169,7 @@ List Available Environments
 
 Above, ``Isaac-Ant-v0`` is the task name and ``skrl`` is the RL framework being used.  The ``Isaac-Ant-v0`` environment
 has been registered with the `Gymnasium API <https://gymnasium.farama.org/>`_, and you can see how the entry point is defined
-by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/lsit_envs.py``. You should see entries like the following
+by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/list_envs.py``. You should see entries like the following
 
 .. code-block:: bash
 

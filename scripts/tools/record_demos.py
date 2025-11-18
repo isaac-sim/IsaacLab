@@ -33,7 +33,16 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
-parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment.")
+parser.add_argument(
+    "--teleop_device",
+    type=str,
+    default="keyboard",
+    help=(
+        "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
+        " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
+        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+    ),
+)
 parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
 )
@@ -81,12 +90,11 @@ simulation_app = app_launcher.app
 
 # Third-party imports
 import gymnasium as gym
+import logging
 import os
 import time
 import torch
 
-# Omniverse logger
-import omni.log
 import omni.ui as ui
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -98,6 +106,7 @@ from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subta
 
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 
@@ -108,6 +117,9 @@ from isaaclab.managers import DatasetExportMode
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
@@ -191,7 +203,7 @@ def create_environment_config(
         env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
         env_cfg.env_name = args_cli.task.split(":")[-1]
     except Exception as e:
-        omni.log.error(f"Failed to parse environment configuration: {e}")
+        logger.error(f"Failed to parse environment configuration: {e}")
         exit(1)
 
     # extract success checking function to invoke in the main loop
@@ -200,7 +212,7 @@ def create_environment_config(
         success_term = env_cfg.terminations.success
         env_cfg.terminations.success = None
     else:
-        omni.log.warn(
+        logger.warning(
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
         )
@@ -241,7 +253,7 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
         return env
     except Exception as e:
-        omni.log.error(f"Failed to create environment: {e}")
+        logger.error(f"Failed to create environment: {e}")
         exit(1)
 
 
@@ -266,26 +278,28 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
         if hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
             teleop_interface = create_teleop_device(args_cli.teleop_device, env_cfg.teleop_devices.devices, callbacks)
         else:
-            omni.log.warn(f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default.")
+            logger.warning(
+                f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default."
+            )
             # Create fallback teleop device
             if args_cli.teleop_device.lower() == "keyboard":
                 teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             else:
-                omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                omni.log.error("Supported devices: keyboard, spacemouse, handtracking")
+                logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
+                logger.error("Supported devices: keyboard, spacemouse, handtracking")
                 exit(1)
 
             # Add callbacks to fallback device
             for key, callback in callbacks.items():
                 teleop_interface.add_callback(key, callback)
     except Exception as e:
-        omni.log.error(f"Failed to create teleop device: {e}")
+        logger.error(f"Failed to create teleop device: {e}")
         exit(1)
 
     if teleop_interface is None:
-        omni.log.error("Failed to create teleop interface")
+        logger.error("Failed to create teleop interface")
         exit(1)
 
     return teleop_interface
@@ -304,7 +318,7 @@ def setup_ui(label_text: str, env: gym.Env) -> InstructionDisplay:
     Returns:
         InstructionDisplay: The configured instruction display object
     """
-    instruction_display = InstructionDisplay(args_cli.teleop_device)
+    instruction_display = InstructionDisplay(args_cli.xr)
     if not args_cli.xr:
         window = EmptyWindow(env, "Instruction")
         with window.ui_window_elements["main_vstack"]:
@@ -469,15 +483,23 @@ def run_simulation_loop(
                 label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
                 print(label_text)
 
+            # Check if we've reached the desired number of demos
+            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
+                label_text = f"All {current_recorded_demo_count} demonstrations recorded.\nExiting the app."
+                instruction_display.show_demo(label_text)
+                print(label_text)
+                target_time = time.time() + 0.8
+                while time.time() < target_time:
+                    if rate_limiter:
+                        rate_limiter.sleep(env)
+                    else:
+                        env.sim.render()
+                break
+
             # Handle reset if requested
             if should_reset_recording_instance:
                 success_step_count = handle_reset(env, success_step_count, instruction_display, label_text)
                 should_reset_recording_instance = False
-
-            # Check if we've reached the desired number of demos
-            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
-                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
-                break
 
             # Check if simulation is stopped
             if env.sim.is_stopped():
@@ -506,6 +528,10 @@ def main() -> None:
     # if handtracking is selected, rate limiting is achieved via OpenXR
     if args_cli.xr:
         rate_limiter = None
+        from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
+
+        # Assign the teleop visualization manager to the visualization system
+        XRVisualization.assign_manager(TeleopVisualizationManager)
     else:
         rate_limiter = RateLimiter(args_cli.step_hz)
 

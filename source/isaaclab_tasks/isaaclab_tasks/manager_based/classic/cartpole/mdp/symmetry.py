@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import torch
+from tensordict import TensorDict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,9 +21,8 @@ __all__ = ["compute_symmetric_states"]
 @torch.no_grad()
 def compute_symmetric_states(
     env: ManagerBasedRLEnv,
-    obs: torch.Tensor | None = None,
+    obs: TensorDict | None = None,
     actions: torch.Tensor | None = None,
-    obs_type: str = "policy",
 ):
     """Augments the given observations and actions by applying symmetry transformations.
 
@@ -33,9 +33,8 @@ def compute_symmetric_states(
 
     Args:
         env: The environment instance.
-        obs: The original observation tensor. Defaults to None.
+        obs: The original observation tensor dictionary. Defaults to None.
         actions: The original actions tensor. Defaults to None.
-        obs_type: The type of observation to augment. Defaults to "policy".
 
     Returns:
         Augmented observations and actions tensors, or None if the respective input was None.
@@ -43,25 +42,25 @@ def compute_symmetric_states(
 
     # observations
     if obs is not None:
-        num_envs = obs.shape[0]
+        batch_size = obs.batch_size[0]
         # since we have 2 different symmetries, we need to augment the batch size by 2
-        obs_aug = torch.zeros(num_envs * 2, obs.shape[1], device=obs.device)
+        obs_aug = obs.repeat(2)
         # -- original
-        obs_aug[:num_envs] = obs[:]
+        obs_aug["policy"][:batch_size] = obs["policy"][:]
         # -- left-right
-        obs_aug[num_envs : 2 * num_envs] = -obs
+        obs_aug["policy"][batch_size : 2 * batch_size] = -obs["policy"]
     else:
         obs_aug = None
 
     # actions
     if actions is not None:
-        num_envs = actions.shape[0]
+        batch_size = actions.shape[0]
         # since we have 4 different symmetries, we need to augment the batch size by 4
-        actions_aug = torch.zeros(num_envs * 2, actions.shape[1], device=actions.device)
+        actions_aug = torch.zeros(batch_size * 2, actions.shape[1], device=actions.device)
         # -- original
-        actions_aug[:num_envs] = actions[:]
+        actions_aug[:batch_size] = actions[:]
         # -- left-right
-        actions_aug[num_envs : 2 * num_envs] = -actions
+        actions_aug[batch_size : 2 * batch_size] = -actions
     else:
         actions_aug = None
 

@@ -39,6 +39,12 @@ parser.add_argument(
     default=False,
     help="Enable Pinocchio.",
 )
+parser.add_argument(
+    "--use_skillgen",
+    action="store_true",
+    default=False,
+    help="use skillgen to generate motion trajectories",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -58,11 +64,10 @@ simulation_app = app_launcher.app
 import asyncio
 import gymnasium as gym
 import inspect
+import logging
 import numpy as np
 import random
 import torch
-
-import omni
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
@@ -70,10 +75,14 @@ import isaaclab_mimic.envs  # noqa: F401
 
 if args_cli.enable_pinocchio:
     import isaaclab_mimic.envs.pinocchio_envs  # noqa: F401
+
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
 from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
 
 import isaaclab_tasks  # noqa: F401
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -96,26 +105,54 @@ def main():
         generation_num_trials=args_cli.generation_num_trials,
     )
 
-    # create environment
+    # Create environment
     env = gym.make(env_name, cfg=env_cfg).unwrapped
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
 
-    # check if the mimic API from this environment contains decprecated signatures
+    # Check if the mimic API from this environment contains decprecated signatures
     if "action_noise_dict" not in inspect.signature(env.target_eef_pose_to_action).parameters:
-        omni.log.warn(
+        logger.warning(
             f'The "noise" parameter in the "{env_name}" environment\'s mimic API "target_eef_pose_to_action", '
             "is deprecated. Please update the API to take action_noise_dict instead."
         )
 
-    # set seed for generation
+    # Set seed for generation
     random.seed(env.cfg.datagen_config.seed)
     np.random.seed(env.cfg.datagen_config.seed)
     torch.manual_seed(env.cfg.datagen_config.seed)
 
-    # reset before starting
+    # Reset before starting
     env.reset()
+
+    motion_planners = None
+    if args_cli.use_skillgen:
+        from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
+        from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+
+        # Create one motion planner per environment
+        motion_planners = {}
+        for env_id in range(num_envs):
+            print(f"Initializing motion planner for environment {env_id}")
+            # Create a config instance from the task name
+            planner_config = CuroboPlannerCfg.from_task_name(env_name)
+
+            # Ensure visualization is only enabled for the first environment
+            # If not, sphere and plan visualization will be too slow in isaac lab
+            # It is efficient to visualize the spheres and plan for the first environment in rerun
+            if env_id != 0:
+                planner_config.visualize_spheres = False
+                planner_config.visualize_plan = False
+
+            motion_planners[env_id] = CuroboPlanner(
+                env=env,
+                robot=env.scene["robot"],
+                config=planner_config,  # Pass the config object
+                env_id=env_id,  # Pass environment ID
+            )
+
+        env.cfg.datagen_config.use_skillgen = True
 
     # Setup and run async data generation
     async_components = setup_async_generation(
@@ -124,6 +161,7 @@ def main():
         input_file=args_cli.input_file,
         success_term=success_term,
         pause_subtask=args_cli.pause_subtask,
+        motion_planners=motion_planners,  # Pass the motion planners dictionary
     )
 
     try:
@@ -147,6 +185,14 @@ def main():
             print("Remaining async tasks cancelled and cleaned up.")
         except Exception as e:
             print(f"Error cancelling remaining async tasks: {e}")
+        # Cleanup of motion planners and their visualizers
+        if motion_planners is not None:
+            for env_id, planner in motion_planners.items():
+                if getattr(planner, "plan_visualizer", None) is not None:
+                    print(f"Closing plan visualizer for environment {env_id}")
+                    planner.plan_visualizer.close()
+                    planner.plan_visualizer = None
+            motion_planners.clear()
 
 
 if __name__ == "__main__":
@@ -154,5 +200,5 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nProgram interrupted by user. Exiting...")
-    # close sim app
+    # Close sim app
     simulation_app.close()

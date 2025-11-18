@@ -15,7 +15,9 @@
     Se3Keyboard
     Se2SpaceMouse
     Se3SpaceMouse
+    HaplyDevice
     OpenXRDevice
+    ManusVive
     isaaclab.devices.openxr.retargeters.GripperRetargeter
     isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
     isaaclab.devices.openxr.retargeters.Se3RelRetargeter
@@ -78,10 +80,26 @@ Space Mouse
     :inherited-members:
     :show-inheritance:
 
+Haply
+-----
+
+.. autoclass:: HaplyDevice
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
 OpenXR
 ------
 
 .. autoclass:: OpenXRDevice
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+Manus + Vive
+------------
+
+.. autoclass:: ManusVive
     :members:
     :inherited-members:
     :show-inheritance:

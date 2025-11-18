@@ -5,6 +5,8 @@
 
 """Spacemouse controller for SE(3) control."""
 
+from __future__ import annotations
+
 import hid
 import numpy as np
 import threading
@@ -16,15 +18,6 @@ from scipy.spatial.transform import Rotation
 
 from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
-
-
-@dataclass
-class Se3SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE3 space mouse devices."""
-
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
 
 
 class Se3SpaceMouse(DeviceBase):
@@ -58,6 +51,7 @@ class Se3SpaceMouse(DeviceBase):
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
+        self.gripper_term = cfg.gripper_term
         self._sim_device = cfg.sim_device
         # acquire device interface
         self._device = hid.device()
@@ -122,9 +116,11 @@ class Se3SpaceMouse(DeviceBase):
                 - gripper command: Last element as a binary value (+1.0 for open, -1.0 for close).
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
-        delta_pose = np.concatenate([self._delta_pos, rot_vec])
-        gripper_value = -1.0 if self._close_gripper else 1.0
-        command = np.append(delta_pose, gripper_value)
+        command = np.concatenate([self._delta_pos, rot_vec])
+        if self.gripper_term:
+            gripper_value = -1.0 if self._close_gripper else 1.0
+            command = np.append(command, gripper_value)
+
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """
@@ -140,6 +136,7 @@ class Se3SpaceMouse(DeviceBase):
                 if (
                     device["product_string"] == "SpaceMouse Compact"
                     or device["product_string"] == "SpaceMouse Wireless"
+                    or device["product_string"] == "3Dconnexion Universal Receiver"
                 ):
                     # set found flag
                     found = True
@@ -148,6 +145,7 @@ class Se3SpaceMouse(DeviceBase):
                     # connect to the device
                     self._device.close()
                     self._device.open(vendor_id, product_id)
+                    self._device_name = device["product_string"]
             # check if device found
             if not found:
                 time.sleep(1.0)
@@ -162,19 +160,32 @@ class Se3SpaceMouse(DeviceBase):
         # keep running
         while True:
             # read the device data
-            data = self._device.read(7)
+            if self._device_name == "3Dconnexion Universal Receiver":
+                data = self._device.read(7 + 6)
+            else:
+                data = self._device.read(7)
             if data is not None:
                 # readings from 6-DoF sensor
-                if data[0] == 1:
-                    self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
-                elif data[0] == 2 and not self._read_rotation:
-                    self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+                if self._device_name == "3Dconnexion Universal Receiver":
+                    if data[0] == 1:
+                        self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+
+                        self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1 + 6], data[2 + 6])
+                        self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3 + 6], data[4 + 6])
+                        self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5 + 6], data[6 + 6]) * -1.0
+                else:
+                    if data[0] == 1:
+                        self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+                    elif data[0] == 2 and not self._read_rotation:
+                        self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
                 # readings from the side buttons
-                elif data[0] == 3:
+                if data[0] == 3:
                     # press left button
                     if data[1] == 1:
                         # close gripper
@@ -191,3 +202,14 @@ class Se3SpaceMouse(DeviceBase):
                             self._additional_callbacks["R"]()
                     if data[1] == 3:
                         self._read_rotation = not self._read_rotation
+
+
+@dataclass
+class Se3SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE3 space mouse devices."""
+
+    gripper_term: bool = True
+    pos_sensitivity: float = 0.4
+    rot_sensitivity: float = 0.8
+    retargeters: None = None
+    class_type: type[DeviceBase] = Se3SpaceMouse

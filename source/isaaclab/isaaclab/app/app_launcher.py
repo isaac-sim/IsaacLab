@@ -76,7 +76,7 @@ class AppLauncher:
                 such as ``LIVESTREAM``.
 
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
-        .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html
+        .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
@@ -789,6 +789,24 @@ class AppLauncher:
         # this is mainly done to purge the print statements from the simulation app
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
+
+        # pytest may have left some things in sys.argv, this will check for some of those
+        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pytest.ini
+        indexes_to_remove = []
+        for idx, arg in enumerate(sys.argv[:-1]):
+            if arg == "-m":
+                value_for_dash_m = sys.argv[idx + 1]
+                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
+                    indexes_to_remove.append(idx)
+                    indexes_to_remove.append(idx + 1)
+            if arg == "-c" and "pytest.ini" in sys.argv[idx + 1]:
+                indexes_to_remove.append(idx)
+                indexes_to_remove.append(idx + 1)
+            if arg == "--capture=no":
+                indexes_to_remove.append(idx)
+        for idx in sorted(indexes_to_remove, reverse=True):
+            sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
+
         # launch simulation app
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         # enable sys stdout and stderr
@@ -800,6 +818,7 @@ class AppLauncher:
         # remove the threadCount argument from sys.argv if it was added for distributed training
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
+
         # remove additional OV args from sys.argv
         if len(self._kit_args) > 0:
             sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
@@ -864,7 +883,6 @@ class AppLauncher:
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Store RTX rendering mode in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode")
 
@@ -876,12 +894,11 @@ class AppLauncher:
 
         # store rendering mode in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/rendering/rendering_mode", rendering_mode)
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
@@ -901,9 +918,9 @@ class AppLauncher:
 
         # store config in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""

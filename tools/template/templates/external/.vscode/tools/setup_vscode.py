@@ -49,11 +49,11 @@ except EOFError:
 # check if the isaac-sim directory exists
 if not os.path.exists(isaacsim_dir):
     raise FileNotFoundError(
-        f"Could not find the isaac-sim directory: {isaacsim_dir}. There are two possible reasons for this:"
-        "\n\t1. The Isaac Sim directory does not exist as provided CLI path."
-        "\n\t2. The script could import the 'isaacsim' package. This could be due to the 'isaacsim' package not being "
-        "installed in the Python environment.\n"
-        "\nPlease make sure that the Isaac Sim directory exists or that the 'isaacsim' package is installed."
+        f"Could not find the isaac-sim directory: {isaacsim_dir}. There are two possible reasons for this:\n\t1. The"
+        " Isaac Sim directory does not exist as provided CLI path.\n\t2. The script couldn't import the 'isaacsim'"
+        " package. This could be due to the 'isaacsim' package not being installed in the Python"
+        " environment.\n\nPlease make sure that the Isaac Sim directory exists or that the 'isaacsim' package is"
+        " installed."
     )
 
 ISAACSIM_DIR = isaacsim_dir

@@ -5,6 +5,7 @@
 import argparse
 import importlib.util
 import os
+import random
 import subprocess
 import sys
 from time import sleep, time
@@ -12,8 +13,10 @@ from time import sleep, time
 import ray
 import util
 from ray import air, tune
+from ray.tune import Callback
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
+from ray.tune.stopper import CombinedStopper
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -60,7 +63,7 @@ WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
 MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
-MAX_LOG_EXTRACTION_ERRORS = 2  # maximum allowed LogExtractionErrors before we abort the whole training
+MAX_LOG_EXTRACTION_ERRORS = 10  # maximum allowed LogExtractionErrors before we abort the whole training
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -80,7 +83,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.experiment = None
 
     def reset_config(self, new_config: dict):
-        """Allow environments to be re-used by fetching a new invocation command"""
+        """Allow environments to be reused by fetching a new invocation command"""
         self.setup(new_config)
         return True
 
@@ -203,13 +206,38 @@ class LogExtractionErrorStopper(tune.Stopper):
             return False
 
 
-def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
+class ProcessCleanupCallback(Callback):
+    """Callback to clean up processes when trials are stopped."""
+
+    def on_trial_error(self, iteration, trials, trial, error, **info):
+        """Called when a trial encounters an error."""
+        self._cleanup_trial(trial)
+
+    def on_trial_complete(self, iteration, trials, trial, **info):
+        """Called when a trial completes."""
+        self._cleanup_trial(trial)
+
+    def _cleanup_trial(self, trial):
+        """Clean up processes for a trial using SIGKILL."""
+        try:
+            subprocess.run(["pkill", "-9", "-f", f"rid {trial.config['runner_args']['-rid']}"], check=False)
+            sleep(5)
+        except Exception as e:
+            print(f"[ERROR]: Failed to cleanup trial {trial.trial_id}: {e}")
+
+
+def invoke_tuning_run(
+    cfg: dict,
+    args: argparse.Namespace,
+    stopper: tune.Stopper | None = None,
+) -> None:
     """Invoke an Isaac-Ray tuning run.
 
     Log either to a local directory or to MLFlow.
     Args:
         cfg: Configuration dictionary extracted from job setup
         args: Command-line arguments related to tuning.
+        stopper: Custom stopper, optional.
     """
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
@@ -217,16 +245,16 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     print("[WARNING]: Not saving checkpoints, just running experiment...")
     print("[INFO]: Model parameters and metrics will be preserved.")
     print("[WARNING]: For homogeneous cluster resources only...")
+
+    # Initialize Ray
+    util.ray_init(
+        ray_address=args.ray_address,
+        log_to_driver=True,
+    )
+
     # Get available resources
     resources = util.get_gpu_node_resources()
     print(f"[INFO]: Available resources {resources}")
-
-    if not ray.is_initialized():
-        ray.init(
-            address=args.ray_address,
-            log_to_driver=True,
-            num_gpus=len(resources),
-        )
 
     print(f"[INFO]: Using config {cfg}")
 
@@ -237,16 +265,23 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     )
     repeat_search = Repeater(searcher, repeat=args.repeat_run_count)
 
+    # Configure the stoppers
+    stoppers: CombinedStopper = CombinedStopper(*[
+        LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+        *([stopper] if stopper is not None else []),
+    ])
+
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
             name=f"IsaacRay-{args.cfg_class}-tune",
+            callbacks=[ProcessCleanupCallback()],
             verbose=1,
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=0,  # Disable periodic checkpointing
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
-            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            stop=stoppers,
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -260,13 +295,14 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
         run_config = ray.train.RunConfig(
             name="mlflow",
             storage_path="/tmp/ray",
-            callbacks=[mlflow_callback],
+            callbacks=[ProcessCleanupCallback(), mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
-            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            stop=stoppers,
         )
     else:
         raise ValueError("Unrecognized run mode.")
-
+    # RID isn't optimized as it is sampled from, but useful for cleanup later
+    cfg["runner_args"]["-rid"] = tune.sample_from(lambda _: str(random.randint(int(1e9), int(1e10) - 1)))
     # Configure the tuning job
     tuner = tune.Tuner(
         IsaacLabTuneTrainable,
@@ -399,6 +435,12 @@ if __name__ == "__main__":
         default=MAX_LOG_EXTRACTION_ERRORS,
         help="Max number number of LogExtractionError failures before we abort the whole tuning run.",
     )
+    parser.add_argument(
+        "--stopper",
+        type=str,
+        default=None,
+        help="A stop criteria in the cfg_file, must be a tune.Stopper instance.",
+    )
 
     args = parser.parse_args()
     PROCESS_RESPONSE_TIMEOUT = args.process_response_timeout
@@ -457,7 +499,16 @@ if __name__ == "__main__":
         print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
         cfg = instance.cfg
         print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-        invoke_tuning_run(cfg, args)
+        # Load optional stopper config
+        stopper = None
+        if args.stopper and hasattr(module, args.stopper):
+            stopper = getattr(module, args.stopper)
+            if isinstance(stopper, type) and issubclass(stopper, tune.Stopper):
+                stopper = stopper()
+            else:
+                raise TypeError(f"[ERROR]: Unsupported stop criteria type: {type(stopper)}")
+            print(f"[INFO]: Loaded custom stop criteria from '{args.stopper}'")
+        invoke_tuning_run(cfg, args, stopper=stopper)
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")

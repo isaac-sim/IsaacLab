@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
+import importlib
 import os
 from collections.abc import Callable
 
@@ -147,18 +148,25 @@ def main() -> None:
     """Main function to run template generation from CLI."""
     cli_handler = CLIHandler()
 
-    # project type
-    is_external_project = (
-        cli_handler.input_select(
-            "Task type:",
-            choices=["External", "Internal"],
-            long_instruction=(
-                "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
-                "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
-            ),
-        ).lower()
-        == "external"
-    )
+    lab_module = importlib.import_module("isaaclab")
+    lab_path = os.path.realpath(getattr(lab_module, "__file__", "") or (getattr(lab_module, "__path__", [""])[0]))
+    is_lab_pip_installed = ("site-packages" in lab_path) or ("dist-packages" in lab_path)
+
+    if not is_lab_pip_installed:
+        # project type
+        is_external_project = (
+            cli_handler.input_select(
+                "Task type:",
+                choices=["External", "Internal"],
+                long_instruction=(
+                    "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
+                    "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
+                ),
+            ).lower()
+            == "external"
+        )
+    else:
+        is_external_project = True
 
     # project path (if 'external')
     project_path = None

@@ -30,6 +30,7 @@ from isaaclab.sim.simulation_context import build_simulation_context
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("dt", [0.01, 0.1])
+@pytest.mark.isaacsim_ci
 def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
     """Test that the simulation context is built when no simulation cfg is passed in."""
     with build_simulation_context(gravity_enabled=gravity_enabled, device=device, dt=dt) as sim:
@@ -46,6 +47,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
 
 
 @pytest.mark.parametrize("add_ground_plane", [True, False])
+@pytest.mark.isaacsim_ci
 def test_build_simulation_context_ground_plane(add_ground_plane):
     """Test that the simulation context is built with the correct ground plane."""
     with build_simulation_context(add_ground_plane=add_ground_plane) as _:
@@ -55,6 +57,7 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
 
 @pytest.mark.parametrize("add_lighting", [True, False])
 @pytest.mark.parametrize("auto_add_lighting", [True, False])
+@pytest.mark.isaacsim_ci
 def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_lighting):
     """Test that the simulation context is built with the correct lighting."""
     with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as _:
@@ -66,6 +69,7 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
             assert not is_prim_path_valid("/World/defaultDomeLight")
 
 
+@pytest.mark.isaacsim_ci
 def test_build_simulation_context_cfg():
     """Test that the simulation context is built with the correct cfg and values don't get overridden."""
     dt = 0.001

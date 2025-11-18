@@ -114,14 +114,20 @@ def _run_environments(
     if isaac_sim_version < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
+    # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
+    if "Suction" in task_name and device != "cpu":
+        return
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
     ]:
+        return
+
+    # skip these environments as they cannot be run with 32 environments within reasonable VRAM
+    if "Visuomotor" in task_name and num_envs == 32:
         return
 
     # skip automate environments as they require cuda installation

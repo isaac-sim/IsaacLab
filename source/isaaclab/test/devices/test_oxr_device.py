@@ -150,6 +150,7 @@ def empty_env():
     env.close()
 
 
+@pytest.mark.isaacsim_ci
 def test_xr_anchor(empty_env, mock_xrcore):
     """Test XR anchor creation and configuration."""
     env, env_cfg = empty_env
@@ -172,6 +173,7 @@ def test_xr_anchor(empty_env, mock_xrcore):
     device.reset()
 
 
+@pytest.mark.isaacsim_ci
 def test_xr_anchor_default(empty_env, mock_xrcore):
     """Test XR anchor creation with default configuration."""
     env, _ = empty_env
@@ -193,6 +195,7 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     device.reset()
 
 
+@pytest.mark.isaacsim_ci
 def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     """Test XR anchor behavior with multiple devices."""
     env, _ = empty_env
@@ -216,6 +219,7 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     device_2.reset()
 
 
+@pytest.mark.isaacsim_ci
 def test_get_raw_data(empty_env, mock_xrcore):
     """Test the _get_raw_data method returns correctly formatted tracking data."""
     env, _ = empty_env

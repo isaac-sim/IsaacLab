@@ -58,7 +58,7 @@ are compositional in this way as a solution for cloning arbitrarily complex envi
 The **sim** is an instance of :class:`SimulationCfg`, and this is the config that controls the nature of the simulated reality we are building. This field is a member
 of the base class, ``DirecRLEnvCfg``, but has a default sim configuration, so it's *technically* optional.   The ``SimulationCfg`` dictates
 how finely to step through time (dt), the direction of gravity, and even how physics should be simulated. In this case we only specify the time step and the render interval, with the
-former indicating that each step through time should simulate :math:`1/120`th of a second, and the latter being how many steps we should take before we render a frame (a value of 2 means
+former indicating that each step through time should simulate :math:`1/120` th of a second, and the latter being how many steps we should take before we render a frame (a value of 2 means
 render every other frame).
 
 .. currentmodule:: isaaclab.scene
