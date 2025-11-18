@@ -2,7 +2,7 @@ Changelog
 ---------
 
 0.11.9 (2025-11-10)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -14,6 +14,7 @@ Added
 * Added motion controller-specific retargeters:
   * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
   * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
 
 0.11.8 (2025-11-06)
 ~~~~~~~~~~~~~~~~~~~
