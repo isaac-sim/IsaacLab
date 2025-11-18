@@ -228,6 +228,41 @@ A few quick showroom scripts to run and checkout:
 
 
 
+-  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+
+   .. image:: ../_static/demos/haply_teleop_franka.jpg
+      :width: 100%
+      :alt: Haply teleoperation with force feedback
+
+   This demo requires Haply Inverse3 and VerseGrip devices.
+   The goal of this demo is to pick up the cube or touch it with the end-effector.
+   The Haply devices provide:
+
+   * 3 dimensional position tracking for end-effector control
+   * Directional force feedback for contact sensing
+   * Button inputs for gripper and end-effector rotation control
+
+   See :ref:`haply-teleoperation` for detailed setup instructions.
+
+
+
 -  Create and spawn procedurally generated terrains with different configurations:
 
    .. tab-set::

@@ -5,15 +5,14 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.log
-
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.warp import raycast_mesh
 
 from .prim_utils import obtain_world_pose_from_view
@@ -21,6 +20,9 @@ from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
     from .ray_caster_camera_cfg import RayCasterCameraCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RayCasterCamera(RayCaster):
@@ -413,7 +415,7 @@ class RayCasterCamera(RayCaster):
 
         """
         # deprecation
-        omni.log.warn(
+        logger.warning(
             "The function '_compute_view_world_poses' will be deprecated in favor of the util method"
             " 'obtain_world_pose_from_view'. Please use 'obtain_world_pose_from_view' instead...."
         )
@@ -438,7 +440,7 @@ class RayCasterCamera(RayCaster):
         """
 
         # deprecation
-        omni.log.warn(
+        logger.warning(
             "The function '_compute_camera_world_poses' will be deprecated in favor of the combination of methods"
             " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms'. Please use"
             " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms' instead...."

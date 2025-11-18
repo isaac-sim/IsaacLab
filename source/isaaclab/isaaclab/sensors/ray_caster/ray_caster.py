@@ -5,14 +5,14 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import re
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.log
+import omni
 import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.simulation_manager import SimulationManager
@@ -20,6 +20,7 @@ from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
@@ -31,6 +32,9 @@ from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
     from .ray_caster_cfg import RayCasterCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RayCaster(SensorBase):
@@ -192,14 +196,14 @@ class RayCaster(SensorBase):
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
-                omni.log.info(
+                logger.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
                 )
             else:
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
                 # print info
-                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+                logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
             RayCaster.meshes[mesh_prim_path] = wp_mesh
 
@@ -258,7 +262,7 @@ class RayCaster(SensorBase):
                 self.cfg.ray_alignment = "base"
                 msg += " Setting ray_alignment to 'base'."
             # log the warning
-            omni.log.warn(msg)
+            logger.warning(msg)
         # ray cast based on the sensor poses
         if self.cfg.ray_alignment == "world":
             # apply horizontal drift to ray starting position in ray caster frame
@@ -341,12 +345,12 @@ class RayCaster(SensorBase):
         while prim_view is None:
             if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
-                omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
+                logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                 break
 
             if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
-                omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
+                logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
                 break
 
             new_root_prim = current_prim.GetParent()
@@ -354,7 +358,7 @@ class RayCaster(SensorBase):
             if not new_root_prim.IsValid():
                 prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
                 current_path_expr = target_prim_path
-                omni.log.warn(
+                logger.warning(
                     f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
                     " Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
                     " be updated correctly when running in headless mode and position lookups will be much slower. \n"

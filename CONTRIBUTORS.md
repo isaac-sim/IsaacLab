@@ -21,6 +21,7 @@ Guidelines for modifications:
 
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Brian McCann
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
@@ -100,6 +101,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
 * Narendra Dahile
