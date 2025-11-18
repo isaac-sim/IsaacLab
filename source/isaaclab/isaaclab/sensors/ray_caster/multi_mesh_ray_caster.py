@@ -47,7 +47,7 @@ class MultiMeshRayCaster(RayCaster):
     a set of meshes with a given ray pattern.
 
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
-    converted to warp meshes and stored in the :attr:`warp_meshes` list. The ray-caster then ray-casts against
+    converted to warp meshes and stored in the :attr:`meshes` list. The ray-caster then ray-casts against
     these warp meshes using the ray pattern provided in the configuration.
 
     Compared to the default RayCaster, the MultiMeshRayCaster provides additional functionality and flexibility as
