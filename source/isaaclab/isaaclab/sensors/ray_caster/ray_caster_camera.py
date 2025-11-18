@@ -406,7 +406,7 @@ class RayCasterCamera(RayCaster):
     def _compute_view_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Obtains the pose of the view the camera is attached to in the world frame.
 
-        .. deprecated v2.3.0:
+        .. deprecated v2.3.1:
             This function will be removed in a future release in favor of implementation :meth:`obtain_world_pose_from_view`.
 
         Returns:
@@ -427,7 +427,7 @@ class RayCasterCamera(RayCaster):
 
         This function applies the offset pose to the pose of the view the camera is attached to.
 
-        .. deprecated v2.3.0:
+        .. deprecated v2.3.1:
             This function will be removed in a future release. Instead, use the code block below:
 
             .. code-block:: python

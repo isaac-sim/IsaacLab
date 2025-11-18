@@ -10,6 +10,7 @@ from __future__ import annotations
 This file adds support for ray casting against multiple (possibly regex-selected) mesh targets.
 """
 
+import logging
 import numpy as np
 import re
 import torch
@@ -18,7 +19,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import carb
-import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
@@ -34,6 +34,9 @@ from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class MultiMeshRayCaster(RayCaster):
@@ -255,7 +258,7 @@ class MultiMeshRayCaster(RayCaster):
                 # check if the mesh is already registered, if so only reference the mesh
                 registered_idx = _registered_points_idx(trimesh_mesh.vertices, loaded_vertices)
                 if registered_idx != -1 and self.cfg.reference_meshes:
-                    omni.log.info("Found a duplicate mesh, only reference the mesh.")
+                    logger.info("Found a duplicate mesh, only reference the mesh.")
                     # Found a duplicate mesh, only reference the mesh.
                     loaded_vertices.append(None)
                     wp_mesh_ids.append(wp_mesh_ids[registered_idx])
@@ -267,9 +270,9 @@ class MultiMeshRayCaster(RayCaster):
 
                 # print info
                 if registered_idx != -1:
-                    omni.log.info(f"Found duplicate mesh for mesh prims under path '{target_prim.GetPath()}'.")
+                    logger.info(f"Found duplicate mesh for mesh prims under path '{target_prim.GetPath()}'.")
                 else:
-                    omni.log.info(
+                    logger.info(
                         f"Read '{len(mesh_prims)}' mesh prims under path '{target_prim.GetPath()}' with"
                         f" {len(trimesh_mesh.vertices)} vertices and {len(trimesh_mesh.faces)} faces."
                     )

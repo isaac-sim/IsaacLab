@@ -172,7 +172,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             mesh_idx += count
 
         # ray cast and store the hits
-        self.ray_hits_w, ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
+        self.ray_hits_w[env_ids], ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
             self._ray_starts_w[env_ids],
             self._ray_directions_w[env_ids],
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
