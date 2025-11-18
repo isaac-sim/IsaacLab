@@ -1,138 +1,174 @@
-![Isaac Lab](docs/source/_static/isaaclab.jpg)
+# ALR Isaac Lab Franka Task Suite
+
+This fork of [Isaac Lab](https://github.com/isaac-sim/IsaacLab) focuses on dexterous Franka Panda manipulation.
+It packages ready-to-train simulation environments, datasets, and a teleoperation harness that make it simple to
+prototype dual-arm skills, collect demonstrations, and evaluate control policies inside Isaac Sim.
+
+> All custom content lives on the `tasks` branch. The branch stays up to date with Isaac Lab `main`, so you can
+> merge upstream changes while keeping the Franka extensions isolated from core development.
 
 ---
 
-# Isaac Lab
+## Highlights
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
-[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://docs.python.org/3/whatsnew/3.11.html)
-[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
-[![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
-[![pre-commit](https://img.shields.io/github/actions/workflow/status/isaac-sim/IsaacLab/pre-commit.yaml?logo=pre-commit&logoColor=white&label=pre-commit&color=brightgreen)](https://github.com/isaac-sim/IsaacLab/actions/workflows/pre-commit.yaml)
-[![docs status](https://img.shields.io/github/actions/workflow/status/isaac-sim/IsaacLab/docs.yaml?label=docs&color=brightgreen)](https://github.com/isaac-sim/IsaacLab/actions/workflows/docs.yaml)
-[![License](https://img.shields.io/badge/license-BSD--3-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
+- Four Franka task families (`assembly_kit`, `peg_insertion_side`, `two_robot_pick_cube`, `two_robot_stack_cube`) with Direct/Camera/Teleop variants so you can swap between state, RGB, and task-space controllers by changing the Gym ID.
+- Calibrated contact sensors, camera intrinsics, and spawn ranges for each task, enabling both RL and imitation learning.
+- A `Se3Gamepad`-driven teleoperation loop for both dual-arm environments that can generate demonstrations or debug controllers with a regular gamepad.
+- Turnkey PPO configs for RL Games, RSL RL, SKRL, and Stable-Baselines3 under each task directory to streamline training.
 
+---
 
-**Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
-such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html),
-it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real
-transfer in robotics.
+## Requirements and Setup
 
-Isaac Lab provides developers with a range of essential features for accurate sensor simulation, such as RTX-based
-cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables users to run complex simulations and
-computations faster, which is key for iterative processes like reinforcement learning and data-intensive tasks.
-Moreover, Isaac Lab can run locally or be distributed across the cloud, offering flexibility for large-scale deployments.
+1. Install Isaac Lab exactly as described in the upstream documentation (Isaac Sim 4.5–5.1, Python 3.11). The official pip-based instructions are available [here](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/isaaclab_pip_installation.html).
+2. Clone this fork, checkout the `tasks` branch, and run `./isaaclab.sh --help` to bootstrap the environment.
+3. Launch Isaac Sim once to let it compile extensions, then run any of the scripts below.
 
+All instructions below assume you are inside the repository root.
 
-## Key Features
+---
 
-Isaac Lab offers a comprehensive set of tools and environments designed to facilitate robot learning:
+## Franka Environments
 
-- **Robots**: A diverse collection of robots, from manipulators, quadrupeds, to humanoids, with 16 commonly available models.
-- **Environments**: Ready-to-train implementations of more than 30 environments, which can be trained with popular reinforcement learning frameworks such as RSL RL, SKRL, RL Games, or Stable Baselines. We also support multi-agent reinforcement learning.
-- **Physics**: Rigid bodies, articulated systems, deformable objects
-- **Sensors**: RGB/depth/segmentation cameras, camera annotations, IMU, contact sensors, ray casters.
+### Assembly Kit
 
+- **Location:** `source/isaaclab_tasks/isaaclab_tasks/direct/assembly_kit`
+- **Gym IDs:** `Isaac-Assembly-Kit-{Direct|Camera|Teleop}-v0`
+- **Focus:** Single-arm part assembly using USD/JSON kits sampled per episode. Color randomization and kinematic kit bases
+  make it ideal for perception-conditioned policies. `assembly_kit_env_cfg.py` handles asset parsing and spawn logic.
 
-## Getting Started
+![Assembly Kit demo](demo_videos/assembly_kit_demo.gif)
 
-### Documentation
+### Peg Insertion (Side)
 
-Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including
-detailed tutorials and step-by-step guides. Follow these links to learn more about:
+- **Location:** `source/isaaclab_tasks/isaaclab_tasks/direct/peg_insertion_side`
+- **Gym IDs:** `Isaac-Peg-Insertion_Side-{Direct|Camera|Teleop}-v0`
+- **Focus:** Sideways peg-in-hole insertion with precise contact sensing and camera views aligned for tactile perception.
+  The teleop config switches to a task-space controller and a viewer that centers the workspace.
 
-- [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#local-installation)
-- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html)
-- [Tutorials](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/index.html)
-- [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/overview/environments.html)
+![Peg insertion demo](demo_videos/peg_insertion_side_demo.gif)
 
+### Two-Robot Pick Cube
 
-## Isaac Sim Version Dependency
+- **Location:** `source/isaaclab_tasks/isaaclab_tasks/direct/two_robot_pick_cube`
+- **Gym IDs:** `Isaac-Two-Robot-Pick-Cube-{Direct|Camera|Teleop}-v0`
+- **Focus:** Cooperative dual-Franka manipulation of a shared dexterity cube, including goal markers, contact sensors, and
+  synchronized frame transformers for reward design. Teleop mode uses high-PD controllers for responsive IK tracking.
 
-Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac Sim that are compatible with each
-release of Isaac Lab. Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding
-dependency versions for Isaac Sim.
+![Two-robot pick cube demo](demo_videos/two_robot_pick_cube_demo.gif)
 
-| Isaac Lab Version             | Isaac Sim Version         |
-| ----------------------------- | ------------------------- |
-| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
-| `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
-| `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
-| `v2.1.X`                      | Isaac Sim 4.5             |
-| `v2.0.X`                      | Isaac Sim 4.5             |
+### Two-Robot Stack Cube
 
+- **Location:** `source/isaaclab_tasks/isaaclab_tasks/direct/two_robot_stack_cube`
+- **Gym IDs:** `Isaac-Two-Robot-Stack-Cube-{Direct|Camera|Teleop}-v0`
+- **Focus:** Two Frankas manipulate color-coded cubes and align them on circular markers. The environment config exposes
+  per-arm contact sensors and camera offsets chosen for stacking from opposing sides.
 
-## Contributing to Isaac Lab
+![Two-robot stack cube demo](demo_videos/two_robot_stack_cube_demo.gif)
 
-We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone.
-These may happen as bug reports, feature requests, or code contributions. For details, please check our
-[contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html).
+Each task directory bundles agent configuration files:
 
-## Show & Tell: Share Your Inspiration
+```
+source/isaaclab_tasks/isaaclab_tasks/direct/<task>/agents/
+    rl_games_ppo_cfg.yaml
+    rsl_rl_ppo_cfg.py
+    skrl_{amp,ppo}_cfg.yaml
+    sb3_ppo_cfg.yaml
+```
 
-We encourage you to utilize our [Show & Tell](https://github.com/isaac-sim/IsaacLab/discussions/categories/show-and-tell)
-area in the `Discussions` section of this repository. This space is designed for you to:
+Launch any of them via `./isaaclab.sh -p <agent_entrypoint> --task <Gym ID>`.
 
-* Share the tutorials you've created
-* Showcase your learning content
-* Present exciting projects you've developed
+---
 
-By sharing your work, you'll inspire others and contribute to the collective knowledge
-of our community. Your contributions can spark new ideas and collaborations, fostering
-innovation in robotics and simulation.
+## Teleoperation Controller
 
-## Troubleshooting
+`scripts/environments/teleoperation/two_robot_controller_teleoperation.py` provides a differential-IK teleoperation loop
+that works with both dual-arm teleop environments. Key features:
 
-Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
-common fixes or [submit an issue](https://github.com/isaac-sim/IsaacLab/issues).
+- Uses `Se3Gamepad` to stream 6-DoF deltas plus a binary gripper toggle (`X` button).
+- Press `RIGHT_SHOULDER` to swap which arm is active; the inactive arm holds its last joint pose.
+- Supports multiple environments via `--num_envs` for domain randomization or multi-scene debugging.
+- Compatible with Fabric and non-Fabric builds (`--disable_fabric` flag).
 
-For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
-or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
+Example:
 
-## Support
+```bash
+./isaaclab.sh -p scripts/environments/teleoperation/two_robot_controller_teleoperation.py \
+    --task Isaac-Two-Robot-Stack-Cube-Teleop-Direct-v0 \
+    --num_envs 1
+```
 
-* Please use GitHub [Discussions](https://github.com/isaac-sim/IsaacLab/discussions) for discussing ideas,
-  asking questions, and requests for new features.
-* Github [Issues](https://github.com/isaac-sim/IsaacLab/issues) should only be used to track executable pieces of
-  work with a definite scope and a clear deliverable. These can be fixing bugs, documentation issues, new features,
-  or general updates.
+Use any registered Gym ID to teleoperate different scenarios.
 
-## Connect with the NVIDIA Omniverse Community
+### Controller Demo Commands
 
-Do you have a project or resource you'd like to share more widely? We'd love to hear from you!
-Reach out to the NVIDIA Omniverse Community team at OmniverseCommunity@nvidia.com to explore opportunities
-to spotlight your work.
+Run the following commands from the repo root to launch each teleop-ready task (add `--disable_fabric` if your install lacks Fabric):
 
-You can also join the conversation on the [Omniverse Discord](https://discord.com/invite/nvidiaomniverse) to
-connect with other developers, share your projects, and help grow a vibrant, collaborative ecosystem
-where creativity and technology intersect. Your contributions can make a meaningful impact on the Isaac Lab
-community and beyond!
+```bash
+# Assembly Kit (single arm)
+./isaaclab.sh -p scripts/environments/teleoperation/one_robot_controller_teleoperation.py \
+    --task Isaac-Assembly-Kit-Teleop-Direct-v0 --num_envs 1
 
-## License
+# Peg Insertion (single arm)
+./isaaclab.sh -p scripts/environments/teleoperation/one_robot_controller_teleoperation.py \
+    --task Isaac-Peg-Insertion_Side-Teleop-Direct-v0 --num_envs 1
 
-The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaaclab_mimic` extension and its
-corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its
-dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
+# Two-Robot Pick Cube (dual arm)
+./isaaclab.sh -p scripts/environments/teleoperation/two_robot_controller_teleoperation.py \
+    --task Isaac-Two-Robot-Pick-Cube-Teleop-Direct-v0 --num_envs 1
 
-Note that Isaac Lab requires Isaac Sim, which includes components under proprietary licensing terms. Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for information on Isaac Sim licensing.
+# Two-Robot Stack Cube (dual arm)
+./isaaclab.sh -p scripts/environments/teleoperation/two_robot_controller_teleoperation.py \
+    --task Isaac-Two-Robot-Stack-Cube-Teleop-Direct-v0 --num_envs 1
+```
 
-Note that the `isaaclab_mimic` extension requires cuRobo, which has proprietary licensing terms that can be found in [`docs/licenses/dependencies/cuRobo-license.txt`](docs/licenses/dependencies/cuRobo-license.txt).
+---
 
-## Acknowledgement
+## Training and Evaluation
 
-Isaac Lab development initiated from the [Orbit](https://isaac-orbit.github.io/) framework. We would appreciate if
-you would cite it in academic publications as well:
+1. **Direct State Policies:** Run `./isaaclab.sh -p source/standalone/rsl_rl/ppo.py --task Isaac-Two-Robot-Pick-Cube-Direct-v0 ...`
+   or switch to RL Games / SB3 by pointing to the configs under each task.
+2. **Camera Policies:** Swap to the `Camera` Gym IDs. Images are published via the Isaac Lab camera sensor API.
+3. **Teleop Policies:** Use `Teleop` Gym IDs with task-space controllers to warm-start with human demonstrations or to
+   record expert rollouts for imitation learning.
+
+Episodes are 4 seconds (200 simulation steps at 100 Hz) by default, and each config exposes sampling ranges for objects,
+goals, and camera poses so you can adapt them to your dataset needs.
+
+---
+
+## Repository Layout
+
+- `source/isaaclab_tasks/isaaclab_tasks/direct/*`: All custom Franka environments and RL configs.
+- `scripts/environments/teleoperation/two_robot_controller_teleoperation.py`: Dual-arm teleop runner.
+- `source/isaaclab/isaaclab/devices/gamepad/se3_gamepad.py`: Gamepad driver with callback support (used by teleop script).
+- `docs/` and the remaining structure follow Isaac Lab upstream for reference.
+
+---
+
+## License and Attribution
+
+This fork inherits Isaac Lab's licensing:
+
+- Core framework: [BSD-3-Clause](LICENSE)
+- `isaaclab_mimic` components (if used): [Apache 2.0](LICENSE-mimic)
+
+If you use these environments in academic work, please cite the Orbit/Isaac Lab paper:
 
 ```
 @article{mittal2023orbit,
-   author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
-   journal={IEEE Robotics and Automation Letters},
-   title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
-   year={2023},
-   volume={8},
-   number={6},
-   pages={3740-3747},
-   doi={10.1109/LRA.2023.3270034}
+  title   = {Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
+  author  = {Mittal, Mayank et al.},
+  journal = {IEEE Robotics and Automation Letters},
+  year    = {2023},
+  volume  = {8},
+  number  = {6},
+  pages   = {3740-3747},
+  doi     = {10.1109/LRA.2023.3270034}
 }
 ```
+
+---
+
+For questions or issues specific to this fork, open a discussion or issue referencing the `tasks` branch so changes can
+be tracked separately from upstream Isaac Lab. Happy experimenting!
