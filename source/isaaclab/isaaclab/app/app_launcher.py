@@ -18,12 +18,11 @@ import os
 import re
 import signal
 import sys
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
+from isaaclab import lazy
 
-with contextlib.suppress(ModuleNotFoundError):
-    import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+if TYPE_CHECKING:
+    from isaacsim import SimulationApp
 
 
 class ExplicitAction(argparse.Action):
@@ -163,7 +162,7 @@ class AppLauncher:
     """
 
     @property
-    def app(self) -> SimulationApp:
+    def app(self) -> "SimulationApp":
         """The launched SimulationApp."""
         if self._app is not None:
             return self._app
@@ -698,7 +697,8 @@ class AppLauncher:
         self._sim_experience_file = launcher_args.pop("experience", "")
 
         # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        kit_app_exp_path = os.environ.get("EXP_PATH", os.path.join(os.path.dirname(lazy.isaacsim.__file__), "apps"))
+
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
@@ -808,7 +808,7 @@ class AppLauncher:
             sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
 
         # launch simulation app
-        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        self._app = lazy.isaacsim.SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
 
@@ -932,7 +932,7 @@ class AppLauncher:
     def is_isaac_sim_version_4_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_4_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
-            version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
+            version_path = os.path.abspath(os.path.join(os.path.dirname(lazy.isaacsim.__file__), "../../VERSION"))
             if os.path.isfile(version_path):
                 with open(version_path) as f:
                     ver = f.readline().strip()
@@ -982,13 +982,13 @@ class AppLauncher:
         if launcher_args.get("disable_pinocchio_patch", False):
             return
 
-        original_start_app = SimulationApp._start_app
+        original_start_app = lazy.isaacsim.SimulationApp._start_app
 
         def _start_app_patch(sim_app_instance, *args, **kwargs):
             original_start_app(sim_app_instance, *args, **kwargs)
             self.__patch_pxr_gf_matrix4d(launcher_args)
 
-        SimulationApp._start_app = _start_app_patch
+        lazy.isaacsim.SimulationApp._start_app = _start_app_patch
 
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
