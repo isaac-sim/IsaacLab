@@ -52,7 +52,7 @@ from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim
 from isaacsim.core.utils.viewports import set_camera_view
 
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 
 def main():

@@ -29,7 +29,7 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 
 @pytest.fixture()

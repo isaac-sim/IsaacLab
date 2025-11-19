@@ -24,7 +24,7 @@ from isaaclab.controllers import OperationalSpaceController, OperationalSpaceCon
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,

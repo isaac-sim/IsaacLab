@@ -152,7 +152,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     .. code-block:: python
 
         >>> from pxr import Usd
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
         >>> with stage_utils.use_stage(stage_in_memory):
@@ -194,7 +194,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_current_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
@@ -215,7 +215,7 @@ def get_current_stage_id() -> int:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_current_stage_id()
         1234567890
@@ -235,7 +235,7 @@ def update_stage() -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.update_stage()
     """
@@ -253,7 +253,7 @@ def set_stage_up_axis(axis: str = "z") -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # set stage up axis to Y-up
         >>> stage_utils.set_stage_up_axis("y")
@@ -277,7 +277,7 @@ def get_stage_up_axis() -> str:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_stage_up_axis()
         Z
@@ -297,7 +297,7 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # clear the whole stage
         >>> stage_utils.clear_stage()
@@ -352,7 +352,7 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> stage_utils.print_stage_prim_paths()
@@ -398,7 +398,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # load an USD file (franka.usd) to the stage under the path /World/panda
         >>> prim = stage_utils.add_reference_to_stage(
@@ -451,7 +451,7 @@ def create_new_stage() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.create_new_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
@@ -471,7 +471,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.create_new_stage_in_memory()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
@@ -505,7 +505,7 @@ def open_stage(usd_path: str) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
         True
@@ -536,7 +536,7 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
         True
@@ -572,14 +572,14 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.close_stage()
         True
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
@@ -607,7 +607,7 @@ def traverse_stage(fabric=False) -> typing.Iterable:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> # Traverse through prims in the stage
@@ -636,7 +636,7 @@ def is_stage_loading() -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.is_stage_loading()
         False
@@ -675,7 +675,7 @@ def set_stage_units(stage_units_in_meters: float) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.set_stage_units(1.0)
     """
@@ -711,7 +711,7 @@ def get_stage_units() -> float:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_stage_units()
         1.0
@@ -733,7 +733,7 @@ def get_next_free_path(path: str, parent: str = None) -> str:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01.
         >>> # Get the next available path for /World/Cube
@@ -761,7 +761,7 @@ def remove_deleted_references():
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>> stage_utils.remove_deleted_references()
         Removed 2 deleted payload items from </World/Robot>
         Removed 1 deleted reference items from </World/Scene>

@@ -19,7 +19,7 @@ import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:

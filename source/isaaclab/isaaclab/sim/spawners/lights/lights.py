@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdLux
 
 from isaaclab.sim.utils import clone
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:

@@ -23,7 +23,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
-from isaaclab.sim.utils import stage as stage_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 

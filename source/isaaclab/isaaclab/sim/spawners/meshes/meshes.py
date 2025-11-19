@@ -14,7 +14,7 @@ from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 from ..materials import DeformableBodyMaterialCfg, RigidBodyMaterialCfg
 

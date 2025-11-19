@@ -50,7 +50,7 @@ from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim.utils.nucleus as nucleus_utils
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 # import logger
 logger = logging.getLogger(__name__)

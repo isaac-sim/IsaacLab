@@ -5,7 +5,7 @@
 
 import carb
 from isaacsim.core.utils.stage import get_current_stage
-from pxr import Usd, UsdGeom, UsdSemantics
+from pxr import Usd, UsdGeom
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 
 def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", overwrite: bool = True) -> None:
-    """Apply semantic labels to a prim using the UsdSemantics.LabelsAPI.
+    """Apply semantic labels to a prim using the Semantics.LabelsAPI.
 
     Args:
         prim (Usd.Prim): Usd Prim to add or update labels on.
@@ -31,7 +31,7 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
-    """Returns semantic labels (UsdSemantics.LabelsAPI) applied to a prim.
+    """Returns semantic labels (Semantics.LabelsAPI) applied to a prim.
 
     Args:
         prim (Usd.Prim): Prim to return labels for.
@@ -44,7 +44,7 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     for schema_name in prim.GetAppliedSchemas():
         if schema_name.startswith("SemanticsLabelsAPI:"):
             instance_name = schema_name.split(":", 1)[1]
-            sem_api = UsdSemantics.LabelsAPI(prim, instance_name)
+            sem_api = Semantics.LabelsAPI(prim, instance_name)
             labels_attr = sem_api.GetLabelsAttr()
             if labels_attr:
                 labels = labels_attr.Get()
@@ -55,7 +55,7 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
 
 
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False) -> None:
-    """Removes semantic labels (UsdSemantics.LabelsAPI) from a prim.
+    """Removes semantic labels (Semantics.LabelsAPI) from a prim.
 
     Args:
         prim (Usd.Prim): Prim to remove labels from.
@@ -73,7 +73,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
                     schemas_to_remove.append(current_instance)
 
         for inst_to_remove in schemas_to_remove:
-            target_prim.RemoveAPI(UsdSemantics.LabelsAPI, inst_to_remove)
+            target_prim.RemoveAPI(Semantics.LabelsAPI, inst_to_remove)
 
     if include_descendants:
         for p in Usd.PrimRange(prim):
@@ -83,7 +83,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
 
 
 def check_missing_labels(prim_path: str | None = None) -> list[str]:
-    """Returns a list of prim paths of meshes with missing semantic labels (UsdSemantics.LabelsAPI).
+    """Returns a list of prim paths of meshes with missing semantic labels (Semantics.LabelsAPI).
 
     Args:
         prim_path (str | None): This will check Prim path and its childrens' labels. If None, checks the whole stage.
@@ -165,7 +165,7 @@ def check_incorrect_labels(prim_path: str | None = None) -> list[list[str]]:
 
 
 def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
-    """Returns a dictionary of semantic labels (UsdSemantics.LabelsAPI) and their corresponding count.
+    """Returns a dictionary of semantic labels (Semantics.LabelsAPI) and their corresponding count.
 
     Args:
         prim_path (str | None): This will check Prim path and its childrens' labels. If None, checks the whole stage.
@@ -204,7 +204,7 @@ def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
 
 def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool = False) -> int:
     """Upgrades a prim and optionally its descendants from the deprecated SemanticsAPI
-    to the new UsdSemantics.LabelsAPI.
+    to the new Semantics.LabelsAPI.
 
     Converts each found SemanticsAPI instance on the processed prim(s) to a corresponding
     LabelsAPI instance. The old 'semanticType' becomes the new LabelsAPI

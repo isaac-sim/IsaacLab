@@ -11,7 +11,7 @@ from pxr import Usd
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 if TYPE_CHECKING:
     from . import shapes_cfg

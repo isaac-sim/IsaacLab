@@ -81,7 +81,7 @@ import contextlib
 import os
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
+import isaaclab.sim.utils.stage as stage_utils
 import omni.kit.app
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg

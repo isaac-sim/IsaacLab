@@ -32,7 +32,7 @@ from isaaclab.assets import (
     SurfaceGripperCfg,
 )
 from isaaclab.sim import build_simulation_context
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 # from isaacsim.robot.surface_gripper import GripperView

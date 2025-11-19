@@ -14,7 +14,7 @@ from isaacsim.core.prims import XFormPrim
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
-from isaaclab.sim.utils import stage as stage_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.warp import raycast_mesh
 
 from .ray_caster import RayCaster

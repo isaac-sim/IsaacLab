@@ -20,7 +20,7 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
-from isaaclab.sim.utils import prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 
 @pytest.fixture(autouse=True)
