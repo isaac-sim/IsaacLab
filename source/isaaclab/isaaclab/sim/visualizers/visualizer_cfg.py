@@ -29,7 +29,15 @@ class VisualizerCfg:
     """Enable visualization markers (debug drawing)."""
 
     enable_live_plots: bool = True
-    """Enable live plotting of data."""
+    """Enable live plotting of data.
+    
+    When set to True for OVVisualizer:
+    - Automatically checks the checkboxes for all manager visualizers (Actions, Observations, Rewards, etc.)
+    - Keeps the plot frames expanded by default (not collapsed)
+    - Makes the live plots visible immediately in the IsaacLab window (docked to the right of the viewport)
+    
+    This provides a better out-of-the-box experience when you want to monitor training metrics.
+    """
 
     def get_visualizer_type(self) -> str:
         """Get the visualizer type identifier."""

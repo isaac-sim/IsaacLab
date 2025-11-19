@@ -386,8 +386,15 @@ class NewtonVisualizer(Visualizer):
     def _setup_env_filtering(self, num_envs: int) -> None:
         """Setup environment filtering using world offsets.
         
-        WIP: Moves non-visualized environments far away (10000 units) to hide them.
-        Future: Could use more sophisticated filtering or culling.
+        NOTE: This uses visualization-only offsets that do NOT affect physics simulation.
+        Newton's world_offsets only shift the rendered position of environments, not their
+        physical positions. This is confirmed by Newton's test_visual_separation test.
+        
+        Current approach: Moves non-visualized environments far away (10000 units) to hide them.
+        This works but is not ideal. Future improvements could include:
+        - Proper culling at the viewer level
+        - Selective state logging (only log visualized envs)
+        - Custom rendering callbacks
         
         Args:
             num_envs: Total number of environments.
@@ -398,7 +405,7 @@ class NewtonVisualizer(Visualizer):
         offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
         offsets_np = offsets.numpy()
         
-        # Move non-visualized environments far away
+        # Move non-visualized environments far away (visualization-only, doesn't affect physics)
         visualized_set = set(self.cfg.env_ids_to_viz)
         for world_idx in range(num_envs):
             if world_idx not in visualized_set:

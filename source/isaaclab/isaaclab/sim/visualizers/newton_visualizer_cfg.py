@@ -40,6 +40,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     train_mode: bool = True
     """Training mode (True) shows rendering pause controls, play mode (False) hides them."""
 
+    update_frequency: int = 1
+    """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""
+
     up_axis: Literal["X", "Y", "Z"] = "Z"
     """World up axis."""
 
@@ -72,8 +75,3 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0,1]."""
-
-    update_frequency: int = 1
-    """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""
-
-

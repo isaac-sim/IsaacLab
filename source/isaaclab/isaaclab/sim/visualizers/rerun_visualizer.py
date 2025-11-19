@@ -329,6 +329,7 @@ class RerunVisualizer(Visualizer):
             
             # Log initialization
             viz_envs = len(self.cfg.env_ids_to_viz) if self.cfg.env_ids_to_viz else num_envs
+            physics_backend = metadata.get("physics_backend", "newton")
             omni.log.info(
                 f"[RerunVisualizer] Initialized with {viz_envs}/{num_envs} environments "
                 f"(physics: {physics_backend})"
@@ -357,7 +358,8 @@ class RerunVisualizer(Visualizer):
         Args:
             dt: Time step in seconds.
             state: Unused (deprecated parameter, kept for API compatibility).
-        """
+        """e
+        
         if not self._is_initialized or self._viewer is None:
             omni.log.warn("[RerunVisualizer] Not initialized. Call initialize() first.")
             return
@@ -469,21 +471,26 @@ class RerunVisualizer(Visualizer):
     def _setup_env_filtering(self, num_envs: int) -> None:
         """Setup environment filtering using world offsets.
         
-        WIP: Moves non-visualized environments far away (10000 units) to hide them.
-        Future: Could implement proper state filtering before logging.
+        NOTE: This uses visualization-only offsets that do NOT affect physics simulation.
+        Newton's world_offsets only shift the rendered/logged position of environments, not their
+        physical positions. This is confirmed by Newton's test_visual_separation test.
+        
+        Current approach: Moves non-visualized environments far away (10000 units) to hide them.
+        This works but is not ideal. Future improvements could include:
+        - Proper filtering at the logging level (only log selected env transforms)
+        - Custom logging callbacks for partial visualization
+        - State slicing before logging
         
         Args:
             num_envs: Total number of environments.
         """
-        # TODO, still testing, also very hackey
-        
         import warp as wp
         
         # Create world offsets array
         offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
         offsets_np = offsets.numpy()
         
-        # Move non-visualized environments far away
+        # Move non-visualized environments far away (visualization-only, doesn't affect physics)
         visualized_set = set(self.cfg.env_ids_to_viz)
         for world_idx in range(num_envs):
             if world_idx not in visualized_set:

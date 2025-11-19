@@ -114,8 +114,13 @@ class OVVisualizer(Visualizer):
         return True
     
     def supports_live_plots(self) -> bool:
-        # Should we automatically focus the live plots window?
-        """Supports live plots via Isaac Lab UI."""
+        """Supports live plots via Isaac Lab UI.
+        
+        When enable_live_plots=True in OVVisualizerCfg:
+        - Automatically enables all manager visualizers (checkboxes checked)
+        - Keeps plot frames expanded by default
+        - Plots appear in the IsaacLab window docked to the right of the viewport
+        """
         return True
     
     # ------------------------------------------------------------------
