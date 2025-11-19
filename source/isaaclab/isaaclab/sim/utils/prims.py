@@ -5,28 +5,25 @@
 
 from __future__ import annotations
 
-import numpy as np
-import typing
 import logging
+import numpy as np
 import re
+import typing
 from collections.abc import Callable
 from typing import Any
 
+import omni
+import omni.kit.commands
 import omni.usd
 import usdrt
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
-import omni
-import omni.kit.commands
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
-import isaaclab.sim as sim_utils
-from isaaclab.sim.utils.semantics import add_labels
-from isaaclab.sim.utils.stage import add_reference_to_stage, get_current_stage
 from isaaclab.utils.string import to_camel_case
 
-from .stage import attach_stage_to_usd_context, get_current_stage
 from .decorators import apply_nested
+from .stage import add_reference_to_stage, attach_stage_to_usd_context, get_current_stage
+from .semantics import add_labels
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -63,6 +60,7 @@ SDF_type_to_Gf = {
 """
 General Utils
 """
+
 
 def create_prim(
     prim_path: str,
@@ -689,7 +687,7 @@ def get_articulation_root_api_prim_path(prim_path):
             return get_prim_path(prim)
     # regular expression
     else:
-        paths = sim_utils.find_matching_prim_paths(prim_path)
+        paths = find_matching_prim_paths(prim_path)
         if len(paths):
             prim = get_first_matching_child_prim(paths[0], predicate)
             if prim is not None:
@@ -705,6 +703,7 @@ def get_articulation_root_api_prim_path(prim_path):
 """
 Prim Attribute Queries
 """
+
 
 def is_prim_ancestral(prim_path: str) -> bool:
     """Check if any of the prims ancestors were brought in as a reference
@@ -1227,7 +1226,6 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         type_to_create_if_not_exist=sdf_type,
         usd_context_name=prim.GetStage(),
     )
-
 
 
 """

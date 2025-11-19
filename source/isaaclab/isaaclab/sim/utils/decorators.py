@@ -14,7 +14,6 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import omni.kit.commands
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.version import get_version
 from pxr import Sdf, Usd, UsdGeom
@@ -25,8 +24,8 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
-from .stage import get_current_stage
 from .prims import find_matching_prim_paths
+from .stage import get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -216,4 +215,3 @@ def clone(func: Callable) -> Callable:
         return prim
 
     return wrapper
-
