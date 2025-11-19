@@ -14,7 +14,7 @@ import omni.log
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value_masked, update_array2D_with_value, update_array1D_with_array1D_indexed
 from isaaclab.envs.mdp.kernels.action_kernels import process_joint_action, apply_relative_joint_position_action
 
 if TYPE_CHECKING:
@@ -76,15 +76,15 @@ class JointAction(ActionTerm):
 
         # parse scale
         if isinstance(cfg.scale, (float, int)):
-            self._scale = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._scale = wp.zeros((self.action_dim), device=self.device, dtype=wp.float32)
             self._scale.fill_(float(cfg.scale))
         elif isinstance(cfg.scale, dict):
-            self._scale = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._scale = wp.zeros((self.action_dim), device=self.device, dtype=wp.float32)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
             wp.launch(
-                update_array2D_with_array1D_indexed,
-                dim=(self.num_envs, len(index_list)),
+                update_array1D_with_array1D_indexed,
+                dim=(len(index_list)),
                 inputs=[
                     wp.array(value_list, dtype=wp.float32, device=self.device),
                     self._scale,
@@ -96,15 +96,15 @@ class JointAction(ActionTerm):
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
         # parse offset
         if isinstance(cfg.offset, (float, int)):
-            self._offset = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._offset = wp.zeros((self.action_dim), device=self.device, dtype=wp.float32)
             self._offset.fill_(float(cfg.offset))
         elif isinstance(cfg.offset, dict):
-            self._offset = wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32)
+            self._offset = wp.zeros((self.action_dim), device=self.device, dtype=wp.float32)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.offset, self._joint_names)
             wp.launch(
-                update_array2D_with_array1D_indexed,
-                dim=(self.num_envs, len(index_list)),
+                update_array1D_with_array1D_indexed,
+                dim=(len(index_list)),
                 inputs=[
                     wp.array(value_list, dtype=wp.float32, device=self.device),
                     self._offset,
@@ -139,6 +139,8 @@ class JointAction(ActionTerm):
                 )
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+        else:
+            self._clip = None
 
     """
     Properties.
@@ -161,8 +163,9 @@ class JointAction(ActionTerm):
     """
 
     def process_actions(self, actions: wp.array):
-        # store the raw actions
-        self._raw_actions.assign(actions)
+        # store the raw actions. NOTE: This is a reference, not a copy.
+        self._raw_actions = actions
+        print(self._clip)
         wp.launch(
             process_joint_action,
             dim=(self.num_envs, self.action_dim),
@@ -170,6 +173,8 @@ class JointAction(ActionTerm):
                 self._raw_actions,
                 self._scale,
                 self._offset,
+                self._clip,
+                self._processed_actions,
             ],
         )
 
@@ -178,7 +183,7 @@ class JointAction(ActionTerm):
             update_array2D_with_value_masked,
             dim=(self.num_envs, self.action_dim),
             inputs=[
-                wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32),
+                0.0,
                 self._raw_actions,
                 mask,
                 None,

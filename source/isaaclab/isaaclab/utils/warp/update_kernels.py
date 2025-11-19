@@ -429,19 +429,3 @@ for dtype in [wp.float32, wp.int32, wp.bool, wp.vec2f, wp.vec3f, wp.quatf, wp.tr
     wp.overload(update_array2D_with_array2D, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
     wp.overload(update_array2D_with_array2D_masked, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
     wp.overload(update_array2D_with_array2D_indexed, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-
-@wp.func
-def array_switch(values: wp.array4d(dtype=Any), i: int, j: int, k: int, l: int) -> wp.int32:
-    return values[i, j, k, l]
-
-@wp.func
-def array_switch(values: wp.array3d(dtype=Any), i: int, j: int, k: int, l: int = 0) -> wp.int32:
-    return values[i, j, k]
-
-@wp.func
-def array_switch(values: wp.array2d(dtype=Any), i: int, j: int, k: int = 0, l: int = 0) -> wp.int32:
-    return values[i, j]
-
-@wp.func
-def array_switch(values: wp.array(dtype=Any), i: int, j: int = 0, k: int = 0, l: int = 0) -> wp.int32:
-    return values[i]

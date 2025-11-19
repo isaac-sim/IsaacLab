@@ -151,8 +151,8 @@ class BinaryJointAction(ActionTerm):
     """
 
     def process_actions(self, actions: wp.array):
-        # store the raw actions
-        self._raw_actions.assign(actions)
+        # store the raw actions. NOTE: This is a reference, not a copy.
+        self._raw_actions = actions
         # compute the binary mask
         if actions.dtype == wp.bool:
             # true: close, false: open
@@ -196,7 +196,7 @@ class BinaryJointAction(ActionTerm):
                 update_array2D_with_value_masked,
                 dim=(self.num_envs, self._num_joints),
                 inputs=[
-                    wp.zeros((self.num_envs, self._num_joints), device=self.device, dtype=wp.float32),
+                    0.0,
                     self._raw_actions,
                     mask,
                     None,

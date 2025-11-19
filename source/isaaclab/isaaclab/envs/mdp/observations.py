@@ -21,6 +21,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.envs.mdp.kernels.obs_kernels import extract_z_from_pose, make_quat_unique_1D, get_body_world_pose_flattened, project_gravity_to_body, get_joint_data_by_indices, get_joint_data_rel_by_indices
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
+from isaaclab.utils.warp.utils import resolve_asset_cfg
 #from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
@@ -30,16 +31,26 @@ if TYPE_CHECKING:
 Root state.
 """
 
+#FIXME: Doc --> torch to warp (with torch example in string)
 class base_pos_z(ManagerTermBase):
-    """Root height in the simulation world frame."""
+    """Root height in the simulation world frame.
+
+    This is a high performance observation term that is used to extract the z-axis of the root pose.
+    The torch based implementation 
+    
+    """
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self._z_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset = env.scene[asset_cfg.name]
+    
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
-    def __call__(self, env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+    def __call__(self, env: ManagerBasedEnv, **kwargs) -> wp.array:
         # extract the used quantities (to enable type-hinting)
-        asset: Articulation = env.scene[asset_cfg.name]
-        wp.launch(extract_z_from_pose, dim=env.num_envs, inputs=[asset.data.root_pose_w, self._z_buffer])
+        wp.launch(extract_z_from_pose, dim=env.num_envs, inputs=[self._asset.data.root_pose_w, self._z_buffer])
         return self._z_buffer
 
 
@@ -80,10 +91,19 @@ class root_quat_w(ManagerTermBase):
     """
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._quat_buffer = wp.zeros((env.num_envs, 4), dtype=wp.float32, device=env.device)
+
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset = env.scene[asset_cfg.name]
+        self._quat_buffer = wp.zeros((env.num_envs), dtype=wp.quatf, device=env.device)
+        make_quat_unique: bool = cfg.params.get("make_quat_unique", False)
+        self._make_quat_unique = make_quat_unique
+
+    def update_config(self, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg | None = None) -> None:
+        self._make_quat_unique = make_quat_unique
 
     def __call__(self,
-        env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+        env: ManagerBasedEnv,
+        **kwargs,
     ) -> wp.array:
         """Asset root orientation (x, y, z, w) in the environment frame.
 
@@ -92,16 +112,13 @@ class root_quat_w(ManagerTermBase):
         the same orientation.
         """
         # extract the used quantities (to enable type-hinting)
-        asset: RigidObject = env.scene[asset_cfg.name]
-
-        quat = asset.data.root_quat_w
+        quat = self._asset.data.root_quat_w
         # make the quaternion real-part positive if configured
-        if make_quat_unique:
+        if self._make_quat_unique:
             wp.launch(make_quat_unique_1D, dim=env.num_envs, inputs=[quat, self._quat_buffer])
-            return self._quat_buffer
+            return wp.array(ptr=self._quat_buffer.ptr, shape=(env.num_envs, 4), dtype=wp.float32)
         else:
-            return quat
-
+            return wp.array(ptr=quat.ptr, shape=(env.num_envs, 4), dtype=wp.float32)
 
 def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
@@ -128,12 +145,17 @@ class body_pose_w(ManagerTermBase):
     """
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._pose_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.body_ids)), dtype=wp.transformf, device=env.device)
-        self._body_indices = wp.array(cfg.asset_cfg.body_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._pose_buffer = wp.zeros((env.num_envs, len(asset_cfg.body_ids)), dtype=wp.transformf, device=env.device)
+        self._body_indices = wp.array(asset_cfg.body_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The flattened body poses of the asset w.r.t the env.scene.origin.
 
@@ -148,7 +170,6 @@ class body_pose_w(ManagerTermBase):
             Output is stacked horizontally per body.
         """
         # extract the used quantities (to enable type-hinting)
-        asset: Articulation = env.scene[asset_cfg.name]
 
         # Launch kernel with indexing to only return the required bodies. This is ok since the number of bodies remains
         # constant throughout the simulation.
@@ -156,14 +177,18 @@ class body_pose_w(ManagerTermBase):
             get_body_world_pose_flattened,
             dim=(env.num_envs, self._body_indices.shape[0]),
             inputs=[
-                asset.data.body_pose_w,
+                self._asset.data.body_pose_w,
                 env.scene.env_origins,
                 self._pose_buffer,
                 self._body_indices
             ],
         )
 
-        return wp.array(ptr=self._pose_buffer.ptr, shape=(*self._pose_buffer.shape, 7), dtype=wp.float32).reshape((env.num_envs, -1))
+        return wp.array(
+            ptr=self._pose_buffer.ptr,
+            shape=(self._pose_buffer.shape[0], self._pose_buffer.shape[1] * 7),
+            dtype=wp.float32).reshape((env.num_envs, -1),
+        )
 
 class body_projected_gravity_b(ManagerTermBase):
     """The direction of gravity projected on to bodies of an Articulation.
@@ -172,12 +197,17 @@ class body_projected_gravity_b(ManagerTermBase):
     """
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._projected_gravity_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.body_ids)), dtype=wp.vec3f, device=env.device)
-        self._body_indices = wp.array(cfg.asset_cfg.body_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._projected_gravity_buffer = wp.zeros((env.num_envs, len(asset_cfg.body_ids)), dtype=wp.vec3f, device=env.device)
+        self._body_indices = wp.array(asset_cfg.body_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The direction of gravity projected on to bodies of an Articulation.
 
@@ -192,19 +222,22 @@ class body_projected_gravity_b(ManagerTermBase):
             [x,y,z]. Output is stacked horizontally per body.
         """
         # extract the used quantities (to enable type-hinting)
-        asset: Articulation = env.scene[asset_cfg.name]
 
         wp.launch(
             project_gravity_to_body,
             dim=(env.num_envs, self._body_indices.shape[0]),
             inputs=[
-                asset.data.body_pose_w,
-                asset.data.GRAVITY_VEC_W,
+                self._asset.data.body_pose_w,
+                self._asset.data.GRAVITY_VEC_W,
                 self._projected_gravity_buffer,
                 self._body_indices
             ],
         )
-        return wp.array(ptr=self._projected_gravity_buffer.ptr, shape=(*self._projected_gravity_buffer.shape, 3), dtype=wp.float32).reshape((env.num_envs, -1))
+        return wp.array(
+            ptr=self._projected_gravity_buffer.ptr,
+            shape=(self._projected_gravity_buffer.shape[0], self._projected_gravity_buffer.shape[1] * 3),
+            dtype=wp.float32).reshape((env.num_envs, -1),
+        )
 
 
 """
@@ -215,15 +248,19 @@ class joint_pos(ManagerTermBase):
     """The joint positions of the asset."""
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._joint_pos_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
-        self._joint_indices = wp.array(cfg.asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._joint_pos_buffer = wp.zeros((env.num_envs, len(asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
+        self._joint_indices = wp.array(asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The joint positions of the asset."""
-        asset: Articulation = env.scene[asset_cfg.name]
         wp.launch(
             get_joint_data_by_indices,
             dim=(env.num_envs, self._joint_indices.shape[0]),
@@ -239,24 +276,28 @@ class joint_pos_rel(ManagerTermBase):
     """The joint positions of the asset w.r.t. the default joint positions."""
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._joint_pos_rel_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
-        self._joint_indices = wp.array(cfg.asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._joint_pos_rel_buffer = wp.zeros((env.num_envs, len(asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
+        self._joint_indices = wp.array(asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The joint positions of the asset w.r.t. the default joint positions.
 
         Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
         """
-        asset: Articulation = env.scene[asset_cfg.name]
         wp.launch(
             get_joint_data_rel_by_indices,
             dim=(env.num_envs, self._joint_indices.shape[0]),
             inputs=[
-                asset.data.joint_pos,
-                asset.data.default_joint_pos,
+                self._asset.data.joint_pos,
+                self._asset.data.default_joint_pos,
                 self._joint_indices,
                 self._joint_pos_rel_buffer
             ],
@@ -282,23 +323,27 @@ class joint_vel(ManagerTermBase):
     """The joint velocities of the asset."""
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._joint_vel_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
-        self._joint_indices = wp.array(cfg.asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._joint_vel_buffer = wp.zeros((env.num_envs, len(asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
+        self._joint_indices = wp.array(asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The joint velocities of the asset.
 
         Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
         """
-        asset: Articulation = env.scene[asset_cfg.name]
         wp.launch(
             get_joint_data_by_indices,
             dim=(env.num_envs, self._joint_indices.shape[0]),
             inputs=[
-                asset.data.joint_vel,
+                self._asset.data.joint_vel,
                 self._joint_indices,
                 self._joint_vel_buffer,
             ],
@@ -309,24 +354,28 @@ class joint_vel_rel(ManagerTermBase):
     """The joint velocities of the asset w.r.t. the default joint velocities."""
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._joint_vel_rel_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
-        self._joint_indices = wp.array(cfg.asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._joint_vel_rel_buffer = wp.zeros((env.num_envs, len(asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
+        self._joint_indices = wp.array(asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The joint velocities of the asset w.r.t. the default joint velocities.
 
         Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
         """
-        asset: Articulation = env.scene[asset_cfg.name]
         wp.launch(
             get_joint_data_rel_by_indices,
             dim=(env.num_envs, self._joint_indices.shape[0]),
             inputs=[
-                asset.data.joint_vel,
-                asset.data.default_joint_vel,
+                self._asset.data.joint_vel,
+                self._asset.data.default_joint_vel,
                 self._joint_indices,
                 self._joint_vel_rel_buffer
             ],
@@ -338,20 +387,24 @@ class joint_effort(ManagerTermBase):
     """The joint applied effort of the asset."""
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._joint_effort_buffer = wp.zeros((env.num_envs, len(cfg.asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
-        self._joint_indices = wp.array(cfg.asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        self._joint_effort_buffer = wp.zeros((env.num_envs, len(asset_cfg.joint_ids)), dtype=wp.float32, device=env.device)
+        self._joint_indices = wp.array(asset_cfg.joint_ids, dtype=wp.int32, device=env.device)
+
+    def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
+        pass
 
     def __call__(self,
         env: ManagerBasedEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        **kwargs,
     ) -> wp.array:
         """The joint applied effort of the asset."""
-        asset: Articulation = env.scene[asset_cfg.name]
         wp.launch(
             get_joint_data_by_indices,
             dim=(env.num_envs, self._joint_indices.shape[0]),
             inputs=[
-                asset.data.applied_torque,
+                self._asset.data.applied_torque,
                 self._joint_indices,
                 self._joint_effort_buffer,
             ],

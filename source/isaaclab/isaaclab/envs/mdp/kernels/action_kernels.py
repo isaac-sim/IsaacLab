@@ -1,6 +1,5 @@
 import warp as wp
 from typing import Any
-from isaaclab.utils.warp.update_kernels import array_switch
 
 @wp.kernel
 def where_array2D_binary(
@@ -56,7 +55,7 @@ def clip_array2D(
         clip: The clip. Shape is (N, M).
     """
     index_1, index_2 = wp.tid()
-    value[index_1, index_2] = wp.clamp(value[index_1, index_2], clip[index_2, 0], clip[index_2, 1])
+    value[index_1, index_2] = wp.clamp(value[index_1, index_2], clip[index_2][0], clip[index_2][1])
 
 @wp.func
 def unscale_transform(value: wp.float32, lower_limit: wp.float32, upper_limit: wp.float32) -> wp.float32:
@@ -78,7 +77,7 @@ def process_joint_position_to_limits_action(
     index_1, index_2 = wp.tid()
     processed_actions[index_1, index_2] = raw_actions[index_1, index_2] * scale[index_2]
     if clip:
-        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2, 0], clip[index_2, 1])
+        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2][0], clip[index_2][1])
     if rescale_to_limits:
         processed_actions[index_1, index_2] = unscale_transform(processed_actions[index_1, index_2], joint_pos_limits_lower[index_1, joint_ids[index_2]], joint_pos_limits_upper[index_1, joint_ids[index_2]])
 
@@ -93,7 +92,7 @@ def process_ema_joint_position_to_limits_action(
 ):
     index_1, index_2 = wp.tid()
     destination[index_1, index_2] = alpha[index_2] * source[index_1, index_2] + (1.0 - alpha[index_2]) * destination_prev[index_1, index_2]
-    destination[index_1, index_2] = wp.clamp(destination[index_1, index_2], clip[index_2, 0], clip[index_2, 1])
+    destination[index_1, index_2] = wp.clamp(destination[index_1, index_2], clip[index_2][0], clip[index_2][1])
     destination_prev[index_1, index_2] = destination[index_1, index_2]
 
 @wp.kernel
@@ -107,7 +106,7 @@ def process_joint_action(
     index_1, index_2 = wp.tid()
     processed_actions[index_1, index_2] = raw_actions[index_1, index_2] * scale[index_2] + offset[index_2]
     if clip:
-        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2, 0], clip[index_2, 1])
+        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2][0], clip[index_2][1])
 
 @wp.kernel
 def apply_relative_joint_position_action(
@@ -131,7 +130,7 @@ def process_non_holonomic_action(
     index_1, index_2 = wp.tid()
     processed_actions[index_1, index_2] = raw_actions[index_1, index_2] * scale[index_2] + offset[index_2]
     if clip:
-        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2, 0], clip[index_2, 1])
+        processed_actions[index_1, index_2] = wp.clamp(processed_actions[index_1, index_2], clip[index_2][0], clip[index_2][1])
 
 @wp.func
 def get_yaw_from_quat(quat: wp.quatf) -> wp.float32:

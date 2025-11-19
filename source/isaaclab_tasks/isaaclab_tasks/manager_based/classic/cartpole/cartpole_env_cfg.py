@@ -38,10 +38,10 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
-    )
+    #ground = AssetBaseCfg(
+    #    prim_path="/World/ground",
+    #    spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    #)
 
     # cartpole
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

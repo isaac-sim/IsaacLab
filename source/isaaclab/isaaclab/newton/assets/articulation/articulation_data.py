@@ -331,7 +331,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_viscous_friction
 
     @property
-    def soft_joint_pos_limits(self) -> wp.array(dtype=wp.float32):
+    def soft_joint_pos_limits(self) -> wp.array(dtype=wp.vec2f):
         r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
 
         The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as

@@ -131,10 +131,10 @@ class JointPositionToLimitsAction(ActionTerm):
     Operations.
     """
 
-    # FIXME: Do we need to store the raw actions?
+    # FIXME: Do we need to store the raw actions? REF should be OK.
     def process_actions(self, actions: wp.array):
-        # store the raw actions
-        self._raw_actions.assign(actions)
+        # store the raw actions. NOTE: This is a reference, not a copy.
+        self._raw_actions = actions
         wp.launch(
             process_joint_position_to_limits_action,
             dim=(self.num_envs, self.action_dim),
@@ -143,8 +143,6 @@ class JointPositionToLimitsAction(ActionTerm):
                 self._scale,
             ],
         )
-
-
 
     def apply_actions(self):
         # set position targets
@@ -156,7 +154,7 @@ class JointPositionToLimitsAction(ActionTerm):
                 update_array2D_with_value_masked,
                 dim=(self.num_envs, self.action_dim),
                 inputs=[
-                    wp.zeros((self.num_envs, self.action_dim), device=self.device, dtype=wp.float32),
+                    0.0,
                     self._raw_actions,
                     mask,
                     None,
