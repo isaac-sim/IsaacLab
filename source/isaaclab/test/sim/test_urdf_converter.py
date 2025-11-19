@@ -15,7 +15,6 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import os
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
@@ -23,6 +22,7 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 # Create a fixture for setup and teardown

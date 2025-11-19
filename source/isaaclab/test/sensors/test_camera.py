@@ -22,7 +22,6 @@ import random
 import scipy.spatial.transform as tf
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
@@ -30,6 +29,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.math import convert_quat

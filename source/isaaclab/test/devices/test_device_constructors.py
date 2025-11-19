@@ -15,11 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import importlib
 import json
 import torch
+from typing import cast
 
 import pytest
 
 # Import device classes to test
 from isaaclab.devices import (
+    DeviceCfg,
     HaplyDevice,
     HaplyDeviceCfg,
     OpenXRDevice,
@@ -68,6 +70,11 @@ def mock_environment(mocker):
     # Mock keyboard event types
     carb_mock.input.KeyboardEventType.KEY_PRESS = 1
     carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
+
+    # Mock carb events used by OpenXRDevice
+    events_mock = mocker.MagicMock()
+    events_mock.type_from_string.return_value = 0
+    carb_mock.events = events_mock
 
     # Mock the SpaceMouse
     hid_mock.enumerate.return_value = [{"product_string": "SpaceMouse Compact", "vendor_id": 123, "product_id": 456}]
@@ -300,6 +307,7 @@ def test_openxr_constructors(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
     mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
@@ -477,7 +485,7 @@ def test_create_teleop_device_basic(mock_environment, mocker):
     keyboard_cfg = Se3KeyboardCfg(pos_sensitivity=0.8, rot_sensitivity=1.2)
 
     # Create devices configuration dictionary
-    devices_cfg = {"test_keyboard": keyboard_cfg}
+    devices_cfg: dict[str, DeviceCfg] = {"test_keyboard": keyboard_cfg}
 
     # Mock Se3Keyboard class
     device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
@@ -501,7 +509,7 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     openxr_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg)
 
     # Create devices configuration dictionary
-    devices_cfg = {"test_xr": openxr_cfg}
+    devices_cfg: dict[str, DeviceCfg] = {"test_xr": openxr_cfg}
 
     # Create mock callbacks
     button_a_callback = mocker.MagicMock()
@@ -518,6 +526,7 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
     mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
@@ -532,10 +541,8 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     # Verify the device was created correctly
     assert isinstance(device, OpenXRDevice)
 
-    # Verify callbacks were registered
-    device.add_callback("button_a", button_a_callback)
-    device.add_callback("button_b", button_b_callback)
-    assert len(device._additional_callbacks) == 2
+    # Verify callbacks were registered by the factory
+    assert set(device._additional_callbacks.keys()) == {"button_a", "button_b"}
 
 
 def test_create_teleop_device_with_retargeters(mock_environment, mocker):
@@ -549,7 +556,7 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
     device_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg, retargeters=[retargeter_cfg1, retargeter_cfg2])
 
     # Create devices configuration dictionary
-    devices_cfg = {"test_xr": device_cfg}
+    devices_cfg: dict[str, DeviceCfg] = {"test_xr": device_cfg}
 
     # Mock OpenXRDevice class and dependencies
     device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
@@ -561,6 +568,7 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
     mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
@@ -568,11 +576,6 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
     # Configure the mock to return a string for prim_path
     mock_instance = mock_single_xform.return_value
     mock_instance.prim_path = "/XRAnchor"
-
-    # Mock retargeter classes
-    retargeter_mod = importlib.import_module("isaaclab.devices.openxr.retargeters")
-    mocker.patch.object(retargeter_mod, "Se3AbsRetargeter")
-    mocker.patch.object(retargeter_mod, "GripperRetargeter")
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg)
@@ -584,7 +587,7 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
 def test_create_teleop_device_device_not_found():
     """Test error when device name is not found in configuration."""
     # Create devices configuration dictionary
-    devices_cfg = {"keyboard": Se3KeyboardCfg()}
+    devices_cfg: dict[str, DeviceCfg] = {"keyboard": Se3KeyboardCfg()}
 
     # Try to create a non-existent device
     with pytest.raises(ValueError, match="Device 'gamepad' not found"):
@@ -599,8 +602,8 @@ def test_create_teleop_device_unsupported_config():
         pass
 
     # Create devices configuration dictionary with unsupported config
-    devices_cfg = {"unsupported": UnsupportedCfg()}
+    devices_cfg: dict[str, DeviceCfg] = cast(dict[str, DeviceCfg], {"unsupported": UnsupportedCfg()})
 
     # Try to create a device with unsupported configuration
-    with pytest.raises(ValueError, match="Unsupported device configuration type"):
+    with pytest.raises(ValueError, match="does not declare class_type"):
         create_teleop_device("unsupported", devices_cfg)

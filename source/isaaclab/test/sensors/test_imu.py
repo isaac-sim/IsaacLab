@@ -17,7 +17,6 @@ simulation_app = app_launcher.app
 import pathlib
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 
 import isaaclab.sim as sim_utils
@@ -27,6 +26,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG, RED_ARROW_X_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import ImuCfg
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 

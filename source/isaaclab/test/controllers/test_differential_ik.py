@@ -14,7 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.cloner import GridCloner
 
@@ -22,6 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,
