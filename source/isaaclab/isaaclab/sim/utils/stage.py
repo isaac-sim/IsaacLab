@@ -26,6 +26,7 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 # _context is a singleton design in isaacsim and for that reason
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
+# FIXME: remove once split from isaac-sim is completed
 sim_stage._context = _context
 
 AXES_TOKEN = {
