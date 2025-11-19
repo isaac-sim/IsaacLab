@@ -29,12 +29,7 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument(
-    "--viz",
-    action="store_true",
-    default=False,
-    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
-)
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
 # Joint ordering arguments
 parser.add_argument(
     "--policy_transfer_file",

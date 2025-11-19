@@ -46,12 +46,7 @@ parser.add_argument(
     help="The RL algorithm used for training the skrl agent.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument(
-    "--viz",
-    action="store_true",
-    default=False,
-    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
-)
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)

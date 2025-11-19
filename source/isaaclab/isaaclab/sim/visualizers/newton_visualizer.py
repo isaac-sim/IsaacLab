@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import omni.log
 import warp as wp
 from newton.viewer import ViewerGL
 
@@ -366,8 +367,8 @@ class NewtonVisualizer(Visualizer):
         """
         import warp as wp
         
-        # Create world offsets array
-        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.renderer.device)
+        # Create world offsets array (use viewer's device, not renderer's)
+        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
         offsets_np = offsets.numpy()
         
         # Move non-visualized environments far away

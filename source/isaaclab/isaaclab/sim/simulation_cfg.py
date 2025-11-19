@@ -198,7 +198,7 @@ class SimulationCfg:
     """Render settings. Default is RenderCfg()."""
 
     # visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg(env_ids_to_viz=[0])
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = OVVisualizerCfg(env_ids_to_viz=[0])
     """Visualizer settings. Default is None (no visualization).
     
     This field supports multiple visualizer backends for debug visualization and monitoring

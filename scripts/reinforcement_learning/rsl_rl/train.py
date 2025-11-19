@@ -32,12 +32,7 @@ parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
-parser.add_argument(
-    "--viz",
-    action="store_true",
-    default=False,
-    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
-)
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args

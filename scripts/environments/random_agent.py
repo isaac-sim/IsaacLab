@@ -18,12 +18,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument(
-    "--viz",
-    action="store_true",
-    default=False,
-    help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
-)
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
