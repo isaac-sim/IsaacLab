@@ -87,6 +87,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Kaixi Bao
 * Kris Wilson
+* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
