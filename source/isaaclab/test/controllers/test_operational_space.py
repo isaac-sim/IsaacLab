@@ -18,13 +18,13 @@ import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,

@@ -76,8 +76,8 @@ from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
-import isaaclab.terrains as terrain_gen
 import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.terrains as terrain_gen
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

@@ -21,9 +21,9 @@ from dataclasses import dataclass
 import pytest
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.utils import configclass
 
 

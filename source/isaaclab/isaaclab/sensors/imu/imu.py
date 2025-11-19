@@ -13,9 +13,10 @@ from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-import isaaclab.sim.utils.stage as stage_utils
+
 from ..sensor_base import SensorBase
 from .imu_data import ImuData
 

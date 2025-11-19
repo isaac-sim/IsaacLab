@@ -18,8 +18,8 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 

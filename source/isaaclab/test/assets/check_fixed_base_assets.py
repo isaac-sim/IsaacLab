@@ -36,8 +36,8 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.assets import Articulation
 
 ##
 # Pre-defined configs

@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 
 from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.utils import clone
 import isaaclab.sim.utils.prims as prim_utils
-from isaaclab.sim.utils import safe_set_attribute_on_usd_schema
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
