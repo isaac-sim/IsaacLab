@@ -3,181 +3,288 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Class-based observation terms for the gear assembly manipulation environment."""
+
 from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
 
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObject
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaacsim.core.utils.torch.transformations import tf_combine
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from .events import RandomizeGearType
 
 
-def gear_shaft_pos_w(
-    env: ManagerBasedRLEnv, 
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base")
-) -> torch.Tensor:
+class GearShaftPosW(ManagerTermBase):
     """Gear shaft position in world frame with offset applied.
-    
-    Args:
-        env: The environment containing the assets
-        asset_cfg: Configuration of the gear base asset
-        
-    Returns:
-        Gear shaft position tensor of shape (num_envs, 3)
+
+    This class-based term caches gear offset tensors and identity quaternions.
     """
-    # extract the asset (to enable type hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
-    
-    # get base gear position and orientation
-    base_pos = asset.data.root_pos_w
-    base_quat = asset.data.root_quat_w
-    
-    # Access shared cache (initialized during prestartup events)
-    cache = env._shared_gear_cache
-    
-    # get current gear type from environment, use default if not set
-    if not hasattr(env, '_current_gear_type'):
-        print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
-        default_gear_type = getattr(env.cfg, 'default_gear_type', 'gear_medium')
-        current_gear_type = [default_gear_type] * env.num_envs
-    else:
-        current_gear_type = env._current_gear_type  # type: ignore
-    
-    # Update offsets using cached gear offset tensors from shared cache
-    offsets = cache['offsets_buffer']
-    for i in range(env.num_envs):
-        offsets[i] = cache['gear_offset_tensors'][current_gear_type[i]]
-    
-    # Use cached identity_quat
-    identity_quat = cache['identity_quat']
-    
-    _, shaft_pos = tf_combine(base_quat, base_pos, identity_quat, offsets)
 
-    return shaft_pos - env.scene.env_origins
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the gear shaft position observation term.
+
+        Args:
+            cfg: Observation term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset
+        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+        # Pre-cache gear offset tensors (required parameter)
+        if "gear_offsets" not in cfg.params:
+            raise ValueError(
+                "'gear_offsets' parameter is required in GearShaftPosW configuration. "
+                "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
+            )
+        gear_offsets = cfg.params["gear_offsets"]
+        if not isinstance(gear_offsets, dict):
+            raise TypeError(
+                f"'gear_offsets' parameter must be a dict, got {type(gear_offsets).__name__}. "
+                "It should have keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
+            )
+
+        self.gear_offset_tensors = {}
+        for gear_type in ["gear_small", "gear_medium", "gear_large"]:
+            if gear_type not in gear_offsets:
+                raise ValueError(
+                    f"'{gear_type}' offset is required in 'gear_offsets' parameter. "
+                    f"Found keys: {list(gear_offsets.keys())}"
+                )
+            self.gear_offset_tensors[gear_type] = torch.tensor(
+                gear_offsets[gear_type], device=env.device, dtype=torch.float32
+            )
+
+        # Pre-allocate buffers
+        self.offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)
+        self.identity_quat = (
+            torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
+        gear_offsets: dict | None = None,
+    ) -> torch.Tensor:
+        """Compute gear shaft position in world frame.
+
+        Args:
+            env: Environment instance
+            asset_cfg: Configuration of the gear base asset (unused, kept for compatibility)
+
+        Returns:
+            Gear shaft position tensor of shape (num_envs, 3)
+        """
+        # Check if gear type manager exists
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "in your environment's event configuration before this observation term is used."
+            )
+
+        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        current_gear_types = gear_type_manager.get_all_gear_types()
+
+        # Get base gear position and orientation
+        base_pos = self.asset.data.root_pos_w
+        base_quat = self.asset.data.root_quat_w
+
+        # Update offsets using cached gear offset tensors
+        for i in range(env.num_envs):
+            self.offsets_buffer[i] = self.gear_offset_tensors[current_gear_types[i]]
+
+        # Transform offsets
+        _, shaft_pos = tf_combine(base_quat, base_pos, self.identity_quat, self.offsets_buffer)
+
+        return shaft_pos - env.scene.env_origins
 
 
-def gear_shaft_quat_w(
-    env: ManagerBasedRLEnv, 
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
-) -> torch.Tensor:
+class GearShaftQuatW(ManagerTermBase):
     """Gear shaft orientation in world frame.
-    
-    Args:
-        env: The environment containing the assets
-        asset_cfg: Configuration of the gear base asset
-        gear_type: Type of gear ('gear_small', 'gear_medium', 'gear_large')
-        
-    Returns:
-        Gear shaft orientation tensor of shape (num_envs, 4)
+
+    This class-based term caches the asset reference.
     """
-    # extract the asset (to enable type hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
 
-    
-    # get base quaternion
-    base_quat = asset.data.root_quat_w
-    
-    # ensure w component is positive for each environment
-    # if w is negative, negate the entire quaternion to maintain same orientation
-    w_negative = base_quat[:, 0] < 0
-    positive_quat = base_quat.clone()
-    positive_quat[w_negative] = -base_quat[w_negative]
-    
-    return positive_quat
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the gear shaft orientation observation term.
 
-def gear_pos_w(
-    env: ManagerBasedRLEnv, 
-) -> torch.Tensor:
+        Args:
+            cfg: Observation term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset
+        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
+    ) -> torch.Tensor:
+        """Compute gear shaft orientation in world frame.
+
+        Args:
+            env: Environment instance
+            asset_cfg: Configuration of the gear base asset (unused, kept for compatibility)
+
+        Returns:
+            Gear shaft orientation tensor of shape (num_envs, 4)
+        """
+        # Get base quaternion
+        base_quat = self.asset.data.root_quat_w
+
+        # Ensure w component is positive
+        w_negative = base_quat[:, 0] < 0
+        positive_quat = base_quat.clone()
+        positive_quat[w_negative] = -base_quat[w_negative]
+
+        return positive_quat
+
+
+class GearPosW(ManagerTermBase):
     """Gear position in world frame.
-    
-    Args:
-        env: The environment containing the assets
 
-    Returns:
-        Gear position tensor of shape (num_envs, 3)
+    This class-based term caches gear type mapping and index tensors.
     """
-    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
-    if not hasattr(env, '_shared_gear_cache'):
-        raise RuntimeError(
-            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
-            "during startup or reset events before this observation function."
-        )
-    
-    cache = env._shared_gear_cache
-    
-    # get current gear type from environment, use default if not set
-    if not hasattr(env, '_current_gear_type'):
-        print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
-        default_gear_type = getattr(env.cfg, 'default_gear_type', 'gear_medium')
-        current_gear_type = [default_gear_type] * env.num_envs
-    else:
-        current_gear_type = env._current_gear_type  # type: ignore
-    
-    all_gear_positions = torch.stack([
-        env.scene["factory_gear_small"].data.root_pos_w,
-        env.scene["factory_gear_medium"].data.root_pos_w,
-        env.scene["factory_gear_large"].data.root_pos_w,
-    ], dim=1)  # Shape: (num_envs, 3, 3)
-    
-    # Update gear_type_indices using cached tensor
-    gear_type_indices = cache['gear_type_indices']
-    gear_type_map = cache['gear_type_map']
-    for i in range(env.num_envs):
-        gear_type_indices[i] = gear_type_map[current_gear_type[i]]
-    
-    gear_positions = all_gear_positions[cache['env_indices'], gear_type_indices]
-    
-    return gear_positions - env.scene.env_origins
 
-def gear_quat_w(
-    env: ManagerBasedRLEnv, 
-) -> torch.Tensor:
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the gear position observation term.
+
+        Args:
+            cfg: Observation term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Pre-allocate gear type mapping and indices
+        self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+
+        # Cache gear assets
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
+        """Compute gear position in world frame.
+
+        Args:
+            env: Environment instance
+
+        Returns:
+            Gear position tensor of shape (num_envs, 3)
+        """
+        # Check if gear type manager exists
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "in your environment's event configuration before this observation term is used."
+            )
+
+        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        current_gear_types = gear_type_manager.get_all_gear_types()
+
+        # Stack all gear positions
+        all_gear_positions = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.root_pos_w,
+                self.gear_assets["gear_medium"].data.root_pos_w,
+                self.gear_assets["gear_large"].data.root_pos_w,
+            ],
+            dim=1,
+        )
+
+        # Update gear_type_indices
+        for i in range(env.num_envs):
+            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
+
+        # Select gear positions using advanced indexing
+        gear_positions = all_gear_positions[self.env_indices, self.gear_type_indices]
+
+        return gear_positions - env.scene.env_origins
+
+
+class GearQuatW(ManagerTermBase):
     """Gear orientation in world frame.
-    
-    Args:
-        env: The environment containing the assets
-        
-    Returns:
-        Gear orientation tensor of shape (num_envs, 4)
+
+    This class-based term caches gear type mapping and index tensors.
     """
-    # Use shared cache (must be initialized by initialize_shared_gear_cache event)
-    if not hasattr(env, '_shared_gear_cache'):
-        raise RuntimeError(
-            "Shared gear cache not initialized. Ensure 'initialize_shared_gear_cache' is called "
-            "during startup or reset events before this observation function."
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the gear orientation observation term.
+
+        Args:
+            cfg: Observation term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Pre-allocate gear type mapping and indices
+        self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+
+        # Cache gear assets
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
+        """Compute gear orientation in world frame.
+
+        Args:
+            env: Environment instance
+
+        Returns:
+            Gear orientation tensor of shape (num_envs, 4)
+        """
+        # Check if gear type manager exists
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "in your environment's event configuration before this observation term is used."
+            )
+
+        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        current_gear_types = gear_type_manager.get_all_gear_types()
+
+        # Stack all gear quaternions
+        all_gear_quat = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.root_quat_w,
+                self.gear_assets["gear_medium"].data.root_quat_w,
+                self.gear_assets["gear_large"].data.root_quat_w,
+            ],
+            dim=1,
         )
-    
-    cache = env._shared_gear_cache
-    
-    # get current gear type from environment, use default if not set
-    if not hasattr(env, '_current_gear_type'):
-        print("Environment does not have attribute '_current_gear_type'. Using default_gear_type from configuration.")
-        default_gear_type = getattr(env.cfg, 'default_gear_type', 'gear_medium')
-        current_gear_type = [default_gear_type] * env.num_envs
-    else:
-        current_gear_type = env._current_gear_type  # type: ignore
-    
-    all_gear_quat = torch.stack([
-        env.scene["factory_gear_small"].data.root_quat_w,
-        env.scene["factory_gear_medium"].data.root_quat_w,
-        env.scene["factory_gear_large"].data.root_quat_w,
-    ], dim=1)  # Shape: (num_envs, 3, 4)
-    
-    # Update gear_type_indices using cached tensor
-    gear_type_indices = cache['gear_type_indices']
-    gear_type_map = cache['gear_type_map']
-    for i in range(env.num_envs):
-        gear_type_indices[i] = gear_type_map[current_gear_type[i]]
-    
-    gear_quat = all_gear_quat[cache['env_indices'], gear_type_indices]
-    
-    w_negative = gear_quat[:, 0] < 0
-    gear_positive_quat = gear_quat.clone()
-    gear_positive_quat[w_negative] = -gear_quat[w_negative]
-    
-    return gear_positive_quat
+
+        # Update gear_type_indices
+        for i in range(env.num_envs):
+            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
+
+        # Select gear quaternions using advanced indexing
+        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        # Ensure w component is positive
+        w_negative = gear_quat[:, 0] < 0
+        gear_positive_quat = gear_quat.clone()
+        gear_positive_quat[w_negative] = -gear_quat[w_negative]
+
+        return gear_positive_quat

@@ -5,7 +5,8 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlPpoActorCriticRecurrentCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticRecurrentCfg, RslRlPpoAlgorithmCfg
+
 
 @configclass
 class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -22,7 +23,7 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         "critic": ["critic"],
     }
     policy = RslRlPpoActorCriticRecurrentCfg(
-        state_dependent_std = True,
+        state_dependent_std=True,
         init_noise_std=1.0,
         actor_obs_normalization=True,
         critic_obs_normalization=True,

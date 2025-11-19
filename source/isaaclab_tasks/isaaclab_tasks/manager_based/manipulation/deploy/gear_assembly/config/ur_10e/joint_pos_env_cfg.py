@@ -4,25 +4,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-import os
 import torch
 
-from isaaclab.utils import configclass
-
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import SceneEntityCfg
-
-
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
-from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembly_env_cfg import GearAssemblyEnvCfg
-from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
-from isaaclab.markers.config import FRAME_MARKER_CFG
+import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-import isaaclab.sim as sim_utils
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass
 
+import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.events as gear_assembly_events
-
+from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembly_env_cfg import GearAssemblyEnvCfg
 
 ##
 # Pre-defined configs
@@ -34,6 +27,7 @@ from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG, U
 # Gripper-specific helper functions
 ##
 
+
 def set_finger_joint_pos_robotiq_2f140(
     joint_pos: torch.Tensor,
     reset_ind_joint_pos: list[int],
@@ -41,7 +35,7 @@ def set_finger_joint_pos_robotiq_2f140(
     finger_joint_position: float,
 ):
     """Set finger joint positions for Robotiq 2F-140 gripper.
-    
+
     Args:
         joint_pos: Joint positions tensor
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
@@ -76,7 +70,7 @@ def set_finger_joint_pos_robotiq_2f85(
     finger_joint_position: float,
 ):
     """Set finger joint positions for Robotiq 2F-85 gripper.
-    
+
     Args:
         joint_pos: Joint positions tensor
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
@@ -103,19 +97,18 @@ def set_finger_joint_pos_robotiq_2f85(
 # Environment configuration
 ##
 
+
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    # Prestartup events - initialize shared cache BEFORE managers are created
-    # This ensures the cache exists when observation/reward/termination functions are called during initialization
-    initialize_cache = EventTerm(func=mdp.initialize_shared_gear_cache, mode="prestartup")
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]),  # only the arm joints are randomized
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]
+            ),  # only the arm joints are randomized
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
             "operation": "scale",
@@ -195,53 +188,45 @@ class EventCfg:
     )
 
     randomize_gear_type = EventTerm(
-        func=gear_assembly_events.randomize_gear_type,
+        func=gear_assembly_events.RandomizeGearType,
         mode="reset",
         params={
             "gear_types": ["gear_small", "gear_medium", "gear_large"]
-            # "gear_types": ["gear_medium"]
+            # "gear_types": ["gear_small"]
         },
     )
 
-
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
-
     randomize_gears_and_base_pose = EventTerm(
-        func=gear_assembly_events.randomize_gears_and_base_pose,
+        func=gear_assembly_events.RandomizeGearsAndBasePose,
         mode="reset",
         params={
             "pose_range": {
                 "x": [-0.1, 0.1],
                 "y": [-0.25, 0.25],
-                "z": [-0.1,  0.1],
-                "roll": [-math.pi/90, math.pi/90], # 2 degree
-                "pitch": [-math.pi/90, math.pi/90], # 2 degree
-                "yaw": [-math.pi/6, math.pi/6], # 2 degree
+                "z": [-0.1, 0.1],
+                "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
+                "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
+                "yaw": [-math.pi / 6, math.pi / 6],  # 2 degree
             },
             "gear_pos_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
-                "z": [0.0575, 0.0775], # 0.045 + 0.0225
+                "z": [0.0575, 0.0775],  # 0.045 + 0.0225
             },
             "velocity_range": {},
         },
     )
 
     set_robot_to_grasp_pose = EventTerm(
-        func=gear_assembly_events.set_robot_to_grasp_pose,
+        func=gear_assembly_events.SetRobotToGraspPose,
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {
-                "x": [-0.0, 0.0],
-                "y": [-0.005, 0.005],
-                "z": [-0.003, 0.003]
-            },
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
         },
     )
-
-
 
 
 @configclass
@@ -251,6 +236,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     This class contains common setup shared across different gripper configurations.
     Subclasses should configure gripper-specific parameters.
     """
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -258,7 +244,12 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # Robot-specific parameters (can be overridden for other robots)
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
         self.num_arm_joints = 6  # Number of arm joints (excluding gripper)
-        self.grasp_rot_offset = [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
+        self.grasp_rot_offset = [
+            0.0,
+            math.sqrt(2) / 2,
+            math.sqrt(2) / 2,
+            0.0,
+        ]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
         self.gripper_joint_setter_func = None  # Gripper-specific joint setter function (set in subclass)
 
         # Gear orientation termination thresholds (in degrees)
@@ -267,27 +258,58 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.gear_orientation_yaw_threshold_deg = 180.0  # Maximum allowed yaw deviation
 
         # Common observation configuration
-        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint",
+        ]
+        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint",
+        ]
 
         # override events
         self.events = EventCfg()
 
         # Update termination thresholds from config
-        self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = self.gear_orientation_roll_threshold_deg
-        self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = self.gear_orientation_pitch_threshold_deg
-        self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = self.gear_orientation_yaw_threshold_deg
+        self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = (
+            self.gear_orientation_roll_threshold_deg
+        )
+        self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = (
+            self.gear_orientation_pitch_threshold_deg
+        )
+        self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = (
+            self.gear_orientation_yaw_threshold_deg
+        )
 
         # override command generator body
         self.joint_action_scale = 0.025
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-            asset_name="robot", joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"], scale=self.joint_action_scale, use_zero_offset=True
+            asset_name="robot",
+            joint_names=[
+                "shoulder_pan_joint",
+                "shoulder_lift_joint",
+                "elbow_joint",
+                "wrist_1_joint",
+                "wrist_2_joint",
+                "wrist_3_joint",
+            ],
+            scale=self.joint_action_scale,
+            use_zero_offset=True,
         )
 
 
 @configclass
 class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
     """Configuration for UR10e with Robotiq 2F-140 gripper."""
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -309,26 +331,21 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False,
-                    solver_position_iteration_count=4,
-                    solver_velocity_iteration_count=1
+                    enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
                 ),
-                collision_props=sim_utils.CollisionPropertiesCfg(
-                    contact_offset=0.005,
-                    rest_offset=0.0
-                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
             # Joint positions based on IK from center of distribution for randomized gear positions
             # This is done so that the start for the differential IK search after randomizing
             # is close to the optimal grasp pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
-                    "shoulder_pan_joint": 2.7228e+00,
+                    "shoulder_pan_joint": 2.7228,
                     "shoulder_lift_joint": -8.3962e-01,
-                    "elbow_joint": 1.3684e+00,
-                    "wrist_1_joint": -2.1048e+00,
-                    "wrist_2_joint": -1.5691e+00,
-                    "wrist_3_joint": -1.9896e+00,
+                    "elbow_joint": 1.3684,
+                    "wrist_1_joint": -2.1048,
+                    "wrist_2_joint": -1.5691,
+                    "wrist_3_joint": -1.9896,
                     "finger_joint": 0.0,
                     ".*_inner_finger_joint": 0.0,
                     ".*_inner_finger_pad_joint": 0.0,
@@ -354,24 +371,38 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f140
 
         # gear offsets and grasp positions for the 2F-140 gripper
-        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.26],
-                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.26],
-                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.26]}
+        self.gear_offsets_grasp = {
+            "gear_small": [0.0, self.gear_offsets["gear_small"][0], -0.26],
+            "gear_medium": [0.0, self.gear_offsets["gear_medium"][0], -0.26],
+            "gear_large": [0.0, self.gear_offsets["gear_large"][0], -0.26],
+        }
 
         # Grasp widths for 2F-140 gripper
-        self.hand_grasp_width = {"gear_small": 0.64,
-                               "gear_medium": 0.54,
-                               "gear_large": 0.51}
-        
+        self.hand_grasp_width = {"gear_small": 0.64, "gear_medium": 0.54, "gear_large": 0.51}
+
         # Close widths for 2F-140 gripper
-        self.hand_close_width = {"gear_small": 0.69,
-                               "gear_medium": 0.59,
-                               "gear_large": 0.56}
+        self.hand_close_width = {"gear_small": 0.69, "gear_medium": 0.59, "gear_large": 0.56}
+
+        # Populate event term parameters
+        self.events.set_robot_to_grasp_pose.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
+        self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
+        self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
+        self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
+
+        # Populate termination term parameters
+        self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
+
+        self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
 
 
 @configclass
 class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
     """Configuration for UR10e with Robotiq 2F-85 gripper."""
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -380,7 +411,8 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
-                usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default_2f85.usd",
+                # TODO: @ashwinvk: Revert to default USD after https://jirasw.nvidia.com/browse/ISIM-4733 is resolved
+                usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default_2f85.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
@@ -394,26 +426,21 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False,
-                    solver_position_iteration_count=4,
-                    solver_velocity_iteration_count=1
+                    enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
                 ),
-                collision_props=sim_utils.CollisionPropertiesCfg(
-                    contact_offset=0.005,
-                    rest_offset=0.0
-                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
             # Joint positions based on IK from center of distribution for randomized gear positions
             # This is done so that the start for the differential IK search after randomizing
             # is close to the optimal grasp pose
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
-                    "shoulder_pan_joint": 2.7228e+00,
+                    "shoulder_pan_joint": 2.7228,
                     "shoulder_lift_joint": -8.3962e-01,
-                    "elbow_joint": 1.3684e+00,
-                    "wrist_1_joint": -2.1048e+00,
-                    "wrist_2_joint": -1.5691e+00,
-                    "wrist_3_joint": -1.9896e+00,
+                    "elbow_joint": 1.3684,
+                    "wrist_1_joint": -2.1048,
+                    "wrist_2_joint": -1.5691,
+                    "wrist_3_joint": -1.9896,
                     "finger_joint": 0.0,
                     ".*_inner_finger_joint": 0.0,
                     ".*_inner_finger_knuckle_joint": 0.0,
@@ -439,24 +466,38 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f85
 
         # gear offsets and grasp positions for the 2F-85 gripper
-        self.gear_offsets_grasp = {'gear_small': [0.0, self.gear_offsets['gear_small'][0], -0.18],
-                            'gear_medium': [0.0, self.gear_offsets['gear_medium'][0], -0.18],
-                            'gear_large': [0.0, self.gear_offsets['gear_large'][0], -0.18]}
+        self.gear_offsets_grasp = {
+            "gear_small": [0.0, self.gear_offsets["gear_small"][0], -0.18],
+            "gear_medium": [0.0, self.gear_offsets["gear_medium"][0], -0.18],
+            "gear_large": [0.0, self.gear_offsets["gear_large"][0], -0.18],
+        }
 
         # Grasp widths for 2F-85 gripper
-        self.hand_grasp_width = {"gear_small": 0.64,
-                               "gear_medium": 0.46,
-                               "gear_large": 0.4}
-        
+        self.hand_grasp_width = {"gear_small": 0.64, "gear_medium": 0.46, "gear_large": 0.4}
+
         # Close widths for 2F-85 gripper
-        self.hand_close_width = {"gear_small": 0.69,
-                               "gear_medium": 0.51,
-                               "gear_large": 0.45}
+        self.hand_close_width = {"gear_small": 0.69, "gear_medium": 0.51, "gear_large": 0.45}
+
+        # Populate event term parameters
+        self.events.set_robot_to_grasp_pose.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
+        self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
+        self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
+        self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
+
+        # Populate termination term parameters
+        self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
+
+        self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
 
 
 @configclass
 class UR10e2F140GearAssemblyEnvCfg_PLAY(UR10e2F140GearAssemblyEnvCfg):
     """Play configuration for UR10e with Robotiq 2F-140 gripper."""
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -470,6 +511,7 @@ class UR10e2F140GearAssemblyEnvCfg_PLAY(UR10e2F140GearAssemblyEnvCfg):
 @configclass
 class UR10e2F85GearAssemblyEnvCfg_PLAY(UR10e2F85GearAssemblyEnvCfg):
     """Play configuration for UR10e with Robotiq 2F-85 gripper."""
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

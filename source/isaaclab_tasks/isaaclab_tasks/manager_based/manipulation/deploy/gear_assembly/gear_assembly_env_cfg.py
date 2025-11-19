@@ -5,15 +5,11 @@
 
 from dataclasses import MISSING
 import os
-import math
 
-import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -22,15 +18,11 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sim.simulation_cfg import PhysxCfg, SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import ResetSampledNoiseModelCfg, UniformNoiseCfg
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as gear_assembly_terminations
-from isaaclab_tasks.manager_based.manipulation.deploy.reach.reach_env_cfg import ReachEnvCfg
-
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Get the directory where this configuration file is located
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,7 +50,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearBase",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/gear_assets/factory_gear_base/factory_gear_base.usd",
+            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_base/factory_gear_base.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -83,7 +75,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearSmall",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/gear_assets/factory_gear_small/factory_gear_small.usd",
+            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_small/factory_gear_small.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -98,8 +90,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            # TODO: @ashwinvk. Same mass for all gears?
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+            mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
@@ -109,7 +100,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/gear_assets/factory_gear_medium/factory_gear_medium.usd",
+            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_medium/factory_gear_medium.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -124,7 +115,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+            mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
@@ -134,7 +125,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/gear_assets/factory_gear_large/factory_gear_large.usd",
+            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_large/factory_gear_large.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -149,7 +140,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+            mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
@@ -187,10 +178,14 @@ class ObservationsCfg:
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         joint_vel = ObsTerm(func=mdp.joint_vel,
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, noise=ResetSampledNoiseModelCfg(
-            noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
-        ))
-        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
+        gear_shaft_pos = ObsTerm(
+            func=mdp.GearShaftPosW,
+            params={},  # Will be populated in __post_init__
+            noise=ResetSampledNoiseModelCfg(
+                noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
+            )
+        )
+        gear_shaft_quat = ObsTerm(func=mdp.GearShaftQuatW)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -205,11 +200,11 @@ class ObservationsCfg:
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         joint_vel = ObsTerm(func=mdp.joint_vel,
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w)
-        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
+        gear_shaft_pos = ObsTerm(func=mdp.GearShaftPosW, params={})  # Will be populated in __post_init__
+        gear_shaft_quat = ObsTerm(func=mdp.GearShaftQuatW)
 
-        gear_pos = ObsTerm(func=mdp.gear_pos_w)
-        gear_quat = ObsTerm(func=mdp.gear_quat_w)
+        gear_pos = ObsTerm(func=mdp.GearPosW)
+        gear_quat = ObsTerm(func=mdp.GearQuatW)
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -220,9 +215,6 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # Prestartup events - initialize shared cache BEFORE managers are created
-    # This ensures the cache exists when observation/reward/termination functions are called during initialization
-    initialize_cache = EventTerm(func=mdp.initialize_shared_gear_cache, mode="prestartup")
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
@@ -246,7 +238,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     end_effector_gear_keypoint_tracking = RewTerm(
-        func=mdp.keypoint_entity_error,
+        func=mdp.KeypointEntityError,
         weight=-1.5,
         params={
             "asset_cfg_1": SceneEntityCfg("factory_gear_base"), 
@@ -255,7 +247,7 @@ class RewardsCfg:
     )
 
     end_effector_gear_keypoint_tracking_exp = RewTerm(
-        func=mdp.keypoint_entity_error_exp,
+        func=mdp.KeypointEntityErrorExp,
         weight=1.5,
         params={
             "asset_cfg_1": SceneEntityCfg("factory_gear_base"), 
@@ -275,7 +267,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     
     gear_dropped = DoneTerm(
-        func=gear_assembly_terminations.reset_when_gear_dropped,
+        func=gear_assembly_terminations.ResetWhenGearDropped,
         params={
             "distance_threshold": 0.15,  # 15cm from gripper
             "robot_asset_cfg": SceneEntityCfg("robot"),
@@ -283,7 +275,7 @@ class TerminationsCfg:
     )
 
     gear_orientation_exceeded = DoneTerm(
-        func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
+        func=gear_assembly_terminations.ResetWhenGearOrientationExceedsThreshold,
         params={
             "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
             "pitch_threshold_deg": 7.0,  # Maximum pitch deviation in degrees
@@ -325,3 +317,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.gear_offsets = {'gear_small': [0.076125, 0.0, 0.0],
                             'gear_medium': [0.030375, 0.0, 0.0],
                             'gear_large': [-0.045375, 0.0, 0.0]}
+        
+        # Populate observation term parameters with gear offsets
+        self.observations.policy.gear_shaft_pos.params["gear_offsets"] = self.gear_offsets
+        self.observations.critic.gear_shaft_pos.params["gear_offsets"] = self.gear_offsets

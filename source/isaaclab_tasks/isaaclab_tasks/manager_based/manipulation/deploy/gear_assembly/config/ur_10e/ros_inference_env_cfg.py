@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
 from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets import RigidObjectCfg
@@ -25,7 +24,6 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
         super().__post_init__()
 
         # Variables used by Isaac Manipulator for on robot inference
-        # TODO: @ashwinvk: Remove these from env cfg once the generic inference node has been implemented
         self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
         self.policy_action_space = "joint"
         self.arm_joint_names = [

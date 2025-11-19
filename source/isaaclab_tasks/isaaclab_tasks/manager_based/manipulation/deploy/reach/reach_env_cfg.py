@@ -153,7 +153,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     end_effector_keypoint_tracking = RewTerm(
-        func=mdp.keypoint_command_error,
+        func=mdp.KeypointCommandError,
         weight=-1.5,
         params={
             "asset_cfg": SceneEntityCfg("ee_frame"),
@@ -162,7 +162,7 @@ class RewardsCfg:
         },
     )
     end_effector_keypoint_tracking_exp = RewTerm(
-        func=mdp.keypoint_command_error_exp,
+        func=mdp.KeypointCommandErrorExp,
         weight=1.5,
         params={
             "asset_cfg": SceneEntityCfg("ee_frame"),

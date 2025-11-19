@@ -17,7 +17,7 @@ This walkthrough covers the key principles and best practices for sim-to-real tr
 The gear assembly policy operates as follows:
 
 1. **Initial State**: The policy assumes the gear is already grasped by the gripper at the start of the episode
-2. **Input Observations**: The policy receives the pose of the gear shaft (position and orientation) in which the gear should be inserted, obtained from a seperate perception pipeline
+2. **Input Observations**: The policy receives the pose of the gear shaft (position and orientation) in which the gear should be inserted, obtained from a separate perception pipeline
 3. **Policy Output**: The policy outputs delta joint positions (incremental changes to joint angles) to control the robot arm and perform the insertion
 4. **Generalization**: The trained policy generalizes across 3 different gear sizes without requiring retraining for each size
 
@@ -72,7 +72,7 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
    :header-rows: 1
 
    * - Observation
-     - Dimension  
+     - Dimension
      - Real-World Source
      - Noise in Training
    * - ``joint_pos``
@@ -97,22 +97,22 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
 .. code-block:: python
 
     from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-    
-    @configclass  
+
+    @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        
+
         # Robot joint states - NO noise for proprioceptive observations
         joint_pos = ObsTerm(
             func=mdp.joint_pos,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_pan_joint", ...])},
         )
-        
+
         joint_vel = ObsTerm(
             func=mdp.joint_vel,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_pan_joint", ...])},
         )
-        
+
         # Gear shaft pose from FoundationPose perception
         # ADD noise for exteroceptive (vision-based) observations
         # Calibrated to match FoundationPose + RealSense D435 error
@@ -122,7 +122,7 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
             params={"asset_cfg": SceneEntityCfg("factory_gear_base")},
             noise=Unoise(n_min=-0.005, n_max=0.005),  # ±5mm
         )
-        
+
         # Quaternion noise: small uniform noise on each component
         # Results in ~5° orientation error
         gear_shaft_quat = ObsTerm(
@@ -130,7 +130,7 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
             params={"asset_cfg": SceneEntityCfg("factory_gear_base")},
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
-        
+
         def __post_init__(self):
             self.enable_corruption = True  # Enable for perception observations only
             self.concatenate_terms = True
@@ -166,11 +166,11 @@ The Gear Assembly task requires accurate contact modeling for insertion. Here's 
 .. code-block:: python
 
     # From joint_pos_env_cfg.py in Isaac-Deploy-GearAssembly-UR10e-2F140-v0
-    
+
     @configclass
     class EventCfg:
         """Configuration for events including physics randomization."""
-        
+
         # Randomize friction for gear objects
         small_gear_physics_material = EventTerm(
             func=mdp.randomize_rigid_body_material,
@@ -183,7 +183,7 @@ The Gear Assembly task requires accurate contact modeling for insertion. Here's 
                 "num_buckets": 16,
             },
         )
-        
+
         # Similar configuration for gripper fingers
         robot_physics_material = EventTerm(
             func=mdp.randomize_rigid_body_material,
@@ -246,7 +246,7 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
         solver_position_iteration_count=4,
         solver_velocity_iteration_count=1,
     ),
-    
+
     # Contact properties
     collision_props=sim_utils.CollisionPropertiesCfg(
         contact_offset=0.005,                    # 5mm contact detection distance
@@ -278,10 +278,10 @@ For the UR10e deployment, we use an impedance controller interface. Using a simp
     # Default UR10e actuator configuration
     actuators = {
         "arm": ImplicitActuatorCfg(
-            joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint", 
+            joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
                             "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
             effort_limit=87.0,           # From UR10e specifications
-            velocity_limit=2.0,          # From UR10e specifications  
+            velocity_limit=2.0,          # From UR10e specifications
             stiffness=800.0,             # Calibrated to match real behavior
             damping=40.0,                # Calibrated to match real behavior
         ),
@@ -309,7 +309,7 @@ To account for variations in real robot behavior, randomize actuator gains durin
 
 **Joint Friction Randomization**
 
-Real robots have friction in their joints that varies with position, velocity, and temperature. For the UR10e with impedance controller interface, we observed significant stiction (static friction) causing the controller to not reach target joint positions. 
+Real robots have friction in their joints that varies with position, velocity, and temperature. For the UR10e with impedance controller interface, we observed significant stiction (static friction) causing the controller to not reach target joint positions.
 
 **Characterizing Real Robot Behavior:**
 
@@ -345,7 +345,7 @@ Your action space should match what the real robot controller can execute. For t
 
     # For contact-rich manipulation, smaller action scale for more precise control
     self.joint_action_scale = 0.025  # ±2.5 degrees per step
-    
+
     self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
         asset_name="robot",
         joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
@@ -389,7 +389,7 @@ For manipulation tasks, randomize object poses to ensure the policy works across
                 "z": [0.0575, 0.0775],                     # 5.75-7.75cm above base
             },
             "rot_randomization_range": {
-                "roll": [-math.pi/36, math.pi/36],         # ±5 degrees  
+                "roll": [-math.pi/36, math.pi/36],         # ±5 degrees
                 "pitch": [-math.pi/36, math.pi/36],
                 "yaw": [-math.pi/36, math.pi/36],
             },
@@ -480,7 +480,7 @@ The Isaac ROS deployment pipeline directly uses the trained model checkpoint (``
 The deployment pipeline uses Isaac ROS and a custom ROS inference node to run the policy on real hardware. The pipeline includes:
 
 1. **Perception**: Camera-based pose estimation (FoundationPose, Segment Anything)
-2. **Motion Planning**: cuMotion for collision-free trajectories  
+2. **Motion Planning**: cuMotion for collision-free trajectories
 3. **Policy Inference**: Your trained policy running at control frequency in a custom ROS inference node
 4. **Robot Control**: Low-level controller executing commands
 
@@ -493,4 +493,3 @@ Further Resources
 - `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/tutorial_gear_assembly.html>`_
 - Isaac Lab API Documentation: :ref:`api_lab`
 - RL Training Tutorial: :ref:`tutorial_03_envs_rl_training`
-
