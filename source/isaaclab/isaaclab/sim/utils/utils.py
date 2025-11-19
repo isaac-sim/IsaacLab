@@ -7,24 +7,19 @@
 
 from __future__ import annotations
 
-import contextlib
 import functools
 import inspect
 import logging
 import re
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
 from isaacsim.core.cloner import Cloner
-from isaacsim.core.utils.carb import get_carb_setting
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -35,8 +30,10 @@ except ModuleNotFoundError:
 from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
 
+from .stage import attach_stage_to_usd_context, get_current_stage
+
 if TYPE_CHECKING:
-    from .spawners.spawner_cfg import SpawnerCfg
+    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1036,157 +1033,6 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
-
-
-"""
-Stage management.
-"""
-
-
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches the current USD stage in memory to the USD context.
-
-    This function should be called during or after scene is created and before stage is simulated or rendered.
-
-    Note:
-        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
-
-    Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
-    """
-
-    from isaacsim.core.simulation_manager import SimulationManager
-
-    from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        return
-
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
-
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
-
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
-
-    # early attach warning msg
-    if attaching_early:
-        logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
-        )
-
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
-
-    # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
-
-    # attach stage to usd context
-    omni.usd.get_context().attach_stage_with_callback(stage_id)
-
-    # attach stage to physx
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
-
-
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
-
-@contextlib.contextmanager
-def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
-
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
-
-    Args:
-        stage: The stage to set temporarily.
-
-    Yields:
-        None
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        with stage_utils.use_stage(stage):
-            yield
-
-
-def create_new_stage_in_memory() -> Usd.Stage:
-    """Creates a new stage in memory, if supported.
-
-    Returns:
-        The new stage in memory.
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
-            " stage attached to USD context."
-        )
-        return stage_utils.create_new_stage()
-    else:
-        return stage_utils.create_new_stage_in_memory()
-
-
-def get_current_stage_id() -> int:
-    """Gets the current open stage id.
-
-    This function is a reimplementation of :meth:`isaacsim.core.utils.stage.get_current_stage_id` for
-    backwards compatibility to Isaac Sim < 5.0.
-
-    Returns:
-        The current open stage id.
-    """
-    stage = get_current_stage()
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_id = stage_cache.GetId(stage).ToLongInt()
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
-    return stage_id
-
-
-"""
-Logger.
-"""
 
 
 # --- Colored formatter ---
