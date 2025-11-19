@@ -55,7 +55,10 @@ def remove_camera_configs(env_cfg: Any) -> Any:
         The modified environment configuration with cameras removed.
     """
 
-    import omni.log
+    import logging
+
+    # import logger
+    logger = logging.getLogger(__name__)
 
     from isaaclab.managers import SceneEntityCfg
     from isaaclab.sensors import CameraCfg
@@ -64,7 +67,7 @@ def remove_camera_configs(env_cfg: Any) -> Any:
         attr = getattr(env_cfg.scene, attr_name)
         if isinstance(attr, CameraCfg):
             delattr(env_cfg.scene, attr_name)
-            omni.log.info(f"Removed camera config: {attr_name}")
+            logger.info(f"Removed camera config: {attr_name}")
 
             # Remove any ObsTerms for the camera
             if hasattr(env_cfg.observations, "policy"):
@@ -74,6 +77,6 @@ def remove_camera_configs(env_cfg: Any) -> Any:
                         for param_value in obsterm.params.values():
                             if isinstance(param_value, SceneEntityCfg) and param_value.name == attr_name:
                                 delattr(env_cfg.observations.policy, attr_name)
-                                omni.log.info(f"Removed camera observation term: {attr_name}")
+                                logger.info(f"Removed camera observation term: {attr_name}")
                                 break
     return env_cfg

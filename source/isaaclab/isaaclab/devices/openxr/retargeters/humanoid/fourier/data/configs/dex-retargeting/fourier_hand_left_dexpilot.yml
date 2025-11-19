@@ -11,7 +11,7 @@ retargeting:
   - GR1T2_fourier_hand_6dof_L_ring_intermediate_link
   - GR1T2_fourier_hand_6dof_L_pinky_intermediate_link
   low_pass_alpha: 0.2
-  scaling_factor: 1.0
+  scaling_factor: 1.2
   target_joint_names:
   - L_index_proximal_joint
   - L_middle_proximal_joint
