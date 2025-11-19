@@ -37,24 +37,23 @@ class NewtonVisualizerCfg(VisualizerCfg):
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z)."""
 
-    # Newton-specific settings
-    fps: int = 60
-    """Target FPS."""
+    train_mode: bool = True
+    """Training mode (True) shows rendering pause controls, play mode (False) hides them."""
 
-    show_joints: bool = True
-    """Show joint visualizations."""
+    up_axis: Literal["X", "Y", "Z"] = "Z"
+    """World up axis."""
+
+    show_joints: bool = False
+    """Show joint visualization."""
 
     show_contacts: bool = False
-    """Show contact visualizations."""
+    """Show contact visualization."""
 
     show_springs: bool = False
-    """Show spring visualizations."""
+    """Show spring visualization."""
 
     show_com: bool = False
-    """Show center of mass visualizations."""
-
-    show_ui: bool = True
-    """Show UI sidebar (toggle with 'H' key)."""
+    """Show center of mass visualization."""
 
     enable_shadows: bool = True
     """Enable shadow rendering."""
@@ -63,39 +62,15 @@ class NewtonVisualizerCfg(VisualizerCfg):
     """Enable sky rendering."""
 
     enable_wireframe: bool = False
-    """Enable wireframe rendering mode."""
-
-    up_axis: Literal["X", "Y", "Z"] = "Z"
-    """Up axis for visualizer (should match simulation)."""
-
-    fov: float = 60.0
-    """Camera field of view in degrees."""
-
-    near_plane: float = 0.1
-    """Camera near clipping plane distance."""
-
-    far_plane: float = 1000.0
-    """Camera far clipping plane distance."""
+    """Enable wireframe rendering."""
 
     background_color: tuple[float, float, float] = (0.53, 0.81, 0.92)
-    """Background/sky color RGB [0,1] (light blue)."""
+    """Background/sky color RGB [0,1]."""
 
     ground_color: tuple[float, float, float] = (0.18, 0.20, 0.25)
-    """Ground color RGB [0,1] (dark gray)."""
+    """Ground color RGB [0,1]."""
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Light color RGB [0,1] (white)."""
-
-    enable_pause_training: bool = True
-    """Enable pause training button in UI."""
-
-    enable_pause_rendering: bool = True
-    """Enable pause rendering button in UI."""
-
-    show_training_controls: bool = True
-    """Show Isaac Lab training controls in UI."""
-
-    render_mode: Literal["rgb", "depth", "collision"] = "rgb"
-    """Rendering mode: rgb (standard), depth, or collision."""
+    """Light color RGB [0,1]."""
 
 

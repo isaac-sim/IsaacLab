@@ -17,21 +17,20 @@ from .visualizer import Visualizer
 
 
 class NewtonViewerGL(ViewerGL):
-    """Training-aware viewer that adds a separate pause for simulation/training.
+    """Wrapper around Newton's ViewerGL with training/rendering pause controls.
     
-    This class subclasses Newton's ViewerGL and introduces a second pause mode:
-    - Rendering pause: identical to the base viewer's pause (space key / Pause checkbox)
-    - Training pause: stops simulation/training steps but keeps rendering running
-    
-    The training pause can be toggled from the UI via a button and optionally via the 'T' key.
+    Adds two pause modes:
+    - Training pause: Stops physics simulation, continues rendering
+    - Rendering pause: Stops rendering updates, continues physics (SPACE key)
     """
 
-    def __init__(self, *args, metadata: dict | None = None, **kwargs):
+    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._paused_training: bool = False
-        self._paused_rendering: bool = False
-        self._fallback_draw_controls: bool = False
+        self._paused_training = False
+        self._paused_rendering = False
+        self._is_train_mode = train_mode
         self._metadata = metadata or {}
+        self._fallback_draw_controls = False
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -39,27 +38,34 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
-        """Check if training is paused."""
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
-        """Check if rendering is paused."""
+        return self._paused_rendering
+    
+    def is_paused(self) -> bool:
+        # duplicate to above for now
         return self._paused_rendering
 
-    # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
         imgui.separator()
-        imgui.text("Isaac Lab Training Controls")
         
-        pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        if self._is_train_mode:
+            imgui.text("IsaacLab Training Controls")
+            pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        else:
+            imgui.text("IsaacLab Playback Controls")
+            pause_label = "Resume Playing" if self._paused_training else "Pause Playing"
+        
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
 
-        rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
-        if imgui.button(rendering_label):
-            self._paused_rendering = not self._paused_rendering
+        if self._is_train_mode:
+            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+            if imgui.button(rendering_label):
+                self._paused_rendering = not self._paused_rendering
+                self._paused = self._paused_rendering
 
-    # Override only SPACE key to use rendering pause, preserve all other shortcuts
     def on_key_press(self, symbol, modifiers):
         if self.ui.is_capturing():
             return
@@ -70,11 +76,10 @@ class NewtonViewerGL(ViewerGL):
             return
 
         if symbol == pyglet.window.key.SPACE:
-            # Override SPACE to pause rendering instead of base pause
             self._paused_rendering = not self._paused_rendering
+            self._paused = self._paused_rendering
             return
 
-        # For all other keys, call base implementation to preserve functionality
         super().on_key_press(symbol, modifiers)
 
     def _render_ui(self):
@@ -215,69 +220,49 @@ class NewtonViewerGL(ViewerGL):
 
 
 class NewtonVisualizer(Visualizer):
-    """Newton OpenGL Visualizer for Isaac Lab.
+    """Newton OpenGL visualizer for Isaac Lab.
     
-    This visualizer uses Newton's OpenGL-based viewer to provide lightweight,
-    fast visualization of simulations. It includes IsaacLab-specific features
-    like training controls, rendering pause, and update frequency adjustment.
-    
-    This class is registered with the visualizer registry as "newton" and can be
-    instantiated via NewtonVisualizerCfg.create_visualizer().
-    
-    Args:
-        cfg: Configuration for the Newton visualizer.
+    Lightweight OpenGL-based visualization with training/rendering pause controls.
     """
 
     def __init__(self, cfg: NewtonVisualizerCfg):
         super().__init__(cfg)
         self.cfg: NewtonVisualizerCfg = cfg
         self._viewer: NewtonViewerGL | None = None
-        self._sim_time: float = 0.0
-        self._step_counter: int = 0
+        self._sim_time = 0.0
+        self._step_counter = 0
         self._model = None
         self._state = None
 
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize the Newton visualizer with the simulation scene.
-        
-        Args:
-            scene_data: Optional dictionary containing initial scene data. Expected keys:
-                       - "model": Newton Model object (required)
-                       - "state": Newton State object (optional)
-                       - "metadata": Scene metadata (contains physics_backend)
-        
-        Raises:
-            RuntimeError: If Newton model is not available or if physics backend is incompatible.
-        """
+        """Initialize visualizer with scene data."""
         if self._is_initialized:
             return
 
-        # Extract model, state, and metadata from scene data
         metadata = {}
         if scene_data is not None:
             self._model = scene_data.get("model")
             self._state = scene_data.get("state")
             metadata = scene_data.get("metadata", {})
         
-        # Validate physics backend compatibility
         physics_backend = metadata.get("physics_backend", "unknown")
         if physics_backend != "newton" and physics_backend != "unknown":
             raise RuntimeError(
-                f"Newton visualizer requires Newton physics backend, but '{physics_backend}' is running. "
-                f"Please use a compatible visualizer for {physics_backend} physics (e.g., OVVisualizer)."
+                f"Newton visualizer requires Newton physics backend, got '{physics_backend}'. "
+                f"Use OVVisualizer for other backends."
             )
         
-        # Validate required data
         if self._model is None:
             raise RuntimeError(
-                "Newton visualizer requires a Newton Model in scene_data['model']. "
-                "Make sure Newton physics is initialized before creating the visualizer."
+                "Newton visualizer requires Newton Model in scene_data['model']. "
+                "Ensure Newton physics is initialized first."
             )
 
-        # Create the viewer with metadata
+        # Create the viewer with train_mode and metadata
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
+            train_mode=self.cfg.train_mode,
             metadata=metadata,
         )
 
@@ -306,110 +291,91 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.sky_lower = self.cfg.ground_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
+        # Setup partial visualization (env_ids_to_viz filtering)
+        if self.cfg.env_ids_to_viz is not None:
+            num_envs = metadata.get("num_envs", 0)
+            self._setup_env_filtering(num_envs)
+            omni.log.info(
+                f"[NewtonVisualizer] Partial visualization: {len(self.cfg.env_ids_to_viz)}/{num_envs} environments"
+            )
+
         self._is_initialized = True
 
     def step(self, dt: float, state: Any | None = None) -> None:
-        """Update the visualizer for one simulation step.
-        
-        Note: The visualizer MUST be called every frame to maintain proper ImGui state.
-        Pause handling (training and rendering) is managed by SimulationContext.
-        """
+        """Update visualizer for one step."""
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
-        # Update simulation time
         self._sim_time += dt
-
-        # Update state if provided (state is passed directly from NewtonManager)
         if state is not None:
             self._state = state
 
-        # Render the current frame (always call to maintain ImGui state)
         try:
-            self._viewer.begin_frame(self._sim_time)
-            try:
+            if not self._viewer.is_paused():
+                self._viewer.begin_frame(self._sim_time)
                 if self._state is not None:
                     self._viewer.log_state(self._state)
-            finally:
-                # Always call end_frame if begin_frame succeeded
                 self._viewer.end_frame()
-        except Exception as e:
-            # Handle any rendering errors gracefully
-            # Frame lifecycle is now properly handled by try-finally
-            pass  # Silently ignore to avoid log spam - the viewer will recover
+            else:
+                self._viewer._update()
+        except Exception:
+            pass
 
     def close(self) -> None:
-        """Close the visualizer and clean up resources."""
+        """Close visualizer and clean up resources."""
         if self._is_closed:
             return
-
         if self._viewer is not None:
-            try:
-                # Newton viewer doesn't have an explicit close method,
-                # but we can clean up our reference
-                self._viewer = None
-            except Exception as e:
-                print(f"[Warning] Error closing Newton visualizer: {e}")
-
+            self._viewer = None
         self._is_closed = True
 
     def is_running(self) -> bool:
-        """Check if the visualizer is still running.
-        
-        Returns:
-            True if the visualizer window is open and running.
-        """
+        """Check if visualizer window is still open."""
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return False
-
         return self._viewer.is_running()
     
     def supports_markers(self) -> bool:
-        """Check if Newton visualizer supports visualization markers.
-        
-        Returns:
-            False - Newton visualizer currently does not support VisualizationMarkers
-            (they are USD-based and Newton uses its own rendering).
-        """
+        """Newton visualizer does not support USD-based markers."""
         return False
     
     def supports_live_plots(self) -> bool:
-        """Check if Newton visualizer supports live plots.
-        
-        Returns:
-            True - Newton visualizer supports live plots via ImGui integration.
-        """
+        """Newton visualizer supports ImGui-based plots."""
         return True
 
     def is_training_paused(self) -> bool:
-        """Check if training is paused by the visualizer.
-        
-        Returns:
-            True if the user has paused training via the visualizer controls.
-        """
+        """Check if training is paused."""
         if not self._is_initialized or self._viewer is None:
             return False
-
         return self._viewer.is_training_paused()
 
     def is_rendering_paused(self) -> bool:
-        """Check if rendering is paused by the visualizer.
-        
-        Returns:
-            True if rendering is paused via the visualizer controls.
-        """
+        """Check if rendering is paused."""
         if not self._is_initialized or self._viewer is None:
             return False
-
         return self._viewer.is_rendering_paused()
-
-    def update_state(self, state) -> None:
-        """Update the simulation state for visualization.
+    
+    def _setup_env_filtering(self, num_envs: int) -> None:
+        """Setup environment filtering using world offsets.
         
-        This method should be called before step() to provide the latest simulation state.
+        WIP: Moves non-visualized environments far away (10000 units) to hide them.
+        Future: Could use more sophisticated filtering or culling.
         
         Args:
-            state: The Newton State object to visualize.
+            num_envs: Total number of environments.
         """
-        self._state = state
+        import warp as wp
+        
+        # Create world offsets array
+        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.renderer.device)
+        offsets_np = offsets.numpy()
+        
+        # Move non-visualized environments far away
+        visualized_set = set(self.cfg.env_ids_to_viz)
+        for world_idx in range(num_envs):
+            if world_idx not in visualized_set:
+                offsets_np[world_idx] = (10000.0, 10000.0, 10000.0)
+        
+        offsets.assign(offsets_np)
+        self._viewer.world_offsets = offsets
 

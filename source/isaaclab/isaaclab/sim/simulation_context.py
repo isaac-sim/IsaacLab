@@ -326,7 +326,7 @@ class SimulationContext(_SimulationContext):
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
 
         # set preset settings (same behavior as the CLI arg --rendering_mode)
-        rendering_mode = self.cfg.render.rendering_mode
+        rendering_mode = self.cfg.render_cfg.rendering_mode
         if rendering_mode is not None:
             # check if preset is supported
             supported_rendering_modes = ["performance", "balanced", "quality"]
@@ -348,7 +348,7 @@ class SimulationContext(_SimulationContext):
                 set_carb_setting(self.carb_settings, key, value)
 
         # set user-friendly named settings
-        for key, value in vars(self.cfg.render).items():
+        for key, value in vars(self.cfg.render_cfg).items():
             if value is None or key in not_carb_settings:
                 # skip unset settings and non-carb settings
                 continue
@@ -361,7 +361,7 @@ class SimulationContext(_SimulationContext):
             set_carb_setting(self.carb_settings, key, value)
 
         # set general carb settings
-        carb_settings = self.cfg.render.carb_settings
+        carb_settings = self.cfg.render_cfg.carb_settings
         if carb_settings is not None:
             for key, value in carb_settings.items():
                 if "_" in key:
@@ -373,11 +373,11 @@ class SimulationContext(_SimulationContext):
                 set_carb_setting(self.carb_settings, key, value)
 
         # set denoiser mode
-        if self.cfg.render.antialiasing_mode is not None:
+        if self.cfg.render_cfg.antialiasing_mode is not None:
             try:
                 import omni.replicator.core as rep
 
-                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render_cfg.antialiasing_mode)
             except Exception:
                 pass
 
@@ -546,18 +546,18 @@ class SimulationContext(_SimulationContext):
         """Initialize all configured visualizers.
         
         This method creates and initializes visualizers based on the configuration provided
-        in SimulationCfg.visualizers. It supports:
+        in SimulationCfg.visualizer_cfgs. It supports:
         - A single VisualizerCfg: Creates one visualizer
         - A list of VisualizerCfg: Creates multiple visualizers
         - None or empty list: No visualizers are created
         """
         # Handle different input formats
         visualizer_cfgs = []
-        if self.cfg.visualizers is not None:
-            if isinstance(self.cfg.visualizers, list):
-                visualizer_cfgs = self.cfg.visualizers
+        if self.cfg.visualizer_cfgs is not None:
+            if isinstance(self.cfg.visualizer_cfgs, list):
+                visualizer_cfgs = self.cfg.visualizer_cfgs
             else:
-                visualizer_cfgs = [self.cfg.visualizers]
+                visualizer_cfgs = [self.cfg.visualizer_cfgs]
 
         # Create and initialize each visualizer
         for viz_cfg in visualizer_cfgs:
@@ -1038,12 +1038,12 @@ def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
     """
     from isaaclab.sim.visualizers import NewtonVisualizerCfg
     
-    if env_cfg.sim.visualizers is None:
-        env_cfg.sim.visualizers = NewtonVisualizerCfg()
+    if env_cfg.sim.visualizer_cfgs is None:
+        env_cfg.sim.visualizer_cfgs = NewtonVisualizerCfg()
     
     # Set train_mode on all configured visualizers
-    if isinstance(env_cfg.sim.visualizers, list):
-        for viz_cfg in env_cfg.sim.visualizers:
+    if isinstance(env_cfg.sim.visualizer_cfgs, list):
+        for viz_cfg in env_cfg.sim.visualizer_cfgs:
             viz_cfg.train_mode = train_mode
     else:
-        env_cfg.sim.visualizers.train_mode = train_mode
+        env_cfg.sim.visualizer_cfgs.train_mode = train_mode

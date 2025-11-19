@@ -46,7 +46,7 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         metadata: dict | None = None,
         enable_markers: bool = True,
         enable_live_plots: bool = True,
-        env_indices: list[int] | None = None,
+        env_ids_to_viz: list[int] | None = None,
     ):
         """Initialize Newton ViewerRerun wrapper."""
         if not _RERUN_AVAILABLE:
@@ -58,16 +58,16 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             address=address,
             launch_viewer=launch_viewer,
             app_id=app_id,
-            keep_historical_data=keep_historical_data,
-            keep_scalar_history=keep_scalar_history,
-            record_to_rrd=record_to_rrd,
+            # keep_historical_data=keep_historical_data,
+            # keep_scalar_history=keep_scalar_history,
+            # record_to_rrd=record_to_rrd,
         )
         
         # Isaac Lab state
         self._metadata = metadata or {}
         self._enable_markers = enable_markers
         self._enable_live_plots = enable_live_plots
-        self._env_indices = env_indices
+        self._env_ids_to_viz = env_ids_to_viz
         
         # Storage for registered markers and plots
         self._registered_markers = []
@@ -88,8 +88,8 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         num_envs = self._metadata.get("num_envs", 0)
         metadata_text += f"**Total Environments:** {num_envs}\n"
         
-        if self._env_indices is not None:
-            metadata_text += f"**Visualized Environments:** {len(self._env_indices)} (indices: {self._env_indices[:5]}...)\n"
+        if self._env_ids_to_viz is not None:
+            metadata_text += f"**Visualized Environments:** {len(self._env_ids_to_viz)} (IDs: {self._env_ids_to_viz[:5]}...)\n"
         else:
             metadata_text += f"**Visualized Environments:** All ({num_envs})\n"
         
@@ -130,127 +130,122 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             omni.log.info(f"[RerunVisualizer] Registered {len(plots)} plot(s)")
     
     def log_markers(self) -> None:
-        """Actively log all registered VisualizationMarkers to Rerun.
+        """Log registered VisualizationMarkers to Rerun.
         
-        This method converts Isaac Lab's USD-based markers to Rerun entities.
-        
-        Supported marker types:
-            - Arrows: Logged as line segments via rr.LineStrips3D
-            - Frames: Logged as XYZ axes via rr.LineStrips3D (3 lines per frame)
-            - Spheres: Logged as points via rr.Points3D with radii
-        
-        Implementation Strategy:
-            We convert USD-based visualization markers to Rerun primitives.
-            Since markers are scene-managed and updated by their owners,
-            we need to extract their current state each frame and log it.
-        
-        TODO: Future enhancements
-            - Support more marker types (cylinders, cones, boxes)
-            - Optimize batch logging for large marker counts
-            - Add color/material support for better visual distinction
+        Converts Isaac Lab markers to Rerun primitives (arrows, frames, spheres).
         """
         if not self._enable_markers or len(self._registered_markers) == 0:
             return
         
         try:
             for marker_idx, markers in enumerate(self._registered_markers):
-                # Extract marker data
-                # Note: This is a simplified implementation that assumes markers
-                # expose their data through specific methods/properties.
-                # Actual implementation depends on VisualizationMarkers API.
+                # Check if markers object has data access methods
+                if not hasattr(markers, 'data'):
+                    continue
                 
-                # For now, we'll use Newton's built-in logging methods
-                # which VisualizationMarkers should be compatible with
+                marker_data = markers.data
+                entity_path = f"markers/{markers.__class__.__name__}_{marker_idx}"
                 
-                # TODO: Implement proper marker extraction and conversion
-                # marker_data = markers.get_marker_data()
-                # self._log_marker_data(marker_data, f"markers/{marker_idx}")
+                # Log arrows as line segments
+                if hasattr(marker_data, 'arrows') and marker_data.arrows is not None:
+                    arrows = marker_data.arrows
+                    if hasattr(arrows, 'positions') and hasattr(arrows, 'directions'):
+                        positions = arrows.positions.cpu().numpy() if hasattr(arrows.positions, 'cpu') else arrows.positions
+                        directions = arrows.directions.cpu().numpy() if hasattr(arrows.directions, 'cpu') else arrows.directions
+                        
+                        if len(positions) > 0:
+                            # Create line segments from position to position+direction
+                            for i in range(len(positions)):
+                                start = positions[i]
+                                end = start + directions[i]
+                                rr.log(f"{entity_path}/arrow_{i}", rr.Arrows3D(
+                                    origins=[start],
+                                    vectors=[directions[i]]
+                                ))
                 
-                pass  # Stub for now
+                # Log spheres as 3D points with radii
+                if hasattr(marker_data, 'spheres') and marker_data.spheres is not None:
+                    spheres = marker_data.spheres
+                    if hasattr(spheres, 'positions'):
+                        positions = spheres.positions.cpu().numpy() if hasattr(spheres.positions, 'cpu') else spheres.positions
+                        radii = spheres.radii.cpu().numpy() if hasattr(spheres, 'radii') else [0.05] * len(positions)
+                        
+                        if len(positions) > 0:
+                            rr.log(f"{entity_path}/spheres", rr.Points3D(
+                                positions=positions,
+                                radii=radii
+                            ))
+                
+                # Log coordinate frames as transform axes
+                if hasattr(marker_data, 'frames') and marker_data.frames is not None:
+                    frames = marker_data.frames
+                    if hasattr(frames, 'positions') and hasattr(frames, 'orientations'):
+                        positions = frames.positions.cpu().numpy() if hasattr(frames.positions, 'cpu') else frames.positions
+                        orientations = frames.orientations.cpu().numpy() if hasattr(frames.orientations, 'cpu') else frames.orientations
+                        scale = frames.scale if hasattr(frames, 'scale') else 0.1
+                        
+                        for i in range(len(positions)):
+                            # Log as transform with axes
+                            rr.log(f"{entity_path}/frame_{i}", rr.Transform3D(
+                                translation=positions[i],
+                                rotation=rr.Quaternion(xyzw=orientations[i]),
+                                axis_length=scale
+                            ))
                 
         except Exception as e:
             omni.log.warn(f"[RerunVisualizer] Failed to log markers: {e}")
     
     def log_plot_data(self) -> None:
-        """Actively log all registered LivePlot data to Rerun as time series.
-        
-        This method extracts scalar data from LivePlot objects and logs them
-        as Rerun Scalars, enabling visualization alongside the 3D scene.
-        
-        Implementation Strategy:
-            LivePlots in Isaac Lab are typically omni.ui-based widgets that
-            display time-series data. For Rerun, we need to extract the raw
-            scalar values and log them using rr.Scalar().
-        
-        TODO: Full implementation
-            - Extract data from LiveLinePlot objects
-            - Handle multiple series per plot
-            - Maintain proper timeline synchronization
-            - Support different plot types (line, bar, etc.)
-        """
+        """Log registered LivePlot data to Rerun as time series scalars."""
         if not self._enable_live_plots or len(self._registered_plots) == 0:
             return
         
         try:
             for plot_name, plot_obj in self._registered_plots.items():
-                # TODO: Extract data from plot object
-                # For now, this is a stub
-                # data = plot_obj.get_latest_data()
-                # rr.log(f"plots/{plot_name}", rr.Scalar(data))
+                # Try to extract data from common plot object attributes
+                data_value = None
                 
-                pass  # Stub for now
+                # Method 1: Check for 'value' or 'data' attribute
+                if hasattr(plot_obj, 'value'):
+                    data_value = plot_obj.value
+                elif hasattr(plot_obj, 'data'):
+                    data_value = plot_obj.data
+                
+                # Method 2: Check for get_data() or get_value() methods
+                elif hasattr(plot_obj, 'get_data'):
+                    data_value = plot_obj.get_data()
+                elif hasattr(plot_obj, 'get_value'):
+                    data_value = plot_obj.get_value()
+                
+                # Method 3: Check for buffer/history attribute (get latest value)
+                elif hasattr(plot_obj, 'buffer') and plot_obj.buffer is not None:
+                    if len(plot_obj.buffer) > 0:
+                        data_value = plot_obj.buffer[-1]
+                elif hasattr(plot_obj, 'history') and plot_obj.history is not None:
+                    if len(plot_obj.history) > 0:
+                        data_value = plot_obj.history[-1]
+                
+                # Log the scalar value if we found it
+                if data_value is not None:
+                    # Convert tensor to scalar if needed
+                    if hasattr(data_value, 'item'):
+                        data_value = data_value.item()
+                    elif hasattr(data_value, 'cpu'):
+                        data_value = data_value.cpu().numpy()
+                    
+                    # Handle numpy arrays (take mean if multi-dimensional)
+                    if isinstance(data_value, np.ndarray):
+                        if data_value.size == 1:
+                            data_value = float(data_value.flat[0])
+                        else:
+                            data_value = float(np.mean(data_value))
+                    
+                    # Log as scalar
+                    rr.log(f"plots/{plot_name}", rr.Scalar(float(data_value)))
                 
         except Exception as e:
             omni.log.warn(f"[RerunVisualizer] Failed to log plot data: {e}")
     
-    def _log_marker_data(self, marker_data: dict, entity_path: str) -> None:
-        """Helper to log specific marker data to Rerun.
-        
-        Args:
-            marker_data: Dictionary containing marker positions, types, colors, etc.
-            entity_path: Rerun entity path for logging.
-        """
-        marker_type = marker_data.get("type", "unknown")
-        
-        if marker_type == "arrow":
-            # Log arrows as line segments
-            starts = marker_data.get("positions")  # Start points
-            directions = marker_data.get("directions")  # Direction vectors
-            
-            if starts is not None and directions is not None:
-                ends = starts + directions
-                self.log_lines(
-                    entity_path,
-                    starts=starts,
-                    ends=ends,
-                    colors=marker_data.get("colors"),
-                    width=marker_data.get("width", 0.01),
-                )
-        
-        elif marker_type == "frame":
-            # Log coordinate frames as 3 lines (XYZ axes)
-            positions = marker_data.get("positions")
-            orientations = marker_data.get("orientations")
-            scale = marker_data.get("scale", 0.1)
-            
-            if positions is not None and orientations is not None:
-                # TODO: Convert quaternions to XYZ axis lines
-                # For each frame, create 3 lines (red=X, green=Y, blue=Z)
-                pass
-        
-        elif marker_type == "sphere":
-            # Log spheres as points with radii
-            positions = marker_data.get("positions")
-            radii = marker_data.get("radii", 0.05)
-            colors = marker_data.get("colors")
-            
-            if positions is not None:
-                self.log_points(
-                    entity_path,
-                    points=positions,
-                    radii=radii,
-                    colors=colors,
-                )
 
 
 class RerunVisualizer(Visualizer):
@@ -325,15 +320,19 @@ class RerunVisualizer(Visualizer):
                 metadata=metadata,
                 enable_markers=self.cfg.enable_markers,
                 enable_live_plots=self.cfg.enable_live_plots,
-                env_indices=self.cfg.env_indices,
+                env_ids_to_viz=self.cfg.env_ids_to_viz,
             )
             
             # Set the model
             self._viewer.set_model(self._model)
             
-            # Log initialization
+            # Setup partial visualization (env_ids_to_viz filtering)
             num_envs = metadata.get("num_envs", 0)
-            viz_envs = len(self.cfg.env_indices) if self.cfg.env_indices else num_envs
+            if self.cfg.env_ids_to_viz is not None:
+                self._setup_env_filtering(num_envs)
+            
+            # Log initialization
+            viz_envs = len(self.cfg.env_ids_to_viz) if self.cfg.env_ids_to_viz else num_envs
             omni.log.info(
                 f"[RerunVisualizer] Initialized with {viz_envs}/{num_envs} environments "
                 f"(physics: {physics_backend})"
@@ -355,7 +354,7 @@ class RerunVisualizer(Visualizer):
         4. Actively logs plot data (if enabled)
         
         Implementation Note:
-            Partial visualization (env_indices) is handled internally by filtering
+            Partial visualization (env_ids_to_viz) is handled internally by filtering
             which instance transforms are logged. We log all meshes once (they're
             shared assets), but only log transforms for selected environments.
         
@@ -371,18 +370,15 @@ class RerunVisualizer(Visualizer):
         if state is not None:
             self._state = state
         
-        # Begin frame
+        # Update internal time
+        self._sim_time += dt
+        
+        # Begin frame with current simulation time
         self._viewer.begin_frame(self._sim_time)
         
         # Log state (transforms) - Newton's ViewerRerun handles this
         if self._state is not None:
-            # Handle partial visualization if env_indices is set
-            if self.cfg.env_indices is not None:
-                # TODO: Filter state to only visualized environments
-                # For now, log all state (Newton's ViewerRerun will handle it)
-                self._viewer.log_state(self._state)
-            else:
-                self._viewer.log_state(self._state)
+            self._viewer.log_state(self._state)
         
         # Actively log markers (if enabled)
         if self.cfg.enable_markers:
@@ -394,9 +390,6 @@ class RerunVisualizer(Visualizer):
         
         # End frame
         self._viewer.end_frame()
-        
-        # Update internal time
-        self._sim_time += dt
     
     def close(self) -> None:
         """Clean up Rerun visualizer resources and finalize recordings."""
@@ -476,4 +469,33 @@ class RerunVisualizer(Visualizer):
         """
         if self._viewer:
             self._viewer.register_plots(plots)
+    
+    def _setup_env_filtering(self, num_envs: int) -> None:
+        """Setup environment filtering using world offsets.
+        
+        WIP: Moves non-visualized environments far away (10000 units) to hide them.
+        Future: Could implement proper state filtering before logging.
+        
+        Args:
+            num_envs: Total number of environments.
+        """
+        import warp as wp
+        
+        # Create world offsets array
+        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
+        offsets_np = offsets.numpy()
+        
+        # Move non-visualized environments far away
+        visualized_set = set(self.cfg.env_ids_to_viz)
+        for world_idx in range(num_envs):
+            if world_idx not in visualized_set:
+                offsets_np[world_idx] = (10000.0, 10000.0, 10000.0)
+        
+        offsets.assign(offsets_np)
+        self._viewer.world_offsets = offsets
+        
+        omni.log.info(
+            f"[RerunVisualizer] Partial visualization enabled: "
+            f"{len(self.cfg.env_ids_to_viz)}/{num_envs} environments"
+        )
 

@@ -194,10 +194,11 @@ class SimulationCfg:
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
-    render: RenderCfg = RenderCfg()
+    render_cfg: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    visualizers: list[VisualizerCfg] | VisualizerCfg | None = None
+    # visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg(env_ids_to_viz=[0])
     """Visualizer settings. Default is None (no visualization).
     
     This field supports multiple visualizer backends for debug visualization and monitoring
@@ -217,11 +218,11 @@ class SimulationCfg:
         
         # Single visualizer
         from isaaclab.sim.visualizers import NewtonVisualizerCfg
-        cfg = SimulationCfg(visualizers=NewtonVisualizerCfg())
+        cfg = SimulationCfg(visualizer_cfgs=NewtonVisualizerCfg())
         
         # Multiple visualizers
         from isaaclab.sim.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
-        cfg = SimulationCfg(visualizers=[
+        cfg = SimulationCfg(visualizer_cfgs=[
             NewtonVisualizerCfg(),
             RerunVisualizerCfg()
         ])

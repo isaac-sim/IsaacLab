@@ -19,7 +19,7 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
-    "--visualize",
+    "--viz",
     action="store_true",
     default=False,
     help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
@@ -60,7 +60,7 @@ def main():
     )
     
     # enable visualizers if requested
-    if args_cli.visualize:
+    if args_cli.viz:
         import isaaclab.sim as sim_utils
         sim_utils.enable_visualizers(env_cfg)
     # create environment

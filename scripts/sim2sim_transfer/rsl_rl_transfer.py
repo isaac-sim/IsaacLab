@@ -30,7 +30,7 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
-    "--visualize",
+    "--viz",
     action="store_true",
     default=False,
     help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
@@ -155,7 +155,7 @@ def main():
     )
     
     # enable visualizers if requested
-    if args_cli.visualize:
+    if args_cli.viz:
         import isaaclab.sim as sim_utils
         sim_utils.enable_visualizers(env_cfg)
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(task_name, args_cli)

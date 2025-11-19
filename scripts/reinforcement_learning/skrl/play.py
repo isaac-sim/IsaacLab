@@ -47,7 +47,7 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
-    "--visualize",
+    "--viz",
     action="store_true",
     default=False,
     help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
@@ -116,7 +116,7 @@ def main():
     task_name = args_cli.task.split(":")[-1]
 
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric, visualize=args_cli.visualize, train_mode=False)
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric, visualize=args_cli.viz, train_mode=False)
     try:
         experiment_cfg = load_cfg_from_registry(task_name, f"skrl_{algorithm}_cfg_entry_point")
     except ValueError:

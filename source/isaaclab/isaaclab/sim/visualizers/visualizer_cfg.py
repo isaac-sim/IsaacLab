@@ -22,8 +22,8 @@ class VisualizerCfg:
     visualizer_type: str = "base"
     """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
 
-    env_indices: list[int] | None = None
-    """Environment indices to visualize. None = all environments."""
+    env_ids_to_viz: list[int] | None = None
+    """Environment IDs to visualize. None = all environments."""
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""

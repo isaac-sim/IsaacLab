@@ -33,7 +33,7 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 parser.add_argument(
-    "--visualize",
+    "--viz",
     action="store_true",
     default=False,
     help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
@@ -120,7 +120,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # enable visualizers if requested
-    if args_cli.visualize:
+    if args_cli.viz:
         import isaaclab.sim as sim_utils
         sim_utils.enable_visualizers(env_cfg)
 

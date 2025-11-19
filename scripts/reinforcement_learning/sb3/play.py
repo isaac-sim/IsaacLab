@@ -40,7 +40,7 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 parser.add_argument(
-    "--visualize",
+    "--viz",
     action="store_true",
     default=False,
     help="Launch visualizer(s). Uses visualizers defined in environment config, or defaults to Newton OpenGL if none configured.",
@@ -87,7 +87,7 @@ from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 def main():
     """Play with stable-baselines agent."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric, visualize=args_cli.visualize, train_mode=False)
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric, visualize=args_cli.viz, train_mode=False)
 
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
