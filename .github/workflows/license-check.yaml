@@ -27,6 +27,12 @@ jobs:
     - name: Clean up disk space
       run: |
         rm -rf /opt/hostedtoolcache
+        rm -rf /usr/share/dotnet
+        rm -rf /opt/ghc
+        docker container prune -f
+        docker image prune -af
+        docker volume prune -f || true
+
 
     - name: Set up Python
       uses: actions/setup-python@v4
