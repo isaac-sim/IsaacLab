@@ -39,7 +39,7 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments

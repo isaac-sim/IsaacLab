@@ -12,7 +12,7 @@ debug visualization and monitoring of the simulation, separate from rendering fo
 Supported visualizers:
 - Newton OpenGL Visualizer: Lightweight OpenGL-based visualizer
 - Omniverse Visualizer: High-fidelity Omniverse-based visualizer using Isaac Sim viewport
-- Rerun Visualizer: Web-based visualizer using the rerun library (coming soon)
+- Rerun Visualizer: Web-based Rerun visualizer with recording and timeline scrubbing
 
 Visualizer Registry
 -------------------
@@ -34,10 +34,6 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .ov_visualizer_cfg import OVVisualizerCfg
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
-# NOTE: Visualizer implementations are NOT imported here to avoid loading
-# dependencies for unused visualizers (REQ-10: clean dependency handling).
-# They are lazy-loaded via the registry when actually needed.
-
 if TYPE_CHECKING:
     from typing import Type
     from .newton_visualizer import NewtonVisualizer
@@ -56,16 +52,12 @@ __all__ = [
     "get_visualizer_class",
 ]
 
-# Note: Visualizer implementation classes (NewtonVisualizer, OVVisualizer, RerunVisualizer)
-# are not exported to avoid eager loading. Access them via get_visualizer_class() or
-# VisualizerCfg.create_visualizer() instead.
-
-
+# Register only selected visualizers to reduce unnecessary imports
 def get_visualizer_class(name: str) -> Type[Visualizer] | None:
     """Get a visualizer class by name (lazy-loaded).
     
     Visualizer classes are imported only when requested to avoid loading
-    unnecessary dependencies (REQ-10: clean dependency handling).
+    unnecessary dependencies.
     
     Args:
         name: Visualizer type name (e.g., 'newton', 'rerun', 'omniverse', 'ov').

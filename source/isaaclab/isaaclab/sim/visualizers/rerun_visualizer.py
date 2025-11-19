@@ -479,6 +479,8 @@ class RerunVisualizer(Visualizer):
         Args:
             num_envs: Total number of environments.
         """
+        # TODO, still testing, also very hackey
+        
         import warp as wp
         
         # Create world offsets array

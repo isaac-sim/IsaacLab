@@ -25,13 +25,14 @@ class NewtonViewerGL(ViewerGL):
     - Rendering pause: Stops rendering updates, continues physics (SPACE key)
     """
 
-    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, **kwargs):
+    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
         self._is_train_mode = train_mode
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
+        self._update_frequency = update_frequency
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -66,6 +67,21 @@ class NewtonViewerGL(ViewerGL):
             if imgui.button(rendering_label):
                 self._paused_rendering = not self._paused_rendering
                 self._paused = self._paused_rendering
+
+        # Visualizer update frequency control
+        imgui.text("Visualizer Update Frequency")
+        current_frequency = self._update_frequency
+        changed, new_frequency = imgui.slider_int(
+            "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
+        )
+        if changed:
+            self._update_frequency = new_frequency
+
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
+                " training\nhigher values -> less responsive visualizer but faster training"
+            )
 
     def on_key_press(self, symbol, modifiers):
         if self.ui.is_capturing():
@@ -234,6 +250,7 @@ class NewtonVisualizer(Visualizer):
         self._step_counter = 0
         self._model = None
         self._state = None
+        self._update_frequency = cfg.update_frequency
 
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize visualizer with scene data."""
@@ -265,6 +282,7 @@ class NewtonVisualizer(Visualizer):
             height=self.cfg.window_height,
             train_mode=self.cfg.train_mode,
             metadata=metadata,
+            update_frequency=self.cfg.update_frequency,
         )
 
         # Set the model
@@ -308,8 +326,14 @@ class NewtonVisualizer(Visualizer):
             return
 
         self._sim_time += dt
+        self._step_counter += 1
         if state is not None:
             self._state = state
+
+        # Only update visualizer at the specified frequency
+        update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
+        if self._step_counter % update_frequency != 0:
+            return
 
         try:
             if not self._viewer.is_paused():

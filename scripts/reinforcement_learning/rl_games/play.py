@@ -32,7 +32,7 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization.")
+parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments

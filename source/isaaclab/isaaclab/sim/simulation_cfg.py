@@ -197,9 +197,8 @@ class SimulationCfg:
     render_cfg: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    # visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = OVVisualizerCfg(env_ids_to_viz=[0])
-    """Visualizer settings. Default is None (no visualization).
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg()
+    """Visualizer settings. Default is NewtonVisualizerCfg().
     
     This field supports multiple visualizer backends for debug visualization and monitoring
     during simulation. It accepts:
@@ -208,28 +207,32 @@ class SimulationCfg:
     - None or empty list: No visualizers will be created
     
     Supported visualizer backends:
-    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
+    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer (default)
     - OVVisualizerCfg: Omniverse-based high-fidelity visualizer  
     - RerunVisualizerCfg: Web-based Rerun visualizer
     
     Examples:
-        # No visualizers (default)
+        # Disable all visualizers
+        cfg.sim.visualizer_cfgs = []
+        
+        # Use default visualizer (NewtonVisualizerCfg)
         cfg = SimulationCfg()
         
-        # Single visualizer
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg
-        cfg = SimulationCfg(visualizer_cfgs=NewtonVisualizerCfg())
+        # Single custom visualizer
+        from isaaclab.sim.visualizers import OVVisualizerCfg
+        cfg = SimulationCfg(visualizer_cfgs=OVVisualizerCfg())
         
-        # Multiple visualizers
+        # Multiple visualizers with custom configuration
         from isaaclab.sim.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
         cfg = SimulationCfg(visualizer_cfgs=[
-            NewtonVisualizerCfg(),
-            RerunVisualizerCfg()
+            NewtonVisualizerCfg(env_ids_to_viz=[0], camera_position=(10.0, 0.0, 3.0)),
+            RerunVisualizerCfg(server_address="127.0.0.1:9876")
         ])
     
     Note:
         Visualizers are separate from rendering backends (for cameras/sensors).
         They are intended for debug visualization and monitoring only.
+        Visualizers are automatically initialized in SimulationContext during reset().
     """
 
     create_stage_in_memory: bool = False

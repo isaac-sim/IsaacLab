@@ -73,4 +73,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0,1]."""
 
+    update_frequency: int = 1
+    """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""
+
 
