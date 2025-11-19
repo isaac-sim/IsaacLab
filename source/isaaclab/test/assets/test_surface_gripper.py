@@ -22,7 +22,7 @@ import pytest
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import (
     Articulation,

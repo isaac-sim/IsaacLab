@@ -42,7 +42,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim.utils.nucleus as nucleus_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 
 # import logger
 logger = logging.getLogger(__name__)

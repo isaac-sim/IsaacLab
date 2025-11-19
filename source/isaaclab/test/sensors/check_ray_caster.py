@@ -47,7 +47,7 @@ from isaacsim.core.prims import RigidPrim
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG

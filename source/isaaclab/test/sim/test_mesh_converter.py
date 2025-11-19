@@ -22,7 +22,7 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg

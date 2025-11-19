@@ -24,7 +24,7 @@ import pytest
 from flaky import flaky
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials

@@ -13,7 +13,7 @@ import carb
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.utils import stage as stage_utils
 

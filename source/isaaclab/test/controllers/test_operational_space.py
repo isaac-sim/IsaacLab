@@ -18,7 +18,7 @@ import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg

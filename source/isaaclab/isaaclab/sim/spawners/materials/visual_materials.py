@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Usd
 
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 

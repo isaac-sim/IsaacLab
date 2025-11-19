@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:

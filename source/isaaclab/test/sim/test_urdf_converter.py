@@ -20,7 +20,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.sim.utils import stage as stage_utils
 

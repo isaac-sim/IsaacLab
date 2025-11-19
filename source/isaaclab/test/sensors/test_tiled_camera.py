@@ -25,7 +25,7 @@ import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
-import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
