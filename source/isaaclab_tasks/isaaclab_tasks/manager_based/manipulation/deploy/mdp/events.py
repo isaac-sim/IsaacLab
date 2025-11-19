@@ -215,10 +215,6 @@ class SetRobotToGraspPose(ManagerTermBase):
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
 
-        # Get current joint state
-        joint_pos = self.robot_asset.data.joint_pos[env_ids].clone()
-        joint_vel = self.robot_asset.data.joint_vel[env_ids].clone()
-
         # Slice buffers for current batch size
         num_reset_envs = len(env_ids)
         gear_type_indices = self.gear_type_indices[:num_reset_envs]
