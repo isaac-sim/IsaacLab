@@ -28,12 +28,11 @@ jobs:
       run: |
         rm -rf /opt/hostedtoolcache
         rm -rf /usr/share/dotnet
-        rm -rf /usr/local/lib/android
         rm -rf /opt/ghc
         rm -rf /usr/local/.ghcup
         docker container prune -f
         docker image prune -af
-        docker volume prune -f || true
+        docker volume prune -f
 
 
     - name: Set up Python
