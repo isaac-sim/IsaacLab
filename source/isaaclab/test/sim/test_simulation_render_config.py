@@ -20,7 +20,6 @@ import toml
 import carb
 import flatdict
 import pytest
-from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
@@ -142,7 +141,7 @@ def test_render_cfg_presets():
                 # grab groundtruth from preset
                 setting_gt = val
 
-            setting_val = get_carb_setting(carb_settings_iface, setting_name)
+            setting_val = carb_settings_iface.get(setting_name)
 
             assert setting_gt == setting_val
 

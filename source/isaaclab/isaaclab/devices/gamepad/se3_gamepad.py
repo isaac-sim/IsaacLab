@@ -5,6 +5,8 @@
 
 """Gamepad controller for SE(3) control."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
 import weakref
@@ -16,17 +18,6 @@ import carb
 import omni
 
 from ..device_base import DeviceBase, DeviceCfg
-
-
-@dataclass
-class Se3GamepadCfg(DeviceCfg):
-    """Configuration for SE3 gamepad devices."""
-
-    gripper_term: bool = True
-    dead_zone: float = 0.01  # For gamepad devices
-    pos_sensitivity: float = 1.0
-    rot_sensitivity: float = 1.6
-    retargeters: None = None
 
 
 class Se3Gamepad(DeviceBase):
@@ -264,3 +255,14 @@ class Se3Gamepad(DeviceBase):
         delta_command[delta_command_sign] *= -1
 
         return delta_command
+
+
+@dataclass
+class Se3GamepadCfg(DeviceCfg):
+    """Configuration for SE3 gamepad devices."""
+
+    gripper_term: bool = True
+    dead_zone: float = 0.01  # For gamepad devices
+    pos_sensitivity: float = 1.0
+    rot_sensitivity: float = 1.6
+    class_type: type[DeviceBase] = Se3Gamepad

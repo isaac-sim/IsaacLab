@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ArticulationData:
@@ -196,6 +199,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_dynamic_friction_coeff: torch.Tensor = None
@@ -204,6 +210,9 @@ class ArticulationData:
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
     """
 
     default_joint_viscous_friction_coeff: torch.Tensor = None
@@ -347,10 +356,18 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_dynamic_friction_coeff: torch.Tensor = None
-    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
 
     joint_viscous_friction_coeff: torch.Tensor = None
     """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
@@ -1077,7 +1094,7 @@ class ArticulationData:
     @property
     def joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.joint_pos_limits
@@ -1085,7 +1102,7 @@ class ArticulationData:
     @property
     def default_joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_limits` property will be deprecated in a future release. Please use"
             " `default_joint_pos_limits` instead."
         )
@@ -1094,7 +1111,7 @@ class ArticulationData:
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
             " `joint_vel_limits` instead."
         )
@@ -1103,7 +1120,7 @@ class ArticulationData:
     @property
     def joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
         )
@@ -1112,7 +1129,7 @@ class ArticulationData:
     @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
             " `default_joint_friction_coeff` instead."
         )
@@ -1121,7 +1138,7 @@ class ArticulationData:
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `fixed_tendon_pos_limits` instead."
         )
@@ -1130,7 +1147,7 @@ class ArticulationData:
     @property
     def default_fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `default_fixed_tendon_pos_limits` instead."
         )

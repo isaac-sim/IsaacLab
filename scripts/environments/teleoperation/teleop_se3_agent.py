@@ -19,7 +19,11 @@ parser.add_argument(
     "--teleop_device",
     type=str,
     default="keyboard",
-    help="Device for interacting with environment. Examples: keyboard, spacemouse, gamepad, handtracking, manusvive",
+    help=(
+        "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
+        " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
+        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+    ),
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
@@ -52,9 +56,8 @@ simulation_app = app_launcher.app
 
 
 import gymnasium as gym
+import logging
 import torch
-
-import omni.log
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
@@ -66,7 +69,11 @@ from isaaclab_tasks.manager_based.manipulation.lift import mdp
 from isaaclab_tasks.utils import parse_env_cfg
 
 if args_cli.enable_pinocchio:
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -101,12 +108,12 @@ def main() -> None:
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
         # check environment name (for reach , we don't allow the gripper)
         if "Reach" in args_cli.task:
-            omni.log.warn(
+            logger.warning(
                 f"The environment '{args_cli.task}' does not support gripper control. The device command will be"
                 " ignored."
             )
     except Exception as e:
-        omni.log.error(f"Failed to create environment: {e}")
+        logger.error(f"Failed to create environment: {e}")
         simulation_app.close()
         return
 
@@ -178,7 +185,9 @@ def main() -> None:
                 args_cli.teleop_device, env_cfg.teleop_devices.devices, teleoperation_callbacks
             )
         else:
-            omni.log.warn(f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default.")
+            logger.warning(
+                f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default."
+            )
             # Create fallback teleop device
             sensitivity = args_cli.sensitivity
             if args_cli.teleop_device.lower() == "keyboard":
@@ -194,8 +203,8 @@ def main() -> None:
                     Se3GamepadCfg(pos_sensitivity=0.1 * sensitivity, rot_sensitivity=0.1 * sensitivity)
                 )
             else:
-                omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
+                logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
+                logger.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
                 env.close()
                 simulation_app.close()
                 return
@@ -205,15 +214,15 @@ def main() -> None:
                 try:
                     teleop_interface.add_callback(key, callback)
                 except (ValueError, TypeError) as e:
-                    omni.log.warn(f"Failed to add callback for key {key}: {e}")
+                    logger.warning(f"Failed to add callback for key {key}: {e}")
     except Exception as e:
-        omni.log.error(f"Failed to create teleop device: {e}")
+        logger.error(f"Failed to create teleop device: {e}")
         env.close()
         simulation_app.close()
         return
 
     if teleop_interface is None:
-        omni.log.error("Failed to create teleop interface")
+        logger.error("Failed to create teleop interface")
         env.close()
         simulation_app.close()
         return
@@ -248,7 +257,7 @@ def main() -> None:
                     should_reset_recording_instance = False
                     print("Environment reset complete")
         except Exception as e:
-            omni.log.error(f"Error during simulation step: {e}")
+            logger.error(f"Error during simulation step: {e}")
             break
 
     # close the simulator

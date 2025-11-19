@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.3 (2025-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Configuration for G1 robot used for locomanipulation tasks.
+
 0.2.2 (2025-03-10)
 ~~~~~~~~~~~~~~~~~~
 
