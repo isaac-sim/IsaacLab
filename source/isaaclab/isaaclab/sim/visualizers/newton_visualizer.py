@@ -15,9 +15,6 @@ from newton.viewer import ViewerGL
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
 
-if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
-
 
 class NewtonViewerGL(ViewerGL):
     """Training-aware viewer that adds a separate pause for simulation/training.
@@ -311,7 +308,7 @@ class NewtonVisualizer(Visualizer):
 
         self._is_initialized = True
 
-    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
+    def step(self, dt: float, state: Any | None = None) -> None:
         """Update the visualizer for one simulation step.
         
         Note: The visualizer MUST be called every frame to maintain proper ImGui state.
@@ -323,9 +320,9 @@ class NewtonVisualizer(Visualizer):
         # Update simulation time
         self._sim_time += dt
 
-        # Get the latest state from the scene provider
-        if scene_provider is not None:
-            self._state = scene_provider.get_state()
+        # Update state if provided (state is passed directly from NewtonManager)
+        if state is not None:
+            self._state = state
 
         # Render the current frame (always call to maintain ImGui state)
         try:

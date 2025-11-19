@@ -11,8 +11,6 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab.sim.scene_data_providers import SceneDataProvider
-
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -34,8 +32,13 @@ class Visualizer(ABC):
         pass
 
     @abstractmethod
-    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
-        """Update visualization for one step."""
+    def step(self, dt: float, state: Any | None = None) -> None:
+        """Update visualization for one step.
+        
+        Args:
+            dt: Time step in seconds.
+            state: Updated physics state (e.g., newton.State).
+        """
         pass
 
     @abstractmethod

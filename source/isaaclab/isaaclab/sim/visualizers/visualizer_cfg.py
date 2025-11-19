@@ -22,9 +22,6 @@ class VisualizerCfg:
     visualizer_type: str = "base"
     """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
 
-    enabled: bool = False
-    """Whether the visualizer is enabled."""
-
     env_indices: list[int] | None = None
     """Environment indices to visualize. None = all environments."""
 

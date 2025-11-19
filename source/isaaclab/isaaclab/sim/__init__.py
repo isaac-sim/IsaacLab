@@ -27,7 +27,6 @@ To make it convenient to use the module, we recommend importing the module as fo
 """
 
 from .converters import *  # noqa: F401, F403
-from .scene_data_providers import NewtonSceneDataProvider, SceneDataProvider  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context, enable_visualizers  # noqa: F401, F403

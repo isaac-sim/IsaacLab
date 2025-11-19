@@ -21,19 +21,19 @@ class OVVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "omniverse"
     """Type identifier for Omniverse visualizer."""
     
-    viewport_name: str | None = "Visualizer"
+    viewport_name: str | None = "Visualizer Viewport"
     """Viewport name to use. If None, uses active viewport."""
     
-    create_viewport: bool = True #False
+    create_viewport: bool = True
     """Create new viewport with specified name and camera pose."""
     
     dock_position: str = "SAME"
     """Dock position for new viewport. Options: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME' (tabs with existing)."""
     
-    window_width: int = 777 # 1920 
+    window_width: int = 1280 
     """Viewport width in pixels."""
     
-    window_height: int = 777 # 1080
+    window_height: int = 720
     """Viewport height in pixels."""
     
     camera_position: tuple[float, float, float] = (10.0, 10.0, 3.0)

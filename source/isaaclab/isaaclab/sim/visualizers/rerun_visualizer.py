@@ -12,8 +12,6 @@ import omni.log
 import torch
 from typing import Any
 
-from isaaclab.sim.scene_data_providers import SceneDataProvider
-
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
 
@@ -60,9 +58,9 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
             address=address,
             launch_viewer=launch_viewer,
             app_id=app_id,
-            # keep_historical_data=keep_historical_data,
-            # keep_scalar_history=keep_scalar_history,
-            # record_to_rrd=record_to_rrd,
+            keep_historical_data=keep_historical_data,
+            keep_scalar_history=keep_scalar_history,
+            record_to_rrd=record_to_rrd,
         )
         
         # Isaac Lab state
@@ -347,11 +345,11 @@ class RerunVisualizer(Visualizer):
             omni.log.error(f"[RerunVisualizer] Failed to initialize viewer: {e}")
             raise
     
-    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
+    def step(self, dt: float, state: Any | None = None) -> None:
         """Update visualizer each step.
         
         This method:
-        1. Updates state from scene provider (if available)
+        1. Updates state (if provided)
         2. Logs current state to Rerun (transforms, meshes)
         3. Actively logs markers (if enabled)
         4. Actively logs plot data (if enabled)
@@ -360,23 +358,18 @@ class RerunVisualizer(Visualizer):
             Partial visualization (env_indices) is handled internally by filtering
             which instance transforms are logged. We log all meshes once (they're
             shared assets), but only log transforms for selected environments.
-            
-            Alternative implementations:
-            - Option A: Filter at the Newton state level (more invasive)
-            - Option B: Filter during logging (current - most flexible)
-            - Option C: Filter at the scene provider level (future consideration)
         
         Args:
             dt: Time step in seconds.
-            scene_provider: Optional scene data provider for updated state.
+            state: Updated physics state (e.g., newton.State).
         """
         if not self._is_initialized or self._viewer is None:
             omni.log.warn("[RerunVisualizer] Not initialized. Call initialize() first.")
             return
         
-        # Update state from scene provider if available
-        if scene_provider is not None:
-            self._state = scene_provider.get_state()
+        # Update state if provided
+        if state is not None:
+            self._state = state
         
         # Begin frame
         self._viewer.begin_frame(self._sim_time)

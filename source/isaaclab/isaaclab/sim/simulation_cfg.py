@@ -197,11 +197,8 @@ class SimulationCfg:
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    # visualizers: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg(enabled=True)
-    visualizers: list[VisualizerCfg] | VisualizerCfg | None = OVVisualizerCfg(enabled=True)
-    # visualizers: list[VisualizerCfg] | VisualizerCfg | None = RerunVisualizerCfg(enabled=True)
-    # visualizers: list[VisualizerCfg] | VisualizerCfg | None = [NewtonVisualizerCfg(enabled=True), RerunVisualizerCfg(enabled=True)]
-    """Visualizer settings. Default is Newton (no visualizer).
+    visualizers: list[VisualizerCfg] | VisualizerCfg | None = None
+    """Visualizer settings. Default is None (no visualization).
     
     This field supports multiple visualizer backends for debug visualization and monitoring
     during simulation. It accepts:
@@ -215,15 +212,18 @@ class SimulationCfg:
     - RerunVisualizerCfg: Web-based Rerun visualizer
     
     Examples:
+        # No visualizers (default)
+        cfg = SimulationCfg()
+        
         # Single visualizer
         from isaaclab.sim.visualizers import NewtonVisualizerCfg
-        cfg = SimulationCfg(visualizers=NewtonVisualizerCfg(enabled=True))
+        cfg = SimulationCfg(visualizers=NewtonVisualizerCfg())
         
         # Multiple visualizers
         from isaaclab.sim.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
         cfg = SimulationCfg(visualizers=[
-            NewtonVisualizerCfg(enabled=True),
-            RerunVisualizerCfg(enabled=True)
+            NewtonVisualizerCfg(),
+            RerunVisualizerCfg()
         ])
     
     Note:

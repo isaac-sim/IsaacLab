@@ -11,8 +11,6 @@ import asyncio
 import omni.log
 from typing import Any
 
-from isaaclab.sim.scene_data_providers import SceneDataProvider
-
 from .ov_visualizer_cfg import OVVisualizerCfg
 from .visualizer import Visualizer
 
@@ -59,8 +57,8 @@ class OVVisualizer(Visualizer):
         
         self._is_initialized = True
     
-    def step(self, dt: float, scene_provider: SceneDataProvider | None = None) -> None:
-        """Update visualizer (rendering handled automatically by Isaac Sim)."""
+    def step(self, dt: float, state: Any | None = None) -> None:
+        """Update visualizer (no-op for OV - USD stage is auto-synced by Newton)."""
         if not self._is_initialized:
             return
         self._sim_time += dt

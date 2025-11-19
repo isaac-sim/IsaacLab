@@ -30,7 +30,6 @@ from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from pxr import Usd
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.sim.scene_data_providers import NewtonSceneDataProvider, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
@@ -257,10 +256,6 @@ class SimulationContext(_SimulationContext):
         # initialize visualizers
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
-        
-        # Scene data provider for visualizers and renderers (initialized after stage is available)
-        self._scene_provider: SceneDataProvider | None = None
-
         # flag for skipping prim deletion callback
         # when stage in memory is attached
         self._skip_next_prim_deletion_callback_fn = False
@@ -304,9 +299,6 @@ class SimulationContext(_SimulationContext):
         NewtonManager._clone_physics_only = (
             self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING or self.render_mode == self.RenderMode.NO_RENDERING
         )
-        
-        # Initialize scene data provider now that stage is available
-        self._scene_provider = NewtonSceneDataProvider(self.stage)
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -563,28 +555,29 @@ class SimulationContext(_SimulationContext):
         visualizer_cfgs = []
         if self.cfg.visualizers is not None:
             if isinstance(self.cfg.visualizers, list):
-                visualizer_cfgs = [cfg for cfg in self.cfg.visualizers if cfg.enabled]
-            elif self.cfg.visualizers.enabled:
+                visualizer_cfgs = self.cfg.visualizers
+            else:
                 visualizer_cfgs = [self.cfg.visualizers]
 
         # Create and initialize each visualizer
         for viz_cfg in visualizer_cfgs:
             try:
-                # Use factory pattern to create visualizer from config
                 visualizer = viz_cfg.create_visualizer()
 
-                # Get initial scene data from the scene provider
-                if self._scene_provider is None:
-                    omni.log.warn(
-                        f"Scene provider not initialized yet for visualizer '{viz_cfg.visualizer_type}'. "
-                        "Visualizer will be initialized later."
-                    )
-                    continue
+                # Prepare scene data from Newton physics backend
+                scene_data = {
+                    "model": NewtonManager._model,
+                    "state": NewtonManager._state_0,
+                    "usd_stage": self.stage,
+                    "metadata": {
+                        "physics_backend": "newton",
+                        "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
+                        "gravity_vector": NewtonManager._gravity_vector,
+                        "clone_physics_only": NewtonManager._clone_physics_only,
+                    }
+                }
                 
-                scene_data = self._scene_provider.get_scene_data()
-                
-                # Let each visualizer validate its own requirements
-                # (e.g., NewtonVisualizer needs Newton model, OVVisualizer needs USD stage)
+                # Initialize visualizer with scene data
                 visualizer.initialize(scene_data)
                 self._visualizers.append(visualizer)
                 omni.log.info(
@@ -624,15 +617,14 @@ class SimulationContext(_SimulationContext):
 
                 # Handle training pause - block until resumed
                 while visualizer.is_training_paused() and visualizer.is_running():
-                    # Step with 0 dt during pause, pass scene provider for state updates
-                    visualizer.step(0.0, self._scene_provider)
+                    visualizer.step(0.0, state=NewtonManager._state_0)
 
                 # Skip rendering if visualizer has rendering paused
                 if visualizer.is_rendering_paused():
                     continue
 
-                # Normal step: pass dt and scene provider so visualizer can pull latest state
-                visualizer.step(dt, self._scene_provider)
+                # Normal step: pass updated Newton state
+                visualizer.step(dt, state=NewtonManager._state_0)
 
             except Exception as e:
                 omni.log.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")
@@ -1033,29 +1025,25 @@ def build_simulation_context(
 def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
     """Enable visualizers for an environment configuration.
     
-    If no visualizers are configured, defaults to Newton OpenGL visualizer.
-    If visualizers are already configured, enables them.
-    
-    This is a utility function for use in scripts that want to enable visualization
-    based on command-line arguments.
+    Sets visualizers to Newton OpenGL if none configured, and sets train_mode.
     
     Args:
         env_cfg: Environment configuration (DirectRLEnvCfg or ManagerBasedRLEnvCfg) to modify.
         train_mode: Whether to run visualizers in training mode (True) or play/inference mode (False).
-                   Default is True.
     
     Example:
         >>> import isaaclab.sim as sim_utils
         >>> if args_cli.visualize:
-        ...     sim_utils.enable_visualizers(env_cfg)  # For training
-        ...     sim_utils.enable_visualizers(env_cfg, train_mode=False)  # For play/inference
+        ...     sim_utils.enable_visualizers(env_cfg)
     """
-    if env_cfg.sim.visualizers :
-        # Enable configured visualizer(s)
-        if isinstance(env_cfg.sim.visualizers, list):
-            for viz_cfg in env_cfg.sim.visualizers:
-                viz_cfg.enabled = True
-                viz_cfg.train_mode = train_mode
-        else:
-            env_cfg.sim.visualizers.enabled = True
-            env_cfg.sim.visualizers.train_mode = train_mode
+    from isaaclab.sim.visualizers import NewtonVisualizerCfg
+    
+    if env_cfg.sim.visualizers is None:
+        env_cfg.sim.visualizers = NewtonVisualizerCfg()
+    
+    # Set train_mode on all configured visualizers
+    if isinstance(env_cfg.sim.visualizers, list):
+        for viz_cfg in env_cfg.sim.visualizers:
+            viz_cfg.train_mode = train_mode
+    else:
+        env_cfg.sim.visualizers.train_mode = train_mode
