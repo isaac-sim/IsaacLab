@@ -27,9 +27,9 @@ from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import UsdGeom
 
-from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

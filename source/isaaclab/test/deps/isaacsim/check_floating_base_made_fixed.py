@@ -41,8 +41,8 @@ from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim.utils.nucleus as nucleus_utils
-from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import prims as prim_utils
 
 # import logger
 logger = logging.getLogger(__name__)

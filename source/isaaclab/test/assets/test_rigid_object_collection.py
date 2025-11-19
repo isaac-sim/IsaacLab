@@ -22,9 +22,9 @@ import torch
 import pytest
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
     combine_frame_transforms,

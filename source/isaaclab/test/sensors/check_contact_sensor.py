@@ -41,9 +41,9 @@ from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.utils.timer import Timer
 
 ##

@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:

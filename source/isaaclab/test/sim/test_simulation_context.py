@@ -17,8 +17,8 @@ import numpy as np
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.utils import prims as prim_utils
 
 
 @pytest.fixture(autouse=True)

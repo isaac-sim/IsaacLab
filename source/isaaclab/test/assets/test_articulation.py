@@ -24,7 +24,6 @@ import pytest
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
@@ -32,6 +31,7 @@ from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##

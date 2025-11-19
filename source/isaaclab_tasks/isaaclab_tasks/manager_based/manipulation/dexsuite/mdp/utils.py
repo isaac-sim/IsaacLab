@@ -12,8 +12,8 @@ from trimesh.sample import sample_surface
 
 from pxr import UsdGeom
 
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.utils import get_all_matching_child_prims
+from isaaclab.sim.utils import prims as prim_utils
 
 # ---- module-scope caches ----
 _PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}  # (prim_hash, num_points) -> (N,3) in root frame

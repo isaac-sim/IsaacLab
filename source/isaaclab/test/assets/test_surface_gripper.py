@@ -22,7 +22,6 @@ import pytest
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import (
     Articulation,
@@ -33,6 +32,7 @@ from isaaclab.assets import (
     SurfaceGripperCfg,
 )
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 # from isaacsim.robot.surface_gripper import GripperView

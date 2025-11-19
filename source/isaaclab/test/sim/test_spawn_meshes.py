@@ -17,8 +17,8 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim.utils import prims as prim_utils
 
 
 @pytest.fixture
