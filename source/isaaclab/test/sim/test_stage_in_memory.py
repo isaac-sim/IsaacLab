@@ -6,20 +6,18 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-
 import omni
 import omni.physx
 import omni.usd
 import pytest
 import usdrt
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -51,7 +49,7 @@ def test_stage_in_memory_with_shapes(sim):
     """Test spawning of shapes with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -92,13 +90,13 @@ def test_stage_in_memory_with_shapes(sim):
         assert stage_utils.is_current_stage_in_memory()
 
         # verify prims exist in stage in memory
-        prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+        prims = prim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context
@@ -108,7 +106,7 @@ def test_stage_in_memory_with_shapes(sim):
     assert not stage_utils.is_current_stage_in_memory()
 
     # verify prims now exist in context stage
-    prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+    prims = prim_utils.find_matching_prim_paths(prim_path_regex)
     assert len(prims) == num_clones
 
 
@@ -116,7 +114,7 @@ def test_stage_in_memory_with_usds(sim):
     """Test spawning of USDs with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -158,13 +156,13 @@ def test_stage_in_memory_with_usds(sim):
         assert stage_utils.is_current_stage_in_memory()
 
         # verify prims exist in stage in memory
-        prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+        prims = prim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context
@@ -174,7 +172,7 @@ def test_stage_in_memory_with_usds(sim):
     assert not stage_utils.is_current_stage_in_memory()
 
     # verify prims now exist in context stage
-    prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+    prims = prim_utils.find_matching_prim_paths(prim_path_regex)
     assert len(prims) == num_clones
 
 
@@ -182,7 +180,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     """Test cloning in fabric with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -198,7 +196,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         source_prim_path = f"{base_env_path}/env_0"
 
         # create cloner
-        cloner = GridCloner(spacing=3, stage=stage_in_memory)
+        cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=3, stage=stage_in_memory)
         cloner.define_base_env(base_env_path)
 
         # create source prim
@@ -220,7 +218,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context

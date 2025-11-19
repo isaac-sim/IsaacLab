@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -15,7 +16,6 @@ simulation_app = AppLauncher(headless=True).app
 import math
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim.schemas as schemas
@@ -34,7 +34,9 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=dt, rendering_dt=dt, backend="numpy"
+    )
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
@@ -114,7 +116,9 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
     if "4.5" in ISAAC_NUCLEUS_DIR:
         asset_usd_file = asset_usd_file.replace("http", "https").replace("4.5", "5.0")
-    prim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
+    prim_utils.create_prim(
+        "/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62)
+    )
 
     # set properties on the asset and check all properties are set
     schemas.modify_articulation_root_properties("/World/asset_instanced", arti_cfg)

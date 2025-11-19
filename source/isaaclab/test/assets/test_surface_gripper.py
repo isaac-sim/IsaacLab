@@ -10,6 +10,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -19,7 +20,6 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 
 import pytest
-from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -173,7 +173,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         device: The device to run the test on.
         add_ground_plane: Whether to add a ground plane to the simulation.
     """
-    isaac_sim_version = get_version()
+    isaac_sim_version = lazy.isaacsim.core.version.get_version()
     if int(isaac_sim_version[2]) < 5:
         return
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)

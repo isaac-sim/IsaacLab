@@ -11,9 +11,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdShade
 
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
@@ -266,7 +266,7 @@ class DeformableObject(AssetBase):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_view()
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:

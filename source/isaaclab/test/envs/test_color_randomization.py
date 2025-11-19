@@ -10,6 +10,7 @@ This script tests the functionality of texture randomization applied to the cart
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -22,7 +23,6 @@ import torch
 
 import omni.usd
 import pytest
-from isaacsim.core.version import get_version
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
@@ -138,7 +138,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 def test_color_randomization(device):
     """Test color randomization for cartpole environment."""
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Color randomization test hangs in this version of Isaac Sim")
 

@@ -32,6 +32,7 @@ import argparse
 
 # isaaclab
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script shows how to use the terrain importer.")
@@ -66,14 +67,6 @@ import numpy as np
 
 import omni.kit
 import omni.kit.commands
-from isaacsim.core.api.materials import PhysicsMaterial
-from isaacsim.core.api.materials.preview_surface import PreviewSurface
-from isaacsim.core.api.objects import DynamicSphere
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
-from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -82,7 +75,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-enable_extension("omni.kit.primitive.mesh")
+lazy.isaacsim.core.utils.extensions.enable_extension("omni.kit.primitive.mesh")
 
 
 def main():
@@ -96,17 +89,17 @@ def main():
         "use_fabric": True,
         "enable_scene_query_support": True,
     }
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
     )
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_balls = 2048
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")
@@ -130,7 +123,7 @@ def main():
     # -- Ball
     if args_cli.geom_sphere:
         # -- Ball physics
-        _ = DynamicSphere(
+        _ = lazy.isaacsim.core.objects.DynamicSphere(
             prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25
         )
     else:
@@ -138,14 +131,18 @@ def main():
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
         prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
         # -- Ball physics
-        SingleRigidPrim(
+        lazy.isaacsim.core.prims.SingleRigidPrim(
             prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)
         )
-        SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
+        lazy.isaacsim.core.prims.SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
     # -- Ball material
-    sphere_geom = SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
-    visual_material = PreviewSurface(prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0]))
-    physics_material = PhysicsMaterial(
+    sphere_geom = lazy.isaacsim.core.prims.SingleGeometryPrim(
+        prim_path="/World/envs/env_0/ball", collision=True
+    )
+    visual_material = lazy.isaacsim.core.api.materials.preview_surface.PreviewSurface(
+        prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0])
+    )
+    physics_material = lazy.isaacsim.core.api.materials.PhysicsMaterial(
         prim_path="/World/Looks/ballPhysicsMaterial",
         dynamic_friction=1.0,
         static_friction=0.2,
@@ -166,7 +163,7 @@ def main():
 
     # Set ball positions over terrain origins
     # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = lazy.isaacsim.core.prims.RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
     # cache initial state of the balls
     ball_initial_positions = terrain_importer.env_origins
     ball_initial_positions[:, 2] += 5.0

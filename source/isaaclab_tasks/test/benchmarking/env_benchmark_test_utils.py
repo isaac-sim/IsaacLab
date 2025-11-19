@@ -150,9 +150,9 @@ def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
     repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-    from isaacsim.core.version import get_version
+    from isaaclab import lazy
 
-    if int(get_version()[2]) < 5:
+    if int(lazy.isaacsim.core.version.get_version()[2]) < 5:
         repo_path = os.path.join(repo_path, "..")
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")

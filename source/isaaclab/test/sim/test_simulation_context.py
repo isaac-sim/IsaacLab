@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -15,7 +16,6 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -39,7 +39,7 @@ def test_singleton():
     """Tests that the singleton is working."""
     sim1 = SimulationContext()
     sim2 = SimulationContext()
-    sim3 = IsaacSimulationContext()
+    sim3 = lazy.isaacsim.core.api.simulation_context.SimulationContext()
     assert sim1 is sim2
     assert sim1 is sim3
 

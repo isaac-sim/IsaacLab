@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 import carb
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -84,7 +82,7 @@ class TiledCamera(Camera):
             RuntimeError: If Isaac Sim version < 4.2
             ValueError: If the provided data types are not supported by the camera.
         """
-        isaac_sim_version = float(".".join(get_version()[2:4]))
+        isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2:4]))
         if isaac_sim_version < 4.2:
             raise RuntimeError(
                 f"TiledCamera is only available from Isaac Sim 4.2.0. Current version is {isaac_sim_version}. Please"

@@ -85,10 +85,6 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
@@ -104,13 +100,16 @@ from scripts.benchmarks.utils import (
     parse_tf_logs,
 )
 
+from isaaclab import lazy
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
+# enable benchmarking extension
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.benchmark.services")
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = lazy.isaacsim.benchmark.services.BaseIsaacBenchmark(
     benchmark_name="benchmark_rsl_rl_train",
     workflow_metadata={
         "metadata": [

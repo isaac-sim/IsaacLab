@@ -7,6 +7,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -20,7 +21,6 @@ import toml
 import carb
 import flatdict
 import pytest
-from isaacsim.core.version import get_version
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
@@ -107,7 +107,7 @@ def test_render_cfg_presets():
         # grab isaac lab apps path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-        isaac_sim_version = float(".".join(get_version()[2]))
+        isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
         if isaac_sim_version < 5:
             isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 

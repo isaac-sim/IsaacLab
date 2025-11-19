@@ -11,7 +11,7 @@ import weakref
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import isaacsim
+from isaaclab import lazy
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
@@ -115,7 +115,7 @@ class BaseEnvWindow:
             width=omni.ui.Fraction(1),
             height=0,
             collapsed=False,
-            style=isaacsim.gui.components.ui_utils.get_style(),
+            style=lazy.isaacsim.gui.components.ui_utils.get_style(),
             horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
             vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
         )

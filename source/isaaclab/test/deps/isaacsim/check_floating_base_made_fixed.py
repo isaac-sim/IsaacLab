@@ -9,12 +9,7 @@
 
 
 import argparse
-import contextlib
-
-with contextlib.suppress(ModuleNotFoundError):
-    import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -26,7 +21,7 @@ parser.add_argument("--fix-base", action="store_true", help="Whether to fix the 
 args_cli = parser.parse_args()
 
 # launch omniverse app
-simulation_app = SimulationApp({"headless": args_cli.headless})
+simulation_app = lazy.isaacsim.SimulationApp({"headless": args_cli.headless})
 
 """Rest everything follows."""
 
@@ -35,9 +30,7 @@ import torch
 
 import omni.kit.commands
 import omni.physx
-from isaacsim.core.api.world import World
-from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.viewports import set_camera_view
+from isaaclab import lazy
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim.utils.nucleus as nucleus_utils
@@ -73,9 +66,11 @@ Main
 def main():
     """Spawns the ANYmal robot and makes it fixed."""
     # Load kit helper
-    world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")
+    world = lazy.isaacsim.core.api.world.World(
+        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu"
+    )
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
@@ -150,7 +145,7 @@ def main():
         root_prim_path = parent_prim.GetPath().pathString
 
     # Setup robot
-    robot_view = Articulation(root_prim_path, name="ANYMAL")
+    robot_view = lazy.isaacsim.core.prims.Articulation(root_prim_path, name="ANYMAL")
     world.scene.add(robot_view)
     # Play the simulator
     world.reset()

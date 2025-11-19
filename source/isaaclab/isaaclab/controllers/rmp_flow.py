@@ -6,21 +6,14 @@
 import torch
 from dataclasses import MISSING
 
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims import SingleArticulation
-
-# enable motion generation extensions
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.robot_motion.lula")
-enable_extension("isaacsim.robot_motion.motion_generation")
-
-from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
-from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
-
-import isaaclab.sim.utils as sim_utils
+from isaaclab import lazy
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
+
+# enable motion generation extensions when this module is imported
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.robot_motion.lula")
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.robot_motion.motion_generation")
 
 
 @configclass
@@ -81,20 +74,21 @@ class RmpFlowController:
         # obtain the simulation time
         physics_dt = SimulationContext.instance().get_physics_dt()
         # find all prims
-        self._prim_paths = sim_utils.find_matching_prim_paths(prim_paths_expr)
+        self._prim_paths = prim_utils.find_matching_prim_paths(prim_paths_expr)
         self.num_robots = len(self._prim_paths)
         # resolve controller
+        motion_gen_mod = lazy.isaacsim.robot_motion.motion_generation
         if self.cfg.name == "rmp_flow":
-            controller_cls = RmpFlow
+            controller_cls = motion_gen_mod.lula.motion_policies.RmpFlow
         elif self.cfg.name == "rmp_flow_smoothed":
-            controller_cls = RmpFlowSmoothed
+            controller_cls = motion_gen_mod.lula.motion_policies.RmpFlowSmoothed
         else:
             raise ValueError(f"Unsupported controller in Lula library: {self.cfg.name}")
         # create all franka robots references and their controllers
         self.articulation_policies = list()
         for prim_path in self._prim_paths:
             # add robot reference
-            robot = SingleArticulation(prim_path)
+            robot = lazy.isaacsim.core.prims.SingleArticulation(prim_path)
             robot.initialize()
             # download files if they are not local
 
@@ -112,7 +106,7 @@ class RmpFlowController:
                 ignore_robot_state_updates=self.cfg.ignore_robot_state_updates,
             )
             # wrap rmpflow to connect to the Franka robot articulation
-            articulation_policy = ArticulationMotionPolicy(robot, rmpflow, physics_dt)
+            articulation_policy = motion_gen_mod.ArticulationMotionPolicy(robot, rmpflow, physics_dt)
             self.articulation_policies.append(articulation_policy)
         # get number of active joints
         self.active_dof_names = self.articulation_policies[0].get_motion_policy().get_active_joints()

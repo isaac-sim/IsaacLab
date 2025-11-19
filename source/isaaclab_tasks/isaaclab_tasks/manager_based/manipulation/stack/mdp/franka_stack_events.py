@@ -11,8 +11,7 @@ import random
 import torch
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.extensions import enable_extension
-
+from isaaclab import lazy
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg

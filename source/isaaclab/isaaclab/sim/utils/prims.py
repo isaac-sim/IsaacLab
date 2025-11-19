@@ -17,11 +17,9 @@ import omni
 import omni.kit.commands
 import omni.usd
 import usdrt
-from isaacsim.core.cloner import Cloner
-from isaacsim.core.version import get_version
-from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+from isaaclab import lazy
 from isaaclab.utils.string import to_camel_case
 
 from .semantics import add_labels
@@ -190,7 +188,7 @@ def delete_prim(prim_path: str) -> None:
         >>>
         >>> prims_utils.delete_prim("/World/Cube")
     """
-    DeletePrimsCommand([prim_path]).do()
+    omni.usd.commands.DeletePrimsCommand([prim_path]).do()
 
 
 def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | usdrt.Usd._Usd.Prim:
@@ -389,7 +387,7 @@ def move_prim(path_from: str, path_to: str) -> None:
         >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
         >>> prims_utils.move_prim("/World/Cube", "/Cube")
     """
-    MovePrimCommand(path_from=path_from, path_to=path_to).do()
+    omni.usd.commands.MovePrimCommand(path_from=path_from, path_to=path_to).do()
 
 
 """
@@ -1522,9 +1520,9 @@ def clone(func: Callable) -> Callable:
             _schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
+            cloner = lazy.isaacsim.core.cloner.Cloner(stage=stage)
             # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
+            isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
             if isaac_sim_version < 5:
                 # clone the prim
                 cloner.clone(

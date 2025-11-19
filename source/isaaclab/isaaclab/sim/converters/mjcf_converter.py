@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import os
 
-import isaacsim
 import omni.kit.commands
 import omni.usd
+
+from isaaclab import lazy
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
@@ -65,7 +66,7 @@ class MjcfConverter(AssetConverterBase):
             prim_path=f"/{file_basename}",
         )
 
-    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self) -> "isaacsim.asset.importer.mjcf.ImportConfig":
         """Returns the import configuration for MJCF to USD conversion.
 
         Returns:

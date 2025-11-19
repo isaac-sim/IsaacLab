@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -24,7 +25,6 @@ import torch
 import carb
 import omni.usd
 import pytest
-from isaacsim.core.prims import XFormPrim
 
 from isaaclab.devices import OpenXRDevice, OpenXRDeviceCfg
 from isaaclab.devices.openxr import XrCfg
@@ -179,7 +179,7 @@ def test_xr_anchor(empty_env, mock_xrcore):
     device = OpenXRDevice(OpenXRDeviceCfg(xr_cfg=env_cfg.xr))
 
     # Check that the xr anchor prim is created with the correct pose
-    xr_anchor_prim = XFormPrim("/World/XRAnchor")
+    xr_anchor_prim = lazy.isaacsim.core.prims.xform_prim.XFormPrim("/XRAnchor")
     assert xr_anchor_prim.is_valid()
 
     position, orientation = xr_anchor_prim.get_world_poses()
@@ -201,7 +201,7 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     device = OpenXRDevice(OpenXRDeviceCfg())
 
     # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_prim = XFormPrim("/World/XRAnchor")
+    xr_anchor_prim = lazy.isaacsim.core.prims.xform_prim.XFormPrim("/XRAnchor")
     assert xr_anchor_prim.is_valid()
 
     position, orientation = xr_anchor_prim.get_world_poses()
@@ -224,7 +224,7 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     device_2 = OpenXRDevice(OpenXRDeviceCfg())
 
     # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_prim = XFormPrim("/World/XRAnchor")
+    xr_anchor_prim = lazy.isaacsim.core.prims.xform_prim.XFormPrim("/XRAnchor")
     assert xr_anchor_prim.is_valid()
 
     position, orientation = xr_anchor_prim.get_world_poses()

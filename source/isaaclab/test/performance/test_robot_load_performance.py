@@ -9,13 +9,13 @@
 from __future__ import annotations
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 import omni
 import pytest
-from isaacsim.core.cloner import GridCloner
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 
@@ -37,7 +37,7 @@ def test_robot_load_performance(test_config, device):
     """Test robot load time."""
     with build_simulation_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
-        cloner = GridCloner(spacing=2)
+        cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2)
         target_paths = cloner.generate_paths("/World/Robots", 4096)
         omni.usd.get_context().get_stage().DefinePrim(target_paths[0], "Xform")
         _ = cloner.clone(

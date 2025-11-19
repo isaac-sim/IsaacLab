@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -19,7 +20,6 @@ import tempfile
 
 import omni
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim.utils.prims as prim_utils
@@ -66,7 +66,9 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=dt, rendering_dt=dt, backend="numpy"
+    )
     yield sim
     # stop simulation
     sim.stop()
@@ -98,12 +100,24 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     assert units == 1.0
 
     # Check mesh settings
-    pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+    pos = tuple(
+        prim_utils.get_prim_at_path("/World/Object/geometry")
+        .GetAttribute("xformOp:translate")
+        .Get()
+    )
     assert pos == mesh_converter.cfg.translation
-    quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
+    quat = (
+        prim_utils.get_prim_at_path("/World/Object/geometry")
+        .GetAttribute("xformOp:orient")
+        .Get()
+    )
     quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
     assert quat == mesh_converter.cfg.rotation
-    scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+    scale = tuple(
+        prim_utils.get_prim_at_path("/World/Object/geometry")
+        .GetAttribute("xformOp:scale")
+        .Get()
+    )
     assert scale == mesh_converter.cfg.scale
 
 

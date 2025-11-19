@@ -151,7 +151,9 @@ def spawn_ground_plane(
     """
     # Spawn Ground-plane
     if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+        prim_utils.create_prim(
+            prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation
+        )
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 

@@ -9,9 +9,9 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
@@ -128,7 +128,7 @@ class Imu(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_view()
         # check if the prim at path is a rigid prim
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:

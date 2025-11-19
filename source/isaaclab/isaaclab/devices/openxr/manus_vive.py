@@ -15,8 +15,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import carb
-from isaacsim.core.version import get_version
 
+from isaaclab import lazy
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
@@ -28,8 +28,6 @@ XRCore = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore
-
-from isaacsim.core.prims import SingleXFormPrim
 
 from .manus_vive_utils import HAND_JOINT_MAP, ManusViveIntegration
 
@@ -70,7 +68,7 @@ class ManusVive(DeviceBase):
         """
         super().__init__(retargeters)
         # Enforce minimum Isaac Sim version (>= 5.1)
-        version_info = get_version()
+        version_info = lazy.isaacsim.core.version.get_version()
         major, minor = int(version_info[2]), int(version_info[3])
         if (major < 5) or (major == 5 and minor < 1):
             raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version {major}.{minor}. ")
@@ -91,7 +89,9 @@ class ManusVive(DeviceBase):
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
-        xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
+        xr_anchor = lazy.isaacsim.core.prims.SingleXFormPrim(
+            "/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
+        )
         carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
         carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", xr_anchor.prim_path)

@@ -15,10 +15,9 @@ from typing import TYPE_CHECKING
 import omni
 import omni.physics.tensors.impl.api as physx
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
@@ -135,7 +134,7 @@ class RayCaster(SensorBase):
     def _initialize_impl(self):
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_view()
         # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
@@ -151,7 +150,7 @@ class RayCaster(SensorBase):
             self._view = self._physics_sim_view.create_rigid_body_view(self.cfg.prim_path.replace(".*", "*"))
             found_supported_prim_class = True
         else:
-            self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
+            self._view = lazy.isaacsim.core.prims.XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
             logger.warning(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrim.")
         # check if prim view class is found
@@ -236,7 +235,7 @@ class RayCaster(SensorBase):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
-        if isinstance(self._view, XFormPrim):
+        if isinstance(self._view, lazy.isaacsim.core.prims.XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
         elif isinstance(self._view, physx.ArticulationView):
             pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)

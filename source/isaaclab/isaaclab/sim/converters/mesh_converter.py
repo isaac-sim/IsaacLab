@@ -10,8 +10,9 @@ import os
 import omni
 import omni.kit.commands
 import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
+
+from isaaclab import lazy
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -218,7 +219,7 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
-        enable_extension("omni.kit.asset_converter")
+        lazy.isaacsim.core.utils.extensions.enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter
         import omni.usd

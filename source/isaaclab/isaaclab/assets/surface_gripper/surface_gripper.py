@@ -10,15 +10,14 @@ import torch
 import warnings
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.version import get_version
-
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 
 if TYPE_CHECKING:
-    from isaacsim.robot.surface_gripper import GripperView
+    import isaacsim.robot.surface_gripper as _sg  # type: ignore[import]
 
+    GripperView = _sg.GripperView  # type: ignore[misc]
     from .surface_gripper_cfg import SurfaceGripperCfg
 
 # import logger
@@ -58,7 +57,7 @@ class SurfaceGripper(AssetBase):
         # copy the configuration
         self._cfg = cfg.copy()
 
-        isaac_sim_version = get_version()
+        isaac_sim_version = lazy.isaacsim.core.version.get_version()
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
         if int(isaac_sim_version[2]) < 5:
             raise Exception(
@@ -112,7 +111,7 @@ class SurfaceGripper(AssetBase):
         return self._gripper_command
 
     @property
-    def gripper_view(self) -> GripperView:
+    def gripper_view(self) -> "GripperView":
         """Returns the gripper view object."""
         return self._gripper_view
 
@@ -254,8 +253,7 @@ class SurfaceGripper(AssetBase):
             Use `--device cpu` to run the simulation on CPU.
         """
 
-        enable_extension("isaacsim.robot.surface_gripper")
-        from isaacsim.robot.surface_gripper import GripperView
+        lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.robot.surface_gripper")
 
         # Check that we are using the CPU backend.
         if self._device != "cpu":
@@ -307,7 +305,7 @@ class SurfaceGripper(AssetBase):
         # Initialize gripper view and set properties. Note we do not set the properties through the gripper view
         # to avoid having to convert them to list of floats here. Instead, we do it in the update_gripper_properties
         # function which does this conversion internally.
-        self._gripper_view = GripperView(
+        self._gripper_view = lazy.isaacsim.robot.surface_gripper.GripperView(
             self._prim_expr,
         )
         self.update_gripper_properties(

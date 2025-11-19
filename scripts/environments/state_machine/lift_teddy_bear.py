@@ -20,6 +20,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")
@@ -34,9 +35,7 @@ app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
 # disable metrics assembler due to scene graph instancing
-from isaacsim.core.utils.extensions import disable_extension
-
-disable_extension("omni.usd.metrics.assembler.ui")
+lazy.isaacsim.core.utils.extensions.disable_extension("omni.usd.metrics.assembler.ui")
 
 """Rest everything else."""
 

@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -16,9 +17,6 @@ import numpy as np
 import os
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -31,8 +29,10 @@ def sim_config():
     # Create a new stage
     stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
+    lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.asset.importer.urdf")
+    extension_path = lazy.isaacsim.core.utils.extensions.get_extension_path_from_name(
+        "isaacsim.asset.importer.urdf"
+    )
     # default configuration
     config = UrdfConverterCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
@@ -44,7 +44,9 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy"
+    )
     yield sim, config
     # Teardown
     sim.stop()
@@ -123,7 +125,7 @@ def test_config_drive_type(sim_config):
     prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
     # access the robot
-    robot = Articulation(prim_path, reset_xform_properties=False)
+    robot = lazy.isaacsim.core.prims.Articulation(prim_path, reset_xform_properties=False)
     # play the simulator and initialize the robot
     sim.reset()
     robot.initialize()

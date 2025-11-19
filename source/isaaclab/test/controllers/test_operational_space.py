@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -15,7 +16,6 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 
 import pytest
-from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -72,7 +72,7 @@ def sim():
     )
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
     # create source prim

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import carb
 from pxr import Sdf, Usd
 
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils

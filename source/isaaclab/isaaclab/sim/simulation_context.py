@@ -26,10 +26,7 @@ import carb
 import flatdict
 import omni.physx
 import omni.usd
-from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.utils.viewports import set_camera_view
-from isaacsim.core.version import get_version
+from isaaclab import lazy
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.sim.utils.stage as stage_utils
@@ -37,6 +34,9 @@ import isaaclab.sim.utils.stage as stage_utils
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+
+
+_SimulationContext = lazy.isaacsim.core.api.simulation_context.SimulationContext
 
 
 class SimulationContext(_SimulationContext):
@@ -146,7 +146,7 @@ class SimulationContext(_SimulationContext):
 
         # read isaac sim version (this includes build tag, release tag etc.)
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
+        self._isaacsim_version = lazy.isaacsim.core.version.get_version()
 
         # apply carb physics settings
         self._apply_physics_settings()
@@ -266,7 +266,7 @@ class SimulationContext(_SimulationContext):
         # set simulation device
         # note: Although Isaac Sim sets the physics device in the init function,
         #   it does a render call which gets the wrong device.
-        SimulationManager.set_physics_sim_device(self.cfg.device)
+        lazy.isaacsim.core.simulation_manager.SimulationManager.set_physics_sim_device(self.cfg.device)
 
         # obtain the parsed device
         # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
@@ -274,7 +274,9 @@ class SimulationContext(_SimulationContext):
         # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
         #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
         #   This reduces the overhead of calling the function.
-        self._physics_device = SimulationManager.get_physics_sim_device()
+        self._physics_device = (
+            lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_device()
+        )
 
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:
@@ -390,7 +392,7 @@ class SimulationContext(_SimulationContext):
         """
         # safe call only if we have a GUI or viewport rendering enabled
         if self._has_gui or self._offscreen_render or self._render_viewport:
-            set_camera_view(eye, target, camera_prim_path)
+            lazy.isaacsim.core.utils.viewports.set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.

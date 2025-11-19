@@ -9,6 +9,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -22,7 +23,6 @@ import torch
 
 import omni.replicator.core as rep
 import pytest
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim.utils.prims as prim_utils
@@ -1768,5 +1768,5 @@ def _populate_scene():
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        lazy.isaacsim.core.prims.SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+        lazy.isaacsim.core.prims.SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)

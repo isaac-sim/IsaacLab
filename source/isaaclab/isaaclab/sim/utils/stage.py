@@ -13,20 +13,17 @@ from collections.abc import Generator
 import carb
 import omni
 import omni.kit.app
-from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.version import get_version
-from omni.metrics.assembler.core import get_metrics_assembler_interface
-from omni.usd.commands import DeletePrimsCommand
+from isaaclab import lazy
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
 # import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
-# _context is a singleton design in isaacsim and for that reason
-#  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-#  that singleton to this _context
-sim_stage._context = _context
+# _context is a singleton design in Isaac Sim and for that reason
+# until we fully replace all modules that reference the singleton (such as XformPrim, Prim ...),
+# we have to point that singleton to this _context.
+lazy.isaacsim.core.utils.stage._context = _context
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -59,13 +56,10 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     Args:
         attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
-
-    from isaacsim.core.simulation_manager import SimulationManager
-
     from isaaclab.sim.simulation_context import SimulationContext
 
     # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         return
 
@@ -97,7 +91,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     SimulationContext.instance().skip_next_stage_open_callback()
 
     # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
+    lazy.isaacsim.core.simulation_manager.SimulationManager.enable_stage_open_callback(False)
 
     # enable physics fabric
     SimulationContext.instance()._physics_context.enable_fabric(True)
@@ -110,7 +104,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     physx_sim_interface.attach_stage(stage_id)
 
     # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
+    lazy.isaacsim.core.simulation_manager.SimulationManager.enable_stage_open_callback(True)
 
 
 def is_current_stage_in_memory() -> bool:
@@ -159,7 +153,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...    pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
@@ -333,7 +327,7 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
     else:
         prims = get_all_matching_child_prims("/", predicate_from_path)
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
-    DeletePrimsCommand(prim_paths_to_delete).do()
+    omni.usd.commands.DeletePrimsCommand(prim_paths_to_delete).do()
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
         omni.kit.app.get_app_interface().update()
@@ -412,7 +406,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
         # logger.info(f"Could not get Sdf layer for {usd_path}")
     else:
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
-        ret_val = get_metrics_assembler_interface().check_layers(
+        ret_val = omni.metrics.assembler.core.get_metrics_assembler_interface().check_layers(
             stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
         )
         if ret_val["ret_val"]:
@@ -470,7 +464,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         logger.warning(
             "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"

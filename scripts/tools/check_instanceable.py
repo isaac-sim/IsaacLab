@@ -45,6 +45,7 @@ import contextlib
 import os
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Utility to empirically check if asset in instanced properly.")
@@ -64,10 +65,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
@@ -79,7 +76,7 @@ def main():
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
     # Load kit helper
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
     )
 
@@ -98,14 +95,16 @@ def main():
     sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=args_cli.spacing, stage=stage)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=args_cli.spacing, stage=stage)
     cloner.define_base_env("/World/envs")
     prim_utils.define_prim("/World/envs/env_0")
     # Spawn things into stage
     prim_utils.create_prim("/World/Light", "DistantLight")
 
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
+    prim_utils.create_prim(
+        "/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input)
+    )
     # Clone the scene
     num_clones = args_cli.num_clones
 

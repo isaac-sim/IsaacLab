@@ -13,12 +13,11 @@ if sys.platform != "win32":
     import pinocchio  # noqa: F401
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
-
-from isaacsim.core.version import get_version
 
 """Rest everything follows."""
 
@@ -48,7 +47,7 @@ import isaaclab_tasks  # noqa: F401
 @pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
 def test_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_name, num_envs, device):
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 

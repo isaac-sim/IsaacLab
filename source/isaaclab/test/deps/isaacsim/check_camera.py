@@ -23,6 +23,7 @@ import argparse
 
 # isaaclab
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -46,9 +47,6 @@ import os
 import random
 
 import omni.replicator.core as rep
-from isaacsim.core.api.world import World
-from isaacsim.core.prims import Articulation, RigidPrim, SingleGeometryPrim, SingleRigidPrim
-from isaacsim.core.utils.viewports import set_camera_view
 from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom
 
@@ -71,9 +69,11 @@ def main():
     """Runs a camera sensor from isaaclab."""
 
     # Load kit helper
-    world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")
+    world = lazy.isaacsim.core.api.world.World(
+        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu"
+    )
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Enable flatcache which avoids passing data over to USD structure
     # this speeds up the read-write operation of GPU buffers
@@ -108,8 +108,10 @@ def main():
                 semantic_label=prim_type,
             )
             # add rigid properties
-            SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-            rigid_obj = SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+            lazy.isaacsim.core.prims.SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+            rigid_obj = lazy.isaacsim.core.prims.SingleRigidPrim(
+                f"/World/Objects/Obj_{i:02d}", mass=5.0
+            )
             # cast to geom prim
             geom_prim = getattr(UsdGeom, prim_type)(rigid_obj.prim)
             # set random color
@@ -153,9 +155,13 @@ def main():
 
     # Create a view of the stuff we want to see
     if args_cli.scenario == "cube":
-        view: RigidPrim = world.scene.add(RigidPrim("/World/Objects/.*", name="my_object"))
+        view = world.scene.add(
+            lazy.isaacsim.core.prims.RigidPrim("/World/Objects/.*", name="my_object")
+        )
     else:
-        view: Articulation = world.scene.add(Articulation("/World/Robot", name="my_object"))
+        view = world.scene.add(
+            lazy.isaacsim.core.prims.Articulation("/World/Robot", name="my_object")
+        )
     # Play simulator
     world.reset()
     # Get initial state

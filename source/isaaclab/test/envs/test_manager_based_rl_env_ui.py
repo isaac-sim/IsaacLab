@@ -11,6 +11,7 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab import lazy
 
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
@@ -18,14 +19,13 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import carb
 import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-enable_extension("isaacsim.gui.components")
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.gui.components")
 
 
 @configclass

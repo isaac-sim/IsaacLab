@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
-
+from isaaclab import lazy
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -248,15 +246,17 @@ def compute_intermediate_values(
     to_target = targets - torso_position
     to_target[:, 2] = 0.0
 
-    torso_quat, up_proj, heading_proj, up_vec, heading_vec = compute_heading_and_up(
+    torso_quat, up_proj, heading_proj, up_vec, heading_vec = lazy.isaacsim.core.utils.torch.rotations.compute_heading_and_up(
         torso_rotation, inv_start_rot, to_target, basis_vec0, basis_vec1, 2
     )
 
-    vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target = compute_rot(
+    vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target = lazy.isaacsim.core.utils.torch.rotations.compute_rot(
         torso_quat, velocity, ang_velocity, targets, torso_position
     )
 
-    dof_pos_scaled = torch_utils.maths.unscale(dof_pos, dof_lower_limits, dof_upper_limits)
+    dof_pos_scaled = lazy.isaacsim.core.utils.torch.maths.unscale(
+        dof_pos, dof_lower_limits, dof_upper_limits
+    )
 
     to_target = targets - torso_position
     to_target[:, 2] = 0.0

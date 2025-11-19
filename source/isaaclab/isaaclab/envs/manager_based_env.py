@@ -11,12 +11,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
-
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
+from isaaclab import lazy 
 from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
@@ -382,7 +380,7 @@ class ManagerBasedEnv:
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
+            while lazy.isaacsim.core.simulation_manager.SimulationManager.assets_loading():
                 self.sim.render()
 
         # return observations
@@ -529,7 +527,7 @@ class ManagerBasedEnv:
             del self.scene
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if float(".".join(lazy.isaacsim.core.version.get_version()[2])) >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

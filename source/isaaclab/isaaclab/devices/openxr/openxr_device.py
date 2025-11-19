@@ -18,6 +18,7 @@ import carb
 # import logger
 logger = logging.getLogger(__name__)
 
+from isaaclab import lazy
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
@@ -32,8 +33,6 @@ XRCoreEventType = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRPoseValidityFlags, XRCoreEventType
-
-from isaacsim.core.prims import SingleXFormPrim
 
 
 class OpenXRDevice(DeviceBase):
@@ -103,7 +102,7 @@ class OpenXRDevice(DeviceBase):
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        _ = SingleXFormPrim(
+        _ = lazy.isaacsim.core.prims.SingleXFormPrim(
             self._xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
         )
 
