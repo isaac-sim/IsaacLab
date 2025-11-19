@@ -39,14 +39,32 @@ class OVVisualizer(Visualizer):
             omni.log.warn("[OVVisualizer] Already initialized.")
             return
         
-        metadata = {}
         usd_stage = None
+        simulation_context = None
         if scene_data is not None:
             usd_stage = scene_data.get("usd_stage")
-            metadata = scene_data.get("metadata", {})
+            simulation_context = scene_data.get("simulation_context")
         
         if usd_stage is None:
             raise RuntimeError("OV visualizer requires a USD stage.")
+        
+        # Build metadata from simulation context if available
+        metadata = {}
+        if simulation_context is not None:
+            # Try to get num_envs from the simulation context's scene if available
+            num_envs = 0
+            if hasattr(simulation_context, 'scene') and simulation_context.scene is not None:
+                if hasattr(simulation_context.scene, 'num_envs'):
+                    num_envs = simulation_context.scene.num_envs
+            
+            # Detect physics backend (could be extended to check actual backend type)
+            physics_backend = "newton"  # Default for now, could be made more sophisticated
+            
+            metadata = {
+                "num_envs": num_envs,
+                "physics_backend": physics_backend,
+                "env_prim_pattern": "/World/envs/env_{}",  # Standard pattern
+            }
         
         self._ensure_simulation_app()
         self._setup_viewport(usd_stage, metadata)

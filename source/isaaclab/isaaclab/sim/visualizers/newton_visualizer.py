@@ -257,24 +257,25 @@ class NewtonVisualizer(Visualizer):
         if self._is_initialized:
             return
 
-        metadata = {}
-        if scene_data is not None:
-            self._model = scene_data.get("model")
-            self._state = scene_data.get("state")
-            metadata = scene_data.get("metadata", {})
+        # Fetch Newton-specific data from NewtonManager
+        from isaaclab.sim._impl.newton_manager import NewtonManager
         
-        physics_backend = metadata.get("physics_backend", "unknown")
-        if physics_backend != "newton" and physics_backend != "unknown":
-            raise RuntimeError(
-                f"Newton visualizer requires Newton physics backend, got '{physics_backend}'. "
-                f"Use OVVisualizer for other backends."
-            )
+        self._model = NewtonManager._model
+        self._state = NewtonManager._state_0
         
         if self._model is None:
             raise RuntimeError(
-                "Newton visualizer requires Newton Model in scene_data['model']. "
+                "Newton visualizer requires Newton Model. "
                 "Ensure Newton physics is initialized first."
             )
+        
+        # Build metadata from NewtonManager
+        metadata = {
+            "physics_backend": "newton",
+            "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
+            "gravity_vector": NewtonManager._gravity_vector,
+            "clone_physics_only": NewtonManager._clone_physics_only,
+        }
 
         # Create the viewer with train_mode and metadata
         self._viewer = NewtonViewerGL(
@@ -327,8 +328,10 @@ class NewtonVisualizer(Visualizer):
 
         self._sim_time += dt
         self._step_counter += 1
-        if state is not None:
-            self._state = state
+        
+        # Fetch updated state from NewtonManager
+        from isaaclab.sim._impl.newton_manager import NewtonManager
+        self._state = NewtonManager._state_0
 
         # Only update visualizer at the specified frequency
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency

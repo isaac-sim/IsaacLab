@@ -564,17 +564,10 @@ class SimulationContext(_SimulationContext):
             try:
                 visualizer = viz_cfg.create_visualizer()
 
-                # Prepare scene data from Newton physics backend
+                # Pass minimal generic scene data - visualizers fetch backend-specific data themselves
                 scene_data = {
-                    "model": NewtonManager._model,
-                    "state": NewtonManager._state_0,
+                    "simulation_context": self,
                     "usd_stage": self.stage,
-                    "metadata": {
-                        "physics_backend": "newton",
-                        "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
-                        "gravity_vector": NewtonManager._gravity_vector,
-                        "clone_physics_only": NewtonManager._clone_physics_only,
-                    }
                 }
                 
                 # Initialize visualizer with scene data
@@ -617,14 +610,15 @@ class SimulationContext(_SimulationContext):
 
                 # Handle training pause - block until resumed
                 while visualizer.is_training_paused() and visualizer.is_running():
-                    visualizer.step(0.0, state=NewtonManager._state_0)
+                    # Visualizers fetch backend-specific state themselves
+                    visualizer.step(0.0, state=None)
 
                 # Skip rendering if visualizer has rendering paused
                 if visualizer.is_rendering_paused():
                     continue
 
-                # Normal step: pass updated Newton state
-                visualizer.step(dt, state=NewtonManager._state_0)
+                # Normal step: visualizers fetch backend-specific state themselves
+                visualizer.step(dt, state=None)
 
             except Exception as e:
                 omni.log.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")

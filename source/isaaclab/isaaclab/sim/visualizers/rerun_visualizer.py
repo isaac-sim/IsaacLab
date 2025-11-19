@@ -273,36 +273,32 @@ class RerunVisualizer(Visualizer):
             omni.log.warn("[RerunVisualizer] Already initialized. Skipping re-initialization.")
             return
         
-        # Extract scene data
-        metadata = {}
-        if scene_data is not None:
-            self._model = scene_data.get("model")
-            self._state = scene_data.get("state")
-            metadata = scene_data.get("metadata", {})
+        # Fetch Newton-specific data from NewtonManager
+        from isaaclab.sim._impl.newton_manager import NewtonManager
         
-        # Validate physics backend
-        physics_backend = metadata.get("physics_backend", "unknown")
-        if physics_backend != "newton" and physics_backend != "unknown":
-            raise RuntimeError(
-                f"Rerun visualizer currently requires Newton physics backend, "
-                f"but '{physics_backend}' is running. "
-                f"Please use a compatible visualizer for {physics_backend} physics "
-                f"(e.g., OVVisualizer).\n\n"
-                f"Future versions will support multiple physics backends."
-            )
+        self._model = NewtonManager._model
+        self._state = NewtonManager._state_0
         
         # Validate required Newton data
         if self._model is None:
             raise RuntimeError(
-                "Rerun visualizer requires a Newton Model in scene_data['model']. "
+                "Rerun visualizer requires a Newton Model. "
                 "Make sure Newton physics is initialized before creating the visualizer."
             )
         
         if self._state is None:
             omni.log.warn(
-                "[RerunVisualizer] No Newton State provided in scene_data['state']. "
+                "[RerunVisualizer] No Newton State available. "
                 "Visualization may not work correctly."
             )
+        
+        # Build metadata from NewtonManager
+        metadata = {
+            "physics_backend": "newton",
+            "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
+            "gravity_vector": NewtonManager._gravity_vector,
+            "clone_physics_only": NewtonManager._clone_physics_only,
+        }
         
         # Create Newton ViewerRerun wrapper
         try:
@@ -348,7 +344,7 @@ class RerunVisualizer(Visualizer):
         """Update visualizer each step.
         
         This method:
-        1. Updates state (if provided)
+        1. Fetches updated state from NewtonManager
         2. Logs current state to Rerun (transforms, meshes)
         3. Actively logs markers (if enabled)
         4. Actively logs plot data (if enabled)
@@ -360,15 +356,15 @@ class RerunVisualizer(Visualizer):
         
         Args:
             dt: Time step in seconds.
-            state: Updated physics state (e.g., newton.State).
+            state: Unused (deprecated parameter, kept for API compatibility).
         """
         if not self._is_initialized or self._viewer is None:
             omni.log.warn("[RerunVisualizer] Not initialized. Call initialize() first.")
             return
         
-        # Update state if provided
-        if state is not None:
-            self._state = state
+        # Fetch updated state from NewtonManager
+        from isaaclab.sim._impl.newton_manager import NewtonManager
+        self._state = NewtonManager._state_0
         
         # Update internal time
         self._sim_time += dt
