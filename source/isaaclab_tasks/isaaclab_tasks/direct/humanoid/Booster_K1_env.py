@@ -75,7 +75,6 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
     )
 
     # Goal blue
-
     goal_blue_cfg = RigidObjectCfg(
         prim_path = "/World/Goal_Blue",
 
@@ -107,9 +106,7 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
             collision_props = sim_utils.CollisionPropertiesCfg(),
             visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0), metallic=0),
         ),
-
         init_state=RigidObjectCfg.InitialStateCfg(),
-
     )
 
     # scene
