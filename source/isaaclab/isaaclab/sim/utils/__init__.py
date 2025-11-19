@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .decorators import *  # noqa: F401, F403
 from .logger import *  # noqa: F401, F403
 from .nucleus import *  # noqa: F401, F403
 from .prims import *  # noqa: F401, F403
