@@ -7,14 +7,13 @@ import builtins
 import contextlib
 import logging
 import threading
-import typing
+from typing import Literal, Callable, Iterable
 from collections.abc import Generator
 
 import carb
 import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
@@ -58,7 +57,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         If the stage is not in memory or rendering is not enabled, this function will return without attaching.
 
     Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
+        Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
 
     from isaacsim.core.simulation_manager import SimulationManager
@@ -81,7 +80,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # this carb flag is equivalent to if rendering is enabled
     carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it
     if not is_rendering_enabled:
@@ -142,7 +141,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
 
     Args:
-        stage: The stage to set temporarily.
+        The stage to set temporarily.
 
     Raises:
         AssertionError: If the stage is not a USD stage instance.
@@ -243,7 +242,7 @@ def update_stage() -> None:
 
 
 # TODO: make a generic util for setting all layer properties
-def set_stage_up_axis(axis: str = "z") -> None:
+def set_stage_up_axis(axis: Literal["x", "y", "z"] = "z") -> None:
     """Change the up axis of the current stage
 
     Args:
@@ -271,7 +270,7 @@ def get_stage_up_axis() -> str:
     """Get the current up-axis of USD stage.
 
     Returns:
-        str: The up-axis of the stage.
+        The up-axis of the stage.
 
     Example:
 
@@ -286,11 +285,11 @@ def get_stage_up_axis() -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
 
-def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
+def clear_stage(predicate: Callable[[str], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer
 
     Args:
-        predicate: user defined function that takes a prim_path (str) as input and returns True/False if the prim
+        predicate: user defined function that takes a prim_path as input and returns True/False if the prim
             should/shouldn't be deleted. If predicate is None, a default is used that deletes all prims
 
     Example:
@@ -445,7 +444,7 @@ def create_new_stage() -> Usd.Stage:
     """Create a new stage attached to the USD context.
 
     Returns:
-        Usd.Stage: The created USD stage.
+        The created USD stage.
 
     Example:
 
@@ -493,13 +492,13 @@ def open_stage(usd_path: str) -> bool:
     """Open the given usd file and replace currently opened stage.
 
     Args:
-        usd_path (str): Path to the USD file to open.
+        usd_path: Path to the USD file to open.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
 
     Returns:
-        bool: True if operation is successful, otherwise false.
+        True if operation is successful, otherwise false.
 
     Example:
 
@@ -523,14 +522,14 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
     """Save usd file to path, it will be overwritten with the current stage
 
     Args:
-        usd_path (str): File path to save the current stage to
+        usd_path: File path to save the current stage to
         save_and_reload_in_place (bool, optional): use ``save_as_stage`` to save and reload the root layer in place. Defaults to True.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
 
     Returns:
-        bool: True if operation is successful, otherwise false.
+        True if operation is successful, otherwise false.
 
     Example:
 
@@ -555,7 +554,7 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
     return result
 
 
-def close_stage(callback_fn: typing.Callable | None = None) -> bool:
+def close_stage(callback_fn: Callable | None = None) -> bool:
     """Closes the current opened USD stage.
 
     .. note::
@@ -566,7 +565,7 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
         callback_fn: Callback function to call while closing. Defaults to None.
 
     Returns:
-        bool: True if operation is successful, otherwise false.
+        True if operation is successful, otherwise false.
 
     Example:
 
@@ -597,7 +596,7 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
     return result
 
 
-def traverse_stage(fabric=False) -> typing.Iterable:
+def traverse_stage(fabric=False) -> Iterable:
     """Traverse through prims (hidden or not) in the opened Usd stage.
 
     Returns:
@@ -630,7 +629,7 @@ def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
     Returns:
-        bool: True if loading, False otherwise
+        True if loading, False otherwise
 
     Example:
 
@@ -723,11 +722,11 @@ def get_next_free_path(path: str, parent: str = None) -> str:
     """Returns the next free usd path for the current stage
 
     Args:
-        path (str): path we want to check
-        parent (str, optional): Parent prim for the given path. Defaults to None.
+        path: path we want to check
+        parent: Parent prim for the given path. Defaults to None.
 
     Returns:
-        str: a new path that is guaranteed to not exist on the current stage
+        A new path that is guaranteed to not exist on the current stage
 
     Example:
 
