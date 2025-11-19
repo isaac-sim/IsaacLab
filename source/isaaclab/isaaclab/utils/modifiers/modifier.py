@@ -123,11 +123,11 @@ class DigitalFilter(ModifierBase):
     where :math:`\alpha` is a smoothing parameter between 0 and 1. Typically, the value of :math:`\alpha` is
     chosen based on the desired cut-off frequency of the filter.
 
-    This filter can be implemented as a digital filter with the coefficients :math:`A = [\alpha]` and
+    This filter can be implemented as a digital filter with the coefficients :math:`A = [-\alpha]` and
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
         """Initializes digital filter.
 
         Args:

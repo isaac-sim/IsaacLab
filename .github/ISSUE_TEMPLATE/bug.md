@@ -31,11 +31,11 @@ Describe the characteristic of your environment:
 
 <!-- Please complete the following description. -->
 - Commit: [e.g. 8f3b9ca]
-- Isaac Sim Version: [e.g. 2022.2.0, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
-- OS: [e.g. Ubuntu 20.04]
-- GPU: [e.g. RTX 2060 Super]
-- CUDA: [e.g. 11.4]
-- GPU Driver: [e.g. 470.82.01, this can be seen by using `nvidia-smi` command.]
+- Isaac Sim Version: [e.g. 5.0, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
+- OS: [e.g. Ubuntu 22.04]
+- GPU: [e.g. RTX 5090]
+- CUDA: [e.g. 12.8]
+- GPU Driver: [e.g. 553.05, this can be seen by using `nvidia-smi` command.]
 
 ### Additional context
 

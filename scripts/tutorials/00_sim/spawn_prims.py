@@ -96,10 +96,8 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
-
-    # Design scene by adding assets to it
+    # Design scene
     design_scene()
-
     # Play the simulator
     sim.reset()
     # Now we are ready!

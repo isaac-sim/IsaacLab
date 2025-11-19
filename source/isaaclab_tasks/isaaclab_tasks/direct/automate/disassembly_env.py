@@ -555,7 +555,7 @@ class DisassemblyEnv(DirectRLEnv):
         for _ in range(sim_steps):
             if if_log:
                 self._log_robot_state_per_timestep()
-            # print('finger', self.fingertip_midpoint_pos[0], 'goal', goal_pos[0])
+
             # Compute error to target.
             pos_error, axis_angle_error = fc.get_pose_error(
                 fingertip_midpoint_pos=self.fingertip_midpoint_pos[env_ids],
@@ -567,10 +567,7 @@ class DisassemblyEnv(DirectRLEnv):
             )
 
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            # print('delta hand pose', delta_hand_pose[0])
             self.actions *= 0.0
-            # print('action shape', self.actions[env_ids, :6].shape)
-            # print('delta hand shape', delta_hand_pose.shape)
             self.actions[env_ids, :6] = delta_hand_pose
 
             is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
@@ -746,7 +743,6 @@ class DisassemblyEnv(DirectRLEnv):
 
         if_intersect = (self.held_pos[:, 2] < self.fixed_pos[:, 2] + self.disassembly_dists).cpu().numpy()
         env_ids = np.argwhere(if_intersect == 0).reshape(-1)
-        # print('env ids', env_ids)
         self._randomize_gripper_pose(self.cfg_task.move_gripper_sim_steps, env_ids)
 
     def _lift_gripper(self, lift_distance, sim_steps, env_ids=None):
@@ -880,6 +876,9 @@ class DisassemblyEnv(DirectRLEnv):
             with open(log_filename, "w+") as out_file:
                 json.dump(log_item, out_file, indent=6)
 
+            print(f"Trajectory collection complete! Collected {len(self.log_arm_dof_pos)} trajectories!")
             exit(0)
         else:
-            print("current logging item num: ", len(self.log_arm_dof_pos))
+            print(
+                f"Collected {len(self.log_arm_dof_pos)} trajectories so far (target: > {self.cfg_task.num_log_traj})."
+            )

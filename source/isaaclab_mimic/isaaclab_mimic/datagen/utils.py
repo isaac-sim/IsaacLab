@@ -2,11 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
-
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import os
 from collections.abc import Callable

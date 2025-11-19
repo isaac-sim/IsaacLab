@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
 from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab.utils.noise import NoiseCfg
+from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -165,7 +165,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.
     """
 
-    noise: NoiseCfg | None = None
+    noise: NoiseCfg | NoiseModelCfg | None = None
     """The noise to add to the observation. Defaults to None, in which case no noise is added."""
 
     clip: tuple[float, float] | None = None

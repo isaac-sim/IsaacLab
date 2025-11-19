@@ -16,13 +16,13 @@ import numpy as np
 import os
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 # Create a fixture for setup and teardown
@@ -53,6 +53,7 @@ def sim_config():
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_no_change(sim_config):
     """Call conversion twice. This should not generate a new USD file."""
     sim, config = sim_config
@@ -69,6 +70,7 @@ def test_no_change(sim_config):
     assert time_usd_file_created == new_time_usd_file_created
 
 
+@pytest.mark.isaacsim_ci
 def test_config_change(sim_config):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
     sim, config = sim_config
@@ -87,6 +89,7 @@ def test_config_change(sim_config):
     assert time_usd_file_created != new_time_usd_file_created
 
 
+@pytest.mark.isaacsim_ci
 def test_create_prim_from_usd(sim_config):
     """Call conversion and create a prim from it."""
     sim, config = sim_config
@@ -98,6 +101,7 @@ def test_create_prim_from_usd(sim_config):
     assert prim_utils.is_prim_path_valid(prim_path)
 
 
+@pytest.mark.isaacsim_ci
 def test_config_drive_type(sim_config):
     """Change the drive mechanism of the robot to be position."""
     sim, config = sim_config

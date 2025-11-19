@@ -101,7 +101,7 @@ For this tutorial, the ray-cast based height scanner is attached to the base fra
 The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
 a uniform grid pattern, we specify the pattern using :class:`~sensors.patterns.GridPatternCfg`.
 Since we only care about the height information, we do not need to consider the roll and pitch
-of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.attach_yaw_only` to true.
+of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.ray_alignment` to "yaw".
 
 For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
 by setting the :attr:`~sensors.SensorBaseCfg.debug_vis` attribute to true.

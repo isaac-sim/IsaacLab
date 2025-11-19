@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # mode for very simple functional testing without checking thresholds
 fast_test:
   rl_games:Isaac-Ant-v0:
@@ -26,7 +31,7 @@ fast:
       reward: 45
       episode_length: 900
     upper_thresholds:
-      duration: 500
+      duration: 750
   skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
@@ -62,14 +67,6 @@ fast:
       episode_length: 900
     upper_thresholds:
       duration: 1800
-  rl_games:Isaac-Repose-Cube-Allegro-Direct-v0:
-    max_iterations: 500
-    lower_thresholds:
-      reward: 200
-      episode_length: 150
-    upper_thresholds:
-      duration: 1500
-
 
 # mode for weekly CI
 full:

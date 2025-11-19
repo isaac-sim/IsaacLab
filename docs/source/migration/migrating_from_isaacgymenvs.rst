@@ -692,18 +692,18 @@ the need to set simulation parameters for actors in the task implementation.
 |     asset_root = os.path.dirname(asset_path)                           |     actuators={                                                     |
 |     asset_file = os.path.basename(asset_path)                          |         "cart_actuator": ImplicitActuatorCfg(                       |
 |                                                                        |             joint_names_expr=["slider_to_cart"],                    |
-|     asset_options = gymapi.AssetOptions()                              |             effort_limit=400.0,                                     |
-|     asset_options.fix_base_link = True                                 |             velocity_limit=100.0,                                   |
+|     asset_options = gymapi.AssetOptions()                              |             effort_limit_sim=400.0,                                 |
+|     asset_options.fix_base_link = True                                 |             velocity_limit_sim=100.0,                               |
 |     cartpole_asset = self.gym.load_asset(self.sim,                     |             stiffness=0.0,                                          |
 |         asset_root, asset_file, asset_options)                         |             damping=10.0,                                           |
 |     self.num_dof = self.gym.get_asset_dof_count(                       |         ),                                                          |
 |         cartpole_asset)                                                |         "pole_actuator": ImplicitActuatorCfg(                       |
-|                                                                        |             joint_names_expr=["cart_to_pole"], effort_limit=400.0,  |
-|     pose = gymapi.Transform()                                          |             velocity_limit=100.0, stiffness=0.0, damping=0.0        |
-|     if self.up_axis == 'z':                                            |         ),                                                          |
-|         pose.p.z = 2.0                                                 |     },                                                              |
-|         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)                       | )                                                                   |
-|     else:                                                              |                                                                     |
+|                                                                        |             joint_names_expr=["cart_to_pole"],                      |
+|     pose = gymapi.Transform()                                          |             effort_limit_sim=400.0, velocity_limit_sim=100.0,       |
+|     if self.up_axis == 'z':                                            |             stiffness=0.0, damping=0.0                              |
+|         pose.p.z = 2.0                                                 |         ),                                                          |
+|         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)                       |     },                                                              |
+|     else:                                                              | )                                                                   |
 |         pose.p.y = 2.0                                                 |                                                                     |
 |         pose.r = gymapi.Quat(                                          |                                                                     |
 |             -np.sqrt(2)/2, 0.0, 0.0, np.sqrt(2)/2)                     |                                                                     |

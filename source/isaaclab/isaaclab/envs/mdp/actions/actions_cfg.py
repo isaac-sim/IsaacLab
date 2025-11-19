@@ -9,7 +9,14 @@ from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceCo
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
+from . import (
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    surface_gripper_actions,
+    task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -181,6 +188,41 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
 
 
+@configclass
+class AbsBinaryJointPositionActionCfg(ActionTermCfg):
+    """Configuration for the absolute binary joint position action term.
+
+    This action term is used for robust grasping by converting continuous gripper joint position actions
+    into binary open/close commands. Unlike directly applying continuous gripper joint position actions, this class
+    applies a threshold-based decision mechanism to determine whether to
+    open or close the gripper.
+
+    The action works by:
+    1. Taking a continuous input action value
+    2. Comparing it against a configurable threshold
+    3. Mapping the result to either open or close commands based on the threshold comparison
+    4. Applying the corresponding gripper open/close commands
+
+    This approach provides more predictable and stable grasping behavior compared to directly applying
+    continuous gripper joint position actions.
+
+    See :class:`AbsBinaryJointPositionAction` for more details.
+    """
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    open_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *open* configuration."""
+    close_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *close* configuration."""
+    threshold: float = 0.5
+    """The threshold for the binary action. Defaults to 0.5."""
+    positive_threshold: bool = True
+    """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
+
+    class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+
+
 ##
 # Non-holonomic actions.
 ##
@@ -310,3 +352,25 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
     """
+
+
+##
+# Surface Gripper actions.
+##
+
+
+@configclass
+class SurfaceGripperBinaryActionCfg(ActionTermCfg):
+    """Configuration for the binary surface gripper action term.
+
+    See :class:`SurfaceGripperBinaryAction` for more details.
+    """
+
+    asset_name: str = MISSING
+    """Name of the surface gripper asset in the scene."""
+    open_command: float = -1.0
+    """The command value to open the gripper. Defaults to -1.0."""
+    close_command: float = 1.0
+    """The command value to close the gripper. Defaults to 1.0."""
+
+    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction

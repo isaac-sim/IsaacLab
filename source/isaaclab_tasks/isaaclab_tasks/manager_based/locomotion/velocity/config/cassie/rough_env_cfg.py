@@ -77,6 +77,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]

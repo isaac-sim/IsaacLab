@@ -8,6 +8,7 @@ from __future__ import annotations
 import builtins
 import gymnasium as gym
 import inspect
+import logging
 import math
 import numpy as np
 import torch
@@ -17,21 +18,25 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
-import omni.log
+import omni.physx
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DirectMARLEnv(gym.Env):
@@ -87,7 +92,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -113,12 +118,15 @@ class DirectMARLEnv(gym.Env):
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
-            self.scene = InteractiveScene(self.cfg.scene)
-            self._setup_scene()
+            # set the stage context for scene creation steps which use the stage
+            with use_stage(self.sim.get_initial_stage()):
+                self.scene = InteractiveScene(self.cfg.scene)
+                self._setup_scene()
+                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -146,7 +154,10 @@ class DirectMARLEnv(gym.Env):
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                self.sim.reset()
+                # since the reset can trigger callbacks which use the stage,
+                # we need to set the stage context here
+                with use_stage(self.sim.get_initial_stage()):
+                    self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
                 # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
@@ -356,7 +367,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.action_noise_model:
             for agent, action in actions.items():
                 if agent in self._action_noise_model:
-                    actions[agent] = self._action_noise_model[agent].apply(action)
+                    actions[agent] = self._action_noise_model[agent](action)
         # process actions
         self._pre_physics_step(actions)
 
@@ -409,7 +420,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.observation_noise_model:
             for agent, obs in self.obs_dict.items():
                 if agent in self._observation_noise_model:
-                    self.obs_dict[agent] = self._observation_noise_model[agent].apply(obs)
+                    self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
         # return observations, rewards, resets and extras
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
@@ -454,7 +465,7 @@ class DirectMARLEnv(gym.Env):
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
@@ -462,7 +473,7 @@ class DirectMARLEnv(gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -530,9 +541,18 @@ class DirectMARLEnv(gym.Env):
             del self.scene
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
+
             # clear callbacks and instance
+            if float(".".join(get_version()[2])) >= 5:
+                if self.cfg.sim.create_stage_in_memory:
+                    # detach physx stage
+                    omni.physx.get_physx_simulation_interface().detach_stage()
+                    self.sim.stop()
+                    self.sim.clear()
+
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
+
             # destroy the window
             if self._window is not None:
                 self._window = None
@@ -585,17 +605,17 @@ class DirectMARLEnv(gym.Env):
 
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
-            omni.log.warn("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
+            logger.warning("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
             if isinstance(self.cfg.action_spaces, type(MISSING)):
                 self.cfg.action_spaces = self.cfg.num_actions
         if self.cfg.num_observations is not None:
-            omni.log.warn(
+            logger.warning(
                 "DirectMARLEnvCfg.num_observations is deprecated. Use DirectMARLEnvCfg.observation_spaces instead."
             )
             if isinstance(self.cfg.observation_spaces, type(MISSING)):
                 self.cfg.observation_spaces = self.cfg.num_observations
         if self.cfg.num_states is not None:
-            omni.log.warn("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
+            logger.warning("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 

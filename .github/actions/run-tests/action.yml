@@ -1,0 +1,157 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Run Tests in Docker Container'
+description: 'Runs pytest tests in a Docker container with GPU support and result collection'
+
+inputs:
+  test-path:
+    description: 'Path to test directory or pytest arguments'
+    required: true
+  result-file:
+    description: 'Name of the result XML file'
+    required: true
+  container-name:
+    description: 'Name for the Docker container'
+    required: true
+  image-tag:
+    description: 'Docker image tag to use'
+    required: true
+  reports-dir:
+    description: 'Directory to store test results'
+    default: 'reports'
+    required: false
+  pytest-options:
+    description: 'Additional pytest options (e.g., -k filter)'
+    default: ''
+    required: false
+  filter-pattern:
+    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    default: ''
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Run Tests in Docker Container
+      shell: bash
+      run: |
+        # Function to run tests in Docker container
+        run_tests() {
+          local test_path="$1"
+          local result_file="$2"
+          local container_name="$3"
+          local image_tag="$4"
+          local reports_dir="$5"
+          local pytest_options="$6"
+          local filter_pattern="$7"
+
+          echo "Running tests in: $test_path"
+          if [ -n "$pytest_options" ]; then
+            echo "With pytest options: $pytest_options"
+          fi
+          if [ -n "$filter_pattern" ]; then
+            echo "With filter pattern: $filter_pattern"
+          fi
+
+          # Create reports directory
+          mkdir -p "$reports_dir"
+
+          # Clean up any existing container
+          docker rm -f $container_name 2>/dev/null || true
+
+          # Build Docker environment variables
+          docker_env_vars="\
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e OMNI_KIT_DISABLE_CUP=1 \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e ISAAC_SIM_LOW_MEMORY=1 \
+            -e PYTHONUNBUFFERED=1 \
+            -e PYTHONIOENCODING=utf-8 \
+            -e TEST_RESULT_FILE=$result_file"
+
+          if [ -n "$filter_pattern" ]; then
+            if [[ "$filter_pattern" == not* ]]; then
+              # Handle "not pattern" case
+              exclude_pattern="${filter_pattern#not }"
+              docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
+              echo "Setting exclude pattern: $exclude_pattern"
+            else
+              # Handle positive pattern case
+              docker_env_vars="$docker_env_vars -e TEST_FILTER_PATTERN=$filter_pattern"
+              echo "Setting include pattern: $filter_pattern"
+            fi
+          else
+            echo "No filter pattern provided"
+          fi
+
+          echo "Docker environment variables: '$docker_env_vars'"
+
+          # Run tests in container with error handling
+          echo "🚀 Starting Docker container for tests..."
+          if docker run --name $container_name \
+            --entrypoint bash --gpus all --network=host \
+            --security-opt=no-new-privileges:true \
+            --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
+            --cpus=$(echo "$(nproc) * 0.9" | bc) \
+            --oom-kill-disable=false \
+            --ulimit nofile=65536:65536 \
+            --ulimit nproc=4096:4096 \
+            $docker_env_vars \
+            $image_tag \
+            -c "
+              set -e
+              cd /workspace/isaaclab
+              mkdir -p tests
+              echo 'Starting pytest with path: $test_path'
+              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
+            "; then
+            echo "✅ Docker container completed successfully"
+          else
+            echo "⚠️ Docker container failed, but continuing to copy results..."
+          fi
+
+          # Copy test results with error handling
+          echo "📋 Attempting to copy test results..."
+          if docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>/dev/null; then
+            echo "✅ Test results copied successfully"
+          else
+            echo "❌ Failed to copy specific result file, trying to copy all test results..."
+            if docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>/dev/null; then
+              echo "✅ All test results copied successfully"
+              # Look for any XML files and use the first one found
+              if [ -f "$reports_dir/full_report.xml" ]; then
+                mv "$reports_dir/full_report.xml" "$reports_dir/$result_file"
+                echo "✅ Found and renamed full_report.xml to $result_file"
+              elif [ -f "$reports_dir/test-reports-"*".xml" ]; then
+                # Combine individual test reports if no full report exists
+                echo "📊 Combining individual test reports..."
+                echo '<?xml version="1.0" encoding="utf-8"?><testsuites>' > "$reports_dir/$result_file"
+                for xml_file in "$reports_dir"/test-reports-*.xml; do
+                  if [ -f "$xml_file" ]; then
+                    echo "  Processing: $xml_file"
+                    sed '1d; /^<testsuite/d; /^<\/testsuite/d' "$xml_file" >> "$reports_dir/$result_file" 2>/dev/null || true
+                  fi
+                done
+                echo '</testsuites>' >> "$reports_dir/$result_file"
+                echo "✅ Combined individual test reports into $result_file"
+              else
+                echo "❌ No test result files found, creating fallback"
+                echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"no_results_found\"><error message=\"No test results found\">Container may have failed to generate any results</error></testcase></testsuite>" > "$reports_dir/$result_file"
+              fi
+            else
+              echo "❌ Failed to copy any test results, creating fallback"
+              echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuite name=\"$container_name\" tests=\"0\" failures=\"0\" errors=\"1\" time=\"0\"><testcase classname=\"setup\" name=\"copy_failed\"><error message=\"Failed to copy test results\">Container may have failed to generate results</error></testcase></testsuite>" > "$reports_dir/$result_file"
+            fi
+          fi
+
+          # Clean up container
+          echo "🧹 Cleaning up Docker container..."
+          docker rm $container_name 2>/dev/null || echo "⚠️ Container cleanup failed, but continuing..."
+        }
+
+        # Call the function with provided parameters
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}"

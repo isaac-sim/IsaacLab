@@ -120,11 +120,11 @@ class _SoftDTWCUDA(Function):
     """
 
     @staticmethod
-    def forward(ctx, D, gamma, bandwidth):
+    def forward(ctx, D, device, gamma, bandwidth):
         dev = D.device
         dtype = D.dtype
-        gamma = torch.cuda.FloatTensor([gamma])
-        bandwidth = torch.cuda.FloatTensor([bandwidth])
+        gamma = torch.tensor([gamma], dtype=torch.float, device=device)
+        bandwidth = torch.tensor([bandwidth], dtype=torch.float, device=device)
 
         B = D.shape[0]
         N = D.shape[1]
@@ -255,7 +255,7 @@ class _SoftDTW(Function):
     """
 
     @staticmethod
-    def forward(ctx, D, gamma, bandwidth):
+    def forward(ctx, D, device, gamma, bandwidth):
         dev = D.device
         dtype = D.dtype
         gamma = torch.Tensor([gamma]).to(dev).type(dtype)  # dtype fixed
@@ -286,10 +286,11 @@ class SoftDTW(torch.nn.Module):
     The soft DTW implementation that optionally supports CUDA
     """
 
-    def __init__(self, use_cuda, gamma=1.0, normalize=False, bandwidth=None, dist_func=None):
+    def __init__(self, use_cuda, device, gamma=1.0, normalize=False, bandwidth=None, dist_func=None):
         """
         Initializes a new instance using the supplied parameters
         :param use_cuda: Flag indicating whether the CUDA implementation should be used
+        :param device: device to run the soft dtw computation
         :param gamma: sDTW's gamma parameter
         :param normalize: Flag indicating whether to perform normalization
                           (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
@@ -301,6 +302,7 @@ class SoftDTW(torch.nn.Module):
         self.gamma = gamma
         self.bandwidth = 0 if bandwidth is None else float(bandwidth)
         self.use_cuda = use_cuda
+        self.device = device
 
         # Set the distance function
         if dist_func is not None:
@@ -357,12 +359,12 @@ class SoftDTW(torch.nn.Module):
             x = torch.cat([X, X, Y])
             y = torch.cat([Y, X, Y])
             D = self.dist_func(x, y)
-            out = func_dtw(D, self.gamma, self.bandwidth)
+            out = func_dtw(D, self.device, self.gamma, self.bandwidth)
             out_xy, out_xx, out_yy = torch.split(out, X.shape[0])
             return out_xy - 1 / 2 * (out_xx + out_yy)
         else:
             D_xy = self.dist_func(X, Y)
-            return func_dtw(D_xy, self.gamma, self.bandwidth)
+            return func_dtw(D_xy, self.device, self.gamma, self.bandwidth)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

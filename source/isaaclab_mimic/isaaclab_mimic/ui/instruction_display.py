@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
+# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,10 +20,10 @@ from isaaclab.envs.mimic_env_cfg import MimicEnvCfg
 class InstructionDisplay:
     """Handles instruction display for different teleop devices."""
 
-    def __init__(self, teleop_device):
-        self.teleop_device = teleop_device.lower()
+    def __init__(self, xr: bool):
+        self.xr = xr
 
-        if self.teleop_device == "handtracking":
+        if self.xr:
             from isaaclab.ui.xr_widgets import show_instruction
 
             self._display_subtask = lambda text: show_instruction(

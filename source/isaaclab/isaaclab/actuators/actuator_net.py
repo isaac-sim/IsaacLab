@@ -24,7 +24,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):
@@ -79,8 +79,6 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
 
         # run network inference
         with torch.inference_mode():

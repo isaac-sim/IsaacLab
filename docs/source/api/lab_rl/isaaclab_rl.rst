@@ -1,4 +1,6 @@
-﻿isaaclab_rl
+﻿.. _api-isaaclab-rl:
+
+isaaclab_rl
 ===========
 
 .. automodule:: isaaclab_rl

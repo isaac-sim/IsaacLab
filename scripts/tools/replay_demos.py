@@ -61,11 +61,12 @@ import gymnasium as gym
 import os
 import torch
 
-from isaaclab.devices import Se3Keyboard
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -149,7 +150,7 @@ def main():
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
     teleop_interface.add_callback("N", play_cb)
     teleop_interface.add_callback("B", pause_cb)
     print('Press "B" to pause and "N" to resume the replayed actions.')

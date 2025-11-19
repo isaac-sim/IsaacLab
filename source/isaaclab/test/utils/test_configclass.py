@@ -643,6 +643,28 @@ def test_config_update_nested_dict():
     assert isinstance(cfg.list_1[1].viewer, ViewerCfg)
 
 
+def test_config_update_different_iterable_lengths():
+    """Iterables are whole replaced, even if their lengths are different."""
+
+    # original cfg has length-6 tuple and list
+    cfg = RobotDefaultStateCfg()
+    assert cfg.dof_pos == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    assert cfg.dof_vel == [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+    # patch uses different lengths
+    patch = {
+        "dof_pos": (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0),  # longer tuple
+        "dof_vel": [9.0, 8.0, 7.0],  # shorter list
+    }
+
+    # should not raise
+    update_class_from_dict(cfg, patch)
+
+    # whole sequences are replaced
+    assert cfg.dof_pos == (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0)
+    assert cfg.dof_vel == [9.0, 8.0, 7.0]
+
+
 def test_config_update_dict_using_internal():
     """Test updating configclass from a dictionary using configclass method."""
     cfg = BasicDemoCfg()

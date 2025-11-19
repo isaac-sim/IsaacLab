@@ -13,12 +13,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -43,6 +43,7 @@ def sim():
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_spawn_usd(sim):
     """Test loading prim from Usd file."""
     # Spawn cone
@@ -54,6 +55,7 @@ def test_spawn_usd(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
+@pytest.mark.isaacsim_ci
 def test_spawn_usd_fails(sim):
     """Test loading prim from Usd file fails when asset usd path is invalid."""
     # Spawn cone
@@ -63,6 +65,7 @@ def test_spawn_usd_fails(sim):
         cfg.func("/World/Franka", cfg)
 
 
+@pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
     # retrieve path to urdf importer extension
@@ -83,6 +86,7 @@ def test_spawn_urdf(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
+@pytest.mark.isaacsim_ci
 def test_spawn_ground_plane(sim):
     """Test loading prim for the ground plane from grid world USD."""
     # Spawn ground plane

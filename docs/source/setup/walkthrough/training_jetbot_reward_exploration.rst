@@ -20,7 +20,7 @@ the x axis, so we apply the ``root_link_quat_w`` to ``[1,0,0]`` to get the forwa
         observations = {"policy": obs}
         return observations
 
- So now what should the reward be?
+So now what should the reward be?
 
 When the robot is behaving as desired, it will be driving at full speed in the direction of the command. If we reward both
 "driving forward" and "alignment to the command", then maximizing that combined signal should result in driving to the command... right?
@@ -74,6 +74,8 @@ from linear algebra! Replace the contents of ``_get_observations`` with the foll
 
         observations = {"policy": obs}
         return observations
+
+We also need to **edit the ``IsaacLabTutorialEnvCfg`` to set the observation space back to 3** which includes the dot product, the z component of the cross product, and the forward speed.
 
 The dot or inner product tells us how aligned two vectors are as a single scalar quantity.  If they are very aligned and pointed in the same direction, then the inner
 product will be large and positive, but if they are aligned and in opposite directions, it will be large and negative.  If two vectors are

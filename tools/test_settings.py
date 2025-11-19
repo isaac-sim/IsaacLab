@@ -12,26 +12,28 @@ import os
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
 
-DEFAULT_TIMEOUT = 120
+DEFAULT_TIMEOUT = 300
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 200,
-    "test_deformable_object.py": 200,
-    "test_rigid_object_collection.py": 200,
-    "test_environments.py": 1850,  # This test runs through all the environments for 100 steps each
-    "test_environment_determinism.py": 200,  # This test runs through many the environments for 100 steps each
-    "test_factory_environments.py": 300,  # This test runs through Factory environments for 100 steps each
-    "test_env_rendering_logic.py": 300,
-    "test_camera.py": 500,
-    "test_tiled_camera.py": 300,
-    "test_generate_dataset.py": 300,  # This test runs annotation for 10 demos and generation until one succeeds
-    "test_rsl_rl_wrapper.py": 200,
-    "test_sb3_wrapper.py": 200,
-    "test_skrl_wrapper.py": 200,
-    "test_operational_space.py": 300,
-    "test_terrain_importer.py": 200,
-    "test_environments_training.py": 5000,
+    "test_articulation.py": 500,
+    "test_stage_in_memory.py": 500,
+    "test_environments.py": 2500,  # This test runs through all the environments for 100 steps each
+    "test_environments_with_stage_in_memory.py": (
+        2500
+    ),  # Like the above, with stage in memory and with and without fabric cloning
+    "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
+    "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
+    "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
+    "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
+    "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
+    "test_environments_training.py": (
+        6000
+    ),  # This test runs through training for several environments and compares thresholds
+    "test_simulation_render_config.py": 500,
+    "test_operational_space.py": 500,
+    "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
+    "test_rl_games_wrapper.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

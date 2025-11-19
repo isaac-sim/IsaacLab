@@ -23,10 +23,9 @@ The following details the behavior of the class based on the environment variabl
 * **Livestreaming**: If the environment variable ``LIVESTREAM={1,2}`` , then `livestream`_ is enabled. Any
   of the livestream modes being true forces the app to run in headless mode.
 
-  * ``LIVESTREAM=1`` [DEPRECATED] enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
-    connect through the Omniverse Streaming Client. This method is deprecated from Isaac Sim 4.5. Please use the WebRTC
-    livestreaming instead.
-  * ``LIVESTREAM=2`` enables streaming via the `WebRTC Livestream`_ extension. This allows users to
+  * ``LIVESTREAM=1`` enables streaming via the `WebRTC Livestream`_ extension over **public networks**. This allows users to
+    connect through the WebRTC Client using the WebRTC protocol.
+  * ``LIVESTREAM=2`` enables streaming via the `WebRTC Livestream`_ extension over **private and local networks**. This allows users to
     connect through the WebRTC Client using the WebRTC protocol.
 
   .. note::
@@ -55,16 +54,16 @@ To set the environment variables, one can use the following command in the termi
 
 .. code:: bash
 
-   export REMOTE_DEPLOYMENT=3
+   export LIVESTREAM=2
    export ENABLE_CAMERAS=1
    # run the python script
-   ./isaaclab.sh -p scripts/demo/play_quadrupeds.py
+   ./isaaclab.sh -p scripts/demos/quadrupeds.py
 
 Alternatively, one can set the environment variables to the python script directly:
 
 .. code:: bash
 
-   REMOTE_DEPLOYMENT=3 ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demo/play_quadrupeds.py
+   LIVESTREAM=2 ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demos/quadrupeds.py
 
 
 Overriding the environment variables
@@ -113,5 +112,4 @@ Simulation App Launcher
 
 
 .. _livestream: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
-.. _`Native Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated
 .. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
