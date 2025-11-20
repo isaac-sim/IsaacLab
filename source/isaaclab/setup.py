@@ -41,6 +41,7 @@ INSTALL_REQUIRES = [
     # testing
     "pytest",
     "pytest-mock",
+    "pytest-github-actions-annotate-failures",
     "junitparser",
     "flatdict==4.0.1",
     "flaky",
