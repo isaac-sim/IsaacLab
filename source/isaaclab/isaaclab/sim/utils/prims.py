@@ -311,11 +311,11 @@ def define_prim(prim_path: str, prim_type: str = "Xform", fabric: bool = False) 
     return get_current_stage(fabric=fabric).DefinePrim(prim_path, prim_type)
 
 
-def get_prim_type_name(prim_path: str, fabric: bool = False) -> str:
+def get_prim_type_name(prim_path: str | Usd.Prim, fabric: bool = False) -> str:
     """Get the TypeName of the USD Prim at the path if it is valid
 
     Args:
-        prim_path: path of the prim in the stage
+        prim_path: path of the prim in the stage or the prim it self
         fabric: True for fabric stage and False for USD stage. Defaults to False.
 
     Raises:
@@ -324,18 +324,49 @@ def get_prim_type_name(prim_path: str, fabric: bool = False) -> str:
     Returns:
         The TypeName of the USD Prim at the path string
 
-    Example:
 
-    .. code-block:: python
+    .. deprecated:: v3.0.0
+        The `get_prim_type_name` attribute is deprecated. please use from_prim_path_get_type_name or
+        from_prim_get_type_name.
+    """
+    logger.warning(
+        "get_prim_type_name is deprecated. Use from_prim_path_get_type_name or from_prim_get_type_name instead."
+    )
+    if isinstance(prim_path, Usd.Prim):
+        return from_prim_get_type_name(prim=prim_path, fabric=fabric)
+    else:
+        return from_prim_path_get_type_name(prim_path=prim_path, fabric=fabric)
 
-        >>> import isaaclab.utils.prims as prims_utils
-        >>>
-        >>> prims_utils.get_prim_type_name("/World/Cube")
-        Cube
+
+def from_prim_path_get_type_name(prim_path: str, fabric: bool = False) -> str:
+    """Get the TypeName of the USD Prim at the path if it is valid
+
+    Args:
+        prim_path: path of the prim in the stage
+        fabric: True for fabric stage and False for USD stage. Defaults to False.
+
+    Returns:
+        The TypeName of the USD Prim at the path string
     """
     if not is_prim_path_valid(prim_path, fabric=fabric):
         raise Exception(f"A prim does not exist at prim path: {prim_path}")
     prim = get_prim_at_path(prim_path, fabric=fabric)
+    if fabric:
+        return prim.GetTypeName()
+    else:
+        return prim.GetPrimTypeInfo().GetTypeName()
+
+
+def from_prim_get_type_name(prim: Usd.Prim, fabric: bool = False) -> str:
+    """Get the TypeName of the USD Prim at the path if it is valid
+
+    Args:
+        prim: the valid usd.Prim
+        fabric: True for fabric stage and False for USD stage. Defaults to False.
+
+    Returns:
+        The TypeName of the USD Prim at the path string
+    """
     if fabric:
         return prim.GetTypeName()
     else:

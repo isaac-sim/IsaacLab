@@ -304,7 +304,7 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> # Delete only the prims of type Cube
-        >>> predicate = lambda path: prims_utils.get_prim_type_name(path) == "Cube"
+        >>> predicate = lambda path: prims_utils.from_prim_path_get_type_name(path) == "Cube"
         >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.

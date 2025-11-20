@@ -161,7 +161,7 @@ def spawn_ground_plane(
         # Apply physics material to ground plane
         collision_prim_path = prim_utils.get_prim_path(
             prim_utils.get_first_matching_child_prim(
-                prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
+                prim_path, predicate=lambda x: prim_utils.from_prim_get_type_name(x) == "Plane"
             )
         )
         bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
