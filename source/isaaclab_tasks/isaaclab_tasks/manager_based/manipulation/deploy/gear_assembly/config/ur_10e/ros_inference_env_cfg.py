@@ -23,6 +23,8 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
         super().__post_init__()
 
         # Variables used by Isaac Manipulator for on robot inference
+        # These parameters allow the ROS inference node to validate environment configuration,
+        # perform checks during inference, and correctly interpret observations and actions.
         self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
         self.policy_action_space = "joint"
         self.arm_joint_names = [
@@ -49,8 +51,20 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
             self.joint_action_scale,
         ]
 
+        # Fixed asset parameters for ROS inference
+        # These parameters are used by the ROS inference node to validate the environment setup
+        # and apply appropriate noise models for robust real-world deployment.
+        self.fixed_asset_init_pos_center = [1.02, -0.21, -0.1]
+        self.fixed_asset_init_pos_range = [0.1, 0.25, 0.1]
+        self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
+        self.fixed_asset_init_orn_deg_range = [2.0, 2.0, 30.0]
+        self.fixed_asset_pos_obs_noise_level = [0.0025, 0.0025, 0.0025]
+
         # Override robot initial pose for ROS inference (fixed pose, no randomization)
-        # These joint positions are tuned for a good starting configuration
+        # These joint positions are tuned for a good starting configuration.
+        # Note: The policy is trained to work with respect to the UR robot's 'base' frame
+        # (rotated 180° around Z from base_link), not the base_link frame (USD origin).
+        # See: https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_description/doc/robot_frames.html
         self.scene.robot.init_state = ArticulationCfg.InitialStateCfg(
             joint_pos={
                 "shoulder_pan_joint": 2.7228,
@@ -108,6 +122,8 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
         super().__post_init__()
 
         # Variables used by Isaac Manipulator for on robot inference
+        # These parameters allow the ROS inference node to validate environment configuration,
+        # perform checks during inference, and correctly interpret observations and actions.
         # TODO: @ashwinvk: Remove these from env cfg once the generic inference node has been implemented
         self.obs_order = ["arm_dof_pos", "arm_dof_vel", "shaft_pos", "shaft_quat"]
         self.policy_action_space = "joint"
@@ -135,8 +151,20 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
             self.joint_action_scale,
         ]
 
+        # Fixed asset parameters for ROS inference
+        # These parameters are used by the ROS inference node to validate the environment setup
+        # and apply appropriate noise models for robust real-world deployment.
+        self.fixed_asset_init_pos_center = [1.02, -0.21, -0.1]
+        self.fixed_asset_init_pos_range = [0.1, 0.25, 0.1]
+        self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
+        self.fixed_asset_init_orn_deg_range = [2.0, 2.0, 30.0]
+        self.fixed_asset_pos_obs_noise_level = [0.0025, 0.0025, 0.0025]
+
         # Override robot initial pose for ROS inference (fixed pose, no randomization)
-        # These joint positions are tuned for a good starting configuration
+        # These joint positions are tuned for a good starting configuration.
+        # Note: The policy is trained to work with respect to the UR robot's 'base' frame
+        # (rotated 180° around Z from base_link), not the base_link frame (USD origin).
+        # See: https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_description/doc/robot_frames.html
         self.scene.robot.init_state = ArticulationCfg.InitialStateCfg(
             joint_pos={
                 "shoulder_pan_joint": 2.7228,
