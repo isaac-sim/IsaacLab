@@ -16,7 +16,7 @@ import torch
 class EpisodeData:
     """Class to store episode data."""
 
-    def __init__(self) -> None:
+    def __init__(self, early_cpu_offload: bool = False) -> None:
         """Initializes episode data class."""
         self._data = dict()
         self._next_action_index = 0
@@ -25,6 +25,7 @@ class EpisodeData:
         self._seed = None
         self._env_id = None
         self._success = None
+        self._early_cpu_offload = early_cpu_offload 
 
     @property
     def data(self):
@@ -105,6 +106,10 @@ class EpisodeData:
             for sub_key, sub_value in value.items():
                 self.add(f"{key}/{sub_key}", sub_value)
             return
+
+        # optionally offload tensors to CPU immediately
+        if isinstance(value, torch.Tensor) and self._early_cpu_offload:
+            value = value.detach().to("cpu")
 
         sub_keys = key.split("/")
         current_dataset_pointer = self._data
