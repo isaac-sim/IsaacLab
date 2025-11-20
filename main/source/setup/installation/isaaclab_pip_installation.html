@@ -814,30 +814,7 @@ from inside the virtual environment:</p>
 in the following commands.</p>
 </div>
 <ul>
-<li><p>Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-</pre></div>
-</div>
-</li>
-<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install the
-its Python 3.11 enabled fork:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
-</pre></div>
-</div>
-</li>
-<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
-</pre></div>
-</div>
-<p>In case you used UV to create your virtual environment, please replace <code class="docutils literal notranslate"><span class="pre">pip</span></code> with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code>
-in the following commands.</p>
-</li>
-<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
-</pre></div>
-</div>
-</li>
-<li><p>Install a CUDA-enabled PyTorch build that matches your system architecture:</p>
+<li><p>Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8 that matches your system architecture:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-x86_64" for="sd-tab-item-9">
@@ -876,6 +853,11 @@ Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch some
 removing the preload warnings during runtime.</p>
 </div>
 </div>
+</div>
+</li>
+<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
+</pre></div>
 </div>
 </li>
 <li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install
