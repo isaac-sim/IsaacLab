@@ -207,9 +207,9 @@ class SimulationCfg:
     - None or empty list: No visualizers will be created
 
     Supported visualizer backends:
-    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer (default)
+    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
     - OVVisualizerCfg: Omniverse-based high-fidelity visualizer
-    - RerunVisualizerCfg: Web-based Rerun visualizer
+    - RerunVisualizerCfg: Web-based Rerun visualizer with recording and replay
 
     Examples:
         # Disable all visualizers
