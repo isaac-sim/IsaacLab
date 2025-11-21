@@ -26,6 +26,9 @@ from isaacsim.core.utils.prims import is_prim_path_valid
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

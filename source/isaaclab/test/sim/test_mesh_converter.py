@@ -28,6 +28,9 @@ from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 def random_quaternion():
     # Generate four random numbers for the quaternion

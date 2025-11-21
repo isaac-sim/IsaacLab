@@ -23,7 +23,7 @@ from isaacsim.core.version import get_version
 """Rest everything follows."""
 
 import pytest
-from env_test_utils import _run_environments, setup_environment
+from env_test_utils import _run_environments, requires_pinocchio, setup_environment
 
 import isaaclab_tasks  # noqa: F401
 
@@ -51,6 +51,16 @@ def test_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_nam
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
+
+    # Skip tasks with Mimic or Skillgen in the name on Windows
+    if "Mimic" in task_name or "Skillgen" in task_name:
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (Mimic/Skillgen not supported)")
+
+    # Skip tasks that require pinocchio on Windows
+    if requires_pinocchio(task_name):
+        if sys.platform == "win32":
+            pytest.skip(f"Skipping {task_name} on Windows (requires pinocchio which is not supported)")
 
     # run environments with stage in memory
     _run_environments(task_name, device, num_envs, create_stage_in_memory=True, disable_clone_in_fabric=True)
