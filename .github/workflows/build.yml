@@ -246,12 +246,27 @@ jobs:
         $env:PYTHONIOENCODING = "utf-8"
         $env:WINDOWS_PLATFORM = "true"
 
+        # Additional Windows-specific environment variables for headless Isaac Sim
+        $env:CARB_APP_PATH = ""
+        $env:OMNI_KIT_FORCE_HEADLESS = "1"
+
+        Write-Host "=== Isaac Sim Installation Info ==="
         python -m pip show isaacsim
+
+        Write-Host "`n=== Testing Isaac Sim Import ==="
+        $importTest = python -c "import sys; print('Python version:', sys.version); print('Python path:', sys.executable); import isaacsim; print('Isaac Sim imported successfully')" 2>&1
+        Write-Host $importTest
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Isaac Sim import failed with exit code: $LASTEXITCODE"
+          Write-Host "This indicates Isaac Sim is not properly installed or configured."
+        }
 
         # Set environment variables for test filtering
         $env:TEST_RESULT_FILE = "general-tests-windows-report.xml"
         $env:TEST_EXCLUDE_PATTERN = "isaaclab_tasks"
 
+        Write-Host "`n=== Starting Test Execution ==="
         # Run tests using conftest.py which handles Windows-specific execution
         & python -m pytest tools `
           -v
@@ -259,14 +274,37 @@ jobs:
         $testExitCode = $LASTEXITCODE
         Write-Host "Tests completed with exit code: $testExitCode"
 
+        # Decode common Windows error codes
+        if ($testExitCode -eq 3221225477) {
+          Write-Host "ERROR: Exit code 0xC0000005 (STATUS_ACCESS_VIOLATION) - Isaac Sim crashed during initialization"
+          Write-Host "This typically indicates:"
+          Write-Host "  - GPU/Graphics driver issue"
+          Write-Host "  - Missing or incompatible DLLs"
+          Write-Host "  - Headless mode not properly configured"
+        } elseif ($testExitCode -eq -1073741819) {
+          Write-Host "ERROR: Exit code 0xC0000005 (alternative representation) - Access violation"
+        }
+
         # Check if report was generated
-        if (Test-Path "reports/general-tests-windows-report.xml") {
-          Write-Host "Test report generated successfully"
+        $reportPath = "tests\$env:TEST_RESULT_FILE"
+        if (Test-Path $reportPath) {
+          Write-Host "Test report generated successfully at: $reportPath"
+          # Copy to reports directory
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+          Copy-Item $reportPath "reports\" -Force
         } else {
-          Write-Host "Warning: Test report not found"
-          # Create a fallback report
-          $fallbackReport = '<?xml version="1.0" encoding="utf-8"?><testsuite name="windows-general-tests" tests="0" failures="0" errors="1" time="0"><testcase classname="setup" name="no_results_found"><error message="No test results found">Tests may have failed to generate results</error></testcase></testsuite>'
-          Set-Content -Path "reports/general-tests-windows-report.xml" -Value $fallbackReport
+          Write-Host "Warning: Test report not found at $reportPath"
+          Write-Host "Creating reports directory and fallback report..."
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+          # Create a fallback report with more detailed error info
+          $errorMessage = "Tests crashed with exit code $testExitCode"
+          if ($testExitCode -eq 3221225477) {
+            $errorMessage = "Tests crashed with ACCESS_VIOLATION (0xC0000005). Isaac Sim failed to initialize on Windows. This may be due to GPU/driver issues or headless configuration problems."
+          }
+
+          $fallbackReport = "<?xml version=`"1.0`" encoding=`"utf-8`"?><testsuite name=`"windows-general-tests`" tests=`"0`" failures=`"0`" errors=`"1`" time=`"0`"><testcase classname=`"setup`" name=`"test_execution_failed`"><error message=`"Test execution failed`">$errorMessage</error></testcase></testsuite>"
+          Set-Content -Path "reports\general-tests-windows-report.xml" -Value $fallbackReport
         }
 
     - name: Upload Windows General Test Results
