@@ -174,7 +174,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         to indicate when the navigation goal has been reached.
 
         Args:
-            env_id: The environment index to get the navigation state for. If None, all envs are considered.
+            env_ids: The environment index to get the navigation state for. If None, all envs are considered.
 
         Returns:
             A dictionary that of navigation state flags (False or True).
