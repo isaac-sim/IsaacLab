@@ -360,6 +360,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = _randomize_prop_by_op(
             masses, mass_distribution_params, env_ids, body_ids, operation=operation, distribution=distribution
         )
+        masses = torch.clamp(masses, min=1e-6)  # ensure masses are positive
 
         # set the mass into the physics simulation
         self.asset.root_physx_view.set_masses(masses, env_ids)
