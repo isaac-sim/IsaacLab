@@ -7,10 +7,12 @@
 # pinocchio is required by the Pink IK controller
 import sys
 
+import pytest
+
+# Skip all tests in this module on Windows - MUST be before any other imports
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 if sys.platform != "win32":
-    import pinocchio  # noqa: F401
-    import pinocchio as pin  # noqa: F401
-else:
     import pinocchio  # noqa: F401
     import pinocchio as pin  # noqa: F401
 
@@ -24,11 +26,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 
 import pytest
-from pink.configuration import Configuration
-from pink.tasks import FrameTask
-from pinocchio.robot_wrapper import RobotWrapper
 
-from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
+if sys.platform != "win32":
+    from pink.configuration import Configuration
+    from pink.tasks import FrameTask
+    from pinocchio.robot_wrapper import RobotWrapper
+
+    from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
 
 
 class TestNullSpacePostureTaskSimplifiedRobot:

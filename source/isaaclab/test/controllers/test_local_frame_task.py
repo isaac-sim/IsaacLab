@@ -8,6 +8,11 @@
 # pinocchio is required by the Pink IK controller
 import sys
 
+import pytest
+
+# Skip all tests in this module on Windows - MUST be before any other imports
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 if sys.platform != "win32":
     import pinocchio  # noqa: F401
 
@@ -19,11 +24,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 from pathlib import Path
 
-import pinocchio as pin
 import pytest
 
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
-from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
+if sys.platform != "win32":
+    import pinocchio as pin
+
+    from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
+    from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
 # class TestLocalFrameTask:
 #     """Test suite for LocalFrameTask class."""
