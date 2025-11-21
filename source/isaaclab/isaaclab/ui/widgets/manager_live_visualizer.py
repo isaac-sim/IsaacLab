@@ -68,6 +68,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._viewer_env_idx = 0
         self._vis_frame: omni.ui.Frame
         self._vis_window: omni.ui.Window
+        self._auto_expand_frames: bool = False  # Set by BaseEnvWindow if visualizer has enable_live_plots=True
 
         # evaluate chosen terms if no terms provided use all available.
         self.term_names = []
@@ -231,7 +232,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                     f"ManagerLiveVisualizer: Term ({name}) is not a supported data type for"
                                     " visualization."
                                 )
-                        frame.collapsed = True
+                        # Keep frames expanded if auto-expand is enabled (when visualizer has enable_live_plots=True)
+                        frame.collapsed = not self._auto_expand_frames
 
         self._debug_vis = debug_vis
 

@@ -1,0 +1,54 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Base configuration for visualizers."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .visualizer import Visualizer
+
+
+@configclass
+class VisualizerCfg:
+    """Base configuration for all visualizer backends."""
+
+    visualizer_type: str = "base"
+    """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
+
+    # Note: Partial environment visualization will come later
+    # env_ids: list[Integer] = []
+
+    enable_markers: bool = True
+    """Enable visualization markers (debug drawing)."""
+
+    enable_live_plots: bool = True
+    """Enable live plotting of data.
+
+    When set to True for OVVisualizer:
+    - Automatically checks the checkboxes for all manager visualizers (Actions, Observations, Rewards, etc.)
+    - Keeps the plot frames expanded by default (not collapsed)
+    - Makes the live plots visible immediately in the IsaacLab window (docked to the right of the viewport)
+
+    This provides a better out-of-the-box experience when you want to monitor training metrics.
+    """
+
+    def get_visualizer_type(self) -> str:
+        """Get the visualizer type identifier."""
+        return self.visualizer_type
+
+    def create_visualizer(self) -> Visualizer:
+        """Create visualizer instance from this config using factory pattern."""
+        from . import get_visualizer_class
+
+        visualizer_class = get_visualizer_class(self.visualizer_type)
+        if visualizer_class is None:
+            raise ValueError(f"Visualizer type '{self.visualizer_type}' is not registered.")
+
+        return visualizer_class(self)
