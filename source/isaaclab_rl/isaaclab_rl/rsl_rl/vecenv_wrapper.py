@@ -143,10 +143,7 @@ class RslRlVecEnvWrapper(VecEnv):
 
     def get_observations(self) -> TensorDict:
         """Returns the current observations of the environment."""
-        if hasattr(self.unwrapped, "observation_manager"):
-            obs_dict = self.unwrapped.observation_manager.compute()
-        else:
-            obs_dict = self.unwrapped._get_observations()
+        obs_dict = self.unwrapped._get_observations()
         return TensorDict(obs_dict, batch_size=[self.num_envs])
 
     def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:

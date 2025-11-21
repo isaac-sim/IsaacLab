@@ -164,6 +164,21 @@ class ActionTerm(ManagerTermBase):
         """
         raise NotImplementedError
 
+    def normalize_processed_actions(self, processed_actions: torch.Tensor) -> torch.Tensor:
+        """Maps the processed actions to the normalized action space.
+
+        This function takes processed (e.g., scaled or shifted) actions and applies the inverse
+        transformation to match the expected normalized action range outputted by the policy.
+
+        Args:
+            processed_actions: The processed actions, typically scaled or shifted of the policy output.
+        Returns:
+            A tensor of actions mapped back to the normalized action space.
+        """
+        raise NotImplementedError(
+            f"Normalizing of the processed actions is not implemented for {self.__class__.__name__}."
+        )
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
         This function is responsible for creating the visualization objects if they don't exist

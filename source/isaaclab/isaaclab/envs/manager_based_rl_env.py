@@ -210,7 +210,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         if len(self.recorder_manager.active_terms) > 0:
             # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
+            self.obs_buf = self._get_observations()
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
@@ -236,7 +236,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._get_observations(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras

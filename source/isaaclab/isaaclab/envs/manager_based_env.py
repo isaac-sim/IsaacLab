@@ -354,32 +354,7 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
-
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
-
-        # set the seed
-        if seed is not None:
-            self.seed(seed)
-
-        # reset state of scene
-        self._reset_idx(env_ids)
-
-        # update articulation kinematics
-        self.scene.write_data_to_sim()
-        self.sim.forward()
-        # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
-            for _ in range(self.cfg.num_rerenders_on_reset):
-                self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
-
-        # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._reset(env_ids, None, seed)
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -394,7 +369,7 @@ class ManagerBasedEnv:
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,
-    ):
+    ) -> tuple[VecEnvObs, dict]:
         """Resets specified environments to provided states.
 
         This function resets the environments to the provided states. The state is a dictionary
@@ -409,40 +384,16 @@ class ManagerBasedEnv:
                 :meth:`InteractiveScene.get_state` for the format.
             env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            is_relative: If set to True, the state is considered relative to the environment origins.
-                Defaults to False.
+            is_relative: If True, the state is considered relative to the environment origins. Defaults to False.
+
+        Returns:
+            A tuple containing the observations and extras.
         """
-        # reset all envs in the scene if env_ids is None
-        if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        if state is None:
+            raise ValueError("state cannot be None!")
 
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
+        self.obs_buf = self._reset(env_ids, state, seed, is_relative)
 
-        # set the seed
-        if seed is not None:
-            self.seed(seed)
-
-        self._reset_idx(env_ids)
-
-        # set the state
-        self.scene.reset_to(state, env_ids, is_relative=is_relative)
-
-        # update articulation kinematics
-        self.sim.forward()
-
-        # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
-            for _ in range(self.cfg.num_rerenders_on_reset):
-                self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
-
-        # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
-
-        # return observations
         return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
@@ -491,7 +442,7 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._get_observations(update_history=True)
         self.recorder_manager.record_post_step()
 
         # return observations and extras
@@ -548,6 +499,83 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
+
+    def _get_observations(self, update_history: bool = False) -> VecEnvObs:
+        """
+        Computes and returns the current observation dictionary for the environment.
+
+        Args:
+            update_history: The boolean indicator without return obs should be appended to observation history.
+                Default to False, in which case calling compute_group does not modify history. This input is no-ops
+                if the group's history_length == 0.
+
+        Returns:
+            A dictionary containing the full set of observations.
+        """
+        return self.observation_manager.compute(update_history)
+
+    def _reset(
+        self,
+        env_ids: Sequence[int] | None,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]] | None = None,
+        seed: int | None = None,
+        is_relative: bool = False,
+    ) -> VecEnvObs:
+        """Reset the specified environments to a given or randomized state.
+
+        If a ``state`` is provided, the environments are restored accordingly.
+        Otherwise, they are reset using the environment randomization logic.
+
+        This function calls the :meth:`_reset_idx` function to reset the specified environments.
+        However, certain operations, such as procedural terrain generation, that happened during initialization
+        are not repeated.
+
+        Args:
+            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            state: The state is a dictionary containing the state of the scene entities. Defaults to None.
+                Please refer to :meth:`InteractiveScene.get_state` for the format.
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            is_relative: If True, the state is considered relative to the environment origins. Defaults to False.
+
+        Returns:
+            A dictionary containing the full set of observations.
+        """
+        # reset all envs in the scene if env_ids is None
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+
+        # trigger recorder terms for pre-reset calls
+        self.recorder_manager.record_pre_reset(env_ids)
+
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+
+        # reset state of scene
+        self._reset_idx(env_ids)
+
+        # set the state
+        if state is None:
+            self.scene.write_data_to_sim()
+        else:
+            self.scene.reset_to(state, env_ids, is_relative=is_relative)
+
+        # update articulation kinematics
+        self.sim.forward()
+
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
+
+        # compute observations
+        self.obs_buf = self._get_observations(update_history=True)
+
+        # return observations
+        return self.obs_buf
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+0.48.6 (2025-11-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.envs.manager_based_env._get_observations` to standardize observation retrieval in RslRlVecEnvWrapper
+* Added _EXCLUDED_CFG_KEYS class-level constant to list configuration fields skipped during term parsing.
+* Added :meth:`~isaaclab.managers.action_manager.normalize_processed_actions`
+* Implemented action normalization with :meth:`~isaaclab.envs.mdp.actions.joint_action.normalization_processed_action`.
+* Explicitly marked normalization as unsupported for :class:`~isaaclab.managers.action_manager.RelativeJointPositionAction`.
+
+Changed
+^^^^^^^
+
+* Introduced :meth:`~isaaclab.envs.manager_based_env._reset` as a unified helper handling both randomized and state-based resets.
+* Replaced duplicated logic in :meth:`~isaaclab.envs.manager_based_env.reset` and
+  :meth:`~isaaclab.envs.manager_based_env.reset_to` with calls to :meth:`~isaaclab.envs.manager_based_env._reset`
+* Refactored hardcoded lists within :meth:`~isaaclab.managers.observation_manager._prepare_terms`.
+
+
 0.48.5 (2025-11-14)
 ~~~~~~~~~~~~~~~~~~~
 
