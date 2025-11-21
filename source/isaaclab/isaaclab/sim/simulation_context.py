@@ -580,14 +580,19 @@ class SimulationContext(_SimulationContext):
             try:
                 visualizer = viz_cfg.create_visualizer()
 
-                # Pass scene data including provider
-                scene_data = {
-                    "simulation_context": self,
-                    "usd_stage": self.stage,
-                    "scene_data_provider": self._scene_data_provider,
-                }
+                # Build scene data dict with only what this visualizer needs
+                scene_data = {}
                 
-                # Initialize visualizer with scene data
+                # Newton and Rerun visualizers only need scene_data_provider
+                if viz_cfg.visualizer_type in ("newton", "rerun"):
+                    scene_data["scene_data_provider"] = self._scene_data_provider
+                
+                # OV visualizer needs USD stage and simulation context
+                elif viz_cfg.visualizer_type == "omniverse":
+                    scene_data["usd_stage"] = self.stage
+                    scene_data["simulation_context"] = self
+                
+                # Initialize visualizer with minimal required data
                 visualizer.initialize(scene_data)
                 self._visualizers.append(visualizer)
                 omni.log.info(
