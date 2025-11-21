@@ -34,7 +34,6 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -96,18 +95,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        env_cfg.sim.visualizer_cfgs = []
-    else:
-        # For play mode, ensure train_mode=False on all visualizers
-        if env_cfg.sim.visualizer_cfgs is not None:
-            if isinstance(env_cfg.sim.visualizer_cfgs, list):
-                for viz_cfg in env_cfg.sim.visualizer_cfgs:
-                    viz_cfg.train_mode = False
-            else:
-                env_cfg.sim.visualizer_cfgs.train_mode = False
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

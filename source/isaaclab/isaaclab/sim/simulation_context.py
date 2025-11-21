@@ -33,9 +33,10 @@ from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
+from .scene_data_provider import SceneDataProvider
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
-from .visualizers import Visualizer
+from isaaclab.visualizers import Visualizer
 
 
 class SimulationContext(_SimulationContext):
@@ -253,9 +254,10 @@ class SimulationContext(_SimulationContext):
             self._app_control_on_stop_handle = None
         self._disable_app_control_on_stop_handle = False
 
-        # initialize visualizers
+        # initialize visualizers and scene data provider
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
+        self._scene_data_provider: SceneDataProvider | None = None
         # flag for skipping prim deletion callback
         # when stage in memory is attached
         self._skip_next_prim_deletion_callback_fn = False
@@ -538,9 +540,11 @@ class SimulationContext(_SimulationContext):
         return self._settings.get(name)
 
     def forward(self) -> None:
-        """Updates articulation kinematics and fabric for rendering."""
+        """Updates articulation kinematics and scene data for rendering."""
         NewtonManager.forward_kinematics()
-        NewtonManager.sync_fabric_transforms()
+        # Update scene data provider (syncs fabric transforms if needed)
+        if self._scene_data_provider:
+            self._scene_data_provider.update()
 
     def initialize_visualizers(self) -> None:
         """Initialize all configured visualizers.
@@ -550,7 +554,14 @@ class SimulationContext(_SimulationContext):
         - A single VisualizerCfg: Creates one visualizer
         - A list of VisualizerCfg: Creates multiple visualizers
         - None or empty list: No visualizers are created
+        
+        Note:
+            Visualizers are automatically skipped when running in headless mode.
         """
+        # Skip visualizers in headless mode
+        if not self._has_gui and not self._offscreen_render:
+            return
+        
         # Handle different input formats
         visualizer_cfgs = []
         if self.cfg.visualizer_cfgs is not None:
@@ -559,15 +570,21 @@ class SimulationContext(_SimulationContext):
             else:
                 visualizer_cfgs = [self.cfg.visualizer_cfgs]
 
+        # Create scene data provider with visualizer configs
+        # Provider will determine which backends are active
+        if visualizer_cfgs:
+            self._scene_data_provider = SceneDataProvider(visualizer_cfgs)
+
         # Create and initialize each visualizer
         for viz_cfg in visualizer_cfgs:
             try:
                 visualizer = viz_cfg.create_visualizer()
 
-                # Pass minimal generic scene data - visualizers fetch backend-specific data themselves
+                # Pass scene data including provider
                 scene_data = {
                     "simulation_context": self,
                     "usd_stage": self.stage,
+                    "scene_data_provider": self._scene_data_provider,
                 }
                 
                 # Initialize visualizer with scene data
@@ -1030,7 +1047,7 @@ def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
         >>> if args_cli.visualize:
         ...     sim_utils.enable_visualizers(env_cfg)
     """
-    from isaaclab.sim.visualizers import NewtonVisualizerCfg
+    from isaaclab.visualizers import NewtonVisualizerCfg
     
     if env_cfg.sim.visualizer_cfgs is None:
         env_cfg.sim.visualizer_cfgs = NewtonVisualizerCfg()

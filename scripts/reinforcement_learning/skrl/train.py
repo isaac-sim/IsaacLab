@@ -44,7 +44,6 @@ parser.add_argument(
     choices=["AMP", "PPO", "IPPO", "MAPPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -113,12 +112,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        # Explicitly disable visualizers when --viz is not provided
-        env_cfg.sim.visualizer_cfgs = []
-    # else: use the default visualizer_cfgs from the environment config
 
     # multi-gpu training config
     if args_cli.distributed:

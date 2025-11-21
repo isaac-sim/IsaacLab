@@ -22,8 +22,9 @@ class VisualizerCfg:
     visualizer_type: str = "base"
     """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
 
-    env_ids_to_viz: list[int] | None = None
-    """Environment IDs to visualize. None = all environments."""
+    # TODO: Partial visualization will be implemented through a new cloner feature
+    # that allows filtering environments at the simulation level rather than per-visualizer.
+    # This approach will be more efficient and consistent across all visualizers.
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""

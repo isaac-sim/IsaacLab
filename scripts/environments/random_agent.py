@@ -18,7 +18,6 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -54,11 +53,6 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        # Explicitly disable visualizers when --viz is not provided
-        env_cfg.sim.visualizer_cfgs = []
-    # else: use the default visualizer_cfgs from the environment config
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 

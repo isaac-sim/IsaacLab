@@ -54,6 +54,8 @@ INSTALL_REQUIRES = [
     # "newton @ git+https://github.com/newton-physics/newton.git@c4baa06c3e8ea0a3090037b2b197e9aa453265f1",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
+    # visualizers
+    "rerun-sdk",
 ]
 
 # Additional dependencies that are only available on Linux platforms

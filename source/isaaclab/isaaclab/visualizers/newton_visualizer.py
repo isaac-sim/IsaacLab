@@ -25,11 +25,10 @@ class NewtonViewerGL(ViewerGL):
     - Rendering pause: Stops rendering updates, continues physics (SPACE key)
     """
 
-    def __init__(self, *args, train_mode: bool = True, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
-        self._is_train_mode = train_mode
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
@@ -51,22 +50,18 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_training_controls(self, imgui):
         imgui.separator()
+        imgui.text("IsaacLab Controls")
         
-        if self._is_train_mode:
-            imgui.text("IsaacLab Training Controls")
-            pause_label = "Resume Training" if self._paused_training else "Pause Training"
-        else:
-            imgui.text("IsaacLab Playback Controls")
-            pause_label = "Resume Playing" if self._paused_training else "Pause Playing"
-        
+        # Pause training/simulation button
+        pause_label = "Resume Training" if self._paused_training else "Pause Training"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
 
-        if self._is_train_mode:
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
-            if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
+        # Pause rendering button
+        rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+        if imgui.button(rendering_label):
+            self._paused_rendering = not self._paused_rendering
+            self._paused = self._paused_rendering
 
         # Visualizer update frequency control
         imgui.text("Visualizer Update Frequency")
@@ -251,17 +246,28 @@ class NewtonVisualizer(Visualizer):
         self._model = None
         self._state = None
         self._update_frequency = cfg.update_frequency
+        self._scene_data_provider = None
 
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize visualizer with scene data."""
         if self._is_initialized:
             return
 
-        # Fetch Newton-specific data from NewtonManager
+        # Import NewtonManager for metadata access
         from isaaclab.sim._impl.newton_manager import NewtonManager
         
-        self._model = NewtonManager._model
-        self._state = NewtonManager._state_0
+        # Store scene data provider for accessing physics state
+        if scene_data and "scene_data_provider" in scene_data:
+            self._scene_data_provider = scene_data["scene_data_provider"]
+        
+        # Get Newton-specific data from scene data provider
+        if self._scene_data_provider:
+            self._model = self._scene_data_provider.get_model()
+            self._state = self._scene_data_provider.get_state()
+        else:
+            # Fallback: direct access to NewtonManager (for backward compatibility)
+            self._model = NewtonManager._model
+            self._state = NewtonManager._state_0
         
         if self._model is None:
             raise RuntimeError(
@@ -277,11 +283,10 @@ class NewtonVisualizer(Visualizer):
             "clone_physics_only": NewtonManager._clone_physics_only,
         }
 
-        # Create the viewer with train_mode and metadata
+        # Create the viewer with metadata
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
-            train_mode=self.cfg.train_mode,
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
@@ -311,13 +316,7 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.sky_lower = self.cfg.ground_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
-        # Setup partial visualization (env_ids_to_viz filtering)
-        if self.cfg.env_ids_to_viz is not None:
-            num_envs = metadata.get("num_envs", 0)
-            self._setup_env_filtering(num_envs)
-            omni.log.info(
-                f"[NewtonVisualizer] Partial visualization: {len(self.cfg.env_ids_to_viz)}/{num_envs} environments"
-            )
+        # TODO: Partial visualization will be implemented through a new cloner feature
 
         self._is_initialized = True
 
@@ -329,9 +328,13 @@ class NewtonVisualizer(Visualizer):
         self._sim_time += dt
         self._step_counter += 1
         
-        # Fetch updated state from NewtonManager
-        from isaaclab.sim._impl.newton_manager import NewtonManager
-        self._state = NewtonManager._state_0
+        # Fetch updated state from scene data provider
+        if self._scene_data_provider:
+            self._state = self._scene_data_provider.get_state()
+        else:
+            # Fallback: direct access to NewtonManager
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            self._state = NewtonManager._state_0
 
         # Only update visualizer at the specified frequency
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
@@ -383,34 +386,4 @@ class NewtonVisualizer(Visualizer):
             return False
         return self._viewer.is_rendering_paused()
     
-    def _setup_env_filtering(self, num_envs: int) -> None:
-        """Setup environment filtering using world offsets.
-        
-        NOTE: This uses visualization-only offsets that do NOT affect physics simulation.
-        Newton's world_offsets only shift the rendered position of environments, not their
-        physical positions. This is confirmed by Newton's test_visual_separation test.
-        
-        Current approach: Moves non-visualized environments far away (10000 units) to hide them.
-        This works but is not ideal. Future improvements could include:
-        - Proper culling at the viewer level
-        - Selective state logging (only log visualized envs)
-        - Custom rendering callbacks
-        
-        Args:
-            num_envs: Total number of environments.
-        """
-        import warp as wp
-        
-        # Create world offsets array (use viewer's device, not renderer's)
-        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
-        offsets_np = offsets.numpy()
-        
-        # Move non-visualized environments far away (visualization-only, doesn't affect physics)
-        visualized_set = set(self.cfg.env_ids_to_viz)
-        for world_idx in range(num_envs):
-            if world_idx not in visualized_set:
-                offsets_np[world_idx] = (10000.0, 10000.0, 10000.0)
-        
-        offsets.assign(offsets_np)
-        self._viewer.world_offsets = offsets
 

@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
-from .visualizers import VisualizerCfg, NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
 
 
 @configclass
@@ -219,13 +219,13 @@ class SimulationCfg:
         cfg = SimulationCfg()
         
         # Single custom visualizer
-        from isaaclab.sim.visualizers import OVVisualizerCfg
+        from isaaclab.visualizers import OVVisualizerCfg
         cfg = SimulationCfg(visualizer_cfgs=OVVisualizerCfg())
         
         # Multiple visualizers with custom configuration
-        from isaaclab.sim.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
+        from isaaclab.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
         cfg = SimulationCfg(visualizer_cfgs=[
-            NewtonVisualizerCfg(env_ids_to_viz=[0], camera_position=(10.0, 0.0, 3.0)),
+            NewtonVisualizerCfg(camera_position=(10.0, 0.0, 3.0)),
             RerunVisualizerCfg(server_address="127.0.0.1:9876")
         ])
     

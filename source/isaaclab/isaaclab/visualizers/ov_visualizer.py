@@ -69,14 +69,11 @@ class OVVisualizer(Visualizer):
         self._ensure_simulation_app()
         self._setup_viewport(usd_stage, metadata)
         
-        # Setup partial visualization (env_ids_to_viz filtering)
-        num_envs = metadata.get("num_envs", 0)
-        if self.cfg.env_ids_to_viz is not None:
-            self._setup_env_filtering(usd_stage, metadata, num_envs)
+        # TODO: Partial visualization will be implemented through a new cloner feature
         
+        num_envs = metadata.get("num_envs", 0)
         physics_backend = metadata.get("physics_backend", "unknown")
-        viz_envs = len(self.cfg.env_ids_to_viz) if self.cfg.env_ids_to_viz else num_envs
-        omni.log.info(f"[OVVisualizer] Initialized ({viz_envs}/{num_envs} envs, {physics_backend} physics)")
+        omni.log.info(f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)")
         
         self._is_initialized = True
     
@@ -367,46 +364,3 @@ class OVVisualizer(Visualizer):
         except Exception as e:
             omni.log.warn(f"[OVVisualizer] Could not set camera: {e}")
     
-    def _setup_env_filtering(self, usd_stage, metadata: dict, num_envs: int) -> None:
-        """Setup environment filtering by hiding non-visualized environment prims.
-        
-        WIP: Sets USD visibility to 'invisible' for non-visualized environments.
-        Future: Could use more sophisticated culling or instancing techniques.
-        
-        Args:
-            usd_stage: The USD stage.
-            metadata: Scene metadata containing environment prim paths.
-            num_envs: Total number of environments.
-        """
-        try:
-            from pxr import UsdGeom
-            
-            # Get environment prim pattern from metadata
-            # Default pattern assumes envs are at /World/envs/env_*
-            env_prim_pattern = metadata.get("env_prim_pattern", "/World/envs/env_{}")
-            
-            visualized_set = set(self.cfg.env_ids_to_viz)
-            hidden_count = 0
-            
-            for env_idx in range(num_envs):
-                if env_idx not in visualized_set:
-                    # Format the environment prim path
-                    env_path = env_prim_pattern.format(env_idx)
-                    prim = usd_stage.GetPrimAtPath(env_path)
-                    
-                    if prim.IsValid():
-                        # Make the prim invisible
-                        imageable = UsdGeom.Imageable(prim)
-                        if imageable:
-                            imageable.MakeInvisible()
-                            hidden_count += 1
-                    else:
-                        omni.log.warn(f"[OVVisualizer] Environment prim not found: {env_path}")
-            
-            omni.log.info(
-                f"[OVVisualizer] Partial visualization enabled: "
-                f"hidden {hidden_count} environments, showing {len(self.cfg.env_ids_to_viz)}/{num_envs}"
-            )
-            
-        except Exception as e:
-            omni.log.warn(f"[OVVisualizer] Failed to setup environment filtering: {e}")

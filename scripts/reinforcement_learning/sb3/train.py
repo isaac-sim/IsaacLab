@@ -32,7 +32,6 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -113,12 +112,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        # Explicitly disable visualizers when --viz is not provided
-        env_cfg.sim.visualizer_cfgs = []
-    # else: use the default visualizer_cfgs from the environment config
 
     # directory for logging into
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

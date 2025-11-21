@@ -29,7 +29,6 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging.")
 # Joint ordering arguments
 parser.add_argument(
     "--policy_transfer_file",
@@ -149,11 +148,6 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        # Explicitly disable visualizers when --viz is not provided
-        env_cfg.sim.visualizer_cfgs = []
-    # else: use the default visualizer_cfgs from the environment config
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(task_name, args_cli)
 
     # specify directory for logging experiments

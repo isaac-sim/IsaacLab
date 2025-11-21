@@ -46,12 +46,8 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         metadata: dict | None = None,
         enable_markers: bool = True,
         enable_live_plots: bool = True,
-        env_ids_to_viz: list[int] | None = None,
     ):
         """Initialize Newton ViewerRerun wrapper."""
-        if not _RERUN_AVAILABLE:
-            raise ImportError("Rerun visualizer requires rerun-sdk and Newton. Install: pip install rerun-sdk")
-        
         # Call parent with only Newton parameters
         super().__init__(
             server=server,
@@ -67,7 +63,6 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         self._metadata = metadata or {}
         self._enable_markers = enable_markers
         self._enable_live_plots = enable_live_plots
-        self._env_ids_to_viz = env_ids_to_viz
         
         # Storage for registered markers and plots
         self._registered_markers = []
@@ -87,11 +82,6 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
         # Environment info
         num_envs = self._metadata.get("num_envs", 0)
         metadata_text += f"**Total Environments:** {num_envs}\n"
-        
-        if self._env_ids_to_viz is not None:
-            metadata_text += f"**Visualized Environments:** {len(self._env_ids_to_viz)} (IDs: {self._env_ids_to_viz[:5]}...)\n"
-        else:
-            metadata_text += f"**Visualized Environments:** All ({num_envs})\n"
         
         # Physics backend info
         physics_backend = self._metadata.get("physics_backend", "unknown")
@@ -266,6 +256,7 @@ class RerunVisualizer(Visualizer):
         self._state = None
         self._is_initialized = False
         self._sim_time = 0.0
+        self._scene_data_provider = None
     
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize visualizer with Newton Model and State."""
@@ -273,11 +264,21 @@ class RerunVisualizer(Visualizer):
             omni.log.warn("[RerunVisualizer] Already initialized. Skipping re-initialization.")
             return
         
-        # Fetch Newton-specific data from NewtonManager
+        # Import NewtonManager for metadata access
         from isaaclab.sim._impl.newton_manager import NewtonManager
         
-        self._model = NewtonManager._model
-        self._state = NewtonManager._state_0
+        # Store scene data provider for accessing physics state
+        if scene_data and "scene_data_provider" in scene_data:
+            self._scene_data_provider = scene_data["scene_data_provider"]
+        
+        # Get Newton-specific data from scene data provider
+        if self._scene_data_provider:
+            self._model = self._scene_data_provider.get_model()
+            self._state = self._scene_data_provider.get_state()
+        else:
+            # Fallback: direct access to NewtonManager (for backward compatibility)
+            self._model = NewtonManager._model
+            self._state = NewtonManager._state_0
         
         # Validate required Newton data
         if self._model is None:
@@ -316,22 +317,18 @@ class RerunVisualizer(Visualizer):
                 metadata=metadata,
                 enable_markers=self.cfg.enable_markers,
                 enable_live_plots=self.cfg.enable_live_plots,
-                env_ids_to_viz=self.cfg.env_ids_to_viz,
             )
             
             # Set the model
             self._viewer.set_model(self._model)
             
-            # Setup partial visualization (env_ids_to_viz filtering)
-            num_envs = metadata.get("num_envs", 0)
-            if self.cfg.env_ids_to_viz is not None:
-                self._setup_env_filtering(num_envs)
+            # TODO: Partial visualization will be implemented through a new cloner feature
             
             # Log initialization
-            viz_envs = len(self.cfg.env_ids_to_viz) if self.cfg.env_ids_to_viz else num_envs
+            num_envs = metadata.get("num_envs", 0)
             physics_backend = metadata.get("physics_backend", "newton")
             omni.log.info(
-                f"[RerunVisualizer] Initialized with {viz_envs}/{num_envs} environments "
+                f"[RerunVisualizer] Initialized with {num_envs} environments "
                 f"(physics: {physics_backend})"
             )
             
@@ -350,23 +347,21 @@ class RerunVisualizer(Visualizer):
         3. Actively logs markers (if enabled)
         4. Actively logs plot data (if enabled)
         
-        Implementation Note:
-            Partial visualization (env_ids_to_viz) is handled internally by filtering
-            which instance transforms are logged. We log all meshes once (they're
-            shared assets), but only log transforms for selected environments.
-        
         Args:
             dt: Time step in seconds.
             state: Unused (deprecated parameter, kept for API compatibility).
-        """e
-        
+        """
         if not self._is_initialized or self._viewer is None:
             omni.log.warn("[RerunVisualizer] Not initialized. Call initialize() first.")
             return
         
-        # Fetch updated state from NewtonManager
-        from isaaclab.sim._impl.newton_manager import NewtonManager
-        self._state = NewtonManager._state_0
+        # Fetch updated state from scene data provider
+        if self._scene_data_provider:
+            self._state = self._scene_data_provider.get_state()
+        else:
+            # Fallback: direct access to NewtonManager
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            self._state = NewtonManager._state_0
         
         # Update internal time
         self._sim_time += dt
@@ -468,39 +463,4 @@ class RerunVisualizer(Visualizer):
         if self._viewer:
             self._viewer.register_plots(plots)
     
-    def _setup_env_filtering(self, num_envs: int) -> None:
-        """Setup environment filtering using world offsets.
-        
-        NOTE: This uses visualization-only offsets that do NOT affect physics simulation.
-        Newton's world_offsets only shift the rendered/logged position of environments, not their
-        physical positions. This is confirmed by Newton's test_visual_separation test.
-        
-        Current approach: Moves non-visualized environments far away (10000 units) to hide them.
-        This works but is not ideal. Future improvements could include:
-        - Proper filtering at the logging level (only log selected env transforms)
-        - Custom logging callbacks for partial visualization
-        - State slicing before logging
-        
-        Args:
-            num_envs: Total number of environments.
-        """
-        import warp as wp
-        
-        # Create world offsets array
-        offsets = wp.zeros(num_envs, dtype=wp.vec3, device=self._viewer.device)
-        offsets_np = offsets.numpy()
-        
-        # Move non-visualized environments far away (visualization-only, doesn't affect physics)
-        visualized_set = set(self.cfg.env_ids_to_viz)
-        for world_idx in range(num_envs):
-            if world_idx not in visualized_set:
-                offsets_np[world_idx] = (10000.0, 10000.0, 10000.0)
-        
-        offsets.assign(offsets_np)
-        self._viewer.world_offsets = offsets
-        
-        omni.log.info(
-            f"[RerunVisualizer] Partial visualization enabled: "
-            f"{len(self.cfg.env_ids_to_viz)}/{num_envs} environments"
-        )
 

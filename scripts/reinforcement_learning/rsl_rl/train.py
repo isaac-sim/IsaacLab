@@ -32,7 +32,6 @@ parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
-parser.add_argument("--viz", action="store_true", default=False, help="Enable visualization for monitoring and debugging")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -119,12 +118,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-
-    # set visualizers based on --viz flag
-    if not args_cli.viz:
-        # Explicitly disable visualizers when --viz is not provided
-        env_cfg.sim.visualizer_cfgs = []
-    # else: use the default visualizer_cfgs from the environment config
 
     # multi-gpu training configuration
     if args_cli.distributed:

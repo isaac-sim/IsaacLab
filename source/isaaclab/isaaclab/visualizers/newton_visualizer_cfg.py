@@ -37,9 +37,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z)."""
 
-    train_mode: bool = True
-    """Training mode (True) shows rendering pause controls, play mode (False) hides them."""
-
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""
 
