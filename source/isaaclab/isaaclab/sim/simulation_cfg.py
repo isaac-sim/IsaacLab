@@ -200,8 +200,9 @@ class SimulationCfg:
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
     """Visualizer settings. Default is no visualizer.
 
-    This field supports multiple visualizer backends for debug visualization and monitoring
-    during simulation. It accepts:
+    Visualizers are separate from Renderers and intended for light-weight monitoring and debugging.
+
+    This field can support multiple visualizer backends. It accepts:
     - A single VisualizerCfg: One visualizer will be created
     - A list of VisualizerCfg: Multiple visualizers will be created
     - None or empty list: No visualizers will be created
@@ -228,11 +229,6 @@ class SimulationCfg:
             NewtonVisualizerCfg(camera_position=(10.0, 0.0, 3.0)),
             RerunVisualizerCfg(server_address="127.0.0.1:9876")
         ])
-
-    Note:
-        Visualizers are separate from rendering backends (for cameras/sensors).
-        They are intended for debug visualization and monitoring only.
-        Visualizers are automatically initialized in SimulationContext during reset().
     """
 
     create_stage_in_memory: bool = False
