@@ -248,14 +248,13 @@ jobs:
 
         python -m pip show isaacsim
 
-        # Run tests using isaaclab.bat with pytest
-        # Run pytest directly with filter to exclude isaaclab_tasks
+        # Set environment variables for test filtering
+        $env:TEST_RESULT_FILE = "general-tests-windows-report.xml"
+        $env:TEST_EXCLUDE_PATTERN = "isaaclab_tasks"
+
+        # Run tests using conftest.py which handles Windows-specific execution
         & python -m pytest tools `
-          --ignore=tools/conftest.py `
-          -m "windows" `
-          -k "not isaaclab_tasks" `
-          -v `
-          --junitxml=reports/general-tests-windows-report.xml
+          -v
 
         $testExitCode = $LASTEXITCODE
         Write-Host "Tests completed with exit code: $testExitCode"
