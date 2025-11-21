@@ -246,7 +246,7 @@ class FrameTransformer(SensorBase):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
+        body_names_regex = [tracked_prim_path.replace("env_0", "env_.*") for tracked_prim_path in tracked_prim_paths]
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()

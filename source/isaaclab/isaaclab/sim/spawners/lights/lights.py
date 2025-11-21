@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 from pxr import Usd, UsdLux
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:

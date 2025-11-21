@@ -10,10 +10,11 @@ from typing import Any, TypeAlias
 
 import omni.kit.commands
 import omni.ui as ui
-from isaacsim.core.utils.prims import delete_prim, get_prim_at_path
 from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
 from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
 from pxr import Gf
+
+from isaaclab.sim.utils.prims import delete_prim, get_prim_at_path
 
 Vec3Type: TypeAlias = Gf.Vec3f | Gf.Vec3d
 
