@@ -31,12 +31,12 @@ from pxr import Usd
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
+from isaaclab.visualizers import Visualizer
 
-from .simulation_cfg import SimulationCfg
 from .scene_data_provider import SceneDataProvider
+from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
-from isaaclab.visualizers import Visualizer
 
 
 class SimulationContext(_SimulationContext):
@@ -548,20 +548,20 @@ class SimulationContext(_SimulationContext):
 
     def initialize_visualizers(self) -> None:
         """Initialize all configured visualizers.
-        
+
         This method creates and initializes visualizers based on the configuration provided
         in SimulationCfg.visualizer_cfgs. It supports:
         - A single VisualizerCfg: Creates one visualizer
         - A list of VisualizerCfg: Creates multiple visualizers
         - None or empty list: No visualizers are created
-        
+
         Note:
             Visualizers are automatically skipped when running in headless mode.
         """
         # Skip visualizers in headless mode
         if not self._has_gui and not self._offscreen_render:
             return
-        
+
         # Handle different input formats
         visualizer_cfgs = []
         if self.cfg.visualizer_cfgs is not None:
@@ -582,36 +582,32 @@ class SimulationContext(_SimulationContext):
 
                 # Build scene data dict with only what this visualizer needs
                 scene_data = {}
-                
+
                 # Newton and Rerun visualizers only need scene_data_provider
                 if viz_cfg.visualizer_type in ("newton", "rerun"):
                     scene_data["scene_data_provider"] = self._scene_data_provider
-                
+
                 # OV visualizer needs USD stage and simulation context
                 elif viz_cfg.visualizer_type == "omniverse":
                     scene_data["usd_stage"] = self.stage
                     scene_data["simulation_context"] = self
-                
+
                 # Initialize visualizer with minimal required data
                 visualizer.initialize(scene_data)
                 self._visualizers.append(visualizer)
-                omni.log.info(
-                    f"Initialized visualizer: {type(visualizer).__name__} "
-                    f"(type: {viz_cfg.visualizer_type})"
-                )
+                omni.log.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
 
             except Exception as e:
                 omni.log.error(
-                    f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' "
-                    f"({type(viz_cfg).__name__}): {e}"
+                    f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' ({type(viz_cfg).__name__}): {e}"
                 )
 
     def step_visualizers(self, dt: float) -> None:
         """Update all active visualizers.
-        
+
         This method steps all initialized visualizers and updates their state.
         It also handles visualizer pause states and removes closed visualizers.
-        
+
         Args:
             dt: Time step in seconds.
         """
@@ -635,11 +631,8 @@ class SimulationContext(_SimulationContext):
                     # Visualizers fetch backend-specific state themselves
                     visualizer.step(0.0, state=None)
 
-                # Skip rendering if visualizer has rendering paused
-                if visualizer.is_rendering_paused():
-                    continue
-
-                # Normal step: visualizers fetch backend-specific state themselves
+                # Always call step to process events, even if rendering is paused
+                # The visualizer's step() method handles pause state internally
                 visualizer.step(dt, state=None)
 
             except Exception as e:
@@ -662,7 +655,7 @@ class SimulationContext(_SimulationContext):
                 visualizer.close()
             except Exception as e:
                 omni.log.error(f"Error closing visualizer '{type(visualizer).__name__}': {e}")
-        
+
         self._visualizers.clear()
         omni.log.info("All visualizers closed")
 
@@ -705,11 +698,11 @@ class SimulationContext(_SimulationContext):
         if not soft:
             for _ in range(2):
                 self.render()
-        
+
         # Initialize visualizers after simulation is set up (only on first reset)
         if not soft and not self._visualizers:
             self.initialize_visualizers()
-        
+
         self._disable_app_control_on_stop_handle = False
 
     def step(self, render: bool = True):
@@ -861,7 +854,7 @@ class SimulationContext(_SimulationContext):
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
             # close all visualizers
-            if hasattr(cls._instance, '_visualizers'):
+            if hasattr(cls._instance, "_visualizers"):
                 cls._instance.close_visualizers()
         # call parent to clear the instance
         super().clear_instance()
@@ -1040,23 +1033,23 @@ def build_simulation_context(
 
 def enable_visualizers(env_cfg, train_mode: bool = True) -> None:
     """Enable visualizers for an environment configuration.
-    
+
     Sets visualizers to Newton OpenGL if none configured, and sets train_mode.
-    
+
     Args:
         env_cfg: Environment configuration (DirectRLEnvCfg or ManagerBasedRLEnvCfg) to modify.
         train_mode: Whether to run visualizers in training mode (True) or play/inference mode (False).
-    
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>> if args_cli.visualize:
         ...     sim_utils.enable_visualizers(env_cfg)
     """
     from isaaclab.visualizers import NewtonVisualizerCfg
-    
+
     if env_cfg.sim.visualizer_cfgs is None:
         env_cfg.sim.visualizer_cfgs = NewtonVisualizerCfg()
-    
+
     # Set train_mode on all configured visualizers
     if isinstance(env_cfg.sim.visualizer_cfgs, list):
         for viz_cfg in env_cfg.sim.visualizer_cfgs:

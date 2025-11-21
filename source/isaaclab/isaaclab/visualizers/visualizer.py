@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class Visualizer(ABC):
     """Base class for all visualizer backends.
-    
+
     Lifecycle: __init__() -> initialize() -> step() (repeated) -> close()
     """
 
@@ -34,7 +34,7 @@ class Visualizer(ABC):
     @abstractmethod
     def step(self, dt: float, state: Any | None = None) -> None:
         """Update visualization for one step.
-        
+
         Args:
             dt: Time step in seconds.
             state: Updated physics state (e.g., newton.State).
@@ -68,12 +68,11 @@ class Visualizer(ABC):
     def is_closed(self) -> bool:
         """Check if close() has been called."""
         return self._is_closed
-    
+
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers."""
         return False
-    
+
     def supports_live_plots(self) -> bool:
         """Check if visualizer supports LivePlots."""
         return False
-

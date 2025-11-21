@@ -12,10 +12,10 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
+from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, VisualizerCfg
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
-from isaaclab.visualizers import VisualizerCfg, NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
 
 
 @configclass
@@ -198,38 +198,42 @@ class SimulationCfg:
     """Render settings. Default is RenderCfg()."""
 
     # visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = NewtonVisualizerCfg()
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = [OVVisualizerCfg(), NewtonVisualizerCfg()]
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = [
+        OVVisualizerCfg(),
+        NewtonVisualizerCfg(),
+        RerunVisualizerCfg(),
+    ]
     """Visualizer settings. Default is NewtonVisualizerCfg().
-    
+
     This field supports multiple visualizer backends for debug visualization and monitoring
     during simulation. It accepts:
     - A single VisualizerCfg: One visualizer will be created
     - A list of VisualizerCfg: Multiple visualizers will be created
     - None or empty list: No visualizers will be created
-    
+
     Supported visualizer backends:
     - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer (default)
-    - OVVisualizerCfg: Omniverse-based high-fidelity visualizer  
+    - OVVisualizerCfg: Omniverse-based high-fidelity visualizer
     - RerunVisualizerCfg: Web-based Rerun visualizer
-    
+
     Examples:
         # Disable all visualizers
         cfg.sim.visualizer_cfgs = []
-        
+
         # Use default visualizer (NewtonVisualizerCfg)
         cfg = SimulationCfg()
-        
+
         # Single custom visualizer
         from isaaclab.visualizers import OVVisualizerCfg
         cfg = SimulationCfg(visualizer_cfgs=OVVisualizerCfg())
-        
+
         # Multiple visualizers with custom configuration
         from isaaclab.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
         cfg = SimulationCfg(visualizer_cfgs=[
             NewtonVisualizerCfg(camera_position=(10.0, 0.0, 3.0)),
             RerunVisualizerCfg(server_address="127.0.0.1:9876")
         ])
-    
+
     Note:
         Visualizers are separate from rendering backends (for cameras/sensors).
         They are intended for debug visualization and monitoring only.

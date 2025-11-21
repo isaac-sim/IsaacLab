@@ -25,17 +25,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-# Import base classes first
-from .visualizer import Visualizer
-from .visualizer_cfg import VisualizerCfg
-
 # Import config classes (no circular dependency)
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .ov_visualizer_cfg import OVVisualizerCfg
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
+# Import base classes first
+from .visualizer import Visualizer
+from .visualizer_cfg import VisualizerCfg
+
 if TYPE_CHECKING:
     from typing import Type
+
     from .newton_visualizer import NewtonVisualizer
     from .ov_visualizer import OVVisualizer
     from .rerun_visualizer import RerunVisualizer
@@ -52,19 +53,20 @@ __all__ = [
     "get_visualizer_class",
 ]
 
+
 # Register only selected visualizers to reduce unnecessary imports
-def get_visualizer_class(name: str) -> Type[Visualizer] | None:
+def get_visualizer_class(name: str) -> type[Visualizer] | None:
     """Get a visualizer class by name (lazy-loaded).
-    
+
     Visualizer classes are imported only when requested to avoid loading
     unnecessary dependencies.
-    
+
     Args:
         name: Visualizer type name (e.g., 'newton', 'rerun', 'omniverse', 'ov').
-    
+
     Returns:
         Visualizer class if found, None otherwise.
-    
+
     Example:
         >>> visualizer_cls = get_visualizer_class('newton')
         >>> if visualizer_cls:
@@ -73,20 +75,23 @@ def get_visualizer_class(name: str) -> Type[Visualizer] | None:
     # Check if already loaded
     if name in _VISUALIZER_REGISTRY:
         return _VISUALIZER_REGISTRY[name]
-    
+
     # Lazy-load visualizer on first access
     try:
         if name == "newton":
             from .newton_visualizer import NewtonVisualizer
+
             _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
             return NewtonVisualizer
         elif name in ("omniverse", "ov"):
             from .ov_visualizer import OVVisualizer
+
             _VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
             _VISUALIZER_REGISTRY["ov"] = OVVisualizer  # Alias
             return OVVisualizer
         elif name == "rerun":
             from .rerun_visualizer import RerunVisualizer
+
             _VISUALIZER_REGISTRY["rerun"] = RerunVisualizer
             return RerunVisualizer
         else:
@@ -94,6 +99,6 @@ def get_visualizer_class(name: str) -> Type[Visualizer] | None:
     except ImportError as e:
         # Log import error but don't crash - visualizer just won't be available
         import warnings
+
         warnings.warn(f"Failed to load visualizer '{name}': {e}", ImportWarning)
         return None
-

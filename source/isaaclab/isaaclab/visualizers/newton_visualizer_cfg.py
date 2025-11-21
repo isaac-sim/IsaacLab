@@ -15,10 +15,10 @@ from .visualizer_cfg import VisualizerCfg
 @configclass
 class NewtonVisualizerCfg(VisualizerCfg):
     """Configuration for Newton OpenGL visualizer.
-    
+
     Lightweight OpenGL-based visualizer with real-time 3D rendering, interactive
     camera controls, and debug visualization (contacts, joints, springs, COM).
-    
+
     Requires: pyglet >= 2.1.6, imgui_bundle >= 1.92.0
     """
 

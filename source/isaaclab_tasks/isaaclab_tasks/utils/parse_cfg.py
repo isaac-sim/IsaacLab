@@ -136,7 +136,7 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
-    
+
     Note:
         Visualizer configuration should be done via Hydra command line arguments.
         Example: ``env.sim.visualizer_cfgs=isaaclab.visualizers:NewtonVisualizerCfg``

@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import contextlib
+from typing import Any
 
-import omni.log
 import warp as wp
 from newton.viewer import ViewerGL
 
@@ -19,7 +19,7 @@ from .visualizer import Visualizer
 
 class NewtonViewerGL(ViewerGL):
     """Wrapper around Newton's ViewerGL with training/rendering pause controls.
-    
+
     Adds two pause modes:
     - Training pause: Stops physics simulation, continues rendering
     - Rendering pause: Stops rendering updates, continues physics (SPACE key)
@@ -43,15 +43,11 @@ class NewtonViewerGL(ViewerGL):
 
     def is_rendering_paused(self) -> bool:
         return self._paused_rendering
-    
-    def is_paused(self) -> bool:
-        # duplicate to above for now
-        return self._paused_rendering
 
     def _render_training_controls(self, imgui):
         imgui.separator()
         imgui.text("IsaacLab Controls")
-        
+
         # Pause training/simulation button
         pause_label = "Resume Training" if self._paused_training else "Pause Training"
         if imgui.button(pause_label):
@@ -61,7 +57,7 @@ class NewtonViewerGL(ViewerGL):
         rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused_rendering = not self._paused_rendering
-            self._paused = self._paused_rendering
+            self._paused = self._paused_rendering  # Sync with parent class pause state
 
         # Visualizer update frequency control
         imgui.text("Visualizer Update Frequency")
@@ -89,7 +85,7 @@ class NewtonViewerGL(ViewerGL):
 
         if symbol == pyglet.window.key.SPACE:
             self._paused_rendering = not self._paused_rendering
-            self._paused = self._paused_rendering
+            self._paused = self._paused_rendering  # Sync with parent class pause state
             return
 
         super().on_key_press(symbol, modifiers)
@@ -233,7 +229,7 @@ class NewtonViewerGL(ViewerGL):
 
 class NewtonVisualizer(Visualizer):
     """Newton OpenGL visualizer for Isaac Lab.
-    
+
     Lightweight OpenGL-based visualization with training/rendering pause controls.
     """
 
@@ -255,11 +251,11 @@ class NewtonVisualizer(Visualizer):
 
         # Import NewtonManager for metadata access
         from isaaclab.sim._impl.newton_manager import NewtonManager
-        
+
         # Store scene data provider for accessing physics state
         if scene_data and "scene_data_provider" in scene_data:
             self._scene_data_provider = scene_data["scene_data_provider"]
-        
+
         # Get Newton-specific data from scene data provider
         if self._scene_data_provider:
             self._model = self._scene_data_provider.get_model()
@@ -268,13 +264,10 @@ class NewtonVisualizer(Visualizer):
             # Fallback: direct access to NewtonManager (for backward compatibility)
             self._model = NewtonManager._model
             self._state = NewtonManager._state_0
-        
+
         if self._model is None:
-            raise RuntimeError(
-                "Newton visualizer requires Newton Model. "
-                "Ensure Newton physics is initialized first."
-            )
-        
+            raise RuntimeError("Newton visualizer requires Newton Model. Ensure Newton physics is initialized first.")
+
         # Build metadata from NewtonManager
         metadata = {
             "physics_backend": "newton",
@@ -316,8 +309,6 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.sky_lower = self.cfg.ground_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
-        # TODO: Partial visualization will be implemented through a new cloner feature
-
         self._is_initialized = True
 
     def step(self, dt: float, state: Any | None = None) -> None:
@@ -327,13 +318,14 @@ class NewtonVisualizer(Visualizer):
 
         self._sim_time += dt
         self._step_counter += 1
-        
+
         # Fetch updated state from scene data provider
         if self._scene_data_provider:
             self._state = self._scene_data_provider.get_state()
         else:
             # Fallback: direct access to NewtonManager
             from isaaclab.sim._impl.newton_manager import NewtonManager
+
             self._state = NewtonManager._state_0
 
         # Only update visualizer at the specified frequency
@@ -341,7 +333,7 @@ class NewtonVisualizer(Visualizer):
         if self._step_counter % update_frequency != 0:
             return
 
-        try:
+        with contextlib.suppress(Exception):
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
                 if self._state is not None:
@@ -349,8 +341,6 @@ class NewtonVisualizer(Visualizer):
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
-        except Exception:
-            pass
 
     def close(self) -> None:
         """Close visualizer and clean up resources."""
@@ -365,14 +355,14 @@ class NewtonVisualizer(Visualizer):
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return False
         return self._viewer.is_running()
-    
+
     def supports_markers(self) -> bool:
-        """Newton visualizer does not support USD-based markers."""
+        """Newton visualizer does not have this feature yet."""
         return False
-    
+
     def supports_live_plots(self) -> bool:
-        """Newton visualizer supports ImGui-based plots."""
-        return True
+        """Newton visualizer does not have this feature yet."""
+        return False
 
     def is_training_paused(self) -> bool:
         """Check if training is paused."""
@@ -385,5 +375,3 @@ class NewtonVisualizer(Visualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
-    
-

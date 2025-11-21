@@ -81,7 +81,9 @@ from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 def main():
     """Play with stable-baselines agent."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric)
+    env_cfg = parse_env_cfg(
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    )
 
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")

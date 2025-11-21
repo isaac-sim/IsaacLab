@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
@@ -22,21 +22,20 @@ class VisualizerCfg:
     visualizer_type: str = "base"
     """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
 
-    # TODO: Partial visualization will be implemented through a new cloner feature
-    # that allows filtering environments at the simulation level rather than per-visualizer.
-    # This approach will be more efficient and consistent across all visualizers.
+    # Note: Partial environment visualization will come later
+    # env_ids: list[Integer] = []
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 
     enable_live_plots: bool = True
     """Enable live plotting of data.
-    
+
     When set to True for OVVisualizer:
     - Automatically checks the checkboxes for all manager visualizers (Actions, Observations, Rewards, etc.)
     - Keeps the plot frames expanded by default (not collapsed)
     - Makes the live plots visible immediately in the IsaacLab window (docked to the right of the viewport)
-    
+
     This provides a better out-of-the-box experience when you want to monitor training metrics.
     """
 
@@ -51,7 +50,5 @@ class VisualizerCfg:
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
             raise ValueError(f"Visualizer type '{self.visualizer_type}' is not registered.")
-        
+
         return visualizer_class(self)
-
-

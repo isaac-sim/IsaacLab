@@ -52,7 +52,7 @@ def main():
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
-    
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 

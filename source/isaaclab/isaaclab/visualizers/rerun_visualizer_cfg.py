@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -15,7 +20,7 @@ from .visualizer_cfg import VisualizerCfg
 @configclass
 class RerunVisualizerCfg(VisualizerCfg):
     """Configuration for Rerun visualizer (web-based visualization).
-    
+
     Provides time scrubbing, 3D navigation, data filtering, and .rrd recording.
     Requires Newton physics backend and rerun-sdk: `pip install rerun-sdk`
     """
@@ -43,4 +48,3 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
-

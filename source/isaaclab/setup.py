@@ -51,11 +51,11 @@ INSTALL_REQUIRES = [
     "mujoco>=3.3.8.dev821851540",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@bbd757cace561de47512b560517ee728c8416de5",
     "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
-    # "newton @ git+https://github.com/newton-physics/newton.git@c4baa06c3e8ea0a3090037b2b197e9aa453265f1",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
-    # visualizers
-    "rerun-sdk",
+    # Note, this older version of rerun causes the view to flash dark & light
+    # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
+    "rerun-sdk==0.23",
 ]
 
 # Additional dependencies that are only available on Linux platforms
