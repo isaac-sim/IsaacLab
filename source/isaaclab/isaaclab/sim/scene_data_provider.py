@@ -17,6 +17,33 @@ if TYPE_CHECKING:
     from newton import Model, State
 
 
+# Lazy import warp dependencies for OV visualizer support
+def _get_warp_kernel():
+    """Get the warp kernel for syncing fabric transforms.
+    
+    Returns the kernel only when warp is available, avoiding import errors
+    when warp is not installed.
+    """
+    try:
+        import warp as wp
+        
+        # Define warp kernel for syncing transforms
+        @wp.kernel(enable_backward=False)
+        def set_vec3d_array(
+            fabric_vals: wp.fabricarray(dtype=wp.mat44d),
+            indices: wp.fabricarray(dtype=wp.uint32),
+            newton_vals: wp.array(ndim=1, dtype=wp.transformf),
+        ):
+            i = int(wp.tid())
+            idx = int(indices[i])
+            new_val = newton_vals[idx]
+            fabric_vals[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(new_val)))
+        
+        return set_vec3d_array
+    except ImportError:
+        return None
+
+
 class SceneDataProvider:
     """Unified scene data provider for all physics and rendering backends.
     
@@ -108,16 +135,47 @@ class SceneDataProvider:
     def _sync_fabric_transforms(self) -> None:
         """Sync Newton transforms to USD Fabric for OV visualizer.
         
-        This method calls NewtonManager.sync_fabric_transforms() to update the
-        USD Fabric with the latest physics transforms. This allows the OV visualizer
-        to render the scene without additional data transfer.
+        This method updates the USD Fabric with the latest physics transforms from Newton.
+        It uses a warp kernel to efficiently copy transform data on the GPU.
+        
+        The sync process:
+        1. Selects USD prims that have both worldMatrix and newton index attributes
+        2. Creates fabric arrays for transforms and indices
+        3. Launches warp kernel to copy Newton body transforms to USD Fabric
         
         Note:
             This is only called when OV visualizer is active to avoid unnecessary GPU work.
         """
+        # Get warp kernel (lazy loaded)
+        set_vec3d_array = _get_warp_kernel()
+        if set_vec3d_array is None:
+            return
+        
         try:
+            import usdrt
+            import warp as wp
             from isaaclab.sim._impl.newton_manager import NewtonManager
-            NewtonManager.sync_fabric_transforms()
-        except ImportError:
+            
+            # Select all prims with required attributes
+            selection = NewtonManager._usdrt_stage.SelectPrims(
+                require_attrs=[
+                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+                    (usdrt.Sdf.ValueTypeNames.UInt, NewtonManager._newton_index_attr, usdrt.Usd.Access.Read),
+                ],
+                device="cuda:0",
+            )
+            
+            # Create fabric arrays for indices and transforms
+            fabric_newton_indices = wp.fabricarray(selection, NewtonManager._newton_index_attr)
+            current_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+            
+            # Launch warp kernel to sync transforms
+            wp.launch(
+                set_vec3d_array,
+                dim=(fabric_newton_indices.shape[0]),
+                inputs=[current_transforms, fabric_newton_indices, NewtonManager._state_0.body_q],
+                device="cuda:0",
+            )
+        except (ImportError, AttributeError):
+            # Silently fail if Newton isn't initialized or attributes are missing
             pass
-

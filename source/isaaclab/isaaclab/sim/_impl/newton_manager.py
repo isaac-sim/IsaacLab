@@ -34,18 +34,6 @@ def flipped_match(x: str, y: str) -> re.Match | None:
     return re.match(y, x)
 
 
-@wp.kernel(enable_backward=False)
-def set_vec3d_array(
-    fabric_vals: wp.fabricarray(dtype=wp.mat44d),
-    indices: wp.fabricarray(dtype=wp.uint32),
-    newton_vals: wp.array(ndim=1, dtype=wp.transformf),
-):
-    i = int(wp.tid())
-    idx = int(indices[i])
-    new_val = newton_vals[idx]
-    fabric_vals[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(new_val)))
-
-
 class NewtonManager:
     _builder: ModelBuilder = None
     _model: Model = None
@@ -291,28 +279,6 @@ class NewtonManager:
             dt (float): The simulation time step.
         """
         NewtonManager._dt = dt
-
-    @classmethod
-    def sync_fabric_transforms(cls) -> None:
-        """Syncs the fabric transforms with the Newton state.
-
-        This function syncs the fabric transforms with the Newton state.
-        """
-        selection = NewtonManager._usdrt_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
-                (usdrt.Sdf.ValueTypeNames.UInt, NewtonManager._newton_index_attr, usdrt.Usd.Access.Read),
-            ],
-            device="cuda:0",
-        )
-        fabric_newton_indices = wp.fabricarray(selection, NewtonManager._newton_index_attr)
-        current_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
-        wp.launch(
-            set_vec3d_array,
-            dim=(fabric_newton_indices.shape[0]),
-            inputs=[current_transforms, fabric_newton_indices, NewtonManager._state_0.body_q],
-            device="cuda:0",
-        )
 
     @classmethod
     def get_model(cls):
