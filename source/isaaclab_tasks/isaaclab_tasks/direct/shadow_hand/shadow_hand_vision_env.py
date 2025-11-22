@@ -41,8 +41,8 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=7)
 
@@ -64,8 +64,8 @@ class ShadowHandVisionRGBEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=3)
 
@@ -86,8 +86,8 @@ class ShadowHandVisionDiffuseAlbedoEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=3)
 
@@ -109,8 +109,8 @@ class ShadowHandVisionSimpleShadingEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=3)
 
@@ -132,8 +132,8 @@ class ShadowHandVisionDepthEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=1)
 
@@ -155,8 +155,8 @@ class ShadowHandVisionSegmentationEnvCfg(ShadowHandEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=240,
-        height=240,
+        width=120,
+        height=120,
     )
     feature_extractor = FeatureExtractorCfg(num_channel=3)
 
@@ -216,82 +216,32 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
 
         object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
 
-        # If requested, write out camera images using the feature extractor's utilities
-        if getattr(self.feature_extractor.cfg, "write_image_to_file", False):
-            rgb_img = self._tiled_camera.data.output["rgb"] if "rgb" in self.cfg.tiled_camera.data_types else None
-            depth_img = self._tiled_camera.data.output["depth"] if "depth" in self.cfg.tiled_camera.data_types else None
-            segmentation_img = (
-                self._tiled_camera.data.output["semantic_segmentation"][..., :3]
-                if "semantic_segmentation" in self.cfg.tiled_camera.data_types
-                else None
-            )
-            albedo_img = (
-                self._tiled_camera.data.output["diffuse_albedo"]
-                if "diffuse_albedo" in self.cfg.tiled_camera.data_types
-                else None
-            )
-            simple_shading_img = (
-                self._tiled_camera.data.output["simple_shading"]
-                if "simple_shading" in self.cfg.tiled_camera.data_types
-                else None
-            )
-
-            pre_rgb, pre_depth, pre_seg, pre_albedo, pre_simple_shading = self.feature_extractor._preprocess_images(
-                rgb_img, depth_img, segmentation_img, albedo_img, simple_shading_img
-            )
-            self.feature_extractor._save_images(pre_rgb, pre_depth, pre_seg, pre_albedo, pre_simple_shading)
-
         # train CNN to regress on keypoint positions
-        # if (
-        #     "rgb" in self.cfg.tiled_camera.data_types
-        #     and "depth" in self.cfg.tiled_camera.data_types
-        #     and "semantic_segmentation" in self.cfg.tiled_camera.data_types
-        # ):
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         self._tiled_camera.data.output["rgb"],
-        #         self._tiled_camera.data.output["depth"],
-        #         self._tiled_camera.data.output["semantic_segmentation"][..., :3],
-        #         object_pose,
-        #     )
-        # elif "rgb" in self.cfg.tiled_camera.data_types:
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         rgb_img=self._tiled_camera.data.output["rgb"], gt_pose=object_pose
-        #     )
-        # elif "depth" in self.cfg.tiled_camera.data_types:
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         depth_img=self._tiled_camera.data.output["depth"], gt_pose=object_pose
-        #     )
-        # elif "semantic_segmentation" in self.cfg.tiled_camera.data_types:
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         segmentation_img=self._tiled_camera.data.output["semantic_segmentation"][..., :3], gt_pose=object_pose
-        #     )
-        # elif "diffuse_albedo" in self.cfg.tiled_camera.data_types:
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         albedo_img=self._tiled_camera.data.output["diffuse_albedo"], gt_pose=object_pose
-        #     )
-        # elif "simple_shading" in self.cfg.tiled_camera.data_types:
-        #     pose_loss, embeddings = self.feature_extractor.step(
-        #         simple_shading_img=self._tiled_camera.data.output["simple_shading"], gt_pose=object_pose
-        #     )
+        pose_loss, embeddings = self.feature_extractor.step(
+            self._tiled_camera.data.output["rgb"],
+            self._tiled_camera.data.output["depth"],
+            self._tiled_camera.data.output["semantic_segmentation"][..., :3],
+            object_pose,
+        )
 
-        # self.embeddings = embeddings.clone().detach()
-        # # compute keypoints for goal cube
-        # compute_keypoints(
-        #     pose=torch.cat((torch.zeros_like(self.goal_pos), self.goal_rot), dim=-1), out=self.goal_keypoints
-        # )
+        self.embeddings = embeddings.clone().detach()
+        # compute keypoints for goal cube
+        compute_keypoints(
+            pose=torch.cat((torch.zeros_like(self.goal_pos), self.goal_rot), dim=-1), out=self.goal_keypoints
+        )
 
         obs = torch.cat(
             (
-                # self.embeddings,
-                object_pose,
+                self.embeddings,
                 self.goal_keypoints.view(-1, 24),
             ),
             dim=-1,
         )
+
         # log pose loss from CNN training
-        # if "log" not in self.extras:
-        #     self.extras["log"] = dict()
-        # self.extras["log"]["pose_loss"] = pose_loss
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["pose_loss"] = pose_loss
 
         return obs
 
@@ -319,8 +269,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
     def _compute_states(self):
         """Asymmetric states for the critic."""
         sim_states = self.compute_full_state()
-        # state = torch.cat((sim_states, self.embeddings), dim=-1)
-        state = sim_states
+        state = torch.cat((sim_states, self.embeddings), dim=-1)
         return state
 
     def _get_observations(self) -> dict:
