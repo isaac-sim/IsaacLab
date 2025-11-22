@@ -189,12 +189,28 @@ class TiledCamera(Camera):
         )
         self._render_product_paths = [rp.path]
 
+        rep.AnnotatorRegistry.register_annotator_from_aov(
+            aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+        )
+        rep.AnnotatorRegistry.register_annotator_from_aov(
+            aov="SimpleShadingSD", output_data_type=np.uint8, output_channels=4
+        )
         # Define the annotators based on requested data types
         self._annotators = dict()
         for annotator_type in self.cfg.data_types:
             if annotator_type == "rgba" or annotator_type == "rgb":
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
                 self._annotators["rgba"] = annotator
+            elif annotator_type == "diffuse_albedo":
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                )
+                self._annotators["diffuse_albedo"] = annotator
+            elif annotator_type == "simple_shading":
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "SimpleShadingSD", device=self.device, do_array_copy=False
+                )
+                self._annotators["simple_shading"] = annotator
             elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
                 # keep depth for backwards compatibility
                 annotator = rep.AnnotatorRegistry.get_annotator(
@@ -254,13 +270,16 @@ class TiledCamera(Camera):
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=self.device)
 
-            # process data for different segmentation types
+            # process data for different segmentation types and custom annotators
             # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
             #   so we need to convert them to uint8 4 channel images for colorized types
+            # Note: Custom annotators (diffuse_albedo, simple_shading) also return 4 channel data
             if (
                 (data_type == "semantic_segmentation" and self.cfg.colorize_semantic_segmentation)
                 or (data_type == "instance_segmentation_fast" and self.cfg.colorize_instance_segmentation)
                 or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
+                or data_type == "diffuse_albedo"
+                or data_type == "simple_shading"
             ):
                 tiled_data_buffer = wp.array(
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
@@ -270,6 +289,13 @@ class TiledCamera(Camera):
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+
+            # For diffuse albedo, keep only the first three channels (RGB)
+            if data_type == "diffuse_albedo":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            # For simple shading, keep only the first three channels (RGB)
+            if data_type == "simple_shading":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,
@@ -347,6 +373,16 @@ class TiledCamera(Camera):
         if "rgb" in self.cfg.data_types:
             # RGB is the first 3 channels of RGBA
             data_dict["rgb"] = data_dict["rgba"][..., :3]
+        if "diffuse_albedo" in self.cfg.data_types:
+            data_dict["diffuse_albedo"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
+            data_dict["diffuse_albedo"] = data_dict["diffuse_albedo"][..., :3]
+        if "simple_shading" in self.cfg.data_types:
+            data_dict["simple_shading"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
+            data_dict["simple_shading"] = data_dict["simple_shading"][..., :3]
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32

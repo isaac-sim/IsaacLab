@@ -64,6 +64,63 @@ gym.register(
     },
 )
 
+
+gym.register(
+    id="Isaac-Repose-Cube-Shadow-Segmentation-Direct-v0",
+    entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_vision_env:ShadowHandVisionSegmentationEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandVisionFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_vision_cfg.yaml",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Repose-Cube-Shadow-RGB-Direct-v0",
+    entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_vision_env:ShadowHandVisionRGBEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandVisionFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_vision_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Repose-Cube-Shadow-DiffuseAlbedo-Direct-v0",
+    entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_vision_env:ShadowHandVisionDiffuseAlbedoEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandVisionFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_vision_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Repose-Cube-Shadow-SimpleShading-Direct-v0",
+    entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_vision_env:ShadowHandVisionSimpleShadingEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandVisionFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_vision_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Repose-Cube-Shadow-Depth-Direct-v0",
+    entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_vision_env:ShadowHandVisionDepthEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandVisionFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_vision_cfg.yaml",
+    },
+)
+
 gym.register(
     id="Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0",
     entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
