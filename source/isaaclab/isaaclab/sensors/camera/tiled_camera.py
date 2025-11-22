@@ -189,8 +189,12 @@ class TiledCamera(Camera):
         )
         self._render_product_paths = [rp.path]
 
-        rep.AnnotatorRegistry.register_annotator_from_aov(aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4)
-        rep.AnnotatorRegistry.register_annotator_from_aov(aov="SimpleShadingSD", output_data_type=np.uint8, output_channels=4)
+        rep.AnnotatorRegistry.register_annotator_from_aov(
+            aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+        )
+        rep.AnnotatorRegistry.register_annotator_from_aov(
+            aov="SimpleShadingSD", output_data_type=np.uint8, output_channels=4
+        )
         # Define the annotators based on requested data types
         self._annotators = dict()
         for annotator_type in self.cfg.data_types:
@@ -198,10 +202,14 @@ class TiledCamera(Camera):
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
                 self._annotators["rgba"] = annotator
             elif annotator_type == "diffuse_albedo":
-                annotator = rep.AnnotatorRegistry.get_annotator("DiffuseAlbedoSD", device=self.device, do_array_copy=False)
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                )
                 self._annotators["diffuse_albedo"] = annotator
             elif annotator_type == "simple_shading":
-                annotator = rep.AnnotatorRegistry.get_annotator("SimpleShadingSD", device=self.device, do_array_copy=False)
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "SimpleShadingSD", device=self.device, do_array_copy=False
+                )
                 self._annotators["simple_shading"] = annotator
             elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
                 # keep depth for backwards compatibility

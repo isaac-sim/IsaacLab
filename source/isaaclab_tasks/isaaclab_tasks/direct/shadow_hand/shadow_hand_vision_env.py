@@ -73,6 +73,7 @@ class ShadowHandVisionRGBEnvCfg(ShadowHandEnvCfg):
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymettric states + vision CNN embedding
 
+
 @configclass
 class ShadowHandVisionDiffuseAlbedoEnvCfg(ShadowHandEnvCfg):
     # scene
