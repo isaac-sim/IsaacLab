@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import random
+import importlib
 import re
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import carb
@@ -102,21 +103,39 @@ def spawn_multi_asset(
     # resolve prim paths for spawning and cloning
     prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
 
+    # acquire stage
+    stage = stage_utils.get_current_stage()
+
+    # load function for choosing multi-assets.
+    if callable(cfg.choice_method):
+        choice_fn = cfg.choice_method
+        choice_method_name = cfg.choice_method.__name__
+    else:
+        module = importlib.import_module(cfg.choice_method_dir)
+        choice_fn = getattr(module, cfg.choice_method)
+        choice_method_name = cfg.choice_method
+
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
     #   This is because the "spawn" calls during the creation of the proto prims already handles this operation.
+    env_idx = []
     with Sdf.ChangeBlock():
         for index, prim_path in enumerate(prim_paths):
             # spawn single instance
             env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
-            # randomly select an asset configuration
-            if cfg.random_choice:
-                proto_path = random.choice(proto_prim_paths)
-            else:
-                proto_path = proto_prim_paths[index % len(proto_prim_paths)]
+            # select an asset configuration based on pre-defined functions
+            idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths), **cfg.choice_cfg)
+            proto_path = proto_prim_paths[idx]
+            env_idx.append(idx)
             # copy the proto prim
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
+    # display result for asset selection.
+    counts = Counter(env_idx)
+    count_dict = {k: round((v / len(env_idx)) * 100, 2) for k, v in counts.items()}
+    print(f"[INFO]: Assets distribution for '{asset_path}' using choice method '{choice_method_name}' :")
+    for k in sorted(count_dict.keys()):
+        print(f"\tAsset {k}: {counts[k]} occurrences, {count_dict[k]}%")
     # delete the dataset prim after spawning
     prim_utils.delete_prim(template_prim_path)
 
@@ -167,7 +186,7 @@ def spawn_multi_usd_file(
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
-        if attr_name in ["func", "usd_path", "random_choice"]:
+        if attr_name in ["func", "usd_path", "choice_method_dir", "choice_method"]:
             continue
         # set the attribute into the template
         setattr(usd_template_cfg, attr_name, attr_value)
@@ -178,7 +197,9 @@ def spawn_multi_usd_file(
         usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
     # set random choice
-    multi_asset_cfg.random_choice = cfg.random_choice
+    multi_asset_cfg.choice_cfg = cfg.choice_cfg
+    multi_asset_cfg.choice_method_dir = cfg.choice_method_dir
+    multi_asset_cfg.choice_method = cfg.choice_method
 
     # propagate the contact sensor settings
     # note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.
