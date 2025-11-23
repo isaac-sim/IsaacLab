@@ -59,7 +59,7 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         spawn=sim_utils.UsdFileCfg(
 
             usd_path = os.path.expanduser(
-                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Ball.usdc"),
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Ball.usd"),
 
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
 
@@ -81,7 +81,7 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         spawn=sim_utils.UsdFileCfg(
 
             usd_path = os.path.expanduser(
-                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usdc"),
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Blue.usd"),
 
             rigid_props = sim_utils.RigidBodyPropertiesCfg(),
             mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
@@ -99,7 +99,7 @@ class BoosterK1EnvCfg(DirectRLEnvCfg):
         spawn=sim_utils.UsdFileCfg(
 
             usd_path = os.path.expanduser(
-                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Red.usdc"),
+                "~/IsaacLab-nomadz/source/isaaclab_assets/data/Environment/Goal_Red.usd"),
 
             rigid_props = sim_utils.RigidBodyPropertiesCfg(),
             mass_props = sim_utils.MassPropertiesCfg(mass=1.0),
@@ -173,3 +173,16 @@ class BoosterK1Env(LocomotionEnv):
 
     def __init__(self, cfg: BoosterK1EnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+
+    def _setup_scene(self):
+        super()._setup_scene()
+
+        #self.ball = DeformableObject(self.cfg.ball_cfg)
+        self.goal_blue = RigidObject(self.cfg.goal_blue_cfg)
+        self.goal_red = RigidObject(self.cfg.goal_red_cfg)
+
+        self.scene.deformable_objects["Ball"] = self.ball
+        self.scene.rigid_objects["Goal_Red"] = self.goal_red
+        self.scene.rigid_objects["Goal_Blue"] = self.goal_blue
+
+        
