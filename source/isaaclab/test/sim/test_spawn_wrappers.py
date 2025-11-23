@@ -70,7 +70,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
@@ -116,7 +116,7 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
@@ -159,5 +159,5 @@ def test_spawn_multiple_files_with_global_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Robot"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/env_*/Robot")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Robot")
     assert len(prim_paths) == num_clones
