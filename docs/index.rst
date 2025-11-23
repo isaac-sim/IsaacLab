@@ -69,6 +69,7 @@ If you use Isaac Lab in your research, please cite our technical report:
 
 Acknowledgement
 ===============
+
 Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework.
 We gratefully acknowledge the authors of Orbit for their foundational contributions.
 
