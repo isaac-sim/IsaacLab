@@ -73,7 +73,6 @@ from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -91,7 +90,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg())
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view(eye=(0.0, 30.0, 25.0), target=(0.0, 0.0, -2.5))
 
     # Parameters
     num_balls = 2048
