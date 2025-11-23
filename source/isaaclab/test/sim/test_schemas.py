@@ -16,10 +16,10 @@ import math
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim.schemas as schemas
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.utils import find_global_fixed_joint_prim
 from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -34,7 +34,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,

@@ -7,8 +7,8 @@ import builtins
 import contextlib
 import logging
 import threading
-from typing import Literal, Callable, Iterable
-from collections.abc import Generator
+from collections.abc import Callable, Generator, Iterable
+from typing import Literal
 
 import carb
 import omni

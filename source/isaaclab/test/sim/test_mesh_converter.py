@@ -20,9 +20,9 @@ import tempfile
 import isaacsim.core.utils.prims as prim_utils
 import omni
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.sim.utils import stage as stage_utils
@@ -66,7 +66,7 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim
     # stop simulation
     sim.stop()

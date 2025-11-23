@@ -16,9 +16,9 @@ import os
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 from isaaclab.sim.utils import stage as stage_utils
 
@@ -31,7 +31,7 @@ def test_setup_teardown():
 
     # Setup: Create simulation context
     dt = 0.01
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")

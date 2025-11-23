@@ -39,8 +39,9 @@ import logging
 import torch  # noqa: F401
 
 import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
+
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+    sim = SimulationContext(SimulationCfg(dt=0.005))
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
