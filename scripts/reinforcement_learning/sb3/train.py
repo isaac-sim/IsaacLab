@@ -270,7 +270,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
-    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+    callbacks = [
+        checkpoint_callback,
+        LogEveryNTimesteps(n_steps=args_cli.log_interval),
+    ]
     if wandb_callback is not None:
         callbacks.append(wandb_callback)
 

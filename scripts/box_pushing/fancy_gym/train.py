@@ -94,18 +94,21 @@ def main():
 
     model = PPO(policy_arch, vec_env, verbose=1, **agent_cfg)
 
+    callbacks = []
     if args_cli.logger == "wandb":
-        checkpoint_callback = WandbCallback(
-            gradient_save_freq=10000,
-            model_save_freq=10000,
-            model_save_path=os.path.join(log_dir, "model"),
-            log="all",
-            verbose=2,
+        callbacks.append(
+            WandbCallback(
+                gradient_save_freq=10000,
+                model_save_freq=10000,
+                model_save_path=os.path.join(log_dir, "model"),
+                log="all",
+                verbose=2,
+            )
         )
     else:
-        checkpoint_callback = CheckpointCallback(save_freq=10000, save_path=log_dir, name_prefix="model", verbose=2)
+        callbacks.append(CheckpointCallback(save_freq=10000, save_path=log_dir, name_prefix="model", verbose=2))
 
-    model.learn(total_timesteps=n_timesteps, callback=checkpoint_callback, progress_bar=True)
+    model.learn(total_timesteps=n_timesteps, callback=callbacks, progress_bar=True)
 
 
 if __name__ == "__main__":
