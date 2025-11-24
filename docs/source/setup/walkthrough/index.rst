@@ -22,4 +22,3 @@ represents a different stage of modifying the default template project to achiev
   technical_env_design
   training_jetbot_gt
   training_jetbot_reward_exploration
-  sim_to_real_training

@@ -10,3 +10,4 @@ Below, you’ll find detailed examples of various policies for training and depl
 
     00_hover/hover_policy
     01_io_descriptors/io_descriptors_101
+    02_gear_assembly/gear_assembly_policy

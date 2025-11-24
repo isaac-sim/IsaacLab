@@ -1,7 +1,7 @@
 .. _walkthrough_sim_to_real:
 
-Training for Sim-to-Real Transfer
-==================================
+Training a Gear Insertion Policy and ROS Deployment
+====================================================
 
 This tutorial walks you through how to train a gear insertion assembly reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
 
@@ -22,7 +22,7 @@ The gear assembly policy operates as follows:
 4. **Generalization**: The trained policy generalizes across 3 different gear sizes without requiring retraining for each size
 
 
-.. figure:: ../../_static/setup/walkthrough_gear_assembly_sim_real.gif
+.. figure:: ../../_static/policy_deployment/02_gear_assembly/gear_assembly_sim_real.gif
     :align: center
     :figwidth: 100%
     :alt: Comparison of gear assembly in simulation versus real hardware
@@ -434,9 +434,13 @@ First, launch the training with a small number of environments and visualization
         --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
         --num_envs 4
 
+.. note::
+
+   For the Robotiq 2F-85 gripper, use ``--task Isaac-Deploy-GearAssembly-UR10e-2F85-v0`` instead.
+
 This will open the Isaac Sim viewer where you can observe the training process in real-time.
 
-.. figure:: ../../_static/setup/walkthrough_sim_real_gear_assembly_train.png
+.. figure:: ../../_static/policy_deployment/02_gear_assembly/sim_real_gear_assembly_train.png
     :align: center
     :figwidth: 100%
     :alt: Gear assembly training visualization in Isaac Lab

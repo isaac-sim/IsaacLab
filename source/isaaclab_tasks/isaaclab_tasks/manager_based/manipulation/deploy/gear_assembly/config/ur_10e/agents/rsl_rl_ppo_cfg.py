@@ -10,14 +10,12 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticRecurr
 
 @configclass
 class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    seed = 7858
     num_steps_per_env = 512
     max_iterations = 1500
     save_interval = 50
     experiment_name = "gear_assembly_ur10e"
     clip_actions = 1.0
     resume = False
-    value_normalization = False
     obs_groups = {
         "policy": ["policy"],
         "critic": ["critic"],

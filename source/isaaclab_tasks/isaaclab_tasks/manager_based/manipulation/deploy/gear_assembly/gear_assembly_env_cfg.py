@@ -19,6 +19,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import PhysxCfg, SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import ResetSampledNoiseModelCfg, UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
@@ -156,6 +157,13 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
 
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+        ),
+    )
+
 
 @configclass
 class ActionsCfg:
@@ -250,7 +258,7 @@ class RewardsCfg:
         },
     )
 
-    action_rate = RewTerm(func=mdp.action_rate, weight=-5.0e-06)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
 
 
 @configclass
@@ -291,8 +299,8 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     sim: SimulationCfg = SimulationCfg(
         physx=PhysxCfg(
-            gpu_collision_stack_size=2
-            ** 28,  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
+            # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
+            gpu_collision_stack_size=2**28,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
         ),

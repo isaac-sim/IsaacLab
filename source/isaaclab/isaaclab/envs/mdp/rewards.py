@@ -242,19 +242,9 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
     return torch.sum(out_of_limits, dim=1)
 
 
-def action_rate(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Penalize the rate of change of the actions using L2 norm."""
-    return torch.norm(env.action_manager.action - env.action_manager.prev_action, p=2, dim=-1)
-
-
 def action_rate_l2(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Penalize the rate of change of the actions using L2 squared kernel."""
     return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1)
-
-
-def action(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Penalize the actions using L2 squared kernel (summed for each environment)."""
-    return torch.sum(env.action_manager.action**2, dim=-1)
 
 
 def action_l2(env: ManagerBasedRLEnv) -> torch.Tensor:
