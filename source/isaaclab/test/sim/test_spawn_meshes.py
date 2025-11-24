@@ -179,9 +179,9 @@ def test_spawn_cone_with_deformable_and_density_props(sim):
     prim = cfg.func("/World/Cone", cfg)
     # Check validity
     assert prim.IsValid()
-    assert lazy.isaacsim.core.utils.prims.prim_utils.is_prim_path_valid("/World/Cone")
+    assert prim_utils.is_prim_path_valid("/World/Cone")
     # Check properties
-    prim = lazy.isaacsim.core.utils.prims.get_prim_at_path("/World/Cone/geometry/mesh")
+    prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
     # check sim playing
     sim.play()

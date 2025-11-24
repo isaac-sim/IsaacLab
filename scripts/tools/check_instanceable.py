@@ -65,10 +65,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
-import isaaclab.sim.utils.prims as prim_utils
 
 
 def main():
@@ -103,9 +103,7 @@ def main():
     prim_utils.create_prim("/World/Light", "DistantLight")
 
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.create_prim(
-        "/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input)
-    )
+    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
     # Clone the scene
     num_clones = args_cli.num_clones
 

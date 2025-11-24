@@ -6,6 +6,7 @@
 import torch
 from dataclasses import MISSING
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab import lazy
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass

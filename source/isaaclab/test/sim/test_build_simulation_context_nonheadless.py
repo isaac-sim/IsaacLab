@@ -22,9 +22,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
-import isaaclab.sim.utils.prims as prim_utils
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])
@@ -47,9 +47,7 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
     """Test that the simulation context is built with the correct ground plane."""
     with build_simulation_context(add_ground_plane=add_ground_plane) as _:
         # Ensure that ground plane got added
-        assert (
-            prim_utils.is_prim_path_valid("/World/defaultGroundPlane") == add_ground_plane
-        )
+        assert prim_utils.is_prim_path_valid("/World/defaultGroundPlane") == add_ground_plane
 
 
 @pytest.mark.parametrize("add_lighting", [True, False])

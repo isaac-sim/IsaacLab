@@ -237,7 +237,7 @@ def spawn_mesh_cone(
     # spawn cone if it doesn't exist.
     _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
     # return the prim
-    return lazy.isaacsim.core.utils.prims.get_prim_at_path(prim_path)
+    return prim_utils.get_prim_at_path(prim_path)
 
 
 """
@@ -287,9 +287,7 @@ def _spawn_mesh_geom_from_mesh(
     """
     # spawn geometry if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(
-            prim_path, prim_type="Xform", translation=translation, orientation=orientation
-        )
+        prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 

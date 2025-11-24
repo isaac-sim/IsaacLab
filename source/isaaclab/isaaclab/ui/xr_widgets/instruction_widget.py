@@ -9,8 +9,8 @@ import textwrap
 from typing import Any, TypeAlias
 
 import omni.kit.commands
-import omni.ui as ui
 import omni.kit.xr
+import omni.ui as ui
 from pxr import Gf
 
 from isaaclab.sim.utils.prims import delete_prim, get_prim_at_path
@@ -191,7 +191,9 @@ def show_instruction(
 
     space_stack = []
     if copied_prim is not None:
-        space_stack.append(omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_prim_path_source(target_prim_path))
+        space_stack.append(
+            omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_prim_path_source(target_prim_path)
+        )
 
     space_stack.extend([
         omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_translation_source(translation),

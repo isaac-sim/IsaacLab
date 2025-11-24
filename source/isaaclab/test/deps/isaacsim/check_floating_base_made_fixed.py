@@ -37,7 +37,6 @@ import isaaclab.sim.utils.nucleus as nucleus_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 
-
 # import logger
 logger = logging.getLogger(__name__)
 

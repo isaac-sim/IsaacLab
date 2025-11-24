@@ -49,9 +49,7 @@ def spawn_light(
     if prim_utils.is_prim_path_valid(prim_path):
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
-    prim = prim_utils.create_prim(
-        prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation
-    )
+    prim = prim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
 
     # convert to dict
     cfg = cfg.to_dict()
