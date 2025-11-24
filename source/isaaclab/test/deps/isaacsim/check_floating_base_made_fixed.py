@@ -9,6 +9,7 @@
 
 
 import argparse
+
 from isaaclab import lazy
 
 # add argparse arguments
@@ -30,12 +31,12 @@ import torch
 
 import omni.kit.commands
 import omni.physx
-from isaaclab import lazy
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim.utils.nucleus as nucleus_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -66,9 +67,7 @@ Main
 def main():
     """Spawns the ANYmal robot and makes it fixed."""
     # Load kit helper
-    world = lazy.isaacsim.core.api.world.World(
-        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu"
-    )
+    world = lazy.isaacsim.core.api.world.World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")
     # Set main camera
     lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 

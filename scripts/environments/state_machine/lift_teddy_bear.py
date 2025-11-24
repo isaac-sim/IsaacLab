@@ -19,8 +19,8 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 import argparse
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")

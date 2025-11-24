@@ -13,8 +13,8 @@ import torch
 import carb
 import omni.usd
 import pytest
-from isaaclab import lazy
 
+from isaaclab import lazy
 from isaaclab.envs.utils.spaces import sample_space
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

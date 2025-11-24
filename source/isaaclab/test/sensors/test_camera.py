@@ -8,8 +8,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -22,6 +22,7 @@ import os
 import random
 import scipy.spatial.transform as tf
 import torch
+
 import omni.replicator.core as rep
 import pytest
 from pxr import Gf, Usd, UsdGeom

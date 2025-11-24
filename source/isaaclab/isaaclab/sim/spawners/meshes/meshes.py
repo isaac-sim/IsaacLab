@@ -237,7 +237,7 @@ def spawn_mesh_cone(
     # spawn cone if it doesn't exist.
     _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return lazy.isaacsim.core.utils.prims.get_prim_at_path(prim_path)
 
 
 """

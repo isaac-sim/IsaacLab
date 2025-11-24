@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True

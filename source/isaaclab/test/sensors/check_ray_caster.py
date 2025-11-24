@@ -16,8 +16,8 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 
 import argparse
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")

@@ -13,6 +13,7 @@ Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_
 
 
 import argparse
+
 from isaaclab import lazy
 
 # add argparse arguments
@@ -71,9 +72,7 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    world = lazy.isaacsim.core.api.world.World(
-        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0"
-    )
+    world = lazy.isaacsim.core.api.world.World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
     # Set main camera
     lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 

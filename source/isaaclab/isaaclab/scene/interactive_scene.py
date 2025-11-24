@@ -6,13 +6,13 @@
 import logging
 import torch
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import carb
-from isaaclab import lazy
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -32,6 +32,9 @@ from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
+
+if TYPE_CHECKING:
+    from isaacsim.core.prims import XFormPrim
 
 # import logger
 logger = logging.getLogger(__name__)

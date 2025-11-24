@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
-from isaaclab import lazy
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import lazy
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import convert_quat
 

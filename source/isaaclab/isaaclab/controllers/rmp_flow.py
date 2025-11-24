@@ -143,7 +143,7 @@ class RmpFlowController:
         # compute control actions
         for i, policy in enumerate(self.articulation_policies):
             # enable type-hinting
-            policy: ArticulationMotionPolicy
+            policy: lazy.isaacsim.robot_motion.motion_generation.ArticulationMotionPolicy
             # set rmpflow target to be the current position of the target cube.
             policy.get_motion_policy().set_end_effector_target(
                 target_position=command[i, 0:3], target_orientation=command[i, 3:7]

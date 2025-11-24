@@ -86,6 +86,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 imports_time_end = time.perf_counter_ns()
 
 
+from isaaclab import lazy
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     log_app_start_time,
@@ -100,7 +101,6 @@ from scripts.benchmarks.utils import (
     parse_tf_logs,
 )
 
-from isaaclab import lazy
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False

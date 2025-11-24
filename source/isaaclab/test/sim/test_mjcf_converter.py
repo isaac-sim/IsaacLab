@@ -5,8 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -30,15 +30,11 @@ def test_setup_teardown():
 
     # Setup: Create simulation context
     dt = 0.01
-    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
-        physics_dt=dt, rendering_dt=dt, backend="numpy"
-    )
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
 
     # Setup: Create MJCF config
     lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.asset.importer.mjcf")
-    extension_path = lazy.isaacsim.core.utils.extensions.get_extension_path_from_name(
-        "isaacsim.asset.importer.mjcf"
-    )
+    extension_path = lazy.isaacsim.core.utils.extensions.get_extension_path_from_name("isaacsim.asset.importer.mjcf")
     config = MjcfConverterCfg(
         asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
         import_sites=True,

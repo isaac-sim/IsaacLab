@@ -26,15 +26,14 @@ import carb
 import flatdict
 import omni.physx
 import omni.usd
-from isaaclab import lazy
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab import lazy
+from isaaclab.sim.utils import stage as stage_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
-
 
 _SimulationContext = lazy.isaacsim.core.api.simulation_context.SimulationContext
 
@@ -274,9 +273,7 @@ class SimulationContext(_SimulationContext):
         # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
         #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
         #   This reduces the overhead of calling the function.
-        self._physics_device = (
-            lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_device()
-        )
+        self._physics_device = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_device()
 
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:

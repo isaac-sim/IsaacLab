@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
-from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import lazy
 
 from ..asset_base import AssetBase
 from .rigid_object_data import RigidObjectData

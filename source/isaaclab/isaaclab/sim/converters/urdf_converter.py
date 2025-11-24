@@ -10,7 +10,6 @@ import re
 
 import omni.kit.app
 import omni.kit.commands
-import omni.usd
 
 from isaaclab import lazy
 
@@ -94,7 +93,7 @@ class UrdfConverter(AssetConverterBase):
     Helper methods.
     """
 
-    def _get_urdf_import_config(self) -> "isaacsim.asset.importer.urdf.ImportConfig":
+    def _get_urdf_import_config(self) -> any:
         """Create and fill URDF ImportConfig with desired settings
 
         Returns:

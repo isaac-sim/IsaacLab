@@ -13,8 +13,8 @@ It is possible to add additional callbacks to it for user-defined operations.
 """Launch Isaac Sim Simulator first."""
 
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 app_launcher = AppLauncher()

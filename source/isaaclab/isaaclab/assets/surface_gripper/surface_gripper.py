@@ -10,8 +10,8 @@ import torch
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab import lazy
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.assets import AssetBase
 
 if TYPE_CHECKING:
@@ -111,7 +111,7 @@ class SurfaceGripper(AssetBase):
         return self._gripper_command
 
     @property
-    def gripper_view(self) -> "GripperView":
+    def gripper_view(self) -> GripperView:
         """Returns the gripper view object."""
         return self._gripper_view
 

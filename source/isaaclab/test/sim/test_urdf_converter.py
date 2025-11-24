@@ -5,8 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -30,9 +30,7 @@ def sim_config():
     stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
     lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.asset.importer.urdf")
-    extension_path = lazy.isaacsim.core.utils.extensions.get_extension_path_from_name(
-        "isaacsim.asset.importer.urdf"
-    )
+    extension_path = lazy.isaacsim.core.utils.extensions.get_extension_path_from_name("isaacsim.asset.importer.urdf")
     # default configuration
     config = UrdfConverterCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",

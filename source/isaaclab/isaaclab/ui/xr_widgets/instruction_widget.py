@@ -173,7 +173,7 @@ def show_instruction(
     width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
 
     # Create the widget component.
-    widget_component = WidgetComponent(
+    widget_component = omni.kit.xr.scene_view.utils.WidgetComponent(
         SimpleTextWidget,
         width=width,
         height=height,

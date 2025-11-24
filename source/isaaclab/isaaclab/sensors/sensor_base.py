@@ -22,8 +22,9 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
-from isaaclab import lazy
+
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:

@@ -12,8 +12,8 @@ import sys
 if sys.platform != "win32":
     import pinocchio  # noqa: F401
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True, enable_cameras=True)

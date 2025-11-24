@@ -11,10 +11,11 @@ from collections.abc import Sequence
 from typing import Any
 
 import omni.physx
+
+from isaaclab import lazy
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab import lazy 
 from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed

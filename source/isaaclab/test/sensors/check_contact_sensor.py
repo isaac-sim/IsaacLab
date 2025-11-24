@@ -16,8 +16,8 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
 
 import argparse
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Contact Sensor Test Script")

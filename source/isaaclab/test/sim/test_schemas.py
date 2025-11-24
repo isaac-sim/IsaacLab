@@ -5,8 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -34,9 +34,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
-        physics_dt=dt, rendering_dt=dt, backend="numpy"
-    )
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,

@@ -15,11 +15,10 @@ ISAACLAB_NUCLEUS_RMPFLOW_DIR = os.path.join(ISAACLAB_NUCLEUS_DIR, "Controllers",
 def _get_rmp_config_dir() -> str:
     """Return the RMPFlow config directory from the motion_generation extension."""
     return os.path.join(
-        lazy.isaacsim.core.utils.extensions.get_extension_path_from_name(
-            "isaacsim.robot_motion.motion_generation"
-        ),
+        lazy.isaacsim.core.utils.extensions.get_extension_path_from_name("isaacsim.robot_motion.motion_generation"),
         "motion_policy_configs",
     )
+
 
 # Path to current directory
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -27,7 +26,7 @@ _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 FRANKA_RMPFLOW_CFG = RmpFlowControllerCfg(
     config_file=os.path.join(_get_rmp_config_dir(), "franka", "rmpflow", "franka_rmpflow_common.yaml"),
     urdf_file=os.path.join(_CUR_DIR, "data", "lula_franka_gen.urdf"),
-    collision_file=os.path.join(_RMP_CONFIG_DIR, "franka", "rmpflow", "robot_descriptor.yaml"),
+    collision_file=os.path.join(_get_rmp_config_dir(), "franka", "rmpflow", "robot_descriptor.yaml"),
     frame_name="panda_end_effector",
     evaluations_per_frame=5,
 )

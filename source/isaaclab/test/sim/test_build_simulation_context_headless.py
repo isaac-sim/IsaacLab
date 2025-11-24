@@ -14,7 +14,6 @@ If you need to make a change to this test, please make sure to also make the sam
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab import lazy
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -25,7 +24,7 @@ import pytest
 
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
-from isaaclab.sim.utils.prims import is_prim_path_valid
+import isaaclab.sim.utils.prims as prim_utils
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])

@@ -18,8 +18,12 @@ import os
 import re
 import signal
 import sys
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
 from isaaclab import lazy
+
+if TYPE_CHECKING:
+    from isaacsim import SimulationApp
 
 
 class ExplicitAction(argparse.Action):

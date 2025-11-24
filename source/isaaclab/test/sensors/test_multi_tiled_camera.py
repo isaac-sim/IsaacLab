@@ -8,8 +8,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -20,6 +20,7 @@ import copy
 import numpy as np
 import random
 import torch
+
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
@@ -273,7 +274,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
     resolutions = [(16, 16), (23, 765)]
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            lazy.isaacsim.core.utils.prims.prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -412,7 +413,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            lazy.isaacsim.core.utils.prims.prim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)

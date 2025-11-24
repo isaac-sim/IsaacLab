@@ -6,11 +6,11 @@
 
 import glob
 import os
-
 from typing import Any
 
-from isaaclab import lazy
 from tensorboard.backend.event_processing import event_accumulator
+
+from isaaclab import lazy
 
 
 def parse_tf_logs(log_dir: str):

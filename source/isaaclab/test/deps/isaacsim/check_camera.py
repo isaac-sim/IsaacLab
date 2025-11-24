@@ -21,9 +21,10 @@ _isaac_sim/python.sh source/isaaclab/test/deps/isaacsim/check_camera.py --scenar
 
 import argparse
 
+from isaaclab import lazy
+
 # isaaclab
 from isaaclab.app import AppLauncher
-from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -69,9 +70,7 @@ def main():
     """Runs a camera sensor from isaaclab."""
 
     # Load kit helper
-    world = lazy.isaacsim.core.api.world.World(
-        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu"
-    )
+    world = lazy.isaacsim.core.api.world.World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")
     # Set main camera
     lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
@@ -109,9 +108,7 @@ def main():
             )
             # add rigid properties
             lazy.isaacsim.core.prims.SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-            rigid_obj = lazy.isaacsim.core.prims.SingleRigidPrim(
-                f"/World/Objects/Obj_{i:02d}", mass=5.0
-            )
+            rigid_obj = lazy.isaacsim.core.prims.SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
             # cast to geom prim
             geom_prim = getattr(UsdGeom, prim_type)(rigid_obj.prim)
             # set random color
@@ -155,13 +152,9 @@ def main():
 
     # Create a view of the stuff we want to see
     if args_cli.scenario == "cube":
-        view = world.scene.add(
-            lazy.isaacsim.core.prims.RigidPrim("/World/Objects/.*", name="my_object")
-        )
+        view = world.scene.add(lazy.isaacsim.core.prims.RigidPrim("/World/Objects/.*", name="my_object"))
     else:
-        view = world.scene.add(
-            lazy.isaacsim.core.prims.Articulation("/World/Robot", name="my_object")
-        )
+        view = world.scene.add(lazy.isaacsim.core.prims.Articulation("/World/Robot", name="my_object"))
     # Play simulator
     world.reset()
     # Get initial state

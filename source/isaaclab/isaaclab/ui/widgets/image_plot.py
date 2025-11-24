@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING, Optional
 
 import carb
 import omni
+
 from isaaclab import lazy
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import isaacsim.gui.components  # type: ignore[import]
     import omni.ui
 
 # import logger

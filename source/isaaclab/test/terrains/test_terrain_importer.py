@@ -30,8 +30,8 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-
 lazy.isaacsim.core.utils.extensions.enable_extension("omni.kit.primitive.mesh")
+
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("env_spacing", [1.0, 4.325, 8.0])
@@ -172,7 +172,7 @@ def test_ball_drop(device):
         _populate_scene(geom_sphere=False, sim=sim)
 
         # Create a view over all the balls
-        ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+        ball_view = lazy.isaacsim.core.prims.RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
         # Play simulator
         sim.reset()
@@ -205,7 +205,7 @@ def test_ball_drop_geom_sphere(device):
         _populate_scene(geom_sphere=False, sim=sim)
 
         # Create a view over all the balls
-        ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+        ball_view = lazy.isaacsim.core.prims.RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
         # Play simulator
         sim.reset()
@@ -294,9 +294,7 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         lazy.isaacsim.core.prims.SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
 
     # -- Ball material
-    sphere_geom = lazy.isaacsim.core.prims.SingleGeometryPrim(
-        prim_path="/World/envs/env_0/ball", collision=True
-    )
+    sphere_geom = lazy.isaacsim.core.prims.SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
     visual_material = lazy.isaacsim.core.api.materials.PreviewSurface(
         prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0])
     )

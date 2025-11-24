@@ -9,8 +9,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -208,7 +208,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 @pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
-    isaac_sim_version = get_version()
+    isaac_sim_version = lazy.isaacsim.core.version.get_version()
     if int(isaac_sim_version[2]) < 5:
         return
     num_articulations = 1

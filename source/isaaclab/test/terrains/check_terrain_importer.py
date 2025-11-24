@@ -30,9 +30,10 @@ Example usage:
 
 import argparse
 
+from isaaclab import lazy
+
 # isaaclab
 from isaaclab.app import AppLauncher
-from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script shows how to use the terrain importer.")
@@ -136,9 +137,7 @@ def main():
         )
         lazy.isaacsim.core.prims.SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
     # -- Ball material
-    sphere_geom = lazy.isaacsim.core.prims.SingleGeometryPrim(
-        prim_path="/World/envs/env_0/ball", collision=True
-    )
+    sphere_geom = lazy.isaacsim.core.prims.SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
     visual_material = lazy.isaacsim.core.api.materials.preview_surface.PreviewSurface(
         prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0])
     )

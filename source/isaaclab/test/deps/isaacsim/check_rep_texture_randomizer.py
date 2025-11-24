@@ -23,9 +23,10 @@ Usage:
 
 import argparse
 
+from isaaclab import lazy
+
 # isaaclab
 from isaaclab.app import AppLauncher
-from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(

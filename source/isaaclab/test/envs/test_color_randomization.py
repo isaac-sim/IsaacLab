@@ -9,8 +9,8 @@ This script tests the functionality of texture randomization applied to the cart
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)

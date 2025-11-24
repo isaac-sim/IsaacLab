@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import carb
+import lazy
 import warp as wp
 from pxr import UsdGeom
 
@@ -156,7 +157,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
+        self._view = lazy.isaacsim.core.prims.XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:

@@ -44,8 +44,8 @@ import argparse
 import contextlib
 import os
 
-from isaaclab.app import AppLauncher
 from isaaclab import lazy
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Utility to empirically check if asset in instanced properly.")
@@ -68,6 +68,7 @@ simulation_app = app_launcher.app
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
+import isaaclab.sim.utils.prims as prim_utils
 
 
 def main():

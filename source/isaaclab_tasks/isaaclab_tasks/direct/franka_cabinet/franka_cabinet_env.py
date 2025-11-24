@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import torch
+
 from pxr import UsdGeom
 
-from isaaclab import lazy
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -482,10 +483,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         drawer_local_grasp_rot,
         drawer_local_grasp_pos,
     ):
-        global_franka_rot, global_franka_pos = tf_combine(
+        global_franka_rot, global_franka_pos = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             hand_rot, hand_pos, franka_local_grasp_rot, franka_local_grasp_pos
         )
-        global_drawer_rot, global_drawer_pos = tf_combine(
+        global_drawer_rot, global_drawer_pos = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             drawer_rot, drawer_pos, drawer_local_grasp_rot, drawer_local_grasp_pos
         )
 

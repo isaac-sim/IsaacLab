@@ -11,8 +11,8 @@ import random
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab import lazy
 import isaaclab.utils.math as math_utils
+from isaaclab import lazy
 from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg
 
@@ -273,7 +273,7 @@ def randomize_visual_texture_material(
         # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    enable_extension("omni.replicator.core")
+    lazy.isaacsim.core.utils.extensions.enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
     import omni.replicator.core as rep
 

@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 from pxr import UsdPhysics
 
-from isaaclab import lazy
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
+from isaaclab import lazy
 from isaaclab.markers import VisualizationMarkers
 
 from ..sensor_base import SensorBase
