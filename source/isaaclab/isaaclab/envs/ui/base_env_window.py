@@ -115,7 +115,7 @@ class BaseEnvWindow:
             width=omni.ui.Fraction(1),
             height=0,
             collapsed=False,
-            style=lazy.lazy.isaacsim.gui.components.ui_utils.get_style(),
+            style=lazy.isaacsim.gui.components.ui_utils.get_style(),
             horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
             vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
         )

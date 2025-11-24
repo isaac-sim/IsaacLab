@@ -407,7 +407,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
         # logger.info(f"Could not get Sdf layer for {usd_path}")
     else:
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
-        ret_val = omni.metrics.assembler.core.get_metrics_assembler_interface().check_layers(
+        ret_val = lazy.omni_metrics_assembler_core.get_metrics_assembler_interface().check_layers(
             stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
         )
         if ret_val["ret_val"]:

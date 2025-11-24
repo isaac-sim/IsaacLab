@@ -13,10 +13,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import carb
-import lazy
 import warp as wp
 from pxr import UsdGeom
 
+from isaaclab import lazy
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase

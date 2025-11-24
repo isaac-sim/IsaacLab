@@ -783,7 +783,9 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = lazy.isaacsim.core.prims.XFormPrim(
+                    asset_cfg.prim_path, reset_xform_properties=False
+                )
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths
