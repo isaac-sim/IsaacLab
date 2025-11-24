@@ -44,7 +44,7 @@ rem expects: !python_exe! set by :extract_python_exe
 setlocal EnableExtensions EnableDelayedExpansion
 set "TORCH_VER=2.9.0"
 set "TV_VER=0.24.0"
-set "CUDA_TAG=cu130"
+set "CUDA_TAG=cu128"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/%CUDA_TAG%"
 
 rem Do we already have torch?
@@ -365,7 +365,7 @@ if "%arg%"=="-i" (
     call !python_exe! -m pip install --upgrade pip
 
     rem check if pytorch is installed and its version
-    rem install pytorch with cuda 13.0
+    rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
@@ -406,7 +406,7 @@ if "%arg%"=="-i" (
     call !python_exe! -m pip install --upgrade pip
 
     rem check if pytorch is installed and its version
-    rem install pytorch with cuda 13.0
+    rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (

@@ -27,7 +27,7 @@ INSTALL_REQUIRES = [
     "numba",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu130"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Installation operation
 setup(
