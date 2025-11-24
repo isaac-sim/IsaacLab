@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.48.5 (2025-11-18)
+0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -14,6 +14,15 @@ Added
 * Added motion controller-specific retargeters:
   * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
   * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
+
+0.48.5 (2025-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.stage`` to ``isaaclab.sim.utils.stage`` to reduce IsaacLab dependencies.
 
 
 0.48.4 (2025-11-14)
