@@ -1,0 +1,35 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
+seed: 42
+n_envs: 8
+# epoch * n_steps * nenvs: 500×512*8*8
+n_timesteps: 50000000
+n_steps_per_update: 48000
+n_minibatches: 40
+
+policy: 'MlpPolicy'
+learning_rate: !!float 5e-5
+n_epochs: 10
+gamma: 1.0
+gae_lambda: 0.95
+clip_range: 0.2
+normalize_advantage: True
+ent_coef: 0
+
+policy_kwargs: "dict(
+                  ortho_init=True,
+                  log_std_init=0,
+                  activation_fn=nn.Tanh,
+                  net_arch=[512, 512],
+                )"
+
+# Uses VecNormalize class to normalize obs
+normalize_input: True
+clip_obs: 10.0
+# Uses VecNormalize class to normalize rew
+normalize_value: True
+clip_rew: 10.0

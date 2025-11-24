@@ -160,11 +160,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     command = " ".join(sys.orig_argv)
     (Path(log_dir) / "command.txt").write_text(command)
 
+    # derive per-env rollout sizes and batch size before converting SB3 config
+    n_steps_per_update = agent_cfg.pop("n_steps_per_update", None)
+    if n_steps_per_update is not None:
+        if n_steps_per_update % env_cfg.scene.num_envs != 0:
+            raise ValueError(
+                f"n_steps_per_update={n_steps_per_update} must be divisible by num_envs={env_cfg.scene.num_envs}"
+            )
+        agent_cfg["n_steps"] = n_steps_per_update // env_cfg.scene.num_envs
+    if "n_minibatches" in agent_cfg and "n_steps" in agent_cfg:
+        agent_cfg["batch_size"] = (agent_cfg["n_steps"] * env_cfg.scene.num_envs) // agent_cfg["n_minibatches"]
+        agent_cfg.pop("n_minibatches")
+
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
     # read configurations about the agent-training
     policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
+    # convert stringified policy kwargs (e.g. "dict(...)") to actual dict
+    if "policy_kwargs" in agent_cfg and isinstance(agent_cfg["policy_kwargs"], str):
+        import torch.nn as nn  # local import for eval context
+
+        agent_cfg["policy_kwargs"] = eval(agent_cfg["policy_kwargs"], {"nn": nn})
 
     wandb_run = None
     wandb_callback = None
@@ -228,7 +245,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
-    norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
+    norm_keys = {"normalize_input", "normalize_value", "clip_obs", "clip_rew"}
     norm_args = {}
     for key in norm_keys:
         if key in agent_cfg:
@@ -243,7 +260,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             norm_reward=norm_args.get("normalize_value", False),
             clip_obs=norm_args.get("clip_obs", 100.0),
             gamma=agent_cfg["gamma"],
-            clip_reward=np.inf,
+            clip_reward=norm_args.get("clip_rew", np.inf),
         )
 
     # create agent from stable baselines
