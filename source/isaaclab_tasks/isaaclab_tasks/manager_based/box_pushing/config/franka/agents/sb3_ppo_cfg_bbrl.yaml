@@ -1,0 +1,26 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
+seed: 42
+# epoch * n_steps * nenvs: 500×512*8*8
+n_timesteps: 500000
+n_steps_per_update: 152
+n_minibatches: 40
+
+policy: 'MlpPolicy'
+learning_rate: !!float 3e-4
+n_epochs: 20
+gamma: 1.0
+gae_lambda: 0.95
+clip_range: 0.2
+normalize_advantage: True
+ent_coef: 0
+
+policy_kwargs: "dict(
+                  ortho_init=True,
+                  activation_fn=nn.LeakyReLU,
+                  net_arch=dict(pi=[128, 128], vf=[256, 256])
+                )"
