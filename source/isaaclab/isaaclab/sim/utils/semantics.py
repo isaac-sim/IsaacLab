@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import carb
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Usd, UsdGeom
+
+from isaaclab.sim.utils.stage import get_current_stage
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:

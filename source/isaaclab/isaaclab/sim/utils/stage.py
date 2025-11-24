@@ -14,7 +14,6 @@ import carb
 import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
@@ -81,7 +80,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # this carb flag is equivalent to if rendering is enabled
     carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it
     if not is_rendering_enabled:
@@ -308,38 +307,33 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
         >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    from isaacsim.core.utils.prims import (  # isaaclab.utils.prims import (
-        get_all_matching_child_prims,
-        get_prim_path,
-        is_prim_ancestral,
-        is_prim_hidden_in_stage,
-        is_prim_no_delete,
-    )
+    from .prims import get_all_matching_child_prims
 
-    def default_predicate(prim_path: str):
-        # prim = get_prim_at_path(prim_path)
-        # skip prims that we cannot delete
-        if is_prim_no_delete(prim_path):
-            return False
-        if is_prim_hidden_in_stage(prim_path):
-            return False
-        if is_prim_ancestral(prim_path):
-            return False
+    def default_predicate(prim: Usd.Prim) -> bool:
+        prim_path = prim.GetPath().pathString
         if prim_path == "/":
             return False
         if prim_path.startswith("/Render"):
             return False
+        if prim.GetMetadata("no_delete"):
+            return False
+        if prim.GetMetadata("hide_in_stage_window"):
+            return False
+        if omni.usd.check_ancestral(prim):
+            return False
         return True
+
+    def predicate_from_path(prim: Usd.Prim) -> bool:
+        if predicate is None:
+            return default_predicate(prim)
+        return predicate(prim.GetPath().pathString)
 
     if predicate is None:
         prims = get_all_matching_child_prims("/", default_predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
     else:
-        prims = get_all_matching_child_prims("/", predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
+        prims = get_all_matching_child_prims("/", predicate_from_path)
+    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    DeletePrimsCommand(prim_paths_to_delete).do()
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
         omni.kit.app.get_app_interface().update()
@@ -367,9 +361,7 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
         /OmniverseKit_Right
     """
     # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    # from isaaclab.utils.prims import get_prim_path
-    from isaacsim.core.utils.prims import get_prim_path
+    from .prims import get_prim_path
 
     for prim in traverse_stage(fabric=fabric):
         prim_path = get_prim_path(prim)
