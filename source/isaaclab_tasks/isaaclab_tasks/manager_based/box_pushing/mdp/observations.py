@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import subtract_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -26,17 +25,17 @@ def object_pose_in_robot_root_frame(
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
-    """The position of the object in the robot's root frame."""
-    robot: RigidObject = env.scene[robot_cfg.name]
+    """Pose of the object expressed in the local environment frame."""
+
+    del robot_cfg  # maintained for API compatibility
+
+    env_origins = env.scene.env_origins
     object: RigidObject = env.scene[object_cfg.name]
-    object_pose_w = object.data.root_state_w[:, :7]
-    object_pos_b, object_or_b = subtract_frame_transforms(
-        robot.data.root_state_w[:, :3],
-        robot.data.root_state_w[:, 3:7],
-        object_pose_w[:, :3],
-        object_pose_w[:, 3:],
-    )
-    return torch.cat((object_pos_b, object_or_b), dim=1)
+
+    object_pos_env = object.data.root_pos_w - env_origins
+    object_or_env = object.data.root_quat_w
+
+    return torch.cat((object_pos_env, object_or_env), dim=1)
 
 
 def joint_pos_abs(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:

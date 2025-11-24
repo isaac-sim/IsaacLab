@@ -40,6 +40,25 @@ parser.add_argument(
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument(
+    "--logger",
+    type=str,
+    default=None,
+    choices={"wandb"},
+    help="Optional external logger integration (currently supports Weights & Biases).",
+)
+parser.add_argument(
+    "--log_project_name",
+    type=str,
+    default=None,
+    help="Project name when using an external logger like WandB.",
+)
+parser.add_argument(
+    "--log_run_group",
+    type=str,
+    default=None,
+    help="Run group/name when using an external logger like WandB.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -132,6 +151,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
     print(f"Exact experiment name requested from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
@@ -145,6 +165,35 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # read configurations about the agent-training
     policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
+
+    wandb_run = None
+    wandb_callback = None
+    if args_cli.logger == "wandb":
+        try:
+            from wandb.integration.sb3 import WandbCallback
+
+            import wandb
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("wandb must be installed to use --logger wandb.") from exc
+
+        project = args_cli.log_project_name or args_cli.task or "IsaacLab"
+        wandb_kwargs = {
+            "project": project,
+            "config": {
+                "policy_type": policy_arch,
+                "total_timesteps": n_timesteps,
+                "env_name": args_cli.task,
+                "num_envs": env_cfg.scene.num_envs,
+            },
+            "sync_tensorboard": True,
+            "monitor_gym": False,
+            "dir": log_dir,
+        }
+        if args_cli.log_run_group:
+            wandb_kwargs["group"] = args_cli.log_run_group
+
+        wandb_run = wandb.init(**wandb_kwargs)
+        wandb_callback = WandbCallback(gradient_save_freq=0, model_save_freq=0, verbose=2)
 
     # set the IO descriptors export flag if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
@@ -205,6 +254,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
     callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+    if wandb_callback is not None:
+        callbacks.append(wandb_callback)
 
     # train the agent
     with contextlib.suppress(KeyboardInterrupt):
@@ -225,6 +276,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # close the simulator
     env.close()
+
+    if wandb_run is not None:
+        wandb_run.finish()
 
 
 if __name__ == "__main__":

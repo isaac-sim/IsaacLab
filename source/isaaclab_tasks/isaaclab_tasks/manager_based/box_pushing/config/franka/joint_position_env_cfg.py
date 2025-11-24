@@ -11,33 +11,30 @@
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.box_pushing import mdp
-from isaaclab_tasks.manager_based.box_pushing.assets.franka import FRANKA_PANDA_COMPARISON
-from isaaclab_tasks.manager_based.box_pushing.assets.franka import (
-    FRANKA_PANDA_ONLY_TORQUE as FRANKA_CONFIG,  # isort: skip
-)
+from isaaclab_tasks.manager_based.box_pushing.assets.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_COMPARISON
 from isaaclab_tasks.manager_based.box_pushing.box_pushing_env_cfg import DenseRewardCfg, TemporalSparseRewardCfg
 from isaaclab_tasks.manager_based.box_pushing.config.franka.base_env_cfg import FrankaBoxPushingBaseEnvCfg
-
 
 ##
 # Pre-defined configs
 ##
+FRANKA_PANDA_PD_COMPARISON = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_PD_COMPARISON.spawn.usd_path = FRANKA_PANDA_COMPARISON.spawn.usd_path
+
+
 @configclass
-class FrankaBoxPushingEnvCfg(FrankaBoxPushingBaseEnvCfg):
-    robot_cfg_r2r = FRANKA_CONFIG
-    robot_cfg_comparison = FRANKA_PANDA_COMPARISON
+class FrankaBoxPushingJointPositionEnvCfg(FrankaBoxPushingBaseEnvCfg):
+    robot_cfg_r2r = FRANKA_PANDA_CFG
+    robot_cfg_comparison = FRANKA_PANDA_PD_COMPARISON
 
     def _configure_actions(self):
-        self.actions.body_joint_effort = mdp.JointEffortActionCfg(
-            asset_name="robot",
-            joint_names=["panda_joint.*"],
-            scale=10.0,
-            debug_vis=True,
+        self.actions.body_joint_effort = mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
         )
 
 
 @configclass
-class FrankaBoxPushingEnvCfg_Dense(FrankaBoxPushingEnvCfg):
+class FrankaBoxPushingJointPositionEnvCfg_Dense(FrankaBoxPushingJointPositionEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -46,7 +43,7 @@ class FrankaBoxPushingEnvCfg_Dense(FrankaBoxPushingEnvCfg):
 
 
 @configclass
-class FrankaBoxPushingEnvCfg_TemporalSparse(FrankaBoxPushingEnvCfg):
+class FrankaBoxPushingJointPositionEnvCfg_TemporalSparse(FrankaBoxPushingJointPositionEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -55,7 +52,7 @@ class FrankaBoxPushingEnvCfg_TemporalSparse(FrankaBoxPushingEnvCfg):
 
 
 @configclass
-class FrankaBoxPushingEnvCfg_PLAY(FrankaBoxPushingEnvCfg):
+class FrankaBoxPushingJointPositionEnvCfg_PLAY(FrankaBoxPushingJointPositionEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -67,20 +64,20 @@ class FrankaBoxPushingEnvCfg_PLAY(FrankaBoxPushingEnvCfg):
 
 
 @configclass
-class FrankaBoxPushingNoIKEnvCfg(FrankaBoxPushingEnvCfg):
+class FrankaBoxPushingJointPositionNoIKEnvCfg(FrankaBoxPushingJointPositionEnvCfg):
     use_ik_reset = False
     use_cached_ik = False
 
 
 @configclass
-class FrankaBoxPushingNoIKEnvCfg_Dense(FrankaBoxPushingNoIKEnvCfg):
+class FrankaBoxPushingJointPositionNoIKEnvCfg_Dense(FrankaBoxPushingJointPositionNoIKEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.rewards = DenseRewardCfg()
 
 
 @configclass
-class FrankaBoxPushingNoIKEnvCfg_TemporalSparse(FrankaBoxPushingNoIKEnvCfg):
+class FrankaBoxPushingJointPositionNoIKEnvCfg_TemporalSparse(FrankaBoxPushingJointPositionNoIKEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.rewards = TemporalSparseRewardCfg()

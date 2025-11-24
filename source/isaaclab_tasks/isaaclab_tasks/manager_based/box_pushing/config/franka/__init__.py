@@ -11,7 +11,7 @@
 
 import gymnasium as gym
 
-from . import agents, joint_effort_env_cfg
+from . import agents, joint_effort_env_cfg, joint_position_env_cfg
 
 _VARIANTS = {
     "": {
@@ -24,7 +24,18 @@ _VARIANTS = {
     },
 }
 
-for variant_prefix, reward_cfgs in _VARIANTS.items():
+_JOINT_POSITION_VARIANTS = {
+    "JointPos-": {
+        "Dense": joint_position_env_cfg.FrankaBoxPushingJointPositionEnvCfg_Dense,
+        "TemporalSparse": joint_position_env_cfg.FrankaBoxPushingJointPositionEnvCfg_TemporalSparse,
+    },
+    "JointPos-NoIK-": {
+        "Dense": joint_position_env_cfg.FrankaBoxPushingJointPositionNoIKEnvCfg_Dense,
+        "TemporalSparse": joint_position_env_cfg.FrankaBoxPushingJointPositionNoIKEnvCfg_TemporalSparse,
+    },
+}
+
+for variant_prefix, reward_cfgs in {**_VARIANTS, **_JOINT_POSITION_VARIANTS}.items():
     for reward_name, env_cfg_class in reward_cfgs.items():
         for rl_type in ["step", "bbrl"]:
             gym.register(

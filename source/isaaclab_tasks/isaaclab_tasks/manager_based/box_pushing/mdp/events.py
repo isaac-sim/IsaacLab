@@ -45,7 +45,6 @@ def sample_box_poses(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    # get default root state
     root_states = asset.data.default_root_state[env_ids].clone()
 
     # poses
@@ -56,7 +55,6 @@ def sample_box_poses(
     positions = root_states[:, :3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
     orientations = quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
 
-    # set into the physics simulation
     box_poses = torch.cat([positions, orientations], dim=-1)
     asset.write_root_pose_to_sim(box_poses, env_ids=env_ids)
     return box_poses
@@ -93,6 +91,7 @@ def reset_robot_cfg_with_IK(
     )
     sol = ik.solve(target_transforms)
     joint_pos_des = sol.solutions[:, 0]
+    joint_pos_des = _apply_soft_limit_bias(robot, env_ids, joint_pos_des)
 
     # setting desired joint angles in simulation
     robot_entity_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
@@ -125,6 +124,7 @@ def reset_robot_cfg_with_cached_IK(
     box_poses[:, :3] -= robot.data.root_pos_w[env_ids]
 
     joint_pos_des = env.get_cached_ik_solutions(box_poses[:, :3])
+    joint_pos_des = _apply_soft_limit_bias(robot, env_ids, joint_pos_des)
 
     # setting desired joint angles in simulation
     robot_entity_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
@@ -142,3 +142,27 @@ def reset_robot_cfg_with_cached_IK(
         joint_ids=robot_entity_cfg.joint_ids,
         env_ids=env_ids,
     )
+
+
+def _apply_soft_limit_bias(
+    robot: Articulation,
+    env_ids: torch.Tensor | None,
+    joint_pos_des: torch.Tensor,
+    margin: float = 0.05,
+) -> torch.Tensor:
+    """Clamp IK solutions inside the soft joint limits with a small safety margin."""
+
+    if env_ids is None:
+        soft_limits = robot.data.soft_joint_pos_limits[0, : joint_pos_des.shape[-1]]
+    else:
+        soft_limits = robot.data.soft_joint_pos_limits[env_ids, : joint_pos_des.shape[-1]]
+
+    lower = soft_limits[..., 0] + margin
+    upper = soft_limits[..., 1] - margin
+
+    # fallback if margin collapses the interval
+    mean_limits = 0.5 * (soft_limits[..., 0] + soft_limits[..., 1])
+    lower = torch.where(lower > upper, mean_limits, lower)
+    upper = torch.where(lower > upper, mean_limits, upper)
+
+    return torch.clamp(joint_pos_des, min=lower, max=upper)
