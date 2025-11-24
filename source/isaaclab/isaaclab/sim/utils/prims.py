@@ -559,6 +559,7 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
     # check prim path is global
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
+    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
     # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     pattern = f"^{prim_path_regex}$"
     compiled_pattern = re.compile(pattern)
@@ -568,6 +569,19 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
         if compiled_pattern.match(prim.GetPath().pathString) is not None:
             return prim
     return None
+
+
+def _normalize_legacy_wildcard_pattern(prim_path_regex: str) -> str:
+    """Convert legacy '*' wildcard usage to '.*' and warn users."""
+    fixed_regex = re.sub(r"(?<![\\\.])\*", ".*", prim_path_regex)
+    if fixed_regex != prim_path_regex:
+        logger.warning(
+            "Using '*' as a wildcard in prim path regex is deprecated; automatically converting '%s' to '%s'. "
+            "Please update your pattern to use '.*' explicitly.",
+            prim_path_regex,
+            fixed_regex,
+        )
+    return fixed_regex
 
 
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
@@ -583,6 +597,7 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
     # get stage handle
     if stage is None:
         stage = get_current_stage()
