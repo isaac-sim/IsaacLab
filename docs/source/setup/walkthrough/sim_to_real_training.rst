@@ -458,17 +458,33 @@ Now launch the full training run with more parallel environments in headless mod
     python scripts/reinforcement_learning/train.py \
         --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
         --headless \
-        --num_envs 1024 \
+        --num_envs 256 \
         --video --video_length 800 --video_interval 5000
 
 This command will:
 
-- Run 1024 parallel environments for efficient training
+- Run 256 parallel environments for efficient training
 - Run in headless mode (no visualization) for maximum performance
 - Record videos every 5000 steps to monitor training progress
 - Save videos with 800 frames each
 
-Training typically takes ~6-12 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
+Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
+
+.. note::
+
+    **GPU Memory Considerations**: The default configuration uses 256 parallel environments, which should work on most modern GPUs (e.g., RTX 3090, RTX 4090, A100). For better sim-to-real transfer performance, you can increase ``solver_position_iteration_count`` from 4 to 196 in ``gear_assembly_env_cfg.py`` and ``joint_pos_env_cfg.py`` for more realistic contact simulation, but this requires a larger GPU (e.g., RTX PRO 6000 with 40GB+ VRAM). Higher solver iteration counts reduce penetration and improve contact stability but significantly increase GPU memory usage.
+
+
+**Monitoring Training Progress with TensorBoard:**
+
+You can monitor training metrics in real-time using TensorBoard. Open a new terminal and run:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p -m tensorboard.main --logdir <log_dir>
+
+Replace ``<log_dir>`` with the path to your training logs (e.g., ``logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01``). TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
+
 
 Step 3: Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -483,6 +499,95 @@ The deployment pipeline uses Isaac ROS and a custom ROS inference node to run th
 2. **Motion Planning**: cuMotion for collision-free trajectories
 3. **Policy Inference**: Your trained policy running at control frequency in a custom ROS inference node
 4. **Robot Control**: Low-level controller executing commands
+
+
+Troubleshooting
+---------------
+
+This section covers common errors you may encounter during training and their solutions.
+
+PhysX Collision Stack Overflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Error Message:**
+
+.. code-block:: text
+
+    PhysX error: PxGpuDynamicsMemoryConfig::collisionStackSize buffer overflow detected,
+    please increase its size to at least 269452544 in the scene desc!
+    Contacts have been dropped.
+
+**Cause:** This error occurs when the GPU collision detection buffer is too small for the number of contacts being simulated. This is common in contact-rich environments like gear assembly.
+
+**Solution:** Increase the ``gpu_collision_stack_size`` parameter in ``gear_assembly_env_cfg.py``:
+
+.. code-block:: python
+
+    # In GearAssemblyEnvCfg class
+    sim: SimulationCfg = SimulationCfg(
+        physx=PhysxCfg(
+            gpu_collision_stack_size=2**31,  # Increase this value if you see overflow errors
+            gpu_max_rigid_contact_count=2**23,
+            gpu_max_rigid_patch_count=2**23,
+        ),
+    )
+
+The error message will suggest a minimum size. Set ``gpu_collision_stack_size`` to at least the recommended value (e.g., if the error says "at least 269452544", set it to ``2**28`` or ``2**29``). Note that increasing this value increases GPU memory usage.
+
+CUDA Out of Memory
+~~~~~~~~~~~~~~~~~~
+
+**Error Message:**
+
+.. code-block:: text
+
+    torch.OutOfMemoryError: CUDA out of memory.
+
+**Cause:** The GPU does not have enough memory to run the requested number of parallel environments with the current simulation parameters.
+
+**Solutions (in order of preference):**
+
+1. **Reduce the number of parallel environments:**
+
+   .. code-block:: bash
+
+       python scripts/reinforcement_learning/train.py \
+           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+           --headless \
+           --num_envs 128  # Reduce from 256 to 128, 64, etc.
+
+   **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
+
+2. **If using increased solver iteration counts** (values higher than the default 4):
+
+   In both ``gear_assembly_env_cfg.py`` and ``joint_pos_env_cfg.py``, reduce ``solver_position_iteration_count`` back to the default value of 4, or use intermediate values like 8 or 16:
+
+   .. code-block:: python
+
+       rigid_props=sim_utils.RigidBodyPropertiesCfg(
+           solver_position_iteration_count=4,  # Use default value
+           # ... other parameters
+       ),
+
+       articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+           solver_position_iteration_count=4,  # Use default value
+           # ... other parameters
+       ),
+
+   **Trade-off:** Lower solver iteration counts may result in less realistic contact dynamics and more penetration issues. The default value of 4 provides a good balance for most use cases.
+
+3. **Disable video recording during training:**
+
+   Remove the ``--video`` flags to save GPU memory:
+
+   .. code-block:: bash
+
+       python scripts/reinforcement_learning/train.py \
+           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+           --headless \
+           --num_envs 256
+
+   You can always evaluate the trained policy later with visualization.
 
 
 Further Resources
