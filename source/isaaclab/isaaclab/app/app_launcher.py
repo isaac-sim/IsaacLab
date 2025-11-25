@@ -883,7 +883,6 @@ class AppLauncher:
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Store RTX rendering mode in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode")
 
@@ -895,12 +894,11 @@ class AppLauncher:
 
         # store rendering mode in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/rendering/rendering_mode", rendering_mode)
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in carb settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
@@ -920,9 +918,9 @@ class AppLauncher:
 
         # store config in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
