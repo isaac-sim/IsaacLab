@@ -31,21 +31,30 @@ def capture_test_output_with_timeout(cmd, timeout, env):
     stdout_data = b""
     stderr_data = b""
 
-    print(f"🔍 DEBUG: Platform detected: {sys.platform}")
-    print(f"🔍 DEBUG: Command to execute: {cmd}")
-    print(f"🔍 DEBUG: Timeout: {timeout}s")
+    # Ensure UTF-8 encoding for console output on Windows
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            # Python < 3.7, ignore
+            pass
+
+    print(f"DEBUG: Platform detected: {sys.platform}")
+    print(f"DEBUG: Command to execute: {cmd}")
+    print(f"DEBUG: Timeout: {timeout}s")
 
     try:
         # Use Popen to capture output in real-time
-        print("🔍 DEBUG: Starting subprocess.Popen...")
+        print("DEBUG: Starting subprocess.Popen...")
         process = subprocess.Popen(
             cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0, universal_newlines=False
         )
-        print(f"🔍 DEBUG: Process started with PID: {process.pid}")
+        print(f"DEBUG: Process started with PID: {process.pid}")
 
         # Platform detection
         is_windows = sys.platform == "win32"
-        print(f"🔍 DEBUG: is_windows={is_windows}")
+        print(f"DEBUG: is_windows={is_windows}")
 
         if is_windows:
             # Windows: Use threading to read stdout/stderr concurrently
@@ -166,7 +175,7 @@ def capture_test_output_with_timeout(cmd, timeout, env):
             return process.returncode, stdout_data, stderr_data, False
 
     except Exception as e:
-        error_msg = f"❌ EXCEPTION in capture_test_output_with_timeout: {type(e).__name__}: {str(e)}"
+        error_msg = f"[ERROR] EXCEPTION in capture_test_output_with_timeout: {type(e).__name__}: {str(e)}"
         print(error_msg)
         import traceback
 
@@ -210,10 +219,16 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
     os.makedirs("tests", exist_ok=True)
 
     for test_file in test_files:
-        print(f"\n\n🚀 Running {test_file} independently...\n")
+        print(f"\n\n[RUN] Running {test_file} independently...\n")
         # get file name from path
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
+
+        # Log critical environment variables for debugging
+        print("[CHECK] Critical environment variables:")
+        for key in ["ISAAC_PATH", "CARB_APP_PATH", "EXP_PATH", "HEADLESS", "WINDOWS_PLATFORM"]:
+            value = env.get(key, "NOT SET")
+            print(f"  {key}={value}")
 
         # Determine timeout for this test
         timeout = (
@@ -221,7 +236,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             if file_name in test_settings.PER_TEST_TIMEOUTS
             else test_settings.DEFAULT_TIMEOUT
         )
-        print(f"⏱️  Timeout set to: {timeout} seconds")
+        print(f"[TIME]  Timeout set to: {timeout} seconds")
 
         # Prepare command
         cmd = [
@@ -230,7 +245,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             "pytest",
             "--no-header",
             "-c",
-            f"{workspace_root}/pytest.ini",
+            os.path.join(workspace_root, "pytest.ini"),
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
             "--tb=short",
         ]
@@ -241,7 +256,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
         elif windows_platform:
             cmd.append("-m")
             cmd.append("windows")
-            print("🪟 Adding Windows marker filter to command")
+            print("[WIN] Adding Windows marker filter to command")
         elif arm_platform:
             cmd.append("-m")
             cmd.append("arm")
@@ -249,18 +264,18 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
         # Add the test file path last
         cmd.append(str(test_file))
 
-        print(f"📝 Command: {' '.join(cmd)}")
-        print(f"📂 Working directory: {os.getcwd()}")
-        print(f"🔧 Python executable: {sys.executable}")
-        print("⏳ Starting test execution...\n")
+        print(f"[CMD] Command: {' '.join(cmd)}")
+        print(f"[DIR] Working directory: {os.getcwd()}")
+        print(f"[TOOL] Python executable: {sys.executable}")
+        print("[WAIT] Starting test execution...\n")
 
         # Run test with timeout and capture output
         returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
 
-        print(f"\n✅ Test execution completed. Return code: {returncode}, Timed out: {timed_out}")
+        print(f"\n[OK] Test execution completed. Return code: {returncode}, Timed out: {timed_out}")
 
         if timed_out:
-            print(f"⏱️ TIMEOUT: Test {test_file} timed out after {timeout} seconds...")
+            print(f"[TIME] TIMEOUT: Test {test_file} timed out after {timeout} seconds...")
             failed_tests.append(test_file)
 
             # Create a special XML report for timeout tests with captured logs
@@ -271,7 +286,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             # Write timeout report
             report_file = f"tests/test-reports-{str(file_name)}.xml"
             timeout_report.write(report_file)
-            print(f"📄 Timeout report written to: {report_file}")
+            print(f"[FILE] Timeout report written to: {report_file}")
 
             test_status[test_file] = {
                 "errors": 1,
@@ -284,28 +299,28 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             continue
 
         if returncode != 0:
-            print(f"❌ Test returned non-zero exit code: {returncode}")
-            print(f"📤 STDOUT ({len(stdout_data)} bytes):")
+            print(f"[ERROR] Test returned non-zero exit code: {returncode}")
+            print(f"[OUT] STDOUT ({len(stdout_data)} bytes):")
             if stdout_data:
                 print(stdout_data.decode("utf-8", errors="replace"))
-            print(f"📤 STDERR ({len(stderr_data)} bytes):")
+            print(f"[OUT] STDERR ({len(stderr_data)} bytes):")
             if stderr_data:
                 print(stderr_data.decode("utf-8", errors="replace"))
             failed_tests.append(test_file)
         else:
-            print("✅ Test returned exit code 0")
+            print("[OK] Test returned exit code 0")
 
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
-        print(f"🔍 Checking for report file: {report_file}")
-        print(f"🔍 Current working directory: {os.getcwd()}")
-        print(f"🔍 tests/ directory exists: {os.path.exists('tests/')}")
+        print(f"[CHECK] Checking for report file: {report_file}")
+        print(f"[CHECK] Current working directory: {os.getcwd()}")
+        print(f"[CHECK] tests/ directory exists: {os.path.exists('tests/')}")
         if os.path.exists("tests/"):
-            print(f"🔍 Contents of tests/ directory: {os.listdir('tests/')}")
+            print(f"[CHECK] Contents of tests/ directory: {os.listdir('tests/')}")
 
         if not os.path.exists(report_file):
-            print(f"❌ WARNING: Test report not found at {report_file}")
-            print("❌ This usually means pytest failed to run or crashed")
+            print(f"[ERROR] WARNING: Test report not found at {report_file}")
+            print("[ERROR] This usually means pytest failed to run or crashed")
             failed_tests.append(test_file)
             test_status[test_file] = {
                 "errors": 1,  # Assume error since we can't read the report
@@ -317,12 +332,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             }
             continue
 
-        print(f"✅ Report file found at {report_file}")
+        print(f"[OK] Report file found at {report_file}")
 
         try:
-            print(f"📖 Parsing report file: {report_file}")
+            print(f"[READ] Parsing report file: {report_file}")
             report = JUnitXml.fromfile(report_file)
-            print("📊 Report parsed successfully")
+            print("[STATS] Report parsed successfully")
 
             # Rename test suites to be more descriptive
             for suite in report:
@@ -333,7 +348,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
 
             # Write the updated report back
             report.write(report_file)
-            print(f"💾 Updated report written back to: {report_file}")
+            print(f"[SAVE] Updated report written back to: {report_file}")
 
             # Parse the integer values with None handling
             errors = int(report.errors) if report.errors is not None else 0
@@ -343,11 +358,11 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             time_elapsed = float(report.time) if report.time is not None else 0.0
 
             print(
-                f"📊 Test results: errors={errors}, failures={failures}, skipped={skipped}, tests={tests},"
+                f"[STATS] Test results: errors={errors}, failures={failures}, skipped={skipped}, tests={tests},"
                 f" time={time_elapsed}s"
             )
         except Exception as e:
-            print(f"❌ ERROR reading test report {report_file}: {type(e).__name__}: {e}")
+            print(f"[ERROR] ERROR reading test report {report_file}: {type(e).__name__}: {e}")
             import traceback
 
             traceback.print_exc()
@@ -383,12 +398,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     print("\n" + "=" * 80)
-    print("🚀 PYTEST SESSION START - Custom Test Runner")
+    print("[RUN] PYTEST SESSION START - Custom Test Runner")
     print("=" * 80)
 
     # Get the workspace root directory (one level up from tools)
     workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    print(f"📂 Workspace root: {workspace_root}")
+    print(f"[DIR] Workspace root: {workspace_root}")
 
     source_dirs = [
         os.path.join(workspace_root, "scripts"),
@@ -461,18 +476,18 @@ def pytest_sessionstart(session):
                     new_test_files.append(test_file)
         test_files = new_test_files
     elif windows_platform:
-        print("🪟 Filtering tests for Windows platform...")
+        print("[WIN] Filtering tests for Windows platform...")
         new_test_files = []
         for test_file in test_files:
             with open(test_file, encoding="utf-8") as f:
                 content = f.read()
                 if "@pytest.mark.windows" in content or "pytest.mark.windows" in content:
                     new_test_files.append(test_file)
-                    print(f"  ✓ Including: {test_file}")
+                    print(f"  + Including: {test_file}")
                 else:
-                    print(f"  ✗ Excluding (no windows marker): {test_file}")
+                    print(f"  - Excluding (no windows marker): {test_file}")
         test_files = new_test_files
-        print(f"🪟 Windows filtering complete: {len(test_files)} tests selected")
+        print(f"[WIN] Windows filtering complete: {len(test_files)} tests selected")
     elif arm_platform:
         new_test_files = []
         for test_file in test_files:
