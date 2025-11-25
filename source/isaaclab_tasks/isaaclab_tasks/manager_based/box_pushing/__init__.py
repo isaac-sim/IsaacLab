@@ -8,7 +8,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configurations for the object lift environments."""
+"""Box pushing task utilities."""
 
-# We leave this file empty since we don't want to expose any configs in this package directly.
-# We still need this file to import the "config" module in the parent package.
+from .mp_wrapper import BoxPushingMPWrapper, register_box_pushing_mp_env  # noqa: F401

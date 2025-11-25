@@ -17,3 +17,9 @@ the initialized environment instance to the wrapper constructor. However, since 
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
 """
+
+# RSL-RL-specific wrappers
+from .rsl_rl.mp_vecenv_wrapper import RslRlMPVecEnvWrapper  # noqa: F401
+
+# SB3-specific wrappers
+from .sb3_mp_wrapper import Sb3MPVecEnvWrapper  # noqa: F401

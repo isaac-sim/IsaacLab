@@ -9,6 +9,19 @@ prototype dual-arm skills, collect demonstrations, and evaluate control policies
 
 ---
 
+## Table of contents
+- [Highlights](#highlights)
+- [Requirements and Setup](#requirements-and-setup)
+- [Franka Environments](#franka-environments)
+- [Teleoperation Controller](#teleoperation-controller)
+- [Training and Evaluation](#training-and-evaluation)
+- [Motion Primitive (MP) Box Pushing](#motion-primitive-mp-box-pushing)
+- [Add a new environment and MP variant](#add-a-new-environment-and-mp-variant)
+- [Repository Layout](#repository-layout)
+- [License and Attribution](#license-and-attribution)
+
+---
+
 ## Highlights
 
 - Four Franka task families (`assembly_kit`, `peg_insertion_side`, `two_robot_pick_cube`, `two_robot_stack_cube`) with Direct/Camera/Teleop variants so you can swap between state, RGB, and task-space controllers by changing the Gym ID.
@@ -134,6 +147,96 @@ Run the following commands from the repo root to launch each teleop-ready task (
 
 Episodes are 4 seconds (200 simulation steps at 100 Hz) by default, and each config exposes sampling ranges for objects,
 goals, and camera poses so you can adapt them to your dataset needs.
+
+---
+
+## Motion Primitive (MP) Box Pushing
+
+- **Environments:** Base step env ids `Isaac-Box-Pushing-<variant><reward>-step-Franka-v0` (`Dense`/`TemporalSparse`; optional `NoIK-` or `JointPos-` prefixes; `bbrl` variant also registered). MP variants use ids like `Isaac_MP/Box-Pushing-<reward>-<MPType>-Franka-v0`, registered via `register_mp_env` / `register_box_pushing_mp_env` in `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/mp_wrapper.py`.
+
+### MP smoke tests
+
+- SB3:
+  ```bash
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/smoke_mp_env.py --base_id <base> --mp_type ProDMP --device cuda:0 --headless
+  ```
+- RSL-RL:
+  ```bash
+  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/smoke_mp_env.py --base_id <base> --mp_type ProDMP --device cuda:0 --headless
+  ```
+  (Runs a few zero-action steps to validate masked observations and MP action dimensions.)
+
+### Training examples
+
+- SB3 PPO (step):
+  ```bash
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py \
+      --task Isaac-Box-Pushing-Dense-step-Franka-v0 \
+      --device cuda:0 \
+      --headless
+  ```
+- SB3 MP (headless):
+  ```bash
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train_mp.py \
+    --base_id Isaac-Box-Pushing-Dense-step-Franka-v0 \
+    --mp_type ProDMP \
+    --mp_wrapper isaaclab_tasks.manager_based.box_pushing.mp_wrapper:BoxPushingMPWrapper \
+    --mp_cfg source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/config/franka/agents/sb3_ppo_cfg_mp.yaml \
+    --device cuda:0 \
+    --logger wandb \
+    --log_project_name isaaclab-mp \
+    --headless
+  ```
+- RSL-RL MP (headless):
+  ```bash
+  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train_mp.py \
+    --base_id Isaac-Box-Pushing-Dense-step-Franka-v0 \
+    --mp_type ProDMP \
+    --mp_wrapper isaaclab_tasks.manager_based.box_pushing.mp_wrapper:BoxPushingMPWrapper \
+    --agent isaaclab_tasks.manager_based.box_pushing.config.franka.agents.rsl_rl_cfg:BoxPushingPPORunnerCfg_mp \
+    --num_envs 152 \
+    --device cuda:0 \
+    --logger wandb \
+    --log_project_name isaaclab-mp \
+    --headless
+  ```
+
+### Hyperparameters and MP settings
+
+- SB3 MP: `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/config/franka/agents/sb3_ppo_cfg_mp.yaml` (aligned with fancy_gym).
+- RSL-RL MP: `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/config/franka/agents/rsl_rl_cfg.py` (`BoxPushingPPORunnerCfg_mp`).
+- MP defaults/masks: `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/mp_wrapper.py` (`context_mask`, basis/duration defaults).
+
+### MP usage notes
+
+- Observations: `context_mask` exposes the MP context slice; trainers only see masked policy observations.
+- Actions: trainers operate in the MP parameter space (`traj_gen_action_space`); base step actions stay unchanged.
+- Rollout: one MP action produces a trajectory; a tracking controller executes substeps; rewards are aggregated to a single return.
+- Performance: longer trajectories (e.g., tau ≈ 2s → ~100 substeps) slow collection; reduce tau/duration/basis count to speed up.
+
+### Key MP file paths
+
+- MP utilities/wrapper: `source/isaaclab_tasks/isaaclab_tasks/utils/mp/black_box_wrapper.py`, `raw_interface.py`, `registry.py`.
+- Task MP wrapper: `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/mp_wrapper.py`.
+- SB3 MP wrapper: `source/isaaclab_rl/isaaclab_rl/sb3_mp_wrapper.py`.
+- RSL-RL MP wrapper: `source/isaaclab_rl/isaaclab_rl/rsl_rl/mp_vecenv_wrapper.py`.
+- MP training scripts: `scripts/reinforcement_learning/sb3/train_mp.py`, `scripts/reinforcement_learning/rsl_rl/train_mp.py`.
+- Smoke tests: `scripts/reinforcement_learning/sb3/smoke_mp_env.py`, `scripts/reinforcement_learning/rsl_rl/smoke_mp_env.py`.
+
+---
+
+## Add a new environment and MP variant
+
+- **Step env setup**
+  - Create your task under `source/isaaclab_tasks/isaaclab_tasks/<category>/<task>` with env cfg and agents (see box_pushing for a template).
+  - Register the base Gym IDs in the task `__init__.py` (similar to `manager_based/box_pushing/config/franka/__init__.py`) with `sb3_cfg_entry_point` / `rsl_rl_cfg_entry_point`.
+- **MP wrapper**
+  - Implement a `RawMPInterface` subclass in your task (e.g., `<task>/mp_wrapper.py`) defining `context_mask`, `current_pos/vel`, `action_bounds`, optional `mp_config` defaults, and a validity callback.
+- **Register MP env**
+  - Call `register_mp_env` (or a helper like `register_<task>_mp_env`) with `mp_id="Isaac_MP/<Task>-<Reward>-<MPType>-<Arm>-v0"`, `base_id` pointing to your step env, and `mp_wrapper_cls` pointing to your wrapper. Example usage is in `scripts/reinforcement_learning/sb3/train_mp.py` and `rsl_rl/train_mp.py`.
+- **Configs and smoke test**
+  - Add MP agent configs (SB3: YAML; RSL-RL: Python cfg) alongside your task. Update `context_mask` if observations change.
+  - Run the smoke tests with your base id to verify masked observations and MP action dimensions before full training.
 
 ---
 

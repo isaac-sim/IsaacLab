@@ -72,3 +72,36 @@ class BoxPushingPPORunnerCfg_bbrl(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class BoxPushingPPORunnerCfg_mp(RslRlOnPolicyRunnerCfg):
+    """RSL-RL config tuned for MP rollouts (aligned with fancy_gym hyperparameters)."""
+
+    seed = 42
+    num_steps_per_env = 1
+    # 152 envs * 1 step/env * 3290 iters ~= 500k transitions
+    max_iterations = 3290
+    save_interval = 50
+    experiment_name = "mp_proDMP_fancy_gym_hp"
+    empirical_normalization = True
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[128, 128],
+        critic_hidden_dims=[256, 256],
+        activation="lrelu",
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.0,
+        num_learning_epochs=20,
+        num_mini_batches=38,
+        learning_rate=3.0e-4,
+        schedule="fixed",
+        gamma=1.0,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )

@@ -1,0 +1,31 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# PPO config for MP-based box pushing (aligned with fancy_gym hyperparameters).
+seed: 42
+num_envs: 152
+n_timesteps: 500000
+n_steps_per_update: 152
+n_minibatches: 38
+
+policy: 'MlpPolicy'
+learning_rate: !!float 3e-4
+n_epochs: 20
+gamma: 1.0
+gae_lambda: 0.95
+clip_range: 0.2
+normalize_advantage: True
+ent_coef: 0.0
+
+policy_kwargs: "dict(
+                  ortho_init=True,
+                  activation_fn=nn.LeakyReLU,
+                  net_arch=dict(pi=[128, 128], vf=[256, 256])
+                )"
+
+normalize_input: True
+clip_obs: 10.0
+normalize_value: True
+clip_rew: 10.0

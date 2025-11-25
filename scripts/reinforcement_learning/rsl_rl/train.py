@@ -15,6 +15,90 @@ from isaaclab.app import AppLauncher
 # local imports
 import cli_args  # isort: skip
 
+
+def _resolve_class(path: str):
+    module, cls = path.split(":")
+    mod = __import__(module, fromlist=[cls])
+    return getattr(mod, cls)
+
+
+def _infer_mp_components(mp_id: str) -> tuple[str | None, str | None, str | None]:
+    """Infer base_id, mp_type, wrapper for known MP ids (Box Pushing)."""
+    if not mp_id or "Box-Pushing" not in mp_id:
+        return None, None, None
+    tail = mp_id.split("/")[-1]
+    parts = tail.split("-")
+    if len(parts) < 6:
+        return None, None, None
+    reward = parts[2]
+    mp_type = parts[3]
+    arm = parts[4]
+    base_id = f"Isaac-Box-Pushing-{reward}-step-{arm}-v0"
+    wrapper = "isaaclab_tasks.manager_based.box_pushing.mp_wrapper:BoxPushingMPWrapper"
+    return base_id, mp_type, wrapper
+
+
+def _is_mp_env(env) -> bool:
+    """Heuristic to detect MP-wrapped environments."""
+    head = env
+    while head is not None:
+        if hasattr(head, "traj_gen_action_space") or hasattr(head, "context_mask"):
+            return True
+        spec = getattr(head, "spec", None)
+        if spec is not None and getattr(spec, "id", None) is not None and "Isaac_MP" in spec.id:
+            return True
+        if not hasattr(head, "env"):
+            break
+        head = head.env
+    return False
+
+
+def _maybe_register_mp_env():
+    """Auto-register MP env ids when --task points to an MP variant."""
+    task = args_cli.task or ""
+    if "Isaac_MP" not in task:
+        return
+
+    mp_id = args_cli.mp_id or task
+    base_id = args_cli.mp_base_id
+    mp_type = args_cli.mp_type
+    mp_wrapper = args_cli.mp_wrapper
+
+    if base_id is None or mp_wrapper is None or mp_type is None:
+        guess_base, guess_type, guess_wrapper = _infer_mp_components(mp_id)
+        base_id = base_id or guess_base
+        mp_type = mp_type or guess_type
+        mp_wrapper = mp_wrapper or guess_wrapper
+
+    if base_id is None or mp_wrapper is None or mp_type is None:
+        print(
+            "[WARN] MP task requested but base_id/mp_wrapper/mp_type not provided. "
+            "Please pass --mp_base_id/--mp_wrapper/--mp_type to auto-register."
+        )
+        return
+
+    device = args_cli.mp_device or args_cli.device
+    try:
+        mp_wrapper_cls = _resolve_class(mp_wrapper)
+        register_mp_env(mp_id=mp_id, base_id=base_id, mp_wrapper_cls=mp_wrapper_cls, mp_type=mp_type, device=device)
+        # propagate env/agent cfg entry points from base spec if available
+        import gymnasium as gym
+
+        base_spec = gym.spec(base_id)
+        mp_spec = gym.spec(mp_id)
+        env_entry = base_spec.kwargs.get("env_cfg_entry_point")
+        if env_entry is not None:
+            mp_spec.kwargs["env_cfg_entry_point"] = env_entry
+        # propagate rsl-rl agent cfg entry point
+        if CUSTOM_AGENT_CFG_PATH is not None:
+            mp_spec.kwargs[AGENT_ENTRY_POINT_KEY] = CUSTOM_AGENT_CFG_PATH
+        elif AGENT_ENTRY_POINT_KEY in base_spec.kwargs:
+            mp_spec.kwargs[AGENT_ENTRY_POINT_KEY] = base_spec.kwargs[AGENT_ENTRY_POINT_KEY]
+        print(f"[INFO] Registered MP env id '{mp_id}' (base: {base_id}, type: {mp_type}, device: {device}).")
+    except Exception as exc:
+        print(f"[WARN] Failed to auto-register MP env '{mp_id}': {exc}")
+
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
@@ -34,11 +118,69 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+# MP auto-registration (optional)
+parser.add_argument(
+    "--mp_base_id",
+    type=str,
+    default=None,
+    help="Base step env id for MP registration (e.g., Isaac-Box-Pushing-Dense-step-Franka-v0).",
+)
+parser.add_argument(
+    "--mp_wrapper",
+    type=str,
+    default=None,
+    help="MP wrapper class path (e.g., isaaclab_tasks.manager_based.box_pushing.mp_wrapper:BoxPushingMPWrapper).",
+)
+parser.add_argument("--mp_type", type=str, default=None, help="MP backend type (e.g., ProDMP, ProMP, DMP).")
+parser.add_argument(
+    "--mp_id",
+    type=str,
+    default=None,
+    help="MP env id to register; defaults to --task when --task contains Isaac_MP.",
+)
+parser.add_argument(
+    "--mp_device",
+    type=str,
+    default=None,
+    help="Device to place MP components on (defaults to --device).",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
+
+# agent cfg handling: allow direct module:Class paths while keeping hydra key consistent
+AGENT_ENTRY_POINT_KEY = "rsl_rl_cfg_entry_point"
+CUSTOM_AGENT_CFG_PATH = None
+if args_cli.agent and ":" in args_cli.agent:
+    CUSTOM_AGENT_CFG_PATH = args_cli.agent
+    args_cli.agent = AGENT_ENTRY_POINT_KEY
+
+# target task for Hydra (defaults to provided --task)
+HYDRA_TASK_NAME = args_cli.task
+if args_cli.task and "Isaac_MP" in args_cli.task:
+    mp_id = args_cli.mp_id or args_cli.task
+    guess_base, guess_type, guess_wrapper = _infer_mp_components(mp_id)
+    if args_cli.mp_base_id is None:
+        args_cli.mp_base_id = guess_base
+    if args_cli.mp_type is None:
+        args_cli.mp_type = guess_type
+    if args_cli.mp_wrapper is None:
+        args_cli.mp_wrapper = guess_wrapper
+    # Hydra needs a known config name; fall back to base env id
+    if args_cli.mp_base_id is not None:
+        HYDRA_TASK_NAME = args_cli.mp_base_id
+
+# If a custom agent cfg path is provided, patch the gym spec so Hydra picks it up
+if CUSTOM_AGENT_CFG_PATH and HYDRA_TASK_NAME is not None:
+    try:
+        import gymnasium as gym
+
+        base_spec = gym.spec(HYDRA_TASK_NAME)
+        base_spec.kwargs[AGENT_ENTRY_POINT_KEY] = CUSTOM_AGENT_CFG_PATH
+    except Exception:
+        pass
 
 # always enable cameras to record video
 if args_cli.video:
@@ -80,6 +222,7 @@ import logging
 import os
 import torch
 from datetime import datetime
+from math import ceil
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -93,11 +236,13 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
+from isaaclab_rl import RslRlMPVecEnvWrapper
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils.mp import register_mp_env
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -110,7 +255,7 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 
-@hydra_task_config(args_cli.task, args_cli.agent)
+@hydra_task_config(HYDRA_TASK_NAME, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Train with RSL-RL agent."""
     # override configurations with non-hydra CLI arguments
@@ -119,6 +264,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg.max_iterations = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
+    # For MP tasks, ensure we honor MP rollout semantics and fancy_gym-equivalent budget.
+    if args_cli.task and "Isaac_MP" in args_cli.task:
+        agent_cfg.num_steps_per_env = 1
+        target_steps = 500_000  # match fancy_gym total timesteps
+        agent_cfg.max_iterations = ceil(target_steps / (env_cfg.scene.num_envs * agent_cfg.num_steps_per_env))
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
@@ -188,7 +338,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for rsl-rl
-    env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+    if _is_mp_env(env):
+        env = RslRlMPVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+    else:
+        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
     # create runner from rsl-rl
     if agent_cfg.class_name == "OnPolicyRunner":
@@ -217,6 +370,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
 if __name__ == "__main__":
+    _maybe_register_mp_env()
     # run the main function
     main()
     # close sim app
