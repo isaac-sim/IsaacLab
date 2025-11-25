@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm
@@ -18,6 +17,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SurfaceGripperBinaryAction(ActionTerm):
@@ -48,7 +50,7 @@ class SurfaceGripperBinaryAction(ActionTerm):
         super().__init__(cfg, env)
 
         # log the resolved asset name for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved surface gripper asset for the action term {self.__class__.__name__}: {self.cfg.asset_name}"
         )
 

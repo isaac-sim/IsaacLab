@@ -40,22 +40,19 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 """Rest everything follows."""
 
+import logging
 import os
 import torch
-
-import omni.log
-
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
 
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
+
+# import logger
+logger = logging.getLogger(__name__)
+import isaaclab.sim.utils.nucleus as nucleus_utils
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -63,7 +60,7 @@ if nucleus_utils.get_assets_root_path() is None:
         "Unable to perform Nucleus login on Omniverse. Assets root path is not set.\n"
         "\tPlease check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
     )
-    omni.log.error(msg)
+    logger.error(msg)
     raise RuntimeError(msg)
 
 
@@ -89,7 +86,7 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
