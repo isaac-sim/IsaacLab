@@ -26,7 +26,20 @@ def _nested_update(base: dict, update: dict) -> dict:
 
 
 def _normalize_devices(config: dict, device: str | torch.device | None) -> dict:
-    """Ensure all device fields and tensor values align with the target device."""
+    """Ensure all device fields and tensor values align with the target device.
+
+    Args:
+        config (dict): Arbitrary nested MP config.
+        device (str | torch.device | None): Target device; when `None`, values are left
+            unchanged.
+
+    Returns:
+        dict: Config with any `"device"` entries set to `device` and tensor values moved.
+
+    Notes:
+        This is called after merge so late overrides cannot force a different device.
+        Nested dicts are processed recursively; non-tensor leaves are untouched.
+    """
 
     def _apply(val):
         if torch.is_tensor(val) and device is not None:
@@ -50,7 +63,25 @@ def _merge_mp_config(
     mp_config_override: dict[str, Any] | None,
     env_device: str | torch.device | None,
 ):
-    """Merge defaults, wrapper config, and overrides with consistent device handling."""
+    """Merge MP configuration in the order: `MP_DEFAULTS -> wrapper.mp_config -> override`.
+
+    Args:
+        mp_type (str): Motion primitive type key (e.g., `"ProDMP"`, `"ProMP"`, `"DMP"`).
+        mp_wrapper_cls: Wrapper class exposing `mp_config` overrides per `mp_type`.
+        mp_config_override (dict | None): User override that wins over defaults and class
+            config.
+        env_device (str | torch.device | None): Target device propagated into every
+            component's kwargs and used to relocate any tensor values.
+
+    Returns:
+        dict: Merged config ready for factory construction. Ensures `black_box_kwargs`
+        includes a `reward_aggregation` function (defaults to `torch.sum`).
+
+    Notes:
+        Each kwargs block gains a `device` entry when missing so downstream factories
+        produce modules on the same device as the wrapped environment. `_normalize_devices`
+        enforces consistency even when overrides contain tensors.
+    """
 
     config = deepcopy(MP_DEFAULTS.get(mp_type, {}))
     _nested_update(config, deepcopy(getattr(mp_wrapper_cls, "mp_config", {}).get(mp_type, {})))
@@ -84,7 +115,35 @@ def make_mp_env(
     mp_config_override: dict[str, Any] | None = None,
     env_make_kwargs: dict[str, Any] | None = None,
 ):
-    """Construct an MP environment on top of an existing step-based env."""
+    """Construct an MP-enabled environment on top of an existing step-based env.
+
+    Args:
+        base_id (str): Gym id of the base environment to wrap.
+        mp_wrapper_cls (Callable): Wrapper class deriving from `RawMPInterface`.
+        mp_type (str): Key into `MP_DEFAULTS` and wrapper `mp_config` (`"ProDMP"` by default).
+        device (str | torch.device | None): Device used for all MP components and for
+            relocating tensors; falls back to `env.device` or CPU.
+        mp_config_override (dict | None): User overrides applied after defaults and class
+            config. Keys mirror `MP_DEFAULTS`.
+        env_make_kwargs (dict | None): Extra kwargs forwarded to `gym.make(base_id, ...)`.
+
+    Returns:
+        BlackBoxWrapper: Wrapped environment ready for Gym RL or IsaacLab managers.
+
+    Flow:
+        1. Instantiate the base env and wrap it with `mp_wrapper_cls`.
+        2. Merge config (`MP_DEFAULTS -> wrapper.mp_config -> mp_config_override`) and
+           propagate `device`.
+        3. Build phase, basis, trajectory generator, and controller via factories.
+        4. Derive `duration` from overrides, `env.unwrapped.max_episode_length_s`, or
+           `max_episode_length * step_dt`; fall back to 1.0s.
+        5. Construct `BlackBoxWrapper` with the components and merged kwargs.
+
+    Notes:
+        The returned wrapper preserves Fancy Gym parity by reporting the MP parameter
+        space as `action_space` while internally stepping the base env with controller
+        outputs.
+    """
     env = gym.make(base_id, **(env_make_kwargs or {}))
     env_device = device or getattr(env, "device", None) or getattr(env.unwrapped, "device", None) or "cpu"
     env = mp_wrapper_cls(env)
@@ -135,7 +194,25 @@ def upgrade(
     mp_config_override: dict[str, Any] | None = None,
     env_make_kwargs: dict[str, Any] | None = None,
 ):
-    """Register a gym id for an MP variant of an existing environment."""
+    """Register a gym id for an MP variant of an existing environment.
+
+    Args:
+        mp_id (str): Target Gym id for the MP environment; returned unchanged when
+            already registered.
+        base_id (str): Gym id of the underlying step-based environment.
+        mp_wrapper_cls (Callable): Wrapper implementing `RawMPInterface`.
+        mp_type (str): MP key used for config merging (see `MP_DEFAULTS`).
+        device (str | torch.device): Device propagated into all MP components.
+        mp_config_override (dict | None): User overrides applied last.
+        env_make_kwargs (dict | None): Default kwargs forwarded to `gym.make` at creation.
+
+    Returns:
+        str: Registered `mp_id`.
+
+    Notes:
+        The entry point defers to `make_mp_env` to build the final wrapper. Registry is
+        idempotent: calling `upgrade` again with the same `mp_id` returns immediately.
+    """
     if mp_id in gym_registry:
         return mp_id
 

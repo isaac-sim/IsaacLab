@@ -18,6 +18,20 @@ from .raw_interface import RawMPInterface
 
 
 def _find_attr_across_wrappers(env, names, default=None):
+    """Walk the wrapper stack to fetch the first available attribute in `names`.
+
+    Args:
+        env: Wrapped environment or wrapper instance.
+        names (list[str] | tuple[str, ...]): Attribute names to search for, in order.
+        default (Any): Value to return when none of the names are present.
+
+    Returns:
+        Any: Attribute value from the first match, or `default` if none is found.
+
+    Notes:
+        This helper is used to discover observation spaces, devices, or timing fields
+        without coupling to a specific wrapper ordering.
+    """
     head = env
     while head is not None:
         for name in names:
@@ -30,7 +44,21 @@ def _find_attr_across_wrappers(env, names, default=None):
 
 
 def _ensure_batch(tensor: torch.Tensor, target: int, squeeze_last: bool = False) -> torch.Tensor:
-    """Broadcast or slice a tensor to match the target batch size."""
+    """Broadcast or slice a tensor to match the target batch size.
+
+    Args:
+        tensor (torch.Tensor): Input value to reshape or replicate.
+        target (int): Desired batch dimension size.
+        squeeze_last (bool): If `True`, squeeze a trailing singleton dim after aligning.
+
+    Returns:
+        torch.Tensor: Tensor with first dimension `target`; values are repeated when needed.
+
+    Notes:
+        This keeps batch alignment across MP rollout components. Scalars become shape
+        `(1,)`, then repeat to `(target, ...)` when `target>1`. When `target==1` but
+        the input batch is larger, only the first entry is used to avoid hidden loops.
+    """
     if not torch.is_tensor(tensor):
         tensor = torch.as_tensor(tensor)
     if tensor.ndim == 0:
@@ -49,7 +77,13 @@ def _ensure_batch(tensor: torch.Tensor, target: int, squeeze_last: bool = False)
 
 
 class BlackBoxWrapper(gym.ObservationWrapper):
-    """Torch-only MP rollout wrapper."""
+    """Roll out trajectory generators and controllers against a step-based env.
+
+    The wrapper translates high-level MP parameters into per-step env actions while
+    preserving Gym compatibility. It handles batching, clamping to env bounds, reward
+    aggregation, and optional replanning. All tensors are expected to live on the
+    provided `device` (falls back to `env.device` or CPU).
+    """
 
     def __init__(
         self,
@@ -68,6 +102,38 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         verbose: int = 1,
         **kwargs,
     ):
+        """Build an MP wrapper around a `RawMPInterface` environment.
+
+        Args:
+            env (RawMPInterface): Environment exposing MP hooks and observation mask.
+            trajectory_generator: MP implementation with `set_params`, `get_traj_pos`,
+                `get_traj_vel`, and `get_params_bounds`. Expects tensors on `device`.
+            tracking_controller: Controller with `get_action(des_pos, des_vel, cur_pos, cur_vel)`
+                producing step actions shaped `(batch, action_dim)`.
+            duration (float): Rollout horizon in seconds when `learn_sub_trajectories` is
+                `False`; otherwise the trajectory generator controls duration.
+            reward_aggregation (Callable[[torch.Tensor, int], torch.Tensor]): Aggregation
+                over per-step rewards; called with `dim=1` when it accepts that argument.
+            learn_sub_trajectories (bool): If `True`, the trajectory generator can shorten
+                trajectories and is reset every step.
+            replanning_schedule (Callable | None): Predicate called as
+                `fn(cur_pos, cur_vel, last_obs, last_action, step_idx)` each step. When
+                `True`, rollout stops early and `step` returns with current cumulative reward.
+            max_planning_times (int): Maximum number of planned segments per episode; caps
+                replanning frequency.
+            condition_on_desired (bool): If `True`, the next plan conditions on the desired
+                state at the stop point rather than the measured `current_*`.
+            device (str | torch.device | None): Device for all tensors; defaults to
+                `env.device` or CPU.
+            verbose (int): Reserved for debugging verbosity.
+            **kwargs: Ignored extra arguments for compatibility with registries.
+
+        Notes:
+            - The wrapper mirrors `single_action_space` to downstream wrappers so managers
+              see the MP parameter space while the env action space remains controller outputs.
+            - Observation spaces are masked using `env.context_mask` when sub-trajectory
+              learning and replanning are disabled to maintain Fancy Gym parity.
+        """
         super().__init__(env)
         self.device = torch.device(device) if device is not None else torch.device(getattr(env, "device", "cpu"))
         self.verbose = verbose
@@ -122,6 +188,20 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         self.condition_vel = None
 
     def observation(self, observation):
+        """Convert raw env observations into masked policy observations.
+
+        Args:
+            observation: Observation returned by the wrapped env (dict or tensor).
+
+        Returns:
+            dict: Dict with key `"policy"` containing the masked observation tensor.
+
+        Notes:
+            - If the underlying env returns a dict, `"policy"` is prioritized; otherwise
+              the single value is used.
+            - When `return_context_observation` is `True`, `context_mask` is applied on
+              the last dimension to expose only MP-relevant fields.
+        """
         obs = observation
         if isinstance(obs, dict):
             if "policy" in obs:
@@ -136,6 +216,24 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return {"policy": obs}
 
     def get_trajectory(self, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Generate desired position and velocity trajectories from MP parameters.
+
+        Args:
+            action (torch.Tensor): MP parameters shaped `(batch, param_dim)`; a 1D vector
+                is automatically expanded to batch size 1. When `num_envs>1`, a single
+                action is broadcast to all environments.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: `(position, velocity)` each shaped
+            `(batch, horizon, dof)` on `self.device`.
+
+        Notes:
+            - Parameters are clamped to `traj_gen_action_space` bounds before use.
+            - Initial conditions pull `current_pos`/`current_vel` (or `condition_*` when
+              `condition_on_desired` was set) and broadcast to the batch.
+            - When `learn_sub_trajectories` is `True`, the trajectory generator reset lets
+              it emit shorter horizons.
+        """
         if action.dim() == 1:
             action = action.unsqueeze(0)
         batch_size = action.shape[0]
@@ -176,6 +274,7 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return position, velocity
 
     def _get_traj_gen_action_space(self):
+        """Build the action space describing valid MP parameters for the trajectory generator."""
         min_action_bounds, max_action_bounds = self.traj_gen.get_params_bounds()
         dtype = min_action_bounds.detach().cpu().numpy().dtype
         return spaces.Box(
@@ -185,6 +284,18 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         )
 
     def _get_observation_space(self):
+        """Create the masked single-environment observation space for policy consumption.
+
+        Returns:
+            gym.Space | None: Dict space with `"policy"` entry when masking succeeds,
+            otherwise the original observation space from the wrapped env.
+
+        Notes:
+            - The function prefers `single_observation_space` (IsaacLab convention) and
+              falls back to `observation_space`.
+            - When masking is enabled, only the policy branch is masked; other dict fields
+              remain untouched to preserve logging data for downstream consumers.
+        """
         # prefer the underlying single_observation_space (may live deeper in the wrapper stack)
         obs_space = _find_attr_across_wrappers(self.env, ["single_observation_space"], None)
         if obs_space is None:
@@ -217,7 +328,15 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return obs_space
 
     def _batch_observation_space(self, single_obs_space: spaces.Space) -> spaces.Space:
-        """Batch a single-environment observation space if num_envs is available."""
+        """Batch a single-environment observation space if `num_envs` is available.
+
+        Args:
+            single_obs_space (gym.Space): Observation space for one environment.
+
+        Returns:
+            gym.Space: Batched space via `gymnasium.vector.utils.batch_space` when
+            `num_envs` is set; otherwise the input space.
+        """
         if single_obs_space is None:
             return single_obs_space
         if self.num_envs is not None:
@@ -226,7 +345,17 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return single_obs_space
 
     def _get_action_space(self):
-        """Expose the MP parameter space as the action space by default."""
+        """Expose the MP parameter space as the reported Gym action space.
+
+        Returns:
+            gym.Space: Batched `Box` matching MP parameters; falls back to the trajectory
+            generator bounds when not initialized.
+
+        Notes:
+            Downstream RL agents see this as the action space, even though the real env
+            receives controller outputs. The per-env batching keeps parity with Gym's
+            vector env expectations.
+        """
         base_space = getattr(self, "traj_gen_action_space", None)
         if base_space is None:
             base_space = self._get_traj_gen_action_space()
@@ -236,6 +365,19 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return base_space
 
     def _clamp_to_env_bounds(self, action: torch.Tensor) -> torch.Tensor:
+        """Clamp controller outputs to the wrapped env bounds.
+
+        Args:
+            action (torch.Tensor): Controller action `(batch, action_dim)` on `self.device`.
+
+        Returns:
+            torch.Tensor: Action clipped to `action_bounds` or `env.action_space` limits.
+
+        Notes:
+            - Explicit `env.action_bounds` (callable or tuple) take precedence over
+              `action_space` to allow custom safety limits.
+            - When the env bounds are infinite on both sides, actions are returned unchanged.
+        """
         # Prefer explicit action bounds from wrapper if available
         bounds = getattr(self.env, "action_bounds", None)
         if callable(bounds):
@@ -262,6 +404,40 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return clamped
 
     def step(self, action: torch.Tensor):
+        """Roll out an MP trajectory, feed actions to the env, and aggregate results.
+
+        Args:
+            action (torch.Tensor): MP parameters `(batch, param_dim)`; 1D tensors are
+                expanded. When only one set is provided and `num_envs>1`, it is broadcast
+                to all envs.
+
+        Returns:
+            tuple: `(obs, reward, terminated, truncated, info)` where
+            - `obs` is a dict `{"policy": masked_obs}` matching `observation_space`,
+            - `reward` is aggregated with `reward_aggregation` over the executed steps,
+            - `terminated`/`truncated` are broadcast to `(batch,)`,
+            - `info` contains the last env info, optional `step_infos` (list per key), and
+              `trajectory_length`.
+
+        Flow:
+            1. Convert MP parameters to desired trajectories with `get_trajectory`.
+            2. Run `set_episode_arguments` then `preprocessing_and_validity_callback`.
+               Invalid trajectories call `invalid_traj_callback` immediately.
+            3. For each time index:
+               - Query `current_pos/vel`, compute controller action, clamp to bounds.
+               - Step the env; normalize rewards and done flags to batch.
+               - Collect infos; render if requested.
+               - Stop early if all done, truncated, or `replanning_schedule` fires
+                 (capped by `max_planning_times`). When `condition_on_desired=True`,
+                 store the desired state at the stop point for the next plan.
+            4. Aggregate rewards with `reward_aggregation(rewards, dim=1)` when supported;
+               otherwise call the function without `dim`.
+
+        Error Handling:
+            Relies on hooks in `RawMPInterface` to flag invalid trajectories; any exception
+            from the env step bubbles up. Reward aggregation falls back to sum when
+            `reward_aggregation` is `None`.
+        """
         if action.dim() == 1:
             action = action.unsqueeze(0)
 
@@ -362,9 +538,11 @@ class BlackBoxWrapper(gym.ObservationWrapper):
         return self.observation(obs), trajectory_return, terminated, truncated, infos_out
 
     def render(self, **kwargs):
+        """Store render kwargs so `step` can forward them during rollout."""
         self.render_kwargs = kwargs
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+        """Reset cached trajectory state and delegate to the wrapped env."""
         self.current_traj_steps = 0
         self.plan_steps = 0
         self.traj_gen.reset()
