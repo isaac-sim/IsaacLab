@@ -8,11 +8,10 @@ from __future__ import annotations
 import math
 import re
 
-import isaacsim
 import omni.kit.app
 import omni.kit.commands
-import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
+
+from isaaclab import lazy
 
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
@@ -48,10 +47,9 @@ class UrdfConverter(AssetConverterBase):
         """
         manager = omni.kit.app.get_app().get_extension_manager()
         if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            enable_extension("isaacsim.asset.importer.urdf")
-        from isaacsim.asset.importer.urdf._urdf import acquire_urdf_interface
+            lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.asset.importer.urdf")
 
-        self._urdf_interface = acquire_urdf_interface()
+        self._urdf_interface = lazy.isaacsim.asset.importer.urdf._urdf.acquire_urdf_interface()
         super().__init__(cfg=cfg)
 
     """
@@ -95,7 +93,7 @@ class UrdfConverter(AssetConverterBase):
     Helper methods.
     """
 
-    def _get_urdf_import_config(self) -> isaacsim.asset.importer.urdf.ImportConfig:
+    def _get_urdf_import_config(self) -> any:
         """Create and fill URDF ImportConfig with desired settings
 
         Returns:
@@ -144,8 +142,7 @@ class UrdfConverter(AssetConverterBase):
 
     def _set_joints_drive_type(self):
         """Set the joint drive type for all joints in the URDF model."""
-        from isaacsim.asset.importer.urdf._urdf import UrdfJointDriveType
-
+        UrdfJointDriveType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointDriveType
         drive_type_mapping = {
             "force": UrdfJointDriveType.JOINT_DRIVE_FORCE,
             "acceleration": UrdfJointDriveType.JOINT_DRIVE_ACCELERATION,
@@ -169,8 +166,7 @@ class UrdfConverter(AssetConverterBase):
 
     def _set_joints_drive_target_type(self):
         """Set the joint drive target type for all joints in the URDF model."""
-        from isaacsim.asset.importer.urdf._urdf import UrdfJointTargetType
-
+        UrdfJointTargetType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointTargetType
         target_type_mapping = {
             "none": UrdfJointTargetType.JOINT_DRIVE_NONE,
             "position": UrdfJointTargetType.JOINT_DRIVE_POSITION,
@@ -276,8 +272,7 @@ class UrdfConverter(AssetConverterBase):
             joint: The joint from the URDF robot model.
             stiffness: The stiffness value.
         """
-        from isaacsim.asset.importer.urdf._urdf import UrdfJointType
-
+        UrdfJointType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointType
         if joint.type == UrdfJointType.JOINT_PRISMATIC:
             joint.drive.set_strength(stiffness)
         else:
@@ -291,8 +286,7 @@ class UrdfConverter(AssetConverterBase):
             joint: The joint from the URDF robot model.
             damping: The damping value.
         """
-        from isaacsim.asset.importer.urdf._urdf import UrdfJointType
-
+        UrdfJointType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointType
         if joint.type == UrdfJointType.JOINT_PRISMATIC:
             joint.drive.set_damping(damping)
         else:
@@ -305,7 +299,8 @@ class UrdfConverter(AssetConverterBase):
         Args:
             joint: The joint from the URDF robot model.
         """
-        from isaacsim.asset.importer.urdf._urdf import UrdfJointDriveType, UrdfJointTargetType
+        UrdfJointDriveType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointDriveType
+        UrdfJointTargetType = lazy.isaacsim.asset.importer.urdf._urdf.UrdfJointTargetType
 
         strength = self._urdf_interface.compute_natural_stiffness(
             self._robot_model,

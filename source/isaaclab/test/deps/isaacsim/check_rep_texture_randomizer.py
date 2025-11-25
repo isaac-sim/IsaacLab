@@ -23,6 +23,8 @@ Usage:
 
 import argparse
 
+from isaaclab import lazy
+
 # isaaclab
 from isaaclab.app import AppLauncher
 
@@ -45,13 +47,9 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.objects import DynamicSphere
-from isaacsim.core.prims import RigidPrim
-from isaacsim.core.utils.viewports import set_camera_view
+
+import isaaclab.sim.utils.prims as prim_utils
 
 
 def main():
@@ -65,24 +63,26 @@ def main():
         "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
         "enable_scene_query_support": True,
     }
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
     )
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_balls = 128
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")
 
     # Define the scene
     # -- Ball
-    DynamicSphere(prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25)
+    lazy.isaacsim.core.objects.DynamicSphere(
+        prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25
+    )
 
     # Clone the scene
     cloner.define_base_env("/World/envs")
@@ -112,7 +112,7 @@ def main():
 
     # Set ball positions over terrain origins
     # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = lazy.isaacsim.core.prims.RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
     # cache initial state of the balls
     ball_initial_positions = torch.tensor(env_positions, dtype=torch.float, device=sim.device)
     ball_initial_positions[:, 2] += 5.0

@@ -16,6 +16,7 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
 
 import argparse
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -36,12 +37,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.viewports import set_camera_view
-
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.utils.timer import Timer
@@ -76,16 +73,18 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0"
+    )
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
     sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")

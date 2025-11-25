@@ -21,15 +21,10 @@ For more details, please check: https://github.com/isaac-sim/IsaacLab/issues/639
 """Launch Isaac Sim Simulator first."""
 
 
-import contextlib
-
-with contextlib.suppress(ModuleNotFoundError):
-    import isaacsim  # noqa: F401
-
-from isaacsim import SimulationApp
+from isaaclab import lazy
 
 # launch omniverse app
-simulation_app = SimulationApp({"headless": True})
+simulation_app = lazy.isaacsim.SimulationApp({"headless": True})
 
 """Rest everything follows."""
 
@@ -38,13 +33,12 @@ import gc
 import logging
 import torch  # noqa: F401
 
-import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims import Articulation
+import isaaclab.sim.utils.nucleus as nucleus_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 # import logger
 logger = logging.getLogger(__name__)
-import isaaclab.sim.utils.nucleus as nucleus_utils
+
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -82,7 +76,7 @@ class AnymalArticulation:
         # Resolve robot prim paths
         root_prim_path = "/World/Robot/base"
         # Setup robot
-        self.view = Articulation(root_prim_path, name="ANYMAL")
+        self.view = lazy.isaacsim.core.prims.Articulation(root_prim_path, name="ANYMAL")
 
     def __del__(self):
         """Delete the Anymal articulation class."""
@@ -103,7 +97,9 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0"
+    )
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled

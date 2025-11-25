@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 import carb
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
+from isaaclab import lazy
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
@@ -84,7 +83,7 @@ class TiledCamera(Camera):
             RuntimeError: If Isaac Sim version < 4.2
             ValueError: If the provided data types are not supported by the camera.
         """
-        isaac_sim_version = float(".".join(get_version()[2:4]))
+        isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2:4]))
         if isaac_sim_version < 4.2:
             raise RuntimeError(
                 f"TiledCamera is only available from Isaac Sim 4.2.0. Current version is {isaac_sim_version}. Please"
@@ -158,7 +157,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
+        self._view = lazy.isaacsim.core.prims.XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:

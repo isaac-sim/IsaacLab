@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.48.7 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` to reduce IsaacLab dependencies.
+
+
 0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
 

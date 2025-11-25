@@ -20,8 +20,8 @@ from typing import Any, ClassVar
 
 import omni.kit.app
 import omni.physx
-from isaacsim.core.version import get_version
 
+from isaaclab import lazy
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
@@ -63,7 +63,7 @@ class DirectMARLEnv(gym.Env):
 
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
+        "isaac_sim_version": lazy.isaacsim.core.version.get_version(),
     }
     """Metadata for the environment."""
 
@@ -543,7 +543,7 @@ class DirectMARLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if float(".".join(lazy.isaacsim.core.version.get_version()[2])) >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

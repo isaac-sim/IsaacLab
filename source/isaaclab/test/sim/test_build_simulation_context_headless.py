@@ -21,8 +21,8 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
-from isaacsim.core.utils.prims import is_prim_path_valid
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
 
@@ -43,7 +43,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
         assert sim.cfg.dt == dt
 
         # Ensure that dome light didn't get added automatically as we are headless
-        assert not is_prim_path_valid("/World/defaultDomeLight")
+        assert not prim_utils.is_prim_path_valid("/World/defaultDomeLight")
 
 
 @pytest.mark.parametrize("add_ground_plane", [True, False])
@@ -52,7 +52,7 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
     """Test that the simulation context is built with the correct ground plane."""
     with build_simulation_context(add_ground_plane=add_ground_plane) as _:
         # Ensure that ground plane got added
-        assert is_prim_path_valid("/World/defaultGroundPlane") == add_ground_plane
+        assert prim_utils.is_prim_path_valid("/World/defaultGroundPlane") == add_ground_plane
 
 
 @pytest.mark.parametrize("add_lighting", [True, False])
@@ -63,10 +63,10 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
     with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as _:
         if add_lighting:
             # Ensure that dome light got added
-            assert is_prim_path_valid("/World/defaultDomeLight")
+            assert prim_utils.is_prim_path_valid("/World/defaultDomeLight")
         else:
             # Ensure that dome light didn't get added as there's no GUI
-            assert not is_prim_path_valid("/World/defaultDomeLight")
+            assert not prim_utils.is_prim_path_valid("/World/defaultDomeLight")
 
 
 @pytest.mark.isaacsim_ci

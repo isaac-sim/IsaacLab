@@ -16,13 +16,12 @@ from typing import TYPE_CHECKING, Any, Literal
 import carb
 import omni.kit.commands
 import omni.usd
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.sim.utils import stage as stage_utils
+from isaaclab import lazy
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -148,7 +147,7 @@ class Camera(SensorBase):
         self._data = CameraData()
 
         # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        isaac_sim_version = get_version()
+        isaac_sim_version = lazy.isaacsim.core.version.get_version()
         # checks for Isaac Sim v4.5 as this issue exists there
         if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
@@ -406,7 +405,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
+        self._view = lazy.isaacsim.core.prims.XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:

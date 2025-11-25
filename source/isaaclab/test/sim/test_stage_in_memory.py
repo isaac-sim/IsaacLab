@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -12,18 +13,16 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
 import omni
 import omni.physx
 import omni.usd
 import pytest
 import usdrt
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -50,7 +49,7 @@ def test_stage_in_memory_with_shapes(sim):
     """Test spawning of shapes with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -115,7 +114,7 @@ def test_stage_in_memory_with_usds(sim):
     """Test spawning of USDs with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -181,7 +180,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     """Test cloning in fabric with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
@@ -197,7 +196,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         source_prim_path = f"{base_env_path}/env_0"
 
         # create cloner
-        cloner = GridCloner(spacing=3, stage=stage_in_memory)
+        cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=3, stage=stage_in_memory)
         cloner.define_base_env(base_env_path)
 
         # create source prim

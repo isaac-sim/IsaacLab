@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -12,12 +13,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def sim():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, device="cuda:0")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, device="cuda:0")
     # Wait for spawning
     stage_utils.update_stage()
     yield sim

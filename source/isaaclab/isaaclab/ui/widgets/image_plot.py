@@ -5,21 +5,17 @@
 
 import logging
 import numpy as np
-from contextlib import suppress
 from matplotlib import cm
 from typing import TYPE_CHECKING, Optional
 
 import carb
 import omni
 
-with suppress(ImportError):
-    # isaacsim.gui is not available when running in headless mode.
-    import isaacsim.gui.components.ui_utils
+from isaaclab import lazy
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import isaacsim.gui.components
     import omni.ui
 
 # import logger
@@ -164,7 +160,7 @@ class ImagePlot(UIWidgetWrapper):
                 # Write the leftmost label for what this plot is
                 omni.ui.Label(
                     self._label,
-                    width=isaacsim.gui.components.ui_utils.LABEL_WIDTH,
+                    width=lazy.isaacsim.gui.components.ui_utils.LABEL_WIDTH,
                     alignment=omni.ui.Alignment.LEFT_TOP,
                 )
                 with omni.ui.Frame(width=self._aspect_ratio * self._widget_height, height=self._widget_height):
@@ -202,7 +198,7 @@ class ImagePlot(UIWidgetWrapper):
                 def _change_mode(value):
                     self._curr_mode = value
 
-                isaacsim.gui.components.ui_utils.dropdown_builder(
+                lazy.isaacsim.gui.components.ui_utils.dropdown_builder(
                     label="Mode",
                     type="dropdown",
                     items=["Original", "Normalization", "Colorization"],

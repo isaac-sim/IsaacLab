@@ -45,13 +45,12 @@ import torch
 
 import carb
 import omni
-from isaacsim.core.utils.stage import get_current_stage
-from omni.kit.viewport.utility import get_viewport_from_window_name
-from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
 from rsl_rl.runners import OnPolicyRunner
 
+from isaaclab import lazy
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -112,7 +111,7 @@ class H1RoughDemo:
     def create_camera(self):
         """Creates a camera to be used for third-person view."""
         stage = get_current_stage()
-        self.viewport = get_viewport_from_window_name("Viewport")
+        self.viewport = lazy.omni_kit_viewport_utility.get_viewport_from_window_name("Viewport")
         # Create camera
         self.camera_path = "/World/Camera"
         self.perspective_path = "/OmniverseKit_Persp"
@@ -200,7 +199,7 @@ class H1RoughDemo:
 
         camera_pos = quat_apply(base_quat, self._camera_local_transform) + base_pos
 
-        camera_state = ViewportCameraState(self.camera_path, self.viewport)
+        camera_state = lazy.omni_kit_viewport_utility.camera_state.ViewportCameraState(self.camera_path, self.viewport)
         eye = Gf.Vec3d(camera_pos[0].item(), camera_pos[1].item(), camera_pos[2].item())
         target = Gf.Vec3d(base_pos[0].item(), base_pos[1].item(), base_pos[2].item() + 0.6)
         camera_state.set_position_world(eye, True)

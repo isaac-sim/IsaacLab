@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import torch
 
-from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -221,9 +221,11 @@ class FrankaCabinetEnv(DirectRLEnv):
         finger_pose = torch.zeros(7, device=self.device)
         finger_pose[0:3] = (lfinger_pose[0:3] + rfinger_pose[0:3]) / 2.0
         finger_pose[3:7] = lfinger_pose[3:7]
-        hand_pose_inv_rot, hand_pose_inv_pos = tf_inverse(hand_pose[3:7], hand_pose[0:3])
+        hand_pose_inv_rot, hand_pose_inv_pos = lazy.isaacsim.core.utils.torch.transformations.tf_inverse(
+            hand_pose[3:7], hand_pose[0:3]
+        )
 
-        robot_local_grasp_pose_rot, robot_local_pose_pos = tf_combine(
+        robot_local_grasp_pose_rot, robot_local_pose_pos = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             hand_pose_inv_rot, hand_pose_inv_pos, finger_pose[3:7], finger_pose[0:3]
         )
         robot_local_pose_pos += torch.tensor([0, 0.04, 0], device=self.device)
@@ -418,10 +420,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         dist_reward *= dist_reward
         dist_reward = torch.where(d <= 0.02, dist_reward * 2, dist_reward)
 
-        axis1 = tf_vector(franka_grasp_rot, gripper_forward_axis)
-        axis2 = tf_vector(drawer_grasp_rot, drawer_inward_axis)
-        axis3 = tf_vector(franka_grasp_rot, gripper_up_axis)
-        axis4 = tf_vector(drawer_grasp_rot, drawer_up_axis)
+        axis1 = lazy.isaacsim.core.utils.torch.transformations.tf_vector(franka_grasp_rot, gripper_forward_axis)
+        axis2 = lazy.isaacsim.core.utils.torch.transformations.tf_vector(drawer_grasp_rot, drawer_inward_axis)
+        axis3 = lazy.isaacsim.core.utils.torch.transformations.tf_vector(franka_grasp_rot, gripper_up_axis)
+        axis4 = lazy.isaacsim.core.utils.torch.transformations.tf_vector(drawer_grasp_rot, drawer_up_axis)
 
         dot1 = (
             torch.bmm(axis1.view(num_envs, 1, 3), axis2.view(num_envs, 3, 1)).squeeze(-1).squeeze(-1)
@@ -481,10 +483,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         drawer_local_grasp_rot,
         drawer_local_grasp_pos,
     ):
-        global_franka_rot, global_franka_pos = tf_combine(
+        global_franka_rot, global_franka_pos = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             hand_rot, hand_pos, franka_local_grasp_rot, franka_local_grasp_pos
         )
-        global_drawer_rot, global_drawer_pos = tf_combine(
+        global_drawer_rot, global_drawer_pos = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             drawer_rot, drawer_pos, drawer_local_grasp_rot, drawer_local_grasp_pos
         )
 

@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import torch
 
-from isaacsim.replicator.mobility_gen.impl.path_planner import compress_path, generate_paths
+from isaaclab import lazy
 
 from .occupancy_map_utils import OccupancyMap
 from .scene_utils import HasPose2d
@@ -197,11 +196,13 @@ def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> 
     end_yx_pixels = end_xy_pixels[..., 0, ::-1]
 
     # Generate path using the mobility path planner
-    path_planner_output = generate_paths(start=start_yx_pixels, freespace=occupancy_map.freespace_mask())
+    path_planner_output = lazy.isaacsim.replicator.mobility_gen.impl.path_planner.generate_paths(
+        start=start_yx_pixels, freespace=occupancy_map.freespace_mask()
+    )
 
     # Extract and compress the path
     path_yx_pixels = path_planner_output.unroll_path(end_yx_pixels)
-    path_yx_pixels, _ = compress_path(path_yx_pixels)
+    path_yx_pixels, _ = lazy.isaacsim.replicator.mobility_gen.impl.path_planner.compress_path(path_yx_pixels)
 
     # Convert back from (y, x) to (x, y) format
     path_xy_pixels = path_yx_pixels[:, ::-1]

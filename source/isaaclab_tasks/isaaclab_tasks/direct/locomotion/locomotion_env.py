@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
-
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 
@@ -24,6 +22,12 @@ class LocomotionEnv(DirectRLEnv):
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+
+        self._compute_intermediate_values_fn = _make_compute_intermediate_values(
+            lazy.isaacsim.core.utils.torch.rotations.compute_heading_and_up,
+            lazy.isaacsim.core.utils.torch.rotations.compute_rot,
+            lazy.isaacsim.core.utils.torch.maths.unscale,
+        )
 
         self.action_scale = self.cfg.action_scale
         self.joint_gears = torch.tensor(self.cfg.joint_gears, dtype=torch.float32, device=self.sim.device)
@@ -41,7 +45,9 @@ class LocomotionEnv(DirectRLEnv):
         self.heading_vec = torch.tensor([1, 0, 0], dtype=torch.float32, device=self.sim.device).repeat(
             (self.num_envs, 1)
         )
-        self.inv_start_rot = quat_conjugate(self.start_rotation).repeat((self.num_envs, 1))
+        self.inv_start_rot = lazy.isaacsim.core.utils.torch.rotations.quat_conjugate(self.start_rotation).repeat(
+            (self.num_envs, 1)
+        )
         self.basis_vec0 = self.heading_vec.clone()
         self.basis_vec1 = self.up_vec.clone()
 
@@ -88,7 +94,7 @@ class LocomotionEnv(DirectRLEnv):
             self.dof_pos_scaled,
             self.prev_potentials,
             self.potentials,
-        ) = compute_intermediate_values(
+        ) = self._compute_intermediate_values_fn(
             self.targets,
             self.torso_position,
             self.torso_rotation,
@@ -228,53 +234,56 @@ def compute_rewards(
     return total_reward
 
 
-@torch.jit.script
-def compute_intermediate_values(
-    targets: torch.Tensor,
-    torso_position: torch.Tensor,
-    torso_rotation: torch.Tensor,
-    velocity: torch.Tensor,
-    ang_velocity: torch.Tensor,
-    dof_pos: torch.Tensor,
-    dof_lower_limits: torch.Tensor,
-    dof_upper_limits: torch.Tensor,
-    inv_start_rot: torch.Tensor,
-    basis_vec0: torch.Tensor,
-    basis_vec1: torch.Tensor,
-    potentials: torch.Tensor,
-    prev_potentials: torch.Tensor,
-    dt: float,
-):
-    to_target = targets - torso_position
-    to_target[:, 2] = 0.0
+def _make_compute_intermediate_values(compute_heading_and_up_fn, compute_rot_fn, unscale_fn):
+    @torch.jit.script
+    def _compute_intermediate_values(
+        targets: torch.Tensor,
+        torso_position: torch.Tensor,
+        torso_rotation: torch.Tensor,
+        velocity: torch.Tensor,
+        ang_velocity: torch.Tensor,
+        dof_pos: torch.Tensor,
+        dof_lower_limits: torch.Tensor,
+        dof_upper_limits: torch.Tensor,
+        inv_start_rot: torch.Tensor,
+        basis_vec0: torch.Tensor,
+        basis_vec1: torch.Tensor,
+        potentials: torch.Tensor,
+        prev_potentials: torch.Tensor,
+        dt: float,
+    ):
+        to_target = targets - torso_position
+        to_target[:, 2] = 0.0
 
-    torso_quat, up_proj, heading_proj, up_vec, heading_vec = compute_heading_and_up(
-        torso_rotation, inv_start_rot, to_target, basis_vec0, basis_vec1, 2
-    )
+        torso_quat, up_proj, heading_proj, up_vec, heading_vec = compute_heading_and_up_fn(
+            torso_rotation, inv_start_rot, to_target, basis_vec0, basis_vec1, 2
+        )
 
-    vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target = compute_rot(
-        torso_quat, velocity, ang_velocity, targets, torso_position
-    )
+        vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target = compute_rot_fn(
+            torso_quat, velocity, ang_velocity, targets, torso_position
+        )
 
-    dof_pos_scaled = torch_utils.maths.unscale(dof_pos, dof_lower_limits, dof_upper_limits)
+        dof_pos_scaled = unscale_fn(dof_pos, dof_lower_limits, dof_upper_limits)
 
-    to_target = targets - torso_position
-    to_target[:, 2] = 0.0
-    prev_potentials[:] = potentials
-    potentials = -torch.norm(to_target, p=2, dim=-1) / dt
+        to_target = targets - torso_position
+        to_target[:, 2] = 0.0
+        prev_potentials[:] = potentials
+        potentials = -torch.norm(to_target, p=2, dim=-1) / dt
 
-    return (
-        up_proj,
-        heading_proj,
-        up_vec,
-        heading_vec,
-        vel_loc,
-        angvel_loc,
-        roll,
-        pitch,
-        yaw,
-        angle_to_target,
-        dof_pos_scaled,
-        prev_potentials,
-        potentials,
-    )
+        return (
+            up_proj,
+            heading_proj,
+            up_vec,
+            heading_vec,
+            vel_loc,
+            angvel_loc,
+            roll,
+            pitch,
+            yaw,
+            angle_to_target,
+            dof_pos_scaled,
+            prev_potentials,
+            potentials,
+        )
+
+    return _compute_intermediate_values

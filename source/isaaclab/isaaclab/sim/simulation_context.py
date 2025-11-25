@@ -26,17 +26,16 @@ import carb
 import flatdict
 import omni.physx
 import omni.usd
-from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.utils.viewports import set_camera_view
-from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
+from isaaclab import lazy
 from isaaclab.sim.utils import stage as stage_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+
+_SimulationContext = lazy.isaacsim.core.api.simulation_context.SimulationContext
 
 
 class SimulationContext(_SimulationContext):
@@ -146,7 +145,7 @@ class SimulationContext(_SimulationContext):
 
         # read isaac sim version (this includes build tag, release tag etc.)
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
+        self._isaacsim_version = lazy.isaacsim.core.version.get_version()
 
         # apply carb physics settings
         self._apply_physics_settings()
@@ -192,13 +191,12 @@ class SimulationContext(_SimulationContext):
         else:
             # note: need to import here in case the UI is not available (ex. headless mode)
             import omni.ui as ui
-            from omni.kit.viewport.utility import get_active_viewport
 
             # set default render mode
             # note: this can be changed by calling the `set_render_mode` function
             self.render_mode = self.RenderMode.FULL_RENDERING
             # acquire viewport context
-            self._viewport_context = get_active_viewport()
+            self._viewport_context = lazy.omni_kit_viewport_utility.get_active_viewport()
             self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
             # acquire viewport window
             # TODO @mayank: Why not just use get_active_viewport_and_window() directly?
@@ -211,10 +209,8 @@ class SimulationContext(_SimulationContext):
         # check the case where we don't need to render the viewport
         # since render_viewport can only be False in headless mode, we only need to check for offscreen_render
         if not self._render_viewport and self._offscreen_render:
-            # disable the viewport if offscreen_render is enabled
-            from omni.kit.viewport.utility import get_active_viewport
 
-            get_active_viewport().updates_enabled = False
+            lazy.omni_kit_viewport_utility.get_active_viewport().updates_enabled = False
 
         # override enable scene querying if rendering is enabled
         # this is needed for some GUI features
@@ -266,7 +262,7 @@ class SimulationContext(_SimulationContext):
         # set simulation device
         # note: Although Isaac Sim sets the physics device in the init function,
         #   it does a render call which gets the wrong device.
-        SimulationManager.set_physics_sim_device(self.cfg.device)
+        lazy.isaacsim.core.simulation_manager.SimulationManager.set_physics_sim_device(self.cfg.device)
 
         # obtain the parsed device
         # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
@@ -274,7 +270,7 @@ class SimulationContext(_SimulationContext):
         # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
         #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
         #   This reduces the overhead of calling the function.
-        self._physics_device = SimulationManager.get_physics_sim_device()
+        self._physics_device = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_device()
 
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:
@@ -390,7 +386,7 @@ class SimulationContext(_SimulationContext):
         """
         # safe call only if we have a GUI or viewport rendering enabled
         if self._has_gui or self._offscreen_render or self._render_viewport:
-            set_camera_view(eye, target, camera_prim_path)
+            lazy.isaacsim_core_utils_viewports.set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.

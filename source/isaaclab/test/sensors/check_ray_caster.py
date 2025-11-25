@@ -16,6 +16,7 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 
 import argparse
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -41,13 +42,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import RigidPrim
-from isaacsim.core.utils.viewports import set_camera_view
-
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -56,10 +52,10 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048):
+def design_scene(sim, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")
@@ -97,11 +93,11 @@ def main():
         "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
         "enable_scene_query_support": True,
     }
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
     )
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs
@@ -128,7 +124,7 @@ def main():
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = lazy.isaacsim.core.prims.RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
     # Play simulator
     sim.reset()

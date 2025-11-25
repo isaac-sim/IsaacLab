@@ -9,11 +9,11 @@ import textwrap
 from typing import Any, TypeAlias
 
 import omni.kit.commands
+import omni.kit.xr
 import omni.ui as ui
-from isaacsim.core.utils.prims import delete_prim, get_prim_at_path
-from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
-from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
 from pxr import Gf
+
+from isaaclab.sim.utils.prims import delete_prim, get_prim_at_path
 
 Vec3Type: TypeAlias = Gf.Vec3f | Gf.Vec3d
 
@@ -128,7 +128,7 @@ def show_instruction(
     font_size: float = 0.1,
     text_color: int = 0xFFFFFFFF,
     target_prim_path: str = "/newPrim",
-) -> UiContainer | None:
+) -> omni.kit.xr.scene_view.utils.UiContainer | None:
     """Create and display an instruction widget with the given text.
 
     The widget size is computed from the text and font size, wrapping content
@@ -148,7 +148,7 @@ def show_instruction(
         target_prim_path (str): Prim path where the widget prim will be created/copied.
 
     Returns:
-        UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
+        omni.kit.xr.scene_view.utils.UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
     """
     global camera_facing_widget_container, camera_facing_widget_timers
 
@@ -173,7 +173,7 @@ def show_instruction(
     width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
 
     # Create the widget component.
-    widget_component = WidgetComponent(
+    widget_component = omni.kit.xr.scene_view.utils.WidgetComponent(
         SimpleTextWidget,
         width=width,
         height=height,
@@ -191,15 +191,17 @@ def show_instruction(
 
     space_stack = []
     if copied_prim is not None:
-        space_stack.append(SpatialSource.new_prim_path_source(target_prim_path))
+        space_stack.append(
+            omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_prim_path_source(target_prim_path)
+        )
 
     space_stack.extend([
-        SpatialSource.new_translation_source(translation),
-        SpatialSource.new_look_at_camera_source(),
+        omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_translation_source(translation),
+        omni.kit.xr.scene_view.utils.spatial_source.SpatialSource.new_look_at_camera_source(),
     ])
 
     # Create the UI container with the widget.
-    container = UiContainer(
+    container = omni.kit.xr.scene_view.utils.UiContainer(
         widget_component,
         space_stack=space_stack,
     )

@@ -11,11 +11,11 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import lazy
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import (
     combine_frame_transforms,
@@ -249,7 +249,7 @@ class FrameTransformer(SensorBase):
         body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)

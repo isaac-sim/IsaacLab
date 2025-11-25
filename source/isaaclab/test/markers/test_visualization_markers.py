@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -15,12 +16,11 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.math import random_orientation
 from isaaclab.utils.timer import Timer
 
@@ -33,7 +33,9 @@ def sim():
     # Open a new stage
     stage_utils.create_new_stage()
     # Load kit helper
-    sim_context = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="torch", device="cuda:0")
+    sim_context = lazy.isaacsim.core.api.simulation_context.SimulationContext(
+        physics_dt=dt, rendering_dt=dt, backend="torch", device="cuda:0"
+    )
     yield sim_context
     # Cleanup
     sim_context.stop()

@@ -44,6 +44,7 @@ import argparse
 import contextlib
 import os
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -64,12 +65,8 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import isaacsim.core.utils.prims as prim_utils
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.carb import set_carb_setting
-from isaacsim.core.utils.stage import get_current_stage
-
+import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
 
@@ -80,7 +77,7 @@ def main():
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
     # Load kit helper
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
     )
 
@@ -96,10 +93,10 @@ def main():
     sim.get_physics_context().set_gpu_total_aggregate_pairs_capacity(2**21)
     # enable hydra scene-graph instancing
     # this is needed to visualize the scene when fabric is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=args_cli.spacing, stage=stage)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=args_cli.spacing, stage=stage)
     cloner.define_base_env("/World/envs")
     prim_utils.define_prim("/World/envs/env_0")
     # Spawn things into stage

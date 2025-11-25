@@ -13,8 +13,8 @@ import torch
 import carb
 import omni.usd
 import pytest
-from isaacsim.core.version import get_version
 
+from isaaclab import lazy
 from isaaclab.envs.utils.spaces import sample_space
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -110,7 +110,7 @@ def _run_environments(
     """
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
+    isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
     if isaac_sim_version < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 

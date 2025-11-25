@@ -55,14 +55,9 @@ app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
+from isaaclab import lazy
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     log_app_start_time,
@@ -90,9 +85,10 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 
-
+# enable benchmarking extension
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.benchmark.services")
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = lazy.isaacsim.benchmark.services.BaseIsaacBenchmark(
     benchmark_name="benchmark_non_rl",
     workflow_metadata={
         "metadata": [
@@ -109,7 +105,6 @@ benchmark = BaseIsaacBenchmark(
 @hydra_task_config(args_cli.task, None)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Benchmark without RL in the loop."""
-
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device

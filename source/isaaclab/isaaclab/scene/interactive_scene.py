@@ -6,15 +6,13 @@
 import logging
 import torch
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import carb
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
+from isaaclab import lazy
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -34,6 +32,9 @@ from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
+
+if TYPE_CHECKING:
+    from isaacsim.core.prims import XFormPrim
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ class InteractiveScene:
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
+        self.cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
@@ -145,7 +146,7 @@ class InteractiveScene:
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
             # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
+            isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
             if isaac_sim_version < 5:
                 # clone the env xform
                 env_origins = self.cloner.clone(
@@ -185,7 +186,7 @@ class InteractiveScene:
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
                 # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
+                isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
                 if isaac_sim_version < 5:
                     self.cloner.replicate_physics(
                         source_prim_path=self.env_prim_paths[0],
@@ -230,7 +231,7 @@ class InteractiveScene:
             )
 
         # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        isaac_sim_version = float(".".join(get_version()[2]))
+        isaac_sim_version = float(".".join(lazy.isaacsim.core.version.get_version()[2]))
         if isaac_sim_version < 5:
             # clone the environment
             env_origins = self.cloner.clone(
@@ -409,7 +410,7 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
+    def extras(self) -> dict[str, "XFormPrim"]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
         The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
@@ -782,7 +783,9 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = lazy.isaacsim.core.prims.XFormPrim(
+                    asset_cfg.prim_path, reset_xform_properties=False
+                )
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths

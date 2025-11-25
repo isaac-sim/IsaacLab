@@ -14,12 +14,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+from isaaclab import lazy
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -296,9 +296,9 @@ class AssetBase(ABC):
             order=10,
         )
         # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
+        self._prim_deletion_callback_id = lazy.isaacsim.core.simulation_manager.SimulationManager.register_callback(
             lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
+            event=lazy.isaacsim.core.simulation_manager.IsaacEvents.PRIM_DELETION,
         )
 
     def _initialize_callback(self, event):
@@ -310,8 +310,8 @@ class AssetBase(ABC):
         """
         if not self._is_initialized:
             # obtain simulation related information
-            self._backend = SimulationManager.get_backend()
-            self._device = SimulationManager.get_physics_sim_device()
+            self._backend = lazy.isaacsim.core.simulation_manager.SimulationManager.get_backend()
+            self._device = lazy.isaacsim.core.simulation_manager.SimulationManager.get_physics_sim_device()
             # initialize the asset
             try:
                 self._initialize_impl()
@@ -349,7 +349,7 @@ class AssetBase(ABC):
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
         if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+            lazy.isaacsim.core.simulation_manager.SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
         if self._initialize_handle:
             self._initialize_handle.unsubscribe()

@@ -8,6 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -20,16 +21,15 @@ import numpy as np
 import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()
@@ -505,5 +505,5 @@ def _populate_scene():
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        lazy.isaacsim.core.prims.SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+        lazy.isaacsim.core.prims.SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)

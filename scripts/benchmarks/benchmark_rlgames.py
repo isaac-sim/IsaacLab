@@ -54,12 +54,6 @@ app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
 imports_time_begin = time.perf_counter_ns()
 
 import gymnasium as gym
@@ -73,6 +67,7 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
+from isaaclab import lazy
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
@@ -106,8 +101,10 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 
+# enable benchmarking extension
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.benchmark.services")
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = lazy.isaacsim.benchmark.services.BaseIsaacBenchmark(
     benchmark_name="benchmark_rlgames_train",
     workflow_metadata={
         "metadata": [

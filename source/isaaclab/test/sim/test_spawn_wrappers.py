@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -12,12 +13,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -26,7 +26,7 @@ def sim():
     """Create a simulation context."""
     stage_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     stage_utils.update_stage()
     yield sim
     sim.stop()
@@ -69,7 +69,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
@@ -115,7 +115,7 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
@@ -158,5 +158,5 @@ def test_spawn_multiple_files_with_global_settings(sim):
 
     assert prim.IsValid()
     assert prim_utils.get_prim_path(prim) == "/World/env_0/Robot"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Robot")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Robot")
     assert len(prim_paths) == num_clones

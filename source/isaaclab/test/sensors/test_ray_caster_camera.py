@@ -20,16 +20,16 @@ import numpy as np
 import os
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import pytest
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils import convert_dict_to_backend

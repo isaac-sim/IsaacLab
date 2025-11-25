@@ -10,11 +10,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.prims import XFormPrim
 
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
+from isaaclab import lazy
 from isaaclab.sensors.camera import CameraData
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.warp import raycast_mesh
 
 from .ray_caster import RayCaster
@@ -400,7 +400,7 @@ class RayCasterCamera(RayCaster):
         """
         # obtain the poses of the sensors
         # note: clone arg doesn't exist for xform prim view so we need to do this manually
-        if isinstance(self._view, XFormPrim):
+        if isinstance(self._view, lazy.isaacsim.core.prims.XFormPrim):
             if isinstance(env_ids, slice):  # catch the case where env_ids is a slice
                 env_ids = self._ALL_INDICES
             pos_w, quat_w = self._view.get_world_poses(env_ids)

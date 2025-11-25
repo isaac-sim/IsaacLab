@@ -8,8 +8,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.torch.transformations import tf_combine
-
+from isaaclab import lazy
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 
@@ -86,12 +85,12 @@ def compute_keypoint_distance(
     # Compute keypoints for current and target poses
     for idx, keypoint_offset in enumerate(keypoint_offsets):
         # Transform keypoint offset to world coordinates for current pose
-        keypoints_current[:, idx] = tf_combine(
+        keypoints_current[:, idx] = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             current_quat, current_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
         )[1]
 
         # Transform keypoint offset to world coordinates for target pose
-        keypoints_target[:, idx] = tf_combine(
+        keypoints_target[:, idx] = lazy.isaacsim.core.utils.torch.transformations.tf_combine(
             target_quat, target_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
         )[1]
     # Calculate L2 norm distance between corresponding keypoints

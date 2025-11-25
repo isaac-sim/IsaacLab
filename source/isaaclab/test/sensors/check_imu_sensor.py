@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 
-from isaacsim import SimulationApp
+from isaaclab import lazy
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Imu Test Script")
@@ -30,7 +30,7 @@ args_cli = parser.parse_args()
 
 # launch omniverse app
 config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+simulation_app = lazy.isaacsim.SimulationApp(config)
 
 
 """Rest everything follows."""
@@ -40,9 +40,6 @@ import traceback
 
 import carb
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -55,7 +52,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
+def design_scene(sim, num_envs: int = 2048) -> RigidObject:
     """Design the scene."""
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -70,7 +67,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # obtain the current stage
     stage = omni.usd.get_context().get_stage()
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = lazy.isaacsim.core.cloner.GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
     # create source prim
@@ -122,11 +119,11 @@ def main():
         "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
         "enable_scene_query_support": True,
     }
-    sim = SimulationContext(
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(
         physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
     )
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    lazy.isaacsim.core.utils.viewports.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs

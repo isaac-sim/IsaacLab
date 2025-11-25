@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -17,15 +18,14 @@ import os
 import random
 import tempfile
 
-import isaacsim.core.utils.prims as prim_utils
 import omni
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
@@ -66,7 +66,7 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     yield sim
     # stop simulation
     sim.stop()
@@ -98,12 +98,12 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     assert units == 1.0
 
     # Check mesh settings
-    pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+    pos = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get()
     assert pos == mesh_converter.cfg.translation
     quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
     quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
     assert quat == mesh_converter.cfg.rotation
-    scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+    scale = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get()
     assert scale == mesh_converter.cfg.scale
 
 

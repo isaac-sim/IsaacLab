@@ -12,9 +12,9 @@ import logging
 import os
 import re
 
-from isaacsim.core.utils.extensions import enable_extension
+from isaaclab import lazy
 
-enable_extension("isaacsim.asset.exporter.urdf")
+lazy.isaacsim.core.utils.extensions.enable_extension("isaacsim.asset.exporter.urdf")
 
 from nvidia.srl.from_usd.to_urdf import UsdToUrdf
 

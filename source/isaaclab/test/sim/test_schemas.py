@@ -5,6 +5,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from isaaclab import lazy
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -14,14 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import math
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim.schemas as schemas
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.utils import find_global_fixed_joint_prim
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
@@ -34,7 +34,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = lazy.isaacsim.core.api.simulation_context.SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
