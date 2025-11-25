@@ -3,19 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
-
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
-from isaaclab_tasks.isaaclab_tasks.manager_based.manipulation.reach.reach_openarm_bi_env_cfg import (
+from isaaclab_tasks.manager_based.manipulation.reach.reach_openarm_bi_env_cfg import (
     ReachEnvCfg,
 )
 
 ##
 # Pre-defined configs
 ##
-from openarm_isaac_lab.source.openarm.openarm.tasks.manager_based.openarm_manipulation.assets.openarm import OPENARM_BI_HIGH_PD_CFG
+from openarm.openarm.tasks.manager_based.openarm_manipulation.assets.openarm import OPENARM_BI_HIGH_PD_CFG
 
 ##
 # Environment configuration

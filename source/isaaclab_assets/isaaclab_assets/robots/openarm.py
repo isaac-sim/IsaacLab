@@ -13,13 +13,15 @@ The following configurations are available:
 * :obj:`OPENARM_UNI_HIGH_PD_CFG`: OpenArm robot with one arm and stiffer PD control.
 
 Reference: https://github.com/enactic/openarm_isaac_lab
+
+Please `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
 """
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-from openarm_isaac_lab.source.openarm.openarm.tasks.manager_based.openarm_manipulation import (
+from openarm.openarm.tasks.manager_based.openarm_manipulation import (
     OPENARM_ROOT_DIR,
 )
 
