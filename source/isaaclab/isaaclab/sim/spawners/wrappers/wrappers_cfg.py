@@ -43,7 +43,7 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     .. warning::
 
         This attribute is deprecated. Use
-        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` instead.
+        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead.
     """
 
 
@@ -73,5 +73,5 @@ class MultiUsdFileCfg(UsdFileCfg):
     .. warning::
 
         This attribute is deprecated. Use
-        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` instead.
+        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead.
     """

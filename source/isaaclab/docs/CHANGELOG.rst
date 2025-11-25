@@ -24,7 +24,7 @@ Added
 
 * Added optional random prototype selection during environment cloning in
   :class:`~isaaclab.scene.interactive_scene.InteractiveScene` via
-  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning`.
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning`.
   Defaults to ``True``; round-robin (modulo) mapping remains available by setting it to ``False``.
 
 * Added flexible per-object cloning path in
@@ -38,7 +38,7 @@ Deprecated
 
 * Deprecated :attr:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice` and
   :attr:`~isaaclab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice`. Use
-  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogenous_cloning` to control whether
+  :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` to control whether
   assets are selected randomly (``True``) or via round-robin (``False``) across environments.
 
 

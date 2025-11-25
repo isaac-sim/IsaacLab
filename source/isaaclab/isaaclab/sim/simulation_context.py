@@ -249,7 +249,7 @@ class SimulationContext(_SimulationContext):
             )
         else:
             self._app_control_on_stop_handle = None
-        self._disable_app_control_on_stop_handle = False
+        self._disable_app_control_on_stop_handle = True
 
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
@@ -1127,6 +1127,7 @@ def build_simulation_context(
         sim.logger.error(traceback.format_exc())
         raise
     finally:
+        sim._disable_app_control_on_stop_handle = True
         if not sim.has_gui():
             # Stop simulation only if we aren't rendering otherwise the app will hang indefinitely
             sim.stop()

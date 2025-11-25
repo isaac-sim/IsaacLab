@@ -138,7 +138,7 @@ class InteractiveScene:
 
         self.cloner_cfg = cloner.TemplateCloneCfg(
             clone_regex=self.env_regex_ns,
-            random_heterogenous_cloning=self.cfg.random_heterogenous_cloning,
+            random_heterogeneous_cloning=self.cfg.random_heterogeneous_cloning,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
         )

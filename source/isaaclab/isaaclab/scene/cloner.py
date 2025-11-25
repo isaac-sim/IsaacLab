@@ -28,7 +28,7 @@ class TemplateCloneCfg:
     1. Discover prototypes under :attr:`template_root` whose base name starts with
         :attr:`template_prototype_identifier` (for example, ``proto_asset_0``, ``proto_asset_1``).
     2. Build a per-prototype mapping to environments according to
-        :attr:`random_heterogenous_cloning` (random) or modulo assignment (deterministic).
+        :attr:`random_heterogeneous_cloning` (random) or modulo assignment (deterministic).
     3. Stamp the selected prototypes to destinations derived from :attr:`clone_regex`.
     4. Optionally perform PhysX replication for the same mapping.
 
@@ -48,7 +48,7 @@ class TemplateCloneCfg:
             clone_regex="/World/envs/env_.*",
             clone_usd=True,
             clone_physx=True,
-            random_heterogenous_cloning=False,  # use round-robin mapping
+            random_heterogeneous_cloning=False,  # use round-robin mapping
             device="cpu",
         )
 
@@ -74,7 +74,7 @@ class TemplateCloneCfg:
     clone_physx: bool = True
     """Enable PhysX replication for the same mapping to speed up physics setup."""
 
-    random_heterogenous_cloning: bool = True
+    random_heterogeneous_cloning: bool = True
     """Randomly assign prototypes to environments. Default is True.
 
     When enabled, each environment selects a prototype at random from the available prototypes
@@ -119,7 +119,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
             m = torch.zeros((len(protos), num_clones), dtype=torch.bool, device=cfg.device)
             # Optionally select prototypes randomly per environment; else round-robin by modulo
-            if cfg.random_heterogenous_cloning:
+            if cfg.random_heterogeneous_cloning:
                 rand_idx = torch.randint(len(protos), (num_clones,), device=cfg.device)
                 m[rand_idx, world_indices] = True
             else:
