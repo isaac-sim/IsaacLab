@@ -48,7 +48,7 @@ def _ensure_batch(tensor: torch.Tensor, target: int, squeeze_last: bool = False)
     return tensor[:1].repeat(*reps)
 
 
-class BlackBoxMPWrapper(gym.ObservationWrapper):
+class BlackBoxWrapper(gym.ObservationWrapper):
     """Torch-only MP rollout wrapper."""
 
     def __init__(
@@ -273,7 +273,8 @@ class BlackBoxMPWrapper(gym.ObservationWrapper):
 
         batch_size, traj_len = position.shape[0], position.shape[1]
         rewards = torch.zeros((batch_size, traj_len), device=self.device)
-        infos: dict[str, Any] = {}
+        last_info: dict[str, Any] = {}
+        step_infos: dict[str, list[Any]] = {}
         terminated = torch.zeros((batch_size,), dtype=torch.bool, device=self.device)
         truncated = torch.zeros((batch_size,), dtype=torch.bool, device=self.device)
 
@@ -315,7 +316,9 @@ class BlackBoxMPWrapper(gym.ObservationWrapper):
             truncated = _ensure_batch(truncated, batch_size, squeeze_last=True)
 
             if isinstance(info, dict):
-                infos = info
+                last_info = info
+                for k, v in info.items():
+                    step_infos.setdefault(k, []).append(v)
 
             if self.render_kwargs:
                 self.env.render(**self.render_kwargs)
@@ -351,7 +354,12 @@ class BlackBoxMPWrapper(gym.ObservationWrapper):
         else:
             trajectory_return = rewards[:, : t + 1].sum(dim=1)
 
-        return self.observation(obs), trajectory_return, terminated, truncated, infos
+        infos_out = dict(last_info) if last_info else {}
+        if step_infos:
+            infos_out["step_infos"] = step_infos
+        infos_out["trajectory_length"] = t + 1
+
+        return self.observation(obs), trajectory_return, terminated, truncated, infos_out
 
     def render(self, **kwargs):
         self.render_kwargs = kwargs

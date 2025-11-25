@@ -10,7 +10,7 @@ import torch
 
 
 class RawMPInterface(gym.Wrapper):
-    """Base wrapper exposing the minimum interface required by BlackBoxMPWrapper.
+    """Base wrapper exposing the minimum interface required by BlackBoxWrapper.
 
     Subclasses should override context_mask, current_pos, current_vel, and optionally
     preprocessing hooks. All values are expected to be torch tensors living on the
@@ -21,11 +21,12 @@ class RawMPInterface(gym.Wrapper):
     def context_mask(self) -> torch.Tensor:
         """Boolean mask over the policy observation; defaults to using all entries."""
         obs_space = getattr(self.env, "observation_space", None)
+        device = getattr(self.env, "device", None)
         if obs_space is None:
-            return torch.tensor([True], dtype=torch.bool)
+            return torch.tensor([True], dtype=torch.bool, device=device)
         if isinstance(obs_space, gym.spaces.Box):
-            return torch.ones(obs_space.shape[-1], dtype=torch.bool)
-        return torch.tensor([True], dtype=torch.bool)
+            return torch.ones(obs_space.shape[-1], dtype=torch.bool, device=device)
+        return torch.tensor([True], dtype=torch.bool, device=device)
 
     @property
     def current_pos(self) -> float | int | torch.Tensor | tuple:
@@ -73,10 +74,23 @@ class RawMPInterface(gym.Wrapper):
         delay_bound: list | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """Return fallback (obs, reward, terminated, truncated, info) for invalid trajectories."""
-        zeros = torch.zeros((self.env.num_envs, 1), device=pos_traj.device)
-        terminated = torch.ones((self.env.num_envs,), dtype=torch.bool, device=pos_traj.device)
-        truncated = torch.zeros((self.env.num_envs,), dtype=torch.bool, device=pos_traj.device)
-        return zeros, zeros.squeeze(-1), terminated, truncated, {}
+        num_envs = int(pos_traj.shape[0]) if hasattr(pos_traj, "shape") else getattr(self.env, "num_envs", 1)
+        obs_space = getattr(self, "observation_space", None) or getattr(self.env, "observation_space", None)
+        obs_shape = (1,)
+        if (
+            isinstance(obs_space, gym.spaces.Dict)
+            and "policy" in obs_space.spaces
+            and isinstance(obs_space.spaces["policy"], gym.spaces.Box)
+        ):
+            obs_shape = obs_space.spaces["policy"].shape
+        elif isinstance(obs_space, gym.spaces.Box):
+            obs_shape = obs_space.shape
+
+        zeros = torch.zeros((num_envs,) + tuple(obs_shape), device=pos_traj.device)
+        reward = torch.zeros((num_envs,), device=pos_traj.device)
+        terminated = torch.ones((num_envs,), dtype=torch.bool, device=pos_traj.device)
+        truncated = torch.zeros((num_envs,), dtype=torch.bool, device=pos_traj.device)
+        return zeros, reward, terminated, truncated, {}
 
     def episode_callback(self, action: torch.Tensor, pos_traj: torch.Tensor, vel_traj: torch.Tensor) -> tuple[bool]:
         """Hook to split MP parameters from auxiliary parameters if needed."""

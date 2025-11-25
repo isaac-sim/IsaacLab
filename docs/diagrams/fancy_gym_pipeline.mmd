@@ -1,0 +1,13 @@
+flowchart TD
+    A["RL agent / trainer"] --> B["gym.make('fancy_ProDMP/BoxPushingDense-v0')"]
+    B --> C["fancy_gym.upgrade/register<br/>wraps step env in RawMPInterface"]
+    C --> D["BlackBoxWrapper<br/>(mp_pytorch)"]
+    subgraph "MP stack (NumPy)"
+        D --> E["Trajectory Generator<br/>(basis + phase config)"]
+        E --> F["Tracking Controller<br/>(P/D gains)"]
+    end
+    F --> G["Step env (MuJoCo, DMControl, etc.)"]
+    G --> H["Aggregated return<br/>(sum over rollout)"]
+    G --> I["Context obs<br/>masked by context_mask"]
+    H --> A
+    I --> A

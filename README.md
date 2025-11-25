@@ -28,6 +28,7 @@ prototype dual-arm skills, collect demonstrations, and evaluate control policies
 - Calibrated contact sensors, camera intrinsics, and spawn ranges for each task, enabling both RL and imitation learning.
 - A `Se3Gamepad`-driven teleoperation loop for both dual-arm environments that can generate demonstrations or debug controllers with a regular gamepad.
 - Turnkey PPO configs for RL Games, RSL RL, SKRL, and Stable-Baselines3 under each task directory to streamline training.
+- Movement-primitive (ProDMP/ProMP/DMP) support via the `upgrade` API, aligned with Fancy Gym semantics; see MP diagrams below for the IsaacLab vs Fancy Gym stacks.
 
 ---
 
@@ -36,6 +37,10 @@ prototype dual-arm skills, collect demonstrations, and evaluate control policies
 1. Install Isaac Lab exactly as described in the upstream documentation (Isaac Sim 4.5–5.1, Python 3.11). The official pip-based instructions are available [here](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/isaaclab_pip_installation.html).
 2. Clone this fork, checkout the `tasks` branch, and run `./isaaclab.sh --help` to bootstrap the environment.
 3. Launch Isaac Sim once to let it compile extensions, then run any of the scripts below.
+4. Install the movement-primitive backend needed for MP environments:
+   ```bash
+   pip install mp_pytorch
+   ```
 
 All instructions below assume you are inside the repository root.
 
@@ -152,7 +157,18 @@ goals, and camera poses so you can adapt them to your dataset needs.
 
 ## Motion Primitive (MP) Box Pushing
 
-- **Environments:** Base step env ids `Isaac-Box-Pushing-<variant><reward>-step-Franka-v0` (`Dense`/`TemporalSparse`; optional `NoIK-` or `JointPos-` prefixes; `bbrl` variant also registered). MP variants use ids like `Isaac_MP/Box-Pushing-<reward>-<MPType>-Franka-v0`, registered via `register_mp_env` / `register_box_pushing_mp_env` in `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/mp_wrapper.py`.
+- **Environments:** Base step env ids `Isaac-Box-Pushing-<variant><reward>-step-Franka-v0` (`Dense`/`TemporalSparse`; optional `NoIK-` or `JointPos-` prefixes; `bbrl` variant also registered). MP variants use ids like `Isaac_MP/Box-Pushing-<reward>-<MPType>-Franka-v0`, registered via `upgrade` / `register_box_pushing_mp_env` in `source/isaaclab_tasks/isaaclab_tasks/manager_based/box_pushing/mp_wrapper.py`.
+
+<table width="100%">
+  <tr>
+    <td width="50%" style="vertical-align:top;">
+      <img src="docs/diagrams/isaaclab_pipeline.svg" alt="IsaacLab MP stack" style="width:100%; height:100%; object-fit:contain;">
+    </td>
+    <td width="50%" style="vertical-align:top;">
+      <img src="docs/diagrams/fancy_gym_pipeline.svg" alt="Fancy Gym MP stack" style="width:100%; height:100%; object-fit:contain;">
+    </td>
+  </tr>
+</table>
 
 ### MP smoke tests
 
@@ -233,7 +249,7 @@ goals, and camera poses so you can adapt them to your dataset needs.
 - **MP wrapper**
   - Implement a `RawMPInterface` subclass in your task (e.g., `<task>/mp_wrapper.py`) defining `context_mask`, `current_pos/vel`, `action_bounds`, optional `mp_config` defaults, and a validity callback.
 - **Register MP env**
-  - Call `register_mp_env` (or a helper like `register_<task>_mp_env`) with `mp_id="Isaac_MP/<Task>-<Reward>-<MPType>-<Arm>-v0"`, `base_id` pointing to your step env, and `mp_wrapper_cls` pointing to your wrapper. Example usage is in `scripts/reinforcement_learning/sb3/train_mp.py` and `rsl_rl/train_mp.py`.
+  - Call `upgrade` (or a helper like `register_<task>_mp_env`) with `mp_id="Isaac_MP/<Task>-<Reward>-<MPType>-<Arm>-v0"`, `base_id` pointing to your step env, and `mp_wrapper_cls` pointing to your wrapper. Example usage is in `scripts/reinforcement_learning/sb3/train_mp.py` and `rsl_rl/train_mp.py`.
 - **Configs and smoke test**
   - Add MP agent configs (SB3: YAML; RSL-RL: Python cfg) alongside your task. Update `context_mask` if observations change.
   - Run the smoke tests with your base id to verify masked observations and MP action dimensions before full training.

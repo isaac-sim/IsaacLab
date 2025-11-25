@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from isaaclab.assets import Articulation
 
 from isaaclab_tasks.manager_based.box_pushing.box_pushing_env import BoxPushingEnv
-from isaaclab_tasks.utils.mp import RawMPInterface, register_mp_env
+from isaaclab_tasks.utils.mp import RawMPInterface, upgrade
 
 
 class BoxPushingMPWrapper(RawMPInterface):
@@ -21,18 +21,11 @@ class BoxPushingMPWrapper(RawMPInterface):
         "ProDMP": {
             "black_box_kwargs": {
                 "verbose": 1,
-                "device": "cuda:0",
                 "reward_aggregation": torch.sum,
             },
             "controller_kwargs": {
-                "p_gains": 0.01 * torch.tensor(
-                    [120.0, 120.0, 120.0, 120.0, 50.0, 30.0, 10.0],
-                    device="cuda:0",
-                ),
-                "d_gains": 0.01 * torch.tensor(
-                    [10.0, 10.0, 10.0, 10.0, 6.0, 5.0, 3.0],
-                    device="cuda:0",
-                ),
+                "p_gains": 0.01 * torch.tensor([120.0, 120.0, 120.0, 120.0, 50.0, 30.0, 10.0]),
+                "d_gains": 0.01 * torch.tensor([10.0, 10.0, 10.0, 10.0, 6.0, 5.0, 3.0]),
             },
             "trajectory_generator_kwargs": {
                 "weights_scale": 0.3,
@@ -40,20 +33,17 @@ class BoxPushingMPWrapper(RawMPInterface):
                 "auto_scale_basis": True,
                 "relative_goal": False,
                 "disable_goal": False,
-                "device": "cuda:0",
             },
             "basis_generator_kwargs": {
                 "num_basis": 8,
                 "basis_bandwidth_factor": 3,
                 "num_basis_outside": 0,
                 "alpha": 10,
-                "device": "cuda:0",
             },
             "phase_generator_kwargs": {
                 "phase_generator_type": "exp",
                 "tau": 2.0,
                 "alpha_phase": 3.0,
-                "device": "cuda:0",
             },
         }
     }
@@ -113,7 +103,7 @@ def register_box_pushing_mp_env(
     """Register a gym id for the MP variant of box pushing."""
     base_id = f"Isaac-Box-Pushing-{reward_type}-{base_variant}-Franka-v0"
     fancy_id = mp_id or f"Isaac_MP/Box-Pushing-{reward_type}-{mp_type}-Franka-v0"
-    return register_mp_env(
+    return upgrade(
         mp_id=fancy_id,
         base_id=base_id,
         mp_wrapper_cls=BoxPushingMPWrapper,

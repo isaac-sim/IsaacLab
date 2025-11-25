@@ -18,7 +18,7 @@ class FunctionalMPWrapper(RawMPInterface):
 
     This is useful when the underlying environment already exposes state accessors or when you want
     to plug MP on top of an env without writing a dedicated wrapper class. You supply functions to
-    fetch the context mask and tracking state; everything else is handled by :class:`BlackBoxMPWrapper`.
+    fetch the context mask and tracking state; everything else is handled by :class:`BlackBoxWrapper`.
     """
 
     def __init__(

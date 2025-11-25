@@ -80,7 +80,9 @@ def _maybe_register_mp_env():
     device = args_cli.mp_device or args_cli.device
     try:
         mp_wrapper_cls = _resolve_class(mp_wrapper)
-        register_mp_env(mp_id=mp_id, base_id=base_id, mp_wrapper_cls=mp_wrapper_cls, mp_type=mp_type, device=device)
+        from isaaclab_tasks.utils.mp import upgrade
+
+        upgrade(mp_id=mp_id, base_id=base_id, mp_wrapper_cls=mp_wrapper_cls, mp_type=mp_type, device=device)
         # propagate env/agent cfg entry points from base spec if available
         import gymnasium as gym
 
@@ -242,7 +244,8 @@ from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
-from isaaclab_tasks.utils.mp import register_mp_env
+
+# MP utils (upgrade imports only when needed to avoid overhead)
 
 # import logger
 logger = logging.getLogger(__name__)

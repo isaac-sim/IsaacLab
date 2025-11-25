@@ -55,11 +55,11 @@ def main():
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import parse_env_cfg
-    from isaaclab_tasks.utils.mp import register_mp_env
+    from isaaclab_tasks.utils.mp import upgrade
 
     mp_wrapper_cls = resolve_class(args_cli.mp_wrapper)
     mp_id = args_cli.mp_id or f"Isaac_MP/{args_cli.base_id.split('/')[-1]}-{args_cli.mp_type}"
-    mp_id = register_mp_env(
+    mp_id = upgrade(
         mp_id=mp_id,
         base_id=args_cli.base_id,
         mp_wrapper_cls=mp_wrapper_cls,

@@ -12,7 +12,7 @@ from copy import deepcopy
 from gymnasium.envs.registration import registry as gym_registry
 from typing import Any
 
-from .black_box_wrapper import BlackBoxMPWrapper
+from .black_box_wrapper import BlackBoxWrapper
 from .factories import MP_DEFAULTS, get_basis_generator, get_controller, get_phase_generator, get_trajectory_generator
 
 
@@ -23,6 +23,57 @@ def _nested_update(base: dict, update: dict) -> dict:
         else:
             base[k] = v
     return base
+
+
+def _normalize_devices(config: dict, device: str | torch.device | None) -> dict:
+    """Ensure all device fields and tensor values align with the target device."""
+
+    def _apply(val):
+        if torch.is_tensor(val) and device is not None:
+            return val.to(device)
+        return val
+
+    for k, v in config.items():
+        if isinstance(v, dict):
+            # overwrite explicit device entries to avoid hardcoding cuda:0
+            if device is not None and "device" in v:
+                v["device"] = device
+            config[k] = _normalize_devices(v, device)
+        else:
+            config[k] = _apply(v)
+    return config
+
+
+def _merge_mp_config(
+    mp_type: str,
+    mp_wrapper_cls,
+    mp_config_override: dict[str, Any] | None,
+    env_device: str | torch.device | None,
+):
+    """Merge defaults, wrapper config, and overrides with consistent device handling."""
+
+    config = deepcopy(MP_DEFAULTS.get(mp_type, {}))
+    _nested_update(config, deepcopy(getattr(mp_wrapper_cls, "mp_config", {}).get(mp_type, {})))
+    _nested_update(config, mp_config_override or {})
+
+    # Propagate device into every kwargs block and move tensors accordingly.
+    for key in (
+        "trajectory_generator_kwargs",
+        "phase_generator_kwargs",
+        "basis_generator_kwargs",
+        "controller_kwargs",
+        "black_box_kwargs",
+    ):
+        block = config.get(key, {})
+        if isinstance(block, dict) and env_device is not None and "device" not in block:
+            block["device"] = env_device
+    config = _normalize_devices(config, env_device)
+
+    black_box_kwargs = config.setdefault("black_box_kwargs", {})
+    if "reward_aggregation" not in black_box_kwargs:
+        black_box_kwargs["reward_aggregation"] = torch.sum
+
+    return config
 
 
 def make_mp_env(
@@ -38,21 +89,13 @@ def make_mp_env(
     env_device = device or getattr(env, "device", None) or getattr(env.unwrapped, "device", None) or "cpu"
     env = mp_wrapper_cls(env)
 
-    config = deepcopy(MP_DEFAULTS.get(mp_type, {}))
-    _nested_update(config, deepcopy(getattr(mp_wrapper_cls, "mp_config", {}).get(mp_type, {})))
-    _nested_update(config, mp_config_override or {})
+    config = _merge_mp_config(mp_type, mp_wrapper_cls, mp_config_override, env_device)
 
     traj_kwargs = config.get("trajectory_generator_kwargs", {})
     phase_kwargs = config.get("phase_generator_kwargs", {})
     basis_kwargs = config.get("basis_generator_kwargs", {})
     controller_kwargs = config.get("controller_kwargs", {})
     black_box_kwargs = config.get("black_box_kwargs", {})
-
-    for kw in (traj_kwargs, phase_kwargs, basis_kwargs, black_box_kwargs):
-        if isinstance(kw, dict) and "device" not in kw:
-            kw["device"] = env_device
-    if "reward_aggregation" not in black_box_kwargs:
-        black_box_kwargs["reward_aggregation"] = torch.sum
 
     phase_gen = get_phase_generator(**phase_kwargs)
     basis_gen = get_basis_generator(phase_generator=phase_gen, **basis_kwargs)
@@ -73,7 +116,7 @@ def make_mp_env(
     if duration is None:
         duration = 1.0
 
-    wrapped = BlackBoxMPWrapper(
+    wrapped = BlackBoxWrapper(
         env,
         trajectory_generator=traj_gen,
         tracking_controller=controller,
@@ -83,7 +126,7 @@ def make_mp_env(
     return wrapped
 
 
-def register_mp_env(
+def upgrade(
     mp_id: str,
     base_id: str,
     mp_wrapper_cls: Callable,

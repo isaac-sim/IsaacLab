@@ -39,7 +39,7 @@ import torch
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.box_pushing.mp_wrapper import BoxPushingMPWrapper
 from isaaclab_tasks.utils import parse_env_cfg
-from isaaclab_tasks.utils.mp import register_mp_env
+from isaaclab_tasks.utils.mp import upgrade
 
 
 def _disable_command_debug_vis(env_cfg):
@@ -63,7 +63,7 @@ def main():
     elif mp_id is None:
         raise ValueError("Please provide --mp_id for non-box-pushing tasks.")
 
-    env_id = register_mp_env(
+    env_id = upgrade(
         mp_id=mp_id,
         base_id=args_cli.base_id,
         mp_wrapper_cls=BoxPushingMPWrapper,

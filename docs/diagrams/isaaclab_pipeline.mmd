@@ -1,0 +1,14 @@
+flowchart TD
+    A["RL agent / trainer"] --> B["gym.make('Isaac_MP/Box-Pushing-Dense-ProDMP-Franka-v0')"]
+    B --> C["upgrade / make_mp_env<br/>(isaaclab_tasks.utils.mp.registry)"]
+    C --> D["BoxPushingMPWrapper<br/>(RawMPInterface, torch)"]
+    D --> E["BlackBoxWrapper (torch)<br/>return context obs if mask is set"]
+    subgraph "MP stack (torch/GPU)"
+        E --> F["Trajectory Generator<br/>(get_trajectory_generator)"]
+        F --> G["Tracking Controller<br/>(get_controller, GPU gains)"]
+    end
+    G --> H["IsaacLab step env<br/>(Isaac Sim, GPU tensors)"]
+    H --> I["Reward aggregation<br/>(torch.sum over rollout)"]
+    H --> J["ContextObsWrapper-compatible obs"]
+    I --> A
+    J --> A

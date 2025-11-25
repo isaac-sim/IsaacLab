@@ -39,7 +39,7 @@ def test_mp_box_pushing_smoke():
     try:
         from isaaclab_tasks.manager_based.box_pushing.mp_wrapper import BoxPushingMPWrapper
         from isaaclab_tasks.utils import parse_env_cfg
-        from isaaclab_tasks.utils.mp import register_mp_env
+        from isaaclab_tasks.utils.mp import upgrade
     except ImportError as e:
         sim_app.close()
         pytest.skip(f"IsaacLab imports unavailable: {e}")
@@ -47,7 +47,7 @@ def test_mp_box_pushing_smoke():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     base_id = "Isaac-Box-Pushing-Dense-step-Franka-v0"
-    mp_id = register_mp_env(
+    mp_id = upgrade(
         mp_id="Isaac_MP/Box-Pushing-Dense-ProDMP-Franka-v0",
         base_id=base_id,
         mp_wrapper_cls=BoxPushingMPWrapper,
