@@ -64,8 +64,20 @@ class GearShaftPosW(ManagerTermBase):
                 gear_offsets[gear_type], device=env.device, dtype=torch.float32
             )
 
+        # Stack offset tensors for vectorized indexing (shape: 3, 3)
+        # Index 0=small, 1=medium, 2=large
+        self.gear_offsets_stacked = torch.stack(
+            [
+                self.gear_offset_tensors["gear_small"],
+                self.gear_offset_tensors["gear_medium"],
+                self.gear_offset_tensors["gear_large"],
+            ],
+            dim=0,
+        )
+
         # Pre-allocate buffers
         self.offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
         self.identity_quat = (
             torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
             .repeat(env.num_envs, 1)
@@ -95,15 +107,15 @@ class GearShaftPosW(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor (no Python loops!)
+        gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Get base gear position and orientation
         base_pos = self.asset.data.root_pos_w
         base_quat = self.asset.data.root_quat_w
 
-        # Update offsets using cached gear offset tensors
-        for i in range(env.num_envs):
-            self.offsets_buffer[i] = self.gear_offset_tensors[current_gear_types[i]]
+        # Update offsets using vectorized indexing
+        self.offsets_buffer = self.gear_offsets_stacked[gear_type_indices]
 
         # Transform offsets
         _, shaft_pos = tf_combine(base_quat, base_pos, self.identity_quat, self.offsets_buffer)
@@ -199,7 +211,8 @@ class GearPosW(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor (no Python loops!)
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Stack all gear positions
         all_gear_positions = torch.stack(
@@ -210,10 +223,6 @@ class GearPosW(ManagerTermBase):
             ],
             dim=1,
         )
-
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
 
         # Select gear positions using advanced indexing
         gear_positions = all_gear_positions[self.env_indices, self.gear_type_indices]
@@ -265,7 +274,8 @@ class GearQuatW(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor (no Python loops!)
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Stack all gear quaternions
         all_gear_quat = torch.stack(
@@ -276,10 +286,6 @@ class GearQuatW(ManagerTermBase):
             ],
             dim=1,
         )
-
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
 
         # Select gear quaternions using advanced indexing
         gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]

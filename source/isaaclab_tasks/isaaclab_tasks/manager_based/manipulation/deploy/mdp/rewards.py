@@ -351,7 +351,8 @@ class KeypointEntityError(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Stack all gear positions and quaternions
         all_gear_pos = torch.stack(
@@ -371,16 +372,6 @@ class KeypointEntityError(ManagerTermBase):
             ],
             dim=1,
         )
-
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            gear_type = current_gear_types[i]
-            if gear_type not in self.gear_type_map:
-                raise ValueError(
-                    f"Invalid gear type '{gear_type}' for environment {i}. "
-                    f"Valid types are: {list(self.gear_type_map.keys())}"
-                )
-            self.gear_type_indices[i] = self.gear_type_map[gear_type]
 
         # Select positions and quaternions using advanced indexing
         curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]
@@ -466,7 +457,8 @@ class KeypointEntityErrorExp(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Stack all gear positions and quaternions
         all_gear_pos = torch.stack(
@@ -486,16 +478,6 @@ class KeypointEntityErrorExp(ManagerTermBase):
             ],
             dim=1,
         )
-
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            gear_type = current_gear_types[i]
-            if gear_type not in self.gear_type_map:
-                raise ValueError(
-                    f"Invalid gear type '{gear_type}' for environment {i}. "
-                    f"Valid types are: {list(self.gear_type_map.keys())}"
-                )
-            self.gear_type_indices[i] = self.gear_type_map[gear_type]
 
         # Select positions and quaternions using advanced indexing
         curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]

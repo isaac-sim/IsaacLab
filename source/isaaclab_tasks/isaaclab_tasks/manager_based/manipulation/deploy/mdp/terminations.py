@@ -79,6 +79,17 @@ class ResetWhenGearDropped(ManagerTermBase):
                 gear_offsets_grasp[gear_type], device=env.device, dtype=torch.float32
             )
 
+        # Stack grasp offset tensors for vectorized indexing (shape: 3, 3)
+        # Index 0=small, 1=medium, 2=large
+        self.gear_grasp_offsets_stacked = torch.stack(
+            [
+                self.gear_grasp_offset_tensors["gear_small"],
+                self.gear_grasp_offset_tensors["gear_medium"],
+                self.gear_grasp_offset_tensors["gear_large"],
+            ],
+            dim=0,
+        )
+
         # Pre-cache grasp rotation offset tensor
         grasp_rot_offset = cfg.params["grasp_rot_offset"]
         self.grasp_rot_offset_tensor = (
@@ -144,7 +155,8 @@ class ResetWhenGearDropped(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor (no Python loops!)
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Get end effector position
         eef_pos_world = self.robot_asset.data.body_link_pos_w[:, self.eef_idx]
@@ -158,10 +170,6 @@ class ResetWhenGearDropped(ManagerTermBase):
         self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
         self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
 
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
-
         # Select gear data using advanced indexing
         gear_pos_world = self.all_gear_pos_buffer[self.env_indices, self.gear_type_indices]
         gear_quat_world = self.all_gear_quat_buffer[self.env_indices, self.gear_type_indices]
@@ -169,9 +177,8 @@ class ResetWhenGearDropped(ManagerTermBase):
         # Apply rotation offset
         gear_quat_world = math_utils.quat_mul(gear_quat_world, self.grasp_rot_offset_tensor)
 
-        # Get grasp offsets
-        for i in range(env.num_envs):
-            self.gear_grasp_offsets_buffer[i] = self.gear_grasp_offset_tensors[current_gear_types[i]]
+        # Get grasp offsets (vectorized)
+        self.gear_grasp_offsets_buffer = self.gear_grasp_offsets_stacked[self.gear_type_indices]
 
         # Transform grasp offsets to world frame
         gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(gear_quat_world, self.gear_grasp_offsets_buffer)
@@ -284,7 +291,8 @@ class ResetWhenGearOrientationExceedsThreshold(ManagerTermBase):
             )
 
         gear_type_manager: RandomizeGearType = env._gear_type_manager
-        current_gear_types = gear_type_manager.get_all_gear_types()
+        # Get gear type indices directly as tensor (no Python loops!)
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Convert thresholds to radians
         roll_threshold_rad = torch.deg2rad(torch.tensor(roll_threshold_deg, device=env.device))
@@ -298,10 +306,6 @@ class ResetWhenGearOrientationExceedsThreshold(ManagerTermBase):
         self.all_gear_quat_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_quat_w
         self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
         self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
-
-        # Update gear_type_indices
-        for i in range(env.num_envs):
-            self.gear_type_indices[i] = self.gear_type_map[current_gear_types[i]]
 
         # Select gear data using advanced indexing
         gear_quat_world = self.all_gear_quat_buffer[self.env_indices, self.gear_type_indices]

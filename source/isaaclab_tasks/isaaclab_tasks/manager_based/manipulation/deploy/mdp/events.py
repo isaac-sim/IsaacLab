@@ -51,6 +51,13 @@ class RandomizeGearType(ManagerTermBase):
         # Initialize all to first gear type in the list
         self._current_gear_type = [self.gear_types[0]] * env.num_envs
 
+        # Store current gear type indices as tensor for efficient vectorized access
+        # Initialize all to first gear type index
+        first_gear_idx = self.gear_type_map[self.gear_types[0]]
+        self._current_gear_type_indices = torch.full(
+            (env.num_envs,), first_gear_idx, device=env.device, dtype=torch.long
+        )
+
         # Store reference on environment for other terms to access
         env._gear_type_manager = self
 
@@ -70,7 +77,9 @@ class RandomizeGearType(ManagerTermBase):
         # Randomly select gear type for each environment
         # Use the parameter passed to __call__ (not self.gear_types) to allow runtime overrides
         for env_id in env_ids.tolist():
-            self._current_gear_type[env_id] = random.choice(gear_types)
+            chosen_gear = random.choice(gear_types)
+            self._current_gear_type[env_id] = chosen_gear
+            self._current_gear_type_indices[env_id] = self.gear_type_map[chosen_gear]
 
     def get_gear_type(self, env_id: int) -> str:
         """Get the current gear type for a specific environment."""
@@ -79,6 +88,14 @@ class RandomizeGearType(ManagerTermBase):
     def get_all_gear_types(self) -> list[str]:
         """Get current gear types for all environments."""
         return self._current_gear_type
+
+    def get_all_gear_type_indices(self) -> torch.Tensor:
+        """Get current gear type indices for all environments as a tensor.
+
+        Returns:
+            Tensor of shape (num_envs,) with gear type indices (0=small, 1=medium, 2=large)
+        """
+        return self._current_gear_type_indices
 
 
 class SetRobotToGraspPose(ManagerTermBase):
@@ -150,6 +167,17 @@ class SetRobotToGraspPose(ManagerTermBase):
             self.gear_grasp_offset_tensors[gear_type] = torch.tensor(
                 gear_offsets_grasp[gear_type], device=env.device, dtype=torch.float32
             )
+
+        # Stack grasp offset tensors for vectorized indexing (shape: 3, 3)
+        # Index 0=small, 1=medium, 2=large
+        self.gear_grasp_offsets_stacked = torch.stack(
+            [
+                self.gear_grasp_offset_tensors["gear_small"],
+                self.gear_grasp_offset_tensors["gear_medium"],
+                self.gear_grasp_offset_tensors["gear_large"],
+            ],
+            dim=0,
+        )
 
         # Pre-cache grasp rotation offset tensor
         grasp_rot_offset = cfg.params["grasp_rot_offset"]
@@ -228,8 +256,6 @@ class SetRobotToGraspPose(ManagerTermBase):
             joint_pos = self.robot_asset.data.joint_pos[env_ids].clone()
             joint_vel = self.robot_asset.data.joint_vel[env_ids].clone()
 
-            env_ids_list = env_ids.tolist()
-
             # Stack all gear positions and quaternions
             all_gear_pos = torch.stack(
                 [
@@ -249,9 +275,9 @@ class SetRobotToGraspPose(ManagerTermBase):
                 dim=1,
             )[env_ids]
 
-            # Update gear_type_indices using pre-allocated buffer
-            for idx, env_id in enumerate(env_ids_list):
-                gear_type_indices[idx] = gear_type_manager.gear_type_map[gear_type_manager.get_gear_type(env_id)]
+            # Get gear type indices directly as tensor
+            all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+            gear_type_indices[:] = all_gear_type_indices[env_ids]
 
             # Select gear data using advanced indexing
             grasp_object_pos_world = all_gear_pos[local_env_indices, gear_type_indices]
@@ -260,10 +286,8 @@ class SetRobotToGraspPose(ManagerTermBase):
             # Apply rotation offset
             grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)
 
-            # Get grasp offsets using cached tensors
-            for idx, env_id in enumerate(env_ids_list):
-                gear_type = gear_type_manager.get_gear_type(env_id)
-                gear_grasp_offsets[idx] = self.gear_grasp_offset_tensors[gear_type]
+            # Get grasp offsets (vectorized)
+            gear_grasp_offsets[:] = self.gear_grasp_offsets_stacked[gear_type_indices]
 
             # Add position randomization if specified
             if pos_randomization_range is not None:
@@ -325,8 +349,10 @@ class SetRobotToGraspPose(ManagerTermBase):
         # Set gripper to grasp position
         joint_pos = self.robot_asset.data.joint_pos[env_ids].clone()
 
-        for row_idx, env_id in enumerate(env_ids_list):
-            gear_key = gear_type_manager.get_gear_type(env_id)
+        # Get gear types for all environments
+        all_gear_types = gear_type_manager.get_all_gear_types()
+        for row_idx, env_id in enumerate(env_ids.tolist()):
+            gear_key = all_gear_types[env_id]
             hand_grasp_width = self.hand_grasp_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)
 
@@ -334,8 +360,8 @@ class SetRobotToGraspPose(ManagerTermBase):
         self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
         # Set gripper to closed position
-        for row_idx, env_id in enumerate(env_ids_list):
-            gear_key = gear_type_manager.get_gear_type(env_id)
+        for row_idx, env_id in enumerate(env_ids.tolist()):
+            gear_key = all_gear_types[env_id]
             hand_close_width = self.hand_close_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)
 
@@ -433,13 +459,11 @@ class RandomizeGearsAndBasePose(ManagerTermBase):
             ranges_gear[:, 0], ranges_gear[:, 1], (len(env_ids), 3), device=device
         )
 
-        # Update gear_type_indices
-        env_ids_list = env_ids.tolist()
+        # Get gear type indices directly as tensor
         num_reset_envs = len(env_ids)
         gear_type_indices = self.gear_type_indices[:num_reset_envs]
-
-        for idx, env_id in enumerate(env_ids_list):
-            gear_type_indices[idx] = self.gear_type_map[gear_type_manager.get_gear_type(env_id)]
+        all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+        gear_type_indices[:] = all_gear_type_indices[env_ids]
 
         # Apply offsets using vectorized operations with masks
         for gear_idx, asset_name in enumerate(self.gear_asset_names):
