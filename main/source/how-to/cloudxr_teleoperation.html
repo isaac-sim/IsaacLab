@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 24, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2025"/>
   </head>
   
   
@@ -1248,7 +1248,7 @@ latency when only a single environment is present in the simulation.</p>
 simulated robots. This section explains the components of this architecture and how they work together.</p>
 <section id="openxr-device">
 <span id="openxr-device-architecture"></span><h4>OpenXR Device<a class="headerlink" href="#openxr-device" title="Permalink to this heading">#</a></h4>
-<p>The <a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.OpenXRDevice</span></code></a> is the core component that enables XR-based teleoperation in Isaac Lab.
+<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.OpenXRDevice</span></code> is the core component that enables XR-based teleoperation in Isaac Lab.
 This device interfaces with CloudXR to receive tracking data from the XR headset and transform it into robot control
 commands.</p>
 <p>At its heart, XR teleoperation requires mapping (or “retargeting”) user inputs, such as hand movements and poses,
@@ -1266,7 +1266,7 @@ the OpenXRDevice during initialization.</p>
 <p>Isaac Lab provides three main retargeters for hand tracking:</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">Se3RelRetargeter (<a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.Se3RelRetargeter" title="isaaclab.devices.openxr.retargeters.Se3RelRetargeter"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code></a>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-text">Se3RelRetargeter (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <ul class="simple">
 <li><p class="sd-card-text">Generates incremental robot commands from relative hand movements</p></li>
 <li><p class="sd-card-text">Best for precise manipulation tasks</p></li>
@@ -1274,7 +1274,7 @@ the OpenXRDevice during initialization.</p>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">Se3AbsRetargeter (<a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.Se3AbsRetargeter" title="isaaclab.devices.openxr.retargeters.Se3AbsRetargeter"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code></a>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-text">Se3AbsRetargeter (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <ul class="simple">
 <li><p class="sd-card-text">Maps hand position directly to robot end-effector position</p></li>
 <li><p class="sd-card-text">Enables 1:1 spatial control</p></li>
@@ -1282,7 +1282,7 @@ the OpenXRDevice during initialization.</p>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">GripperRetargeter (<a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.GripperRetargeter" title="isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code></a>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-text">GripperRetargeter (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <ul class="simple">
 <li><p class="sd-card-text">Controls gripper state based on thumb-index finger distance</p></li>
 <li><p class="sd-card-text">Used alongside position retargeters for full robot control</p></li>
@@ -1290,7 +1290,7 @@ the OpenXRDevice during initialization.</p>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">GR1T2Retargeter (<a class="reference internal" href="../api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.GR1T2Retargeter" title="isaaclab.devices.openxr.retargeters.GR1T2Retargeter"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code></a>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<span class="sd-summary-text">GR1T2Retargeter (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <ul class="simple">
 <li><p class="sd-card-text">Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands</p></li>
 <li><p class="sd-card-text">Handles both left and right hands, converting hand poses to joint angles for the GR1T2 robot’s hands</p></li>
@@ -1316,11 +1316,11 @@ the OpenXRDevice during initialization.</p>
 
 <span class="c1"># Create retargeters</span>
 <span class="n">position_retargeter</span> <span class="o">=</span> <span class="n">Se3AbsRetargeter</span><span class="p">(</span>
-    <span class="n">bound_hand</span><span class="o">=</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">,</span>
+    <span class="n">bound_hand</span><span class="o">=</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">,</span>
     <span class="n">zero_out_xy_rotation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">use_wrist_position</span><span class="o">=</span><span class="kc">False</span>  <span class="c1"># Use pinch position (thumb-index midpoint) instead of wrist</span>
 <span class="p">)</span>
-<span class="n">gripper_retargeter</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">bound_hand</span><span class="o">=</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">)</span>
+<span class="n">gripper_retargeter</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">bound_hand</span><span class="o">=</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">)</span>
 
 <span class="c1"># Create OpenXR device with hand tracking and both retargeters</span>
 <span class="n">device</span> <span class="o">=</span> <span class="n">OpenXRDevice</span><span class="p">(</span>
@@ -1495,7 +1495,7 @@ The custom keys can be any string value that matches the callback registration.<
 <span class="sd">            Any: The transformed control commands for the robot.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Access hand tracking data using TrackingTarget enum</span>
-        <span class="n">right_hand_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]</span>
+        <span class="n">right_hand_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]</span>
 
         <span class="c1"># Extract specific joint positions and orientations</span>
         <span class="n">wrist_pose</span> <span class="o">=</span> <span class="n">right_hand_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;wrist&quot;</span><span class="p">)</span>
@@ -1503,7 +1503,7 @@ The custom keys can be any string value that matches the callback registration.<
         <span class="n">index_tip_pose</span> <span class="o">=</span> <span class="n">right_hand_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;index_tip&quot;</span><span class="p">)</span>
 
         <span class="c1"># Access head tracking data</span>
-        <span class="n">head_pose</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">]</span>
+        <span class="n">head_pose</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">]</span>
 
         <span class="c1"># Process the tracking data and apply your custom logic</span>
         <span class="c1"># ...</span>
@@ -1788,7 +1788,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 24, 2025.
+  Last updated on Nov 25, 2025.
   <br/>
 </p>
   </div>

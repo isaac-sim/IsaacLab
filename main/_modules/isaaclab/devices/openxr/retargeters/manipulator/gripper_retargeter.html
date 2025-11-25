@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 24, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2025"/>
   </head>
   
   
@@ -602,7 +602,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Final</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRDevice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span><span class="p">,</span> <span class="n">RetargeterCfg</span>
 
 
@@ -629,10 +629,9 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the gripper retargeter.&quot;&quot;&quot;</span>
         <span class="c1"># Store the hand to track</span>
-        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bound_hand</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">,</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bound_hand</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">,</span> <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or&quot;</span>
-                <span class="s2">&quot; OpenXRDevice.TrackingTarget.HAND_RIGHT&quot;</span>
+                <span class="s2">&quot;bound_hand must be either DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT&quot;</span>
             <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">bound_hand</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bound_hand</span>
         <span class="c1"># Initialize gripper state</span>
@@ -659,6 +658,9 @@
 
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">gripper_value</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_device</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="GripperRetargeter.get_requirements"><a class="viewcode-back" href="../../../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.GripperRetargeter.get_requirements">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_requirements</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="o">.</span><span class="n">HAND_TRACKING</span><span class="p">]</span></div>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_calculate_gripper_command</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thumb_pos</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">index_pos</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate gripper command from finger positions with hysteresis.</span>
 
@@ -684,7 +686,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">GripperRetargeterCfg</span><span class="p">(</span><span class="n">RetargeterCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for gripper retargeter.&quot;&quot;&quot;</span>
 
-    <span class="n">bound_hand</span><span class="p">:</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span> <span class="o">=</span> <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span>
+    <span class="n">bound_hand</span><span class="p">:</span> <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span> <span class="o">=</span> <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span>
     <span class="n">retargeter_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">RetargeterBase</span><span class="p">]</span> <span class="o">=</span> <span class="n">GripperRetargeter</span>
 </pre></div>
 
@@ -733,7 +735,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 24, 2025.
+  Last updated on Nov 25, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 24, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2025"/>
   </head>
   
   
@@ -606,7 +606,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
@@ -615,7 +614,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span><span class="p">,</span> <span class="n">DeviceCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.openxr_device</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRDevice</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.xr_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">XrCfg</span>
 
 <span class="c1"># For testing purposes, we need to mock the XRCore</span>
@@ -653,13 +651,6 @@
 <span class="sd">    based on the TrackingTarget enum values. When retargeters are provided, the raw tracking</span>
 <span class="sd">    data is transformed into robot control commands suitable for teleoperation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="ManusVive.TrackingTarget"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.TrackingTarget">[docs]</a>    <span class="k">class</span><span class="w"> </span><span class="nc">TrackingTarget</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enum class specifying what to track with Manus+Vive. Consistent with :class:`OpenXRDevice.TrackingTarget`.&quot;&quot;&quot;</span>
-
-        <span class="n">HAND_LEFT</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">HAND_RIGHT</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">HEAD</span> <span class="o">=</span> <span class="mi">2</span></div>
 
     <span class="n">TELEOP_COMMAND_EVENT_TYPE</span> <span class="o">=</span> <span class="s2">&quot;teleop_command&quot;</span>
 
@@ -785,9 +776,9 @@
             <span class="n">joint_name</span> <span class="o">=</span> <span class="n">HAND_JOINT_MAP</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">index</span><span class="p">)]</span>
             <span class="n">result</span><span class="p">[</span><span class="n">hand</span><span class="p">][</span><span class="n">joint_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="s2">&quot;position&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">pose</span><span class="p">[</span><span class="s2">&quot;orientation&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">],</span>
-            <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;right&quot;</span><span class="p">],</span>
-            <span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_headpose</span><span class="p">(),</span>
+            <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">],</span>
+            <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;right&quot;</span><span class="p">],</span>
+            <span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_headpose</span><span class="p">(),</span>
         <span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_calculate_headpose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
@@ -889,7 +880,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 24, 2025.
+  Last updated on Nov 25, 2025.
   <br/>
 </p>
   </div>

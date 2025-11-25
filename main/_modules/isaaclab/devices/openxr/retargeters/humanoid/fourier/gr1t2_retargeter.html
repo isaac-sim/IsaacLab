@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 24, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2025"/>
   </head>
   
   
@@ -605,7 +605,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">PoseUtils</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRDevice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span><span class="p">,</span> <span class="n">RetargeterCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span><span class="p">,</span> <span class="n">VisualizationMarkersCfg</span>
 
@@ -634,6 +634,7 @@
 <span class="sd">            hand_joint_names: List of robot hand joint names</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hand_joint_names</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">hand_joint_names</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hands_controller</span> <span class="o">=</span> <span class="n">GR1TR2DexRetargeting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_hand_joint_names</span><span class="p">)</span>
 
@@ -667,8 +668,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># Access the left and right hand data using the enum key</span>
-        <span class="n">left_hand_poses</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">]</span>
-        <span class="n">right_hand_poses</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">OpenXRDevice</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]</span>
+        <span class="n">left_hand_poses</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">]</span>
+        <span class="n">right_hand_poses</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]</span>
 
         <span class="n">left_wrist</span> <span class="o">=</span> <span class="n">left_hand_poses</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;wrist&quot;</span><span class="p">)</span>
         <span class="n">right_wrist</span> <span class="o">=</span> <span class="n">right_hand_poses</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;wrist&quot;</span><span class="p">)</span>
@@ -702,6 +703,9 @@
 
         <span class="c1"># Combine all tensors into a single tensor</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">left_wrist_tensor</span><span class="p">,</span> <span class="n">right_wrist_tensor</span><span class="p">,</span> <span class="n">hand_joints_tensor</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="GR1T2Retargeter.get_requirements"><a class="viewcode-back" href="../../../../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.openxr.retargeters.GR1T2Retargeter.get_requirements">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_requirements</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="o">.</span><span class="n">HAND_TRACKING</span><span class="p">]</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_retarget_abs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wrist</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Handle absolute pose retargeting.</span>
@@ -799,7 +803,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 24, 2025.
+  Last updated on Nov 25, 2025.
   <br/>
 </p>
   </div>

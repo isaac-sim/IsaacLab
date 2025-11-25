@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 24, 2025"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2025"/>
   </head>
   
   
@@ -597,30 +597,34 @@
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="sd">&quot;&quot;&quot;OpenXR-powered device for teleoperation and interaction.&quot;&quot;&quot;</span>
-
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.openxr.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">HAND_JOINT_NAMES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span><span class="p">,</span> <span class="n">DeviceCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.xr_anchor_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">XrAnchorSynchronizer</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.xr_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">XrCfg</span>
 
 <span class="c1"># For testing purposes, we need to mock the XRCore, XRPoseValidityFlags classes</span>
 <span class="n">XRCore</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="n">XRPoseValidityFlags</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="n">XRCoreEventType</span> <span class="o">=</span> <span class="kc">None</span>
 
 <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ModuleNotFoundError</span><span class="p">):</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">omni.kit.xr.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">XRCore</span><span class="p">,</span> <span class="n">XRPoseValidityFlags</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">omni.kit.xr.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">XRCore</span><span class="p">,</span> <span class="n">XRPoseValidityFlags</span><span class="p">,</span> <span class="n">XRCoreEventType</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">SingleXFormPrim</span>
 
@@ -653,19 +657,6 @@
 <span class="sd">    data is transformed into robot control commands suitable for teleoperation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="OpenXRDevice.TrackingTarget"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.TrackingTarget">[docs]</a>    <span class="k">class</span><span class="w"> </span><span class="nc">TrackingTarget</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enum class specifying what to track with OpenXR.</span>
-
-<span class="sd">        Attributes:</span>
-<span class="sd">            HAND_LEFT: Track the left hand (index 0 in _get_raw_data output)</span>
-<span class="sd">            HAND_RIGHT: Track the right hand (index 1 in _get_raw_data output)</span>
-<span class="sd">            HEAD: Track the head/headset position (index 2 in _get_raw_data output)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">HAND_LEFT</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">HAND_RIGHT</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">HEAD</span> <span class="o">=</span> <span class="mi">2</span></div>
-
     <span class="n">TELEOP_COMMAND_EVENT_TYPE</span> <span class="o">=</span> <span class="s2">&quot;teleop_command&quot;</span>
 
 <div class="viewcode-block" id="OpenXRDevice.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -682,12 +673,13 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">retargeters</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">xr_cfg</span> <span class="ow">or</span> <span class="n">XrCfg</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span> <span class="o">=</span> <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span> <span class="k">if</span> <span class="n">XRCore</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_vc_subscription</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span>
-            <span class="o">.</span><span class="n">get_message_bus</span><span class="p">()</span>
-            <span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span><span class="o">.</span><span class="n">get_message_bus</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
                 <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">type_from_string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TELEOP_COMMAND_EVENT_TYPE</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_teleop_command</span>
             <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="kc">None</span>
         <span class="p">)</span>
 
         <span class="c1"># Initialize dictionaries instead of arrays</span>
@@ -696,10 +688,57 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_poses_right</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">HAND_JOINT_NAMES</span><span class="p">}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span> <span class="o">=</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
-        <span class="n">xr_anchor</span> <span class="o">=</span> <span class="n">SingleXFormPrim</span><span class="p">(</span><span class="s2">&quot;/XRAnchor&quot;</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_pos</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_rot</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_float</span><span class="p">(</span><span class="s2">&quot;/persistent/xr/profile/ar/render/nearPlane&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">near_plane</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/persistent/xr/profile/ar/anchorMode&quot;</span><span class="p">,</span> <span class="s2">&quot;custom anchor&quot;</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/xrstage/profile/ar/customAnchor&quot;</span><span class="p">,</span> <span class="n">xr_anchor</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_prim_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">anchor_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_prim_path</span>
+            <span class="k">if</span> <span class="n">anchor_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
+                <span class="n">anchor_path</span> <span class="o">=</span> <span class="n">anchor_path</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_anchor_headset_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">anchor_path</span><span class="si">}</span><span class="s2">/XRAnchor&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_anchor_headset_path</span> <span class="o">=</span> <span class="s2">&quot;/World/XRAnchor&quot;</span>
+
+        <span class="n">_</span> <span class="o">=</span> <span class="n">SingleXFormPrim</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_anchor_headset_path</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_pos</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_rot</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">carb</span><span class="p">,</span> <span class="s2">&quot;settings&quot;</span><span class="p">):</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_float</span><span class="p">(</span>
+                <span class="s2">&quot;/persistent/xr/profile/ar/render/nearPlane&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">near_plane</span>
+            <span class="p">)</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/persistent/xr/profile/ar/anchorMode&quot;</span><span class="p">,</span> <span class="s2">&quot;custom anchor&quot;</span><span class="p">)</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span><span class="s2">&quot;/xrstage/profile/ar/customAnchor&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_anchor_headset_path</span><span class="p">)</span>
+
+        <span class="c1"># Button binding support</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Optional anchor synchronizer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span><span class="p">:</span> <span class="n">XrAnchorSynchronizer</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_prim_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span> <span class="o">=</span> <span class="n">XrAnchorSynchronizer</span><span class="p">(</span>
+                    <span class="n">xr_core</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span><span class="p">,</span>
+                    <span class="n">xr_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="p">,</span>
+                    <span class="n">xr_anchor_headset_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_anchor_headset_path</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="c1"># Subscribe to pre_sync_update to keep anchor in sync</span>
+                <span class="k">if</span> <span class="n">XRCoreEventType</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_xr_pre_sync_update_subscription</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span><span class="o">.</span><span class="n">get_message_bus</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+                            <span class="n">XRCoreEventType</span><span class="o">.</span><span class="n">pre_sync_update</span><span class="p">,</span>
+                            <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span><span class="o">.</span><span class="n">sync_headset_to_anchor</span><span class="p">(),</span>
+                            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;isaaclab_xr_pre_sync_update&quot;</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;XR: Failed to initialize anchor synchronizer: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Default convenience binding: toggle anchor rotation with right controller &#39;a&#39; button</span>
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bind_button_press</span><span class="p">(</span>
+                <span class="s2">&quot;/user/hand/right&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;a&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;isaaclab_right_a&quot;</span><span class="p">,</span>
+                <span class="k">lambda</span> <span class="n">ev</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_toggle_anchor_rotation</span><span class="p">(),</span>
+            <span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Clean up resources when the object is destroyed.</span>
@@ -709,6 +748,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_vc_subscription&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vc_subscription</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_vc_subscription</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_xr_pre_sync_update_subscription&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_pre_sync_update_subscription</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_xr_pre_sync_update_subscription</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># clear button subscriptions</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;__button_subscriptions&quot;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unbind_all_buttons</span><span class="p">()</span>
 
         <span class="c1"># No need to explicitly clean up OpenXR instance as it&#39;s managed by NVIDIA Isaac Sim</span>
 
@@ -725,6 +769,10 @@
         <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;OpenXR Hand Tracking Device: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Anchor Position: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_pos</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Anchor Rotation: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_rot</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_prim_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Anchor Prim Path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span><span class="o">.</span><span class="n">anchor_prim_path</span><span class="si">}</span><span class="s2"> (Dynamic Anchoring)</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Anchor Mode: Static (Root Level)</span><span class="se">\n</span><span class="s2">&quot;</span>
 
         <span class="c1"># Add retargeter information</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_retargeters</span><span class="p">:</span>
@@ -764,7 +812,9 @@
         <span class="n">default_pose</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_poses_left</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">HAND_JOINT_NAMES</span><span class="p">}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_poses_right</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">HAND_JOINT_NAMES</span><span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span> <span class="o">=</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span> <span class="o">=</span> <span class="n">default_pose</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_anchor_sync&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="OpenXRDevice.add_callback"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.devices.html#isaaclab.devices.OpenXRDevice.add_callback">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add additional functions to bind to client messages.</span>
@@ -788,17 +838,37 @@
 <span class="sd">        Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]</span>
 <span class="sd">        where the first 3 elements are position and the last 4 are quaternion orientation.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_joint_poses</span><span class="p">(</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="o">.</span><span class="n">HAND_TRACKING</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_required_features</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_LEFT</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_joint_poses</span><span class="p">(</span>
                 <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span><span class="o">.</span><span class="n">get_input_device</span><span class="p">(</span><span class="s2">&quot;/user/hand/left&quot;</span><span class="p">),</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_poses_left</span><span class="p">,</span>
-            <span class="p">),</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_joint_poses</span><span class="p">(</span>
+            <span class="p">)</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HAND_RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_joint_poses</span><span class="p">(</span>
                 <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span><span class="o">.</span><span class="n">get_input_device</span><span class="p">(</span><span class="s2">&quot;/user/hand/right&quot;</span><span class="p">),</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_poses_right</span><span class="p">,</span>
-            <span class="p">),</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_headpose</span><span class="p">(),</span>
-        <span class="p">}</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="o">.</span><span class="n">HEAD_TRACKING</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_required_features</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">HEAD</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_headpose</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">RetargeterBase</span><span class="o">.</span><span class="n">Requirement</span><span class="o">.</span><span class="n">MOTION_CONTROLLER</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_required_features</span><span class="p">:</span>
+            <span class="c1"># Optionally include motion controller pose+inputs if devices are available</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">left_dev</span> <span class="o">=</span> <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span><span class="o">.</span><span class="n">get_input_device</span><span class="p">(</span><span class="s2">&quot;/user/hand/left&quot;</span><span class="p">)</span>
+                <span class="n">right_dev</span> <span class="o">=</span> <span class="n">XRCore</span><span class="o">.</span><span class="n">get_singleton</span><span class="p">()</span><span class="o">.</span><span class="n">get_input_device</span><span class="p">(</span><span class="s2">&quot;/user/hand/right&quot;</span><span class="p">)</span>
+                <span class="n">left_ctrl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_controller</span><span class="p">(</span><span class="n">left_dev</span><span class="p">)</span> <span class="k">if</span> <span class="n">left_dev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                <span class="n">right_ctrl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_controller</span><span class="p">(</span><span class="n">right_dev</span><span class="p">)</span> <span class="k">if</span> <span class="n">right_dev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                <span class="k">if</span> <span class="n">left_ctrl</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">CONTROLLER_LEFT</span><span class="p">]</span> <span class="o">=</span> <span class="n">left_ctrl</span>
+                <span class="k">if</span> <span class="n">right_ctrl</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">DeviceBase</span><span class="o">.</span><span class="n">TrackingTarget</span><span class="o">.</span><span class="n">CONTROLLER_RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">right_ctrl</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="c1"># Ignore controller data if XRCore/controller APIs are unavailable</span>
+                <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">data</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal helpers.</span>
@@ -880,6 +950,133 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span>
 
+    <span class="c1"># -----------------------------</span>
+    <span class="c1"># Controller button binding utilities</span>
+    <span class="c1"># -----------------------------</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_bind_button_press</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">device_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">button_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">on_button_press</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">],</span> <span class="kc">None</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;XR core not available; skipping button binding&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">sub_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">device_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">button_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">try_emit_button_events</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;generator&quot;</span><span class="p">):</span>
+                <span class="k">return</span>
+            <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span><span class="o">.</span><span class="n">get_input_device</span><span class="p">(</span><span class="n">device_path</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">device</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">get_input_names</span><span class="p">()</span> <span class="ow">or</span> <span class="p">())}</span>
+            <span class="k">if</span> <span class="n">button_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">gen</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">bind_event_generator</span><span class="p">(</span><span class="n">button_name</span><span class="p">,</span> <span class="n">event_name</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;press&quot;</span><span class="p">,))</span>
+            <span class="k">if</span> <span class="n">gen</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;XR: Bound event generator for </span><span class="si">{</span><span class="n">sub_key</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">event_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">][</span><span class="s2">&quot;generator&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gen</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">on_inputs_change</span><span class="p">(</span><span class="n">_ev</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">try_emit_button_events</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">on_disable</span><span class="p">(</span><span class="n">_ev</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">][</span><span class="s2">&quot;generator&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">message_bus</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr_core</span><span class="o">.</span><span class="n">get_message_bus</span><span class="p">()</span>
+        <span class="n">event_suffix</span> <span class="o">=</span> <span class="n">device_path</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">][</span><span class="s2">&quot;press_sub&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">message_bus</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">type_from_string</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">event_name</span><span class="si">}</span><span class="s2">.press&quot;</span><span class="p">),</span> <span class="n">on_button_press</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">][</span><span class="s2">&quot;inputs_change_sub&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">message_bus</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">type_from_string</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;xr_input.</span><span class="si">{</span><span class="n">event_suffix</span><span class="si">}</span><span class="s2">.inputs_change&quot;</span><span class="p">),</span> <span class="n">on_inputs_change</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="p">[</span><span class="n">sub_key</span><span class="p">][</span><span class="s2">&quot;disable_sub&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">message_bus</span><span class="o">.</span><span class="n">create_subscription_to_pop_by_type</span><span class="p">(</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">type_from_string</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;xr_input.</span><span class="si">{</span><span class="n">event_suffix</span><span class="si">}</span><span class="s2">.disable&quot;</span><span class="p">),</span> <span class="n">on_disable</span>
+        <span class="p">)</span>
+        <span class="n">try_emit_button_events</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_unbind_all_buttons</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">sub_key</span><span class="p">,</span> <span class="n">subs</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;generator&quot;</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">:</span>
+                <span class="n">subs</span><span class="p">[</span><span class="s2">&quot;generator&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;press_sub&quot;</span><span class="p">,</span> <span class="s2">&quot;inputs_change_sub&quot;</span><span class="p">,</span> <span class="s2">&quot;disable_sub&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">:</span>
+                    <span class="n">subs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__button_subscriptions</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;XR: Unbound all button event handlers&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_toggle_anchor_rotation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_anchor_sync</span><span class="o">.</span><span class="n">toggle_anchor_rotation</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_query_controller</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_device</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Query motion controller pose and inputs as a 2x7 array.</span>
+
+<span class="sd">        Row 0 (POSE): [x, y, z, w, x, y, z]</span>
+<span class="sd">        Row 1 (INPUTS): [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1, padding]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">input_device</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+
+        <span class="n">pose</span> <span class="o">=</span> <span class="n">input_device</span><span class="o">.</span><span class="n">get_virtual_world_pose</span><span class="p">()</span>
+        <span class="n">position</span> <span class="o">=</span> <span class="n">pose</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()</span>
+        <span class="n">quat</span> <span class="o">=</span> <span class="n">pose</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span>
+
+        <span class="n">thumbstick_x</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">thumbstick_y</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">trigger</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">squeeze</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">button_0</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">button_1</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;thumbstick&quot;</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">):</span>
+            <span class="n">thumbstick_x</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;thumbstick&quot;</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;thumbstick&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">):</span>
+            <span class="n">thumbstick_y</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;thumbstick&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;trigger&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">):</span>
+            <span class="n">trigger</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;trigger&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;squeeze&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">):</span>
+            <span class="n">squeeze</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;squeeze&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">))</span>
+
+        <span class="c1"># Determine which button pair exists on this device</span>
+        <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">):</span>
+                <span class="n">button_0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">):</span>
+                <span class="n">button_1</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">):</span>
+                <span class="n">button_0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">input_device</span><span class="o">.</span><span class="n">has_input_gesture</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">):</span>
+                <span class="n">button_1</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">input_device</span><span class="o">.</span><span class="n">get_input_gesture_value</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;click&quot;</span><span class="p">))</span>
+
+        <span class="n">pose_row</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">position</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">position</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+            <span class="n">quat</span><span class="o">.</span><span class="n">GetReal</span><span class="p">(),</span>
+            <span class="n">quat</span><span class="o">.</span><span class="n">GetImaginary</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">quat</span><span class="o">.</span><span class="n">GetImaginary</span><span class="p">()[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">quat</span><span class="o">.</span><span class="n">GetImaginary</span><span class="p">()[</span><span class="mi">2</span><span class="p">],</span>
+        <span class="p">]</span>
+
+        <span class="n">input_row</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">thumbstick_x</span><span class="p">,</span>
+            <span class="n">thumbstick_y</span><span class="p">,</span>
+            <span class="n">trigger</span><span class="p">,</span>
+            <span class="n">squeeze</span><span class="p">,</span>
+            <span class="n">button_0</span><span class="p">,</span>
+            <span class="n">button_1</span><span class="p">,</span>
+            <span class="mf">0.0</span><span class="p">,</span>
+        <span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pose_row</span><span class="p">,</span> <span class="n">input_row</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_on_teleop_command</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">carb</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">IEvent</span><span class="p">):</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;message&quot;</span><span class="p">]</span>
 
@@ -891,7 +1088,8 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;STOP&quot;</span><span class="p">]()</span>
         <span class="k">elif</span> <span class="s2">&quot;reset&quot;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
             <span class="k">if</span> <span class="s2">&quot;RESET&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;RESET&quot;</span><span class="p">]()</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span><span class="p">[</span><span class="s2">&quot;RESET&quot;</span><span class="p">]()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
 
 
 <span class="nd">@dataclass</span>
@@ -947,7 +1145,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 24, 2025.
+  Last updated on Nov 25, 2025.
   <br/>
 </p>
   </div>
