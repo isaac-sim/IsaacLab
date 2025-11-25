@@ -961,13 +961,24 @@ Collision mesh properties.
 """
 
 
-def extract_mesh_collision_api_and_attrs(cfg):
+def extract_mesh_collision_api_and_attrs(cfg: schemas_cfg.MeshCollisionPropertiesCfg):
+    """Extract the mesh collision API function and custom attributes from the configuration.
+
+    Args:
+        cfg: The configuration for the mesh collision properties.
+
+    Returns:
+        A tuple containing the API function to use and a dictionary of custom attributes.
+
+    Raises:
+        ValueError: When neither USD nor PhysX API can be determined to be used.
+    """
     # We use the number of user set attributes outside of the API function
     # to determine which API to use in ambiguous cases, so collect them here
     custom_attrs = {
         key: value
         for key, value in cfg.to_dict().items()
-        if value is not None and key not in ["usd_func", "physx_func"]
+        if value is not None and key not in ["usd_func", "physx_func", "mesh_approximation_token"]
     }
 
     use_usd_api = False
@@ -985,16 +996,11 @@ def extract_mesh_collision_api_and_attrs(cfg):
             # Use the PhysX API
             use_phsyx_api = True
 
-    elif len(custom_attrs > 0) and type(cfg) in USD_MESH_COLLISION_CFGS:
+    elif len(custom_attrs) > 0 and type(cfg) in USD_MESH_COLLISION_CFGS:
         raise ValueError("Args are specified but the USD Mesh API doesn't support them!")
 
-    mesh_collision_appx_type = type(cfg).__name__.partition("PropertiesCfg")[0]
-
     if use_usd_api:
-        # Add approximation to the attributes as this is how USD collision mesh API is configured
         api_func = cfg.usd_func
-        # Approximation needs to be formatted with camelCase
-        custom_attrs["Approximation"] = mesh_collision_appx_type[0].lower() + mesh_collision_appx_type[1:]
     elif use_phsyx_api:
         api_func = cfg.physx_func
     else:
@@ -1055,6 +1061,13 @@ def modify_mesh_collision_properties(
         stage = get_current_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
+
+    # set mesh collision approximation attribute
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
+    safe_set_attribute_on_usd_schema(
+        UsdPhysics.MeshCollisionAPI(prim), "Approximation", cfg.mesh_approximation_token, camel_case=False
+    )
 
     api_func, custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
 
