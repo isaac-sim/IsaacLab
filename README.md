@@ -24,7 +24,7 @@ cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables use
 computations faster, which is key for iterative processes like reinforcement learning and data-intensive tasks.
 Moreover, Isaac Lab can run locally or be distributed across the cloud, offering flexibility for large-scale deployments.
 
-A detailed description of Isaac Lab can be found in our [arXiv paper](https://arxiv.org/abs/2511.04831).  
+A detailed description of Isaac Lab can be found in our [arXiv paper](https://arxiv.org/abs/2511.04831).
 
 ## Key Features
 
