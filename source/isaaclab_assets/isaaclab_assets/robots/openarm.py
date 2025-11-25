@@ -14,14 +14,14 @@ The following configurations are available:
 
 Reference: https://github.com/enactic/openarm_isaac_lab
 
-Please `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
+Please `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab/source` to use these configurations.
 """
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-from openarm.openarm.tasks.manager_based.openarm_manipulation import (
+from source.openarm.openarm.tasks.manager_based.openarm_manipulation import (
     OPENARM_ROOT_DIR,
 )
 
@@ -54,8 +54,8 @@ OPENARM_BI_CFG = ArticulationCfg(
             "openarm_right_joint5": 0.0,
             "openarm_right_joint6": 0.0,
             "openarm_right_joint7": 0.0,
-            "openarm_left_finger_joint.*": 0.044,
-            "openarm_right_finger_joint.*": 0.044,
+            "openarm_left_finger_joint.*": 0.0,
+            "openarm_right_finger_joint.*": 0.0,
         },
     ),
     actuators={

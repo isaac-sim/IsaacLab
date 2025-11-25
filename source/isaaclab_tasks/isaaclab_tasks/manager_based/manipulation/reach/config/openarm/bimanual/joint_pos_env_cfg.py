@@ -13,7 +13,7 @@ from isaaclab_tasks.manager_based.manipulation.reach.reach_openarm_bi_env_cfg im
 ##
 # Pre-defined configs
 ##
-from source.openarm.openarm.tasks.manager_based.openarm_manipulation.assets.openarm import OPENARM_BI_HIGH_PD_CFG
+from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
 
 ##
 # Environment configuration

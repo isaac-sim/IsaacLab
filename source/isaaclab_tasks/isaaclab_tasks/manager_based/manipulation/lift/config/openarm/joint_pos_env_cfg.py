@@ -12,7 +12,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
-from isaaclab_tasks.manager_based.manipulation.lift.lift_openarm_uni_env_cfg import (
+from isaaclab_tasks.manager_based.manipulation.lift.lift_openarm_env_cfg import (
     LiftEnvCfg,
 )
 
@@ -22,7 +22,7 @@ import math
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from source.openarm.openarm.tasks.manager_based.openarm_manipulation.assets.openarm import OPENARM_UNI_CFG
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 
 @configclass
