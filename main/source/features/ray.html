@@ -907,8 +907,9 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">air</span><span class="p">,</span> <span class="n">tune</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callback</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
-<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.progress_reporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProgressReporter</span>
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.optuna</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaSearch</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.search.repeater</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repeater</span>
 </span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.stopper</span><span class="w"> </span><span class="kn">import</span> <span class="n">CombinedStopper</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
@@ -941,11 +942,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \</span>
 </span><span class="hll"><span class="sd">    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg</span>
+</span><span class="hll"><span class="sd">    # Local with a custom progress reporter</span>
+</span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \</span>
+</span><span class="hll"><span class="sd">    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \</span>
+</span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg \</span>
+</span><span class="hll"><span class="sd">    --progress_reporter CustomCartpoleProgressReporter</span>
 </span><span class="hll"><span class="sd">    # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)</span>
 </span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \</span>
 </span><span class="hll"><span class="sd">    --aggregate_jobs tuner.py \</span>
-</span><span class="hll"><span class="sd">    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
-</span><span class="sd">    --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;MLFLOW_URI_FROM_GROK_OR_MANUAL&gt;</span>
+</span><span class="sd">    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
+<span class="sd">    --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;MLFLOW_URI_FROM_GROK_OR_MANUAL&gt;</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 
@@ -1122,6 +1128,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="k">def</span><span class="w"> </span><span class="nf">invoke_tuning_run</span><span class="p">(</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
     <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">,</span>
+    <span class="n">progress_reporter</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">stopper</span><span class="p">:</span> <span class="n">tune</span><span class="o">.</span><span class="n">Stopper</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Invoke an Isaac-Ray tuning run.</span>
@@ -1130,6 +1137,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="sd">    Args:</span>
 <span class="sd">        cfg: Configuration dictionary extracted from job setup</span>
 <span class="sd">        args: Command-line arguments related to tuning.</span>
+<span class="sd">        progress_reporter: Custom progress reporter. Defaults to CLIReporter or JupyterNotebookReporter if not provided.</span>
 <span class="sd">        stopper: Custom stopper, optional.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Allow for early exit</span>
@@ -1164,6 +1172,17 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="o">*</span><span class="p">([</span><span class="n">stopper</span><span class="p">]</span> <span class="k">if</span> <span class="n">stopper</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]),</span>
     <span class="p">])</span>
 
+    <span class="k">if</span> <span class="n">progress_reporter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;RAY_AIR_NEW_OUTPUT&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;0&quot;</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">progress_reporter</span><span class="p">,</span> <span class="s2">&quot;_metric&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">progress_reporter</span><span class="p">,</span> <span class="s2">&quot;_mode&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Do not set &lt;metric&gt; or &lt;mode&gt; directly in the custom progress reporter class, &quot;</span>
+                <span class="s2">&quot;provide them as arguments to tuner.py instead.&quot;</span>
+            <span class="p">)</span>
+
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">run_mode</span> <span class="o">==</span> <span class="s2">&quot;local&quot;</span><span class="p">:</span>  <span class="c1"># Standard config, to file</span>
         <span class="n">run_config</span> <span class="o">=</span> <span class="n">air</span><span class="o">.</span><span class="n">RunConfig</span><span class="p">(</span>
             <span class="n">storage_path</span><span class="o">=</span><span class="s2">&quot;/tmp/ray&quot;</span><span class="p">,</span>
@@ -1175,6 +1194,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
                 <span class="n">checkpoint_at_end</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Disable final checkpoint</span>
             <span class="p">),</span>
             <span class="n">stop</span><span class="o">=</span><span class="n">stoppers</span><span class="p">,</span>
+            <span class="n">progress_reporter</span><span class="o">=</span><span class="n">progress_reporter</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">run_mode</span> <span class="o">==</span> <span class="s2">&quot;remote&quot;</span><span class="p">:</span>  <span class="c1"># MLFlow, to MLFlow server</span>
@@ -1191,6 +1211,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">ProcessCleanupCallback</span><span class="p">(),</span> <span class="n">mlflow_callback</span><span class="p">],</span>
             <span class="n">checkpoint_config</span><span class="o">=</span><span class="n">ray</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">CheckpointConfig</span><span class="p">(</span><span class="n">checkpoint_frequency</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">checkpoint_at_end</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
             <span class="n">stop</span><span class="o">=</span><span class="n">stoppers</span><span class="p">,</span>
+            <span class="n">progress_reporter</span><span class="o">=</span><span class="n">progress_reporter</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized run mode.&quot;</span><span class="p">)</span>
@@ -1329,6 +1350,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Max number number of LogExtractionError failures before we abort the whole tuning run.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--progress_reporter&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;Optional: name of a custom reporter class defined in the cfg_file. &quot;</span>
+            <span class="s2">&quot;Must subclass ray.tune.ProgressReporter &quot;</span>
+            <span class="s2">&quot;(e.g., CustomCartpoleProgressReporter).&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--stopper&quot;</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -1401,7 +1432,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR]: Unsupported stop criteria type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">stopper</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Loaded custom stop criteria from &#39;</span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">stopper</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
-        <span class="n">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">stopper</span><span class="o">=</span><span class="n">stopper</span><span class="p">)</span>
+        <span class="c1"># Load optional progress reporter config</span>
+        <span class="n">progress_reporter</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">progress_reporter</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">progress_reporter</span><span class="p">):</span>
+            <span class="n">progress_reporter</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">progress_reporter</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">progress_reporter</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">progress_reporter</span><span class="p">,</span> <span class="n">tune</span><span class="o">.</span><span class="n">ProgressReporter</span><span class="p">):</span>
+                <span class="n">progress_reporter</span> <span class="o">=</span> <span class="n">progress_reporter</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR]: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">progress_reporter</span><span class="si">}</span><span class="s2"> is not a valid ProgressReporter.&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Loaded custom progress reporter from &#39;</span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">progress_reporter</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="n">invoke_tuning_run</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">progress_reporter</span><span class="o">=</span><span class="n">progress_reporter</span><span class="p">,</span> <span class="n">stopper</span><span class="o">=</span><span class="n">stopper</span><span class="p">)</span>
 
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR]:Class &#39;</span><span class="si">{</span><span class="n">class_name</span><span class="si">}</span><span class="s2">&#39; not found in </span><span class="si">{</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -2785,6 +2825,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 <span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">vision_cfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">tune</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.progress_reporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">CLIReporter</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.stopper</span><span class="w"> </span><span class="kn">import</span> <span class="n">Stopper</span>
 
 
@@ -2821,6 +2862,21 @@ environment entrypoints and hydra arguments, although other workflows will work 
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-TheiaTiny-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomCartpoleProgressReporter</span><span class="p">(</span><span class="n">CLIReporter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">metric_columns</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;training_iteration&quot;</span><span class="p">:</span> <span class="s2">&quot;iter&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;time_total_s&quot;</span><span class="p">:</span> <span class="s2">&quot;total time (s)&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Episode/Episode_Reward/alive&quot;</span><span class="p">:</span> <span class="s2">&quot;alive&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Episode/Episode_Reward/cart_vel&quot;</span><span class="p">:</span> <span class="s2">&quot;cart velocity&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;rewards/time&quot;</span><span class="p">:</span> <span class="s2">&quot;rewards/time&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">max_report_frequency</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+            <span class="n">sort_by_metric</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEarlyStopper</span><span class="p">(</span><span class="n">Stopper</span><span class="p">):</span>
@@ -3849,6 +3905,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
 <span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">vision_cfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">tune</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.progress_reporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">CLIReporter</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ray.tune.stopper</span><span class="w"> </span><span class="kn">import</span> <span class="n">Stopper</span>
 
 
@@ -3885,6 +3942,21 @@ environment entrypoints and hydra arguments, although other workflows will work 
         <span class="n">cfg</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">populate_isaac_ray_cfg_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;runner_args&quot;</span><span class="p">][</span><span class="s2">&quot;--task&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tune</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Isaac-Cartpole-RGB-TheiaTiny-v0&quot;</span><span class="p">])</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomCartpoleProgressReporter</span><span class="p">(</span><span class="n">CLIReporter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">metric_columns</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;training_iteration&quot;</span><span class="p">:</span> <span class="s2">&quot;iter&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;time_total_s&quot;</span><span class="p">:</span> <span class="s2">&quot;total time (s)&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Episode/Episode_Reward/alive&quot;</span><span class="p">:</span> <span class="s2">&quot;alive&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Episode/Episode_Reward/cart_vel&quot;</span><span class="p">:</span> <span class="s2">&quot;cart velocity&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;rewards/time&quot;</span><span class="p">:</span> <span class="s2">&quot;rewards/time&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">max_report_frequency</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+            <span class="n">sort_by_metric</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEarlyStopper</span><span class="p">(</span><span class="n">Stopper</span><span class="p">):</span>
