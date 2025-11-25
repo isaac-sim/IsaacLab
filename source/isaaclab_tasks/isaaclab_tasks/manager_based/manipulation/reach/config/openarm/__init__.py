@@ -11,6 +11,10 @@ from . import agents
 # Register Gym environments.
 ##
 
+##
+# Joint Position Control
+##
+
 gym.register(
     id="Isaac-Reach-OpenArm-Bi-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
