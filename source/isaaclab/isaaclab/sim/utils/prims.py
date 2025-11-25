@@ -1020,7 +1020,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get prim
-    prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
