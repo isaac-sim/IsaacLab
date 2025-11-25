@@ -18,12 +18,13 @@ import torch
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
-from isaacsim.core.simulation_manager import SimulationManager
 import pytest
-from isaaclab.sim import build_simulation_context
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom
+
 import isaaclab.sim as sim_utils
 from isaaclab.scene.cloner import TemplateCloneCfg, clone_from_template, physx_replicate, usd_replicate
+from isaaclab.sim import build_simulation_context
 
 
 @pytest.fixture(params=["cpu", "cuda"])
