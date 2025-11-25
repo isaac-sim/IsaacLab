@@ -948,7 +948,7 @@ class ArticulationData(BaseArticulationData):
             split_spatial_vectory_array_to_linear_velocity_array,
             dim=self._root_view.count,
             inputs=[
-                self._sim_bind_root_com_vel_w,
+                self.root_com_vel_b,
                 out,
             ],
         )

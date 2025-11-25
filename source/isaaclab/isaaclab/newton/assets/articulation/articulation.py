@@ -248,7 +248,7 @@ class Articulation(BaseArticulation):
     """
     Frontend conversions - Torch to Warp.
     """
-
+    # FIXME: Move this to utils / helpers.
     def _torch_to_warp_single_index(
         self,
         value: torch.Tensor,
@@ -290,6 +290,7 @@ class Articulation(BaseArticulation):
             value = wp.from_torch(value, dtype=dtype)
         return value, env_mask
 
+    # FIXME: Move this to utils / helpers.
     def _torch_to_warp_dual_index(
         self,
         value: torch.Tensor,
