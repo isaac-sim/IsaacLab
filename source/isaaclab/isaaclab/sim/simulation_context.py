@@ -16,7 +16,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-import carb
+# Import settings manager for both Omniverse and standalone modes
+from isaaclab.app.settings_manager import get_settings_manager
 import flatdict
 import isaacsim.core.utils.stage as stage_utils
 import omni.physx
@@ -142,7 +143,8 @@ class SimulationContext(_SimulationContext):
             self._initial_stage = omni.usd.get_context().get_stage()
 
         # acquire settings interface
-        self.carb_settings = carb.settings.get_settings()
+        # Use settings manager (works in both Omniverse and standalone modes)
+        self.carb_settings = get_settings_manager()
 
         # apply carb physics settings
         SimulationManager._clear()
@@ -605,9 +607,10 @@ class SimulationContext(_SimulationContext):
             - Only visualizers specified via --visualizer will be initialized, even if
               multiple visualizer configs are present in the simulation config.
         """
+
         # Check if specific visualizers were requested via command-line flag
-        carb_settings_iface = carb.settings.get_settings()
-        requested_visualizers_str = carb_settings_iface.get("/isaaclab/visualizer")
+        settings_manager = get_settings_manager()
+        requested_visualizers_str = settings_manager.get("/isaaclab/visualizer")
         if requested_visualizers_str is None:
             requested_visualizers_str = ""
         
@@ -619,12 +622,13 @@ class SimulationContext(_SimulationContext):
             # Skip if no GUI and no offscreen rendering (true headless mode)
             if not self._has_gui and not self._offscreen_render:
                 return
+
             logger.info(
                 "[SimulationContext] No visualizers specified via --visualizer flag. "
                 "Skipping visualizer initialization. Use --visualizer <type> to enable visualizers."
             )
             return
-        
+
         # If in true headless mode (no GUI, no offscreen rendering) but visualizers were requested,
         # filter out visualizers that require GUI (like omniverse)
         if not self._has_gui and not self._offscreen_render:
