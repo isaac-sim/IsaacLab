@@ -17,13 +17,11 @@ Reference: https://github.com/enactic/openarm_isaac_lab
 Please `git clone https://github.com/enactic/openarm_isaac_lab` and `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
 """
 
+from source.openarm.openarm.tasks.manager_based.openarm_manipulation import OPENARM_ROOT_DIR
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-
-from source.openarm.openarm.tasks.manager_based.openarm_manipulation import (
-    OPENARM_ROOT_DIR,
-)
 
 OPENARM_BI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(

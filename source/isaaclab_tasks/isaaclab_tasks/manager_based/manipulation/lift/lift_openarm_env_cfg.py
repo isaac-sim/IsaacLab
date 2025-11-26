@@ -7,12 +7,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import (
-    ArticulationCfg,
-    AssetBaseCfg,
-    DeformableObjectCfg,
-    RigidObjectCfg,
-)
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -51,12 +46,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]
-        ),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]),
+        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
     )
 
     # plane
@@ -103,9 +94,7 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: (
-        mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg
-    ) = MISSING
+    arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
@@ -119,24 +108,14 @@ class ObservationsCfg:
 
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
-            params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"]
-                )
-            },
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"])},
         )
         joint_vel = ObsTerm(
             func=mdp.joint_vel_rel,
-            params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"]
-                )
-            },
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"])},
         )
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        target_object_position = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "object_pose"}
-        )
+        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -168,13 +147,9 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    reaching_object = RewTerm(
-        func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.1
-    )
+    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.1)
 
-    lifting_object = RewTerm(
-        func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0
-    )
+    lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
 
     object_goal_tracking = RewTerm(
         func=mdp.object_goal_distance,
@@ -194,11 +169,7 @@ class RewardsCfg:
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-1e-4,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"]
-            )
-        },
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["openarm_joint.*", "openarm_finger_joint.*"])},
     )
 
 

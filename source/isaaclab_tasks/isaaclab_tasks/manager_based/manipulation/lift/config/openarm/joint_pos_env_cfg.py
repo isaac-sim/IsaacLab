@@ -4,6 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import math
+
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
@@ -12,17 +16,12 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
-from isaaclab_tasks.manager_based.manipulation.lift.lift_openarm_env_cfg import (
-    LiftEnvCfg,
-)
-
-import math
+from isaaclab_tasks.manager_based.manipulation.lift.lift_openarm_env_cfg import LiftEnvCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 
 @configclass
@@ -58,9 +57,7 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         # Set Cube as object
         self.scene.object = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=RigidObjectCfg.InitialStateCfg(
-                pos=[0.4, 0, 0.055], rot=[1, 0, 0, 0]
-            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0, 0.055], rot=[1, 0, 0, 0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
                 scale=(0.8, 0.8, 0.8),

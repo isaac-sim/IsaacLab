@@ -3,17 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
-
-import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
-from isaaclab_tasks.manager_based.manipulation.reach.reach_openarm_bi_env_cfg import (
-    ReachEnvCfg,
-)
-
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
+
+from isaaclab.utils import configclass
+
+import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
+from isaaclab_tasks.manager_based.manipulation.reach.reach_openarm_bi_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -32,11 +30,15 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
 
         # override rewards
         self.rewards.left_end_effector_position_tracking.params["asset_cfg"].body_names = ["openarm_left_hand"]
-        self.rewards.left_end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["openarm_left_hand"]
+        self.rewards.left_end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = [
+            "openarm_left_hand"
+        ]
         self.rewards.left_end_effector_orientation_tracking.params["asset_cfg"].body_names = ["openarm_left_hand"]
 
         self.rewards.right_end_effector_position_tracking.params["asset_cfg"].body_names = ["openarm_right_hand"]
-        self.rewards.right_end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["openarm_right_hand"]
+        self.rewards.right_end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = [
+            "openarm_right_hand"
+        ]
         self.rewards.right_end_effector_orientation_tracking.params["asset_cfg"].body_names = ["openarm_right_hand"]
 
         # override actions

@@ -3,6 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+##
+# Pre-defined configs
+##
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
@@ -13,11 +18,6 @@ from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_openarm_env_cfg i
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
 )
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 
 @configclass
@@ -54,7 +54,7 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/openarm_ee_tcp",
                     name="ee_tcp",
-                     offset=OffsetCfg(
+                    offset=OffsetCfg(
                         pos=(0.0, 0.0, -0.003),
                     ),
                 ),
