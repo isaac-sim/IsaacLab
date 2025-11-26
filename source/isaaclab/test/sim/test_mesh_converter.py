@@ -24,7 +24,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
-from isaaclab.sim.schemas import schemas_cfg
+from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
 from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -133,10 +133,14 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
     # -- if collision is enabled, check that collision approximation is correct
     if exp_collision_enabled:
         if mesh_converter.cfg.mesh_collision_props is not None:
-            exp_collision_approximation = mesh_converter.cfg.mesh_collision_props.mesh_approximation_token
+            exp_collision_approximation_str = mesh_converter.cfg.mesh_collision_props.mesh_approximation_name
+            exp_collision_approximation_token = MESH_APPROXIMATION_TOKENS[exp_collision_approximation_str]
             mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
             collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
-            assert collision_approximation == exp_collision_approximation, "Collision approximation is not the same!"
+            # Convert token to string for comparison
+            assert (
+                collision_approximation == exp_collision_approximation_token
+            ), "Collision approximation is not the same!"
 
 
 def test_no_change(assets):

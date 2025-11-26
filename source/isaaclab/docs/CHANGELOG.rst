@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.48.7 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing mesh collision approximation attribute when running :class:`~isaaclab.sim.converters.MeshConverter`.
+  The collision approximation attribute is now properly set on the USD prim when converting meshes with mesh collision
+  properties.
+
+
 0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
 
