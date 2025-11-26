@@ -40,7 +40,7 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
                 "openarm_joint.*",
             ],
             scale=0.5,
-            use_default_offset=True,  # False
+            use_default_offset=True,
         )
 
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
