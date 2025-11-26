@@ -1151,3 +1151,19 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Reach-OpenArm-Bi-v0
+      - Isaac-Reach-OpenArm-Bi-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Reach-OpenArm-v0
+      - Isaac-Reach-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Lift-Cube-OpenArm-v0
+      - Isaac-Lift-Cube-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Open-Drawer-OpenArm-v0
+      - Isaac-Open-Drawer-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
