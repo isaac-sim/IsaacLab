@@ -961,7 +961,7 @@ Collision mesh properties.
 """
 
 
-def extract_mesh_collision_api_and_attrs(cfg: schemas_cfg.MeshCollisionPropertiesCfg):
+def extract_mesh_collision_api_and_attrs(cfg: schemas_cfg.MeshCollisionPropertiesCfg) -> tuple(Callable, dict[str, Any]):
     """Extract the mesh collision API function and custom attributes from the configuration.
 
     Args:
