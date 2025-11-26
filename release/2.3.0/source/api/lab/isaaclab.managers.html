@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab.managers.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/api/lab/isaaclab.managers.html" >main</option>
             <option value="../../../../2.1.0/source/api/lab/isaaclab.managers.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/api/lab/isaaclab.managers.html" >release/2.2.0</option>
-            <option value="isaaclab.managers.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.3.0/source/api/lab/isaaclab.managers.html" >v2.3.0</option>
             <option value="../../../../../v2.2.1/source/api/lab/isaaclab.managers.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/api/lab/isaaclab.managers.html" >v2.2.0</option>
@@ -3327,7 +3327,7 @@ configuration <a class="reference internal" href="#isaaclab.managers.Termination
 <td><p>Computes the termination signal as union of individual terms.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.TerminationManager.get_term" title="isaaclab.managers.TerminationManager.get_term"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_term</span></code></a>(name)</p></td>
-<td><p>Returns the termination term with the specified name.</p></td>
+<td><p>Returns the termination term value at current step with the specified name.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.TerminationManager.get_active_iterable_terms" title="isaaclab.managers.TerminationManager.get_active_iterable_terms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_active_iterable_terms</span></code></a>(env_idx)</p></td>
 <td><p>Returns the active terms as iterable sequence of tuples.</p></td>
@@ -3442,7 +3442,7 @@ to compute the net termination signal.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.managers.TerminationManager.get_term">
 <span class="sig-name descname"><span class="pre">get_term</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/managers/termination_manager.html#TerminationManager.get_term"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.TerminationManager.get_term" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the termination term with the specified name.</p>
+<dd><p>Returns the termination term value at current step with the specified name.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>name</strong> – The name of the termination term.</p>
@@ -3457,7 +3457,8 @@ to compute the net termination signal.</p>
 <dt class="sig sig-object py" id="isaaclab.managers.TerminationManager.get_active_iterable_terms">
 <span class="sig-name descname"><span class="pre">get_active_iterable_terms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">collections.abc.Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/managers/termination_manager.html#TerminationManager.get_active_iterable_terms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.TerminationManager.get_active_iterable_terms" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the active terms as iterable sequence of tuples.</p>
-<p>The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.</p>
+<p>The first element of the tuple is the name of the term and the second element is the raw value(s) of the term
+recorded at current step.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env_idx</strong> – The specific environment to pull the active terms from.</p>

@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="actuator_base.html" selected>release/2.3.0</option>
             <option value="../../../../../main/index.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="actuator_base.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.3.0/index.html" >v2.3.0</option>
             <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
@@ -647,13 +647,21 @@
     <span class="n">effort_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The effort limit for the actuator group. Shape is (num_envs, num_joints).</span>
 
-<span class="sd">    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.</span>
+<span class="sd">    This limit is used differently depending on the actuator type:</span>
+
+<span class="sd">    - **Explicit actuators**: Used for internal torque clipping within the actuator model</span>
+<span class="sd">      (e.g., motor torque limits in DC motor models).</span>
+<span class="sd">    - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">effort_limit_sim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</span>
 
 <span class="sd">    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.</span>
+
+<span class="sd">    - **Explicit actuators**: Typically set to a large value (1.0e9) to avoid double-clipping,</span>
+<span class="sd">      since the actuator model already clips efforts using :attr:`effort_limit`.</span>
+<span class="sd">    - **Implicit actuators**: Same as :attr:`effort_limit` (both values are synchronized).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">velocity_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
@@ -715,8 +723,11 @@
 <span class="sd">        are not specified in the configuration, then their values provided in the constructor are used.</span>
 
 <span class="sd">        .. note::</span>
-<span class="sd">            The values in the constructor are typically obtained through the USD schemas corresponding</span>
-<span class="sd">            to the joints in the actuator model.</span>
+<span class="sd">            The values in the constructor are typically obtained through the USD values passed from the PhysX API calls</span>
+<span class="sd">            corresponding to the joints in the actuator model; these values serve as default values if the parameters</span>
+<span class="sd">            are not specified in the cfg.</span>
+
+
 
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration of the actuator model.</span>
@@ -788,7 +799,12 @@
                 <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span><span class="p">)</span>
+        <span class="c1"># Parse effort_limit with special default handling:</span>
+        <span class="c1"># - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)</span>
+        <span class="c1"># - Otherwise, use effort_limit_sim as the default</span>
+        <span class="c1"># Please refer to the documentation of the effort_limit and effort_limit_sim parameters for more details.</span>
+        <span class="n">effort_default</span> <span class="o">=</span> <span class="n">effort_limit</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit_sim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_joint_parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="n">effort_default</span><span class="p">)</span>
 
         <span class="c1"># create commands buffers for allocation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">computed_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
