@@ -19,6 +19,7 @@ import re
 import signal
 import sys
 import toml
+import logging
 from typing import Any, Literal
 
 import flatdict
@@ -27,6 +28,9 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
 from isaacsim import SimulationApp
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -961,7 +965,7 @@ class AppLauncher:
         import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1023,13 +1027,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 
