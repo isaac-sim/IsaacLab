@@ -14,12 +14,12 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
 import sys
 import toml
-import logging
 from typing import Any, Literal
 
 import flatdict
