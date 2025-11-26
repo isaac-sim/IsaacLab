@@ -36,6 +36,9 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
 
+# import logger
+logger = logging.getLogger(__name__)
+
 
 class SimulationContext(_SimulationContext):
     """A class to control simulation-related events such as physics stepping and rendering.
