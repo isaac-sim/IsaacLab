@@ -5,6 +5,7 @@
 
 import builtins
 import enum
+import logging
 import numpy as np
 import os
 import toml
@@ -18,7 +19,6 @@ from typing import Any
 import carb
 import flatdict
 import isaacsim.core.utils.stage as stage_utils
-import omni.log
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
@@ -31,12 +31,15 @@ from pxr import Usd
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
-from isaaclab.visualizers import Visualizer
+from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_provider import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class SimulationContext(_SimulationContext):
@@ -484,7 +487,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            omni.log.warn(
+            logger.warning(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -546,21 +549,100 @@ class SimulationContext(_SimulationContext):
         if self._scene_data_provider:
             self._scene_data_provider.update()
 
-    def initialize_visualizers(self) -> None:
-        """Initialize all configured visualizers.
+    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
+        """Create default visualizer configurations for requested visualizer types.
+        
+        This method creates minimal default configurations for visualizers when none are defined
+        in the simulation config. Each visualizer is created with all default parameters.
+        
+        Args:
+            requested_visualizers: List of visualizer type names (e.g., ['newton', 'rerun', 'omniverse']).
+            
+        Returns:
+            List of default visualizer config instances.
+        """
+        default_configs = []
+        
+        for viz_type in requested_visualizers:
+            try:
+                if viz_type == "newton":
+                    # Create default Newton visualizer config
+                    default_configs.append(NewtonVisualizerCfg())
+                elif viz_type == "rerun":
+                    # Create default Rerun visualizer config
+                    default_configs.append(RerunVisualizerCfg())
+                elif viz_type == "omniverse":
+                    # Create default Omniverse visualizer config
+                    default_configs.append(OVVisualizerCfg())
+                else:
+                    logger.warning(
+                        f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
+                        f"Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
+                    )
+            except Exception as e:
+                logger.error(
+                    f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {e}"
+                )
+        
+        return default_configs
 
-        This method creates and initializes visualizers based on the configuration provided
-        in SimulationCfg.visualizer_cfgs. It supports:
-        - A single VisualizerCfg: Creates one visualizer
-        - A list of VisualizerCfg: Creates multiple visualizers
-        - None or empty list: No visualizers are created
+    def initialize_visualizers(self) -> None:
+        """Initialize visualizers based on the --visualizer command-line flag.
+
+        This method creates and initializes visualizers only when explicitly requested via
+        the --visualizer flag. It supports:
+        - Single visualizer: --visualizer rerun
+        - Multiple visualizers: --visualizer rerun newton omniverse
+        - No visualizers: omit the --visualizer flag (default behavior)
+
+        If visualizer configs are defined in SimulationCfg.visualizer_cfgs, they will be used.
+        Otherwise, default configs with all default parameters will be automatically created.
 
         Note:
-            Visualizers are automatically skipped when running in headless mode.
+            - If --headless is specified, NO visualizers will be initialized (headless takes precedence).
+            - If --visualizer is not specified, NO visualizers will be initialized.
+            - If --visualizer is specified but no configs exist, default configs are created automatically.
+            - Only visualizers specified via --visualizer will be initialized, even if
+              multiple visualizer configs are present in the simulation config.
         """
-        # Skip visualizers in headless mode
-        if not self._has_gui and not self._offscreen_render:
+        # Check if specific visualizers were requested via command-line flag
+        carb_settings_iface = carb.settings.get_settings()
+        requested_visualizers_str = carb_settings_iface.get("/isaaclab/visualizer")
+        if requested_visualizers_str is None:
+            requested_visualizers_str = ""
+        
+        # Parse comma-separated visualizer list
+        requested_visualizers = [v.strip() for v in requested_visualizers_str.split(",") if v.strip()]
+
+        # If no visualizers were requested via --visualizer flag, skip initialization
+        if not requested_visualizers:
+            # Skip if no GUI and no offscreen rendering (true headless mode)
+            if not self._has_gui and not self._offscreen_render:
+                return
+            logger.info(
+                "[SimulationContext] No visualizers specified via --visualizer flag. "
+                "Skipping visualizer initialization. Use --visualizer <type> to enable visualizers."
+            )
             return
+        
+        # If in true headless mode (no GUI, no offscreen rendering) but visualizers were requested,
+        # filter out visualizers that require GUI (like omniverse)
+        if not self._has_gui and not self._offscreen_render:
+            # Only non-GUI visualizers (rerun, newton) can run in headless mode
+            non_gui_visualizers = [v for v in requested_visualizers if v in ["rerun", "newton"]]
+            if not non_gui_visualizers:
+                logger.warning(
+                    "[SimulationContext] Headless mode enabled but only GUI-dependent visualizers "
+                    f"(like 'omniverse') were requested: {requested_visualizers}. "
+                    "Skipping all visualizer initialization."
+                )
+                return
+            if len(non_gui_visualizers) < len(requested_visualizers):
+                logger.info(
+                    f"[SimulationContext] Headless mode enabled. Filtering visualizers from "
+                    f"{requested_visualizers} to {non_gui_visualizers} (excluding GUI-dependent visualizers)."
+                )
+            requested_visualizers = non_gui_visualizers
 
         # Handle different input formats
         visualizer_cfgs = []
@@ -569,6 +651,43 @@ class SimulationContext(_SimulationContext):
                 visualizer_cfgs = self.cfg.visualizer_cfgs
             else:
                 visualizer_cfgs = [self.cfg.visualizer_cfgs]
+
+        # If no visualizer configs are defined but visualizers were requested, create default configs
+        if len(visualizer_cfgs) == 0:
+            logger.info(
+                f"[SimulationContext] No visualizer configs found in simulation config. "
+                f"Creating default configs for requested visualizers: {requested_visualizers}"
+            )
+            visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
+        else:
+            # Filter visualizers based on --visualizer flag
+            original_count = len(visualizer_cfgs)
+            
+            # Filter to only requested visualizers
+            visualizer_cfgs = [
+                cfg for cfg in visualizer_cfgs
+                if cfg.visualizer_type in requested_visualizers
+            ]
+            
+            if len(visualizer_cfgs) == 0:
+                available_types = [
+                    cfg.visualizer_type for cfg in (
+                        self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) 
+                        else [self.cfg.visualizer_cfgs]
+                    )
+                    if cfg.visualizer_type is not None
+                ]
+                logger.warning(
+                    f"[SimulationContext] Visualizer(s) {requested_visualizers} requested via --visualizer flag, "
+                    f"but no matching visualizer configs were found in simulation config. "
+                    f"Available visualizer types: {available_types}"
+                )
+                return
+            elif len(visualizer_cfgs) < original_count:
+                logger.info(
+                    f"[SimulationContext] Visualizer(s) {requested_visualizers} specified via --visualizer flag. "
+                    f"Filtering {original_count} configs to {len(visualizer_cfgs)} matching visualizer(s)."
+                )
 
         # Create scene data provider with visualizer configs
         # Provider will determine which backends are active
@@ -595,10 +714,10 @@ class SimulationContext(_SimulationContext):
                 # Initialize visualizer with minimal required data
                 visualizer.initialize(scene_data)
                 self._visualizers.append(visualizer)
-                omni.log.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
+                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
 
             except Exception as e:
-                omni.log.error(
+                logger.error(
                     f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' ({type(viz_cfg).__name__}): {e}"
                 )
 
@@ -636,7 +755,7 @@ class SimulationContext(_SimulationContext):
                 visualizer.step(dt, state=None)
 
             except Exception as e:
-                omni.log.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")
+                logger.error(f"Error stepping visualizer '{type(visualizer).__name__}': {e}")
                 visualizers_to_remove.append(visualizer)
 
         # Remove closed visualizers
@@ -644,9 +763,9 @@ class SimulationContext(_SimulationContext):
             try:
                 visualizer.close()
                 self._visualizers.remove(visualizer)
-                omni.log.info(f"Removed visualizer: {type(visualizer).__name__}")
+                logger.info(f"Removed visualizer: {type(visualizer).__name__}")
             except Exception as e:
-                omni.log.error(f"Error closing visualizer: {e}")
+                logger.error(f"Error closing visualizer: {e}")
 
     def close_visualizers(self) -> None:
         """Close all active visualizers and clean up resources."""
@@ -654,10 +773,10 @@ class SimulationContext(_SimulationContext):
             try:
                 visualizer.close()
             except Exception as e:
-                omni.log.error(f"Error closing visualizer '{type(visualizer).__name__}': {e}")
+                logger.error(f"Error closing visualizer '{type(visualizer).__name__}': {e}")
 
         self._visualizers.clear()
-        omni.log.info("All visualizers closed")
+        logger.info("All visualizers closed")
 
     def get_initial_stage(self) -> Usd.Stage:
         """Returns stage handle used during scene creation.
@@ -1014,7 +1133,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        omni.log.error(traceback.format_exc())
+        logger.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():

@@ -62,7 +62,7 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
     unnecessary dependencies.
 
     Args:
-        name: Visualizer type name (e.g., 'newton', 'rerun', 'omniverse', 'ov').
+        name: Visualizer type name (e.g., 'newton', 'rerun', 'omniverse').
 
     Returns:
         Visualizer class if found, None otherwise.
@@ -83,11 +83,10 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
 
             _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
             return NewtonVisualizer
-        elif name in ("omniverse", "ov"):
+        elif name == "omniverse":
             from .ov_visualizer import OVVisualizer
 
             _VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
-            _VISUALIZER_REGISTRY["ov"] = OVVisualizer  # Alias
             return OVVisualizer
         elif name == "rerun":
             from .rerun_visualizer import RerunVisualizer
