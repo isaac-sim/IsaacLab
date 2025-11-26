@@ -1085,7 +1085,7 @@ def modify_mesh_collision_properties(
     Returns:
         True if the properties were successfully set, False otherwise.
     Raises:
-        ValueError: When the mesh approximation token is invalid.
+        ValueError: When the mesh approximation name is invalid.
     """
     # obtain stage
     if stage is None:
@@ -1097,13 +1097,13 @@ def modify_mesh_collision_properties(
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
     # convert mesh approximation string to token
-    approximation_token = cfg.mesh_approximation_name
-    if approximation_token not in MESH_APPROXIMATION_TOKENS:
+    approximation_name = cfg.mesh_approximation_name
+    if approximation_name not in MESH_APPROXIMATION_TOKENS:
         raise ValueError(
-            f"Invalid mesh approximation token: '{approximation_token}'. "
+            f"Invalid mesh approximation name: '{approximation_name}'. "
             f"Valid options are: {list(MESH_APPROXIMATION_TOKENS.keys())}"
         )
-    approximation_token = MESH_APPROXIMATION_TOKENS[approximation_token]
+    approximation_token = MESH_APPROXIMATION_TOKENS[approximation_name]
     safe_set_attribute_on_usd_schema(
         UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
     )
