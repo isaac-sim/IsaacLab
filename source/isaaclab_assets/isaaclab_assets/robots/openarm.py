@@ -14,7 +14,7 @@ The following configurations are available:
 
 Reference: https://github.com/enactic/openarm_isaac_lab
 
-Please `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab/source` to use these configurations.
+Please `git clone https://github.com/enactic/openarm_isaac_lab` and `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
 """
 
 import isaaclab.sim as sim_utils
