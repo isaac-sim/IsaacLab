@@ -19,6 +19,7 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs
@@ -450,7 +451,7 @@ class ManagerBasedEnv:
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""
