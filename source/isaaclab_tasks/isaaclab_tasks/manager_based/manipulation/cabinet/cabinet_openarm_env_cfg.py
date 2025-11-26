@@ -208,7 +208,7 @@ class RewardsCfg:
     align_ee_handle = RewTerm(func=mdp.align_ee_handle, weight=0.5)
 
     # 2. Grasp the handle
-    approach_gripper_handle = RewTerm(func=mdp.align_grasp_around_handle, weight=5.0, params={"offset": MISSING})
+    approach_gripper_handle = RewTerm(func=mdp.approach_gripper_handle, weight=5.0, params={"offset": MISSING})
     align_grasp_around_handle = RewTerm(func=mdp.align_grasp_around_handle, weight=0.125)
     grasp_handle = RewTerm(
         func=mdp.grasp_handle,
