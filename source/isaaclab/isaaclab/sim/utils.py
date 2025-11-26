@@ -20,7 +20,6 @@ import omni
 import omni.kit.commands
 import omni.log
 from isaacsim.core.cloner import Cloner
-from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
@@ -862,7 +861,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # this carb flag is equivalent to if rendering is enabled
     carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it
     if not is_rendering_enabled:
