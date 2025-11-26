@@ -2,30 +2,17 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
 import numpy as np
 import torch
 from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
-from isaaclab.devices import OpenXRDevice
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-
-
-@dataclass
-class Se3RelRetargeterCfg(RetargeterCfg):
-    """Configuration for relative position retargeter."""
-
-    zero_out_xy_rotation: bool = True
-    use_wrist_rotation: bool = False
-    use_wrist_position: bool = True
-    delta_pos_scale_factor: float = 10.0
-    delta_rot_scale_factor: float = 10.0
-    alpha_pos: float = 0.5
-    alpha_rot: float = 0.5
-    enable_visualization: bool = False
-    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class Se3RelRetargeter(RetargeterBase):
@@ -49,7 +36,7 @@ class Se3RelRetargeter(RetargeterBase):
         """Initialize the relative motion retargeter.
 
         Args:
-            bound_hand: The hand to track (OpenXRDevice.TrackingTarget.HAND_LEFT or OpenXRDevice.TrackingTarget.HAND_RIGHT)
+            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
             zero_out_xy_rotation: If True, ignore rotations around x and y axes, allowing only z-axis rotation
             use_wrist_rotation: If True, use wrist rotation for control instead of averaging finger orientations
             use_wrist_position: If True, use wrist position instead of pinch position (midpoint between fingers)
@@ -61,10 +48,9 @@ class Se3RelRetargeter(RetargeterBase):
             device: The device to place the returned tensor on ('cpu' or 'cuda')
         """
         # Store the hand to track
-        if cfg.bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+        if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
             raise ValueError(
-                "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
-                " OpenXRDevice.TrackingTarget.HAND_RIGHT"
+                "bound_hand must be either DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT"
             )
         super().__init__(cfg)
         self.bound_hand = cfg.bound_hand
@@ -129,6 +115,9 @@ class Se3RelRetargeter(RetargeterBase):
         ee_command = torch.tensor(ee_command_np, dtype=torch.float32, device=self._sim_device)
 
         return ee_command
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
 
     def _calculate_delta_pose(self, joint_pose: np.ndarray, previous_joint_pose: np.ndarray) -> np.ndarray:
         """Calculate delta pose from previous joint pose.
@@ -206,3 +195,19 @@ class Se3RelRetargeter(RetargeterBase):
             quat = Rotation.from_matrix(self._visualization_rot).as_quat()
             rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
             self._goal_marker.visualize(translations=trans, orientations=rot)
+
+
+@dataclass
+class Se3RelRetargeterCfg(RetargeterCfg):
+    """Configuration for relative position retargeter."""
+
+    zero_out_xy_rotation: bool = True
+    use_wrist_rotation: bool = False
+    use_wrist_position: bool = True
+    delta_pos_scale_factor: float = 10.0
+    delta_rot_scale_factor: float = 10.0
+    alpha_pos: float = 0.5
+    alpha_rot: float = 0.5
+    enable_visualization: bool = False
+    bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = Se3RelRetargeter

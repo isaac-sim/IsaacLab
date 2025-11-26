@@ -721,11 +721,11 @@ Here's an example of setting up hand tracking:
 
    # Create retargeters
    position_retargeter = Se3AbsRetargeter(
-       bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+       bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
        zero_out_xy_rotation=True,
        use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
    )
-   gripper_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
+   gripper_retargeter = GripperRetargeter(bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT)
 
    # Create OpenXR device with hand tracking and both retargeters
    device = OpenXRDevice(
@@ -919,7 +919,7 @@ The retargeting system is designed to be extensible. You can create custom retar
                Any: The transformed control commands for the robot.
            """
            # Access hand tracking data using TrackingTarget enum
-           right_hand_data = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+           right_hand_data = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
            # Extract specific joint positions and orientations
            wrist_pose = right_hand_data.get("wrist")
@@ -927,7 +927,7 @@ The retargeting system is designed to be extensible. You can create custom retar
            index_tip_pose = right_hand_data.get("index_tip")
 
            # Access head tracking data
-           head_pose = data[OpenXRDevice.TrackingTarget.HEAD]
+           head_pose = data[DeviceBase.TrackingTarget.HEAD]
 
            # Process the tracking data and apply your custom logic
            # ...
@@ -935,18 +935,15 @@ The retargeting system is designed to be extensible. You can create custom retar
            # Return control commands in appropriate format
            return torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # Example output
 
-3. Register your retargeter with the factory by adding it to the ``RETARGETER_MAP``:
+3. Register your retargeter by setting ``retargeter_type`` on the config class:
 
 .. code-block:: python
 
    # Import your retargeter at the top of your module
    from my_package.retargeters import MyCustomRetargeter, MyCustomRetargeterCfg
 
-   # Add your retargeter to the factory
-   from isaaclab.devices.teleop_device_factory import RETARGETER_MAP
-
-   # Register your retargeter type with its constructor
-   RETARGETER_MAP[MyCustomRetargeterCfg] = MyCustomRetargeter
+   # Link the config to the implementation for factory construction
+   MyCustomRetargeterCfg.retargeter_type = MyCustomRetargeter
 
 4. Now you can use your custom retargeter in teleop device configurations:
 

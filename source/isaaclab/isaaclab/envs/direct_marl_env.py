@@ -8,6 +8,7 @@ from __future__ import annotations
 import builtins
 import gymnasium as gym
 import inspect
+import logging
 import math
 import numpy as np
 import torch
@@ -17,23 +18,25 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
-import omni.log
 import omni.physx
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DirectMARLEnv(gym.Env):
@@ -89,7 +92,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -115,7 +118,7 @@ class DirectMARLEnv(gym.Env):
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -462,7 +465,7 @@ class DirectMARLEnv(gym.Env):
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
@@ -602,17 +605,17 @@ class DirectMARLEnv(gym.Env):
 
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
-            omni.log.warn("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
+            logger.warning("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
             if isinstance(self.cfg.action_spaces, type(MISSING)):
                 self.cfg.action_spaces = self.cfg.num_actions
         if self.cfg.num_observations is not None:
-            omni.log.warn(
+            logger.warning(
                 "DirectMARLEnvCfg.num_observations is deprecated. Use DirectMARLEnvCfg.observation_spaces instead."
             )
             if isinstance(self.cfg.observation_spaces, type(MISSING)):
                 self.cfg.observation_spaces = self.cfg.num_observations
         if self.cfg.num_states is not None:
-            omni.log.warn("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
+            logger.warning("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 

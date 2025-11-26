@@ -21,6 +21,14 @@ If this is related to another GitHub issue, please link here too.
 
 A clear and concise description of any alternative solutions or features you've considered, if any.
 
+### Build Info
+
+Describe the versions where you are observing the missing feature in:
+
+<!-- Please complete the following description. -->
+- Isaac Lab Version: [e.g. 2.3.0]
+- Isaac Sim Version: [e.g. 5.1, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
+
 ### Additional context
 
 Add any other context or screenshots about the feature request here.

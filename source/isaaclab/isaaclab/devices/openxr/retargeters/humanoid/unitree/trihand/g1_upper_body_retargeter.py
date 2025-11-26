@@ -12,22 +12,13 @@ from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
-from isaaclab.devices import OpenXRDevice
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
 # This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import G1TriHandDexRetargeting
-
-
-@dataclass
-class G1TriHandUpperBodyRetargeterCfg(RetargeterCfg):
-    """Configuration for the G1UpperBody retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class G1TriHandUpperBodyRetargeter(RetargeterBase):
@@ -47,6 +38,7 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         Args:
             cfg: Configuration for the retargeter.
         """
+        super().__init__(cfg)
 
         # Store device name for runtime retrieval
         self._sim_device = cfg.sim_device
@@ -87,8 +79,8 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         """
 
         # Access the left and right hand data using the enum key
-        left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
-        right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+        left_hand_poses = data[DeviceBase.TrackingTarget.HAND_LEFT]
+        right_hand_poses = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
@@ -136,6 +128,9 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         # Combine all tensors into a single tensor
         return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
 
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
+
     def _retarget_abs(self, wrist: np.ndarray, is_left: bool) -> np.ndarray:
         """Handle absolute pose retargeting.
 
@@ -164,3 +159,13 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         quat = PoseUtils.quat_from_matrix(rot_mat)
 
         return np.concatenate([pos.numpy(), quat.numpy()])
+
+
+@dataclass
+class G1TriHandUpperBodyRetargeterCfg(RetargeterCfg):
+    """Configuration for the G1 Controller Upper Body retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = G1TriHandUpperBodyRetargeter

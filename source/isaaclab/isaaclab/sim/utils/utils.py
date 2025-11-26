@@ -7,23 +7,19 @@
 
 from __future__ import annotations
 
-import contextlib
 import functools
 import inspect
+import logging
 import re
-from collections.abc import Callable, Generator
+import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
-import omni.log
 from isaacsim.core.cloner import Cloner
-from isaacsim.core.utils.carb import get_carb_setting
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -31,12 +27,16 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
+from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
 
-from . import schemas
+from .stage import attach_stage_to_usd_context, get_current_stage
 
 if TYPE_CHECKING:
-    from .spawners.spawner_cfg import SpawnerCfg
+    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 Attribute - Setters.
@@ -76,7 +76,7 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     else:
         # think: do we ever need to create the attribute if it doesn't exist?
         #   currently, we are not doing this since the schemas are already created with some defaults.
-        omni.log.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
+        logger.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
         raise TypeError(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
 
 
@@ -201,7 +201,7 @@ def apply_nested(func: Callable) -> Callable:
                 count_success += 1
         # check if we were successful in applying the function to any prim
         if count_success == 0:
-            omni.log.warn(
+            logger.warning(
                 f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
                 " This might be because of the following reasons:"
                 "\n\t(1) The desired attribute does not exist on any of the prims."
@@ -288,7 +288,7 @@ def clone(func: Callable) -> Callable:
                 sem.GetSemanticDataAttr().Set(semantic_value)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
-            schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
+            schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
@@ -424,7 +424,7 @@ def bind_physics_material(
     has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
     has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
-        omni.log.verbose(
+        logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, a deformable body, nor a particle system."
         )
@@ -1022,160 +1022,50 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
     for variant_set_name, variant_selection in variants.items():
         # Check if the variant set exists on the prim.
         if not existing_variant_sets.HasVariantSet(variant_set_name):
-            omni.log.warn(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
+            logger.warning(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
-            omni.log.info(
+            logger.info(
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
 
 
-"""
-Stage management.
-"""
+# --- Colored formatter ---
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        "WARNING": "\033[33m",  # orange/yellow
+        "ERROR": "\033[31m",  # red
+        "CRITICAL": "\033[31m",  # red
+        "INFO": "\033[0m",  # reset
+        "DEBUG": "\033[0m",
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelname, self.RESET)
+        message = super().format(record)
+        return f"{color}{message}{self.RESET}"
 
 
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches the current USD stage in memory to the USD context.
+# --- Custom rate-limited warning filter ---
+class RateLimitFilter(logging.Filter):
+    def __init__(self, interval_seconds=5):
+        super().__init__()
+        self.interval = interval_seconds
+        self.last_emitted = {}
 
-    This function should be called during or after scene is created and before stage is simulated or rendered.
-
-    Note:
-        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
-
-    Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
-    """
-
-    from isaacsim.core.simulation_manager import SimulationManager
-
-    from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        return
-
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
-
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
-
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
-
-    # early attach warning msg
-    if attaching_early:
-        omni.log.warn(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
-        )
-
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
-
-    # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
-
-    # attach stage to usd context
-    omni.usd.get_context().attach_stage_with_callback(stage_id)
-
-    # attach stage to physx
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
-
-
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
-
-@contextlib.contextmanager
-def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
-
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
-
-    Args:
-        stage: The stage to set temporarily.
-
-    Yields:
-        None
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        omni.log.warn("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        with stage_utils.use_stage(stage):
-            yield
-
-
-def create_new_stage_in_memory() -> Usd.Stage:
-    """Creates a new stage in memory, if supported.
-
-    Returns:
-        The new stage in memory.
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        omni.log.warn(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
-            " stage attached to USD context."
-        )
-        return stage_utils.create_new_stage()
-    else:
-        return stage_utils.create_new_stage_in_memory()
-
-
-def get_current_stage_id() -> int:
-    """Gets the current open stage id.
-
-    This function is a reimplementation of :meth:`isaacsim.core.utils.stage.get_current_stage_id` for
-    backwards compatibility to Isaac Sim < 5.0.
-
-    Returns:
-        The current open stage id.
-    """
-    stage = get_current_stage()
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_id = stage_cache.GetId(stage).ToLongInt()
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
-    return stage_id
+    def filter(self, record):
+        """Allow WARNINGs only once every few seconds per message."""
+        if record.levelno != logging.WARNING:
+            return True
+        now = time.time()
+        msg_key = record.getMessage()
+        if msg_key not in self.last_emitted or (now - self.last_emitted[msg_key]) > self.interval:
+            self.last_emitted[msg_key] = now
+            return True
+        return False

@@ -7,9 +7,9 @@
 import os
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.openxr import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3RelRetargeterCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
@@ -80,7 +80,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3RelRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
@@ -89,7 +89,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -150,7 +150,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3RelRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
@@ -159,7 +159,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -271,8 +271,8 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
         )
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["ego_cam", "left_wrist_cam", "right_wrist_cam"]

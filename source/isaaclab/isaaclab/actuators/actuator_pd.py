@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
@@ -17,7 +16,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
-    from .actuator_cfg import (
+    from .actuator_pd_cfg import (
         DCMotorCfg,
         DelayedPDActuatorCfg,
         IdealPDActuatorCfg,
@@ -25,6 +24,8 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 Implicit Actuator Models.
@@ -57,7 +58,7 @@ class ImplicitActuator(ActuatorBase):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
                 " This parameter will be removed in the future."
                 " To set the effort limit, please use 'effort_limit_sim' instead."
@@ -79,7 +80,7 @@ class ImplicitActuator(ActuatorBase):
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
             # throw a warning that previously this was not set
             # it leads to different simulation behavior so we want to remain backwards compatible
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
                 " Previously, although this value was specified, it was not getting used by implicit"
                 " actuators. Since this parameter affects the simulation behavior, we continue to not"
