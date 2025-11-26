@@ -5,19 +5,22 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
-import omni.log
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+from isaaclab.sim.utils import clone
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
     from . import sensors_cfg
 
+# import logger
+logger = logging.getLogger(__name__)
 
 CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
     "projection_type": ("cameraProjectionType", Sdf.ValueTypeNames.Token),
@@ -110,7 +113,7 @@ def spawn_camera(
     # TODO: Adjust to handle aperture offsets once supported by omniverse
     #   Internal ticket from rendering team: OM-42611
     if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+        logger.warning("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
 
     # custom attributes in the config that are not USD Camera parameters
     non_usd_cfg_param_names = [

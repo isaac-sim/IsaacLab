@@ -21,6 +21,7 @@ Guidelines for modifications:
 
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Brian McCann
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
@@ -72,6 +73,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Hougant Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
@@ -95,11 +97,13 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Mateo Guaman Castro
 * Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
 * Narendra Dahile
@@ -124,6 +128,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
+* Sahara Yuta
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
@@ -150,6 +155,7 @@ Guidelines for modifications:
 * Yujian Zhang
 * Yun Liu
 * Zehao Wang
+* Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import asyncio
+import logging
 import os
 
 import omni
@@ -16,6 +17,9 @@ from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.utils import export_prim_to_file
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class MeshConverter(AssetConverterBase):
@@ -87,7 +91,7 @@ class MeshConverter(AssetConverterBase):
             # Correct the name to a valid identifier and update the basename
             mesh_file_basename_original = mesh_file_basename
             mesh_file_basename = Tf.MakeValidIdentifier(mesh_file_basename)
-            omni.log.warn(
+            logger.warning(
                 f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path."
                 f" Renaming it to '{mesh_file_basename}' for the conversion."
             )

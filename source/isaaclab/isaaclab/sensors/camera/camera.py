@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import numpy as np
 import re
 import torch
@@ -13,7 +14,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from isaacsim.core.prims import XFormPrim
@@ -22,6 +22,7 @@ from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -35,6 +36,9 @@ from .camera_data import CameraData
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class Camera(SensorBase):
@@ -148,7 +152,7 @@ class Camera(SensorBase):
         # checks for Isaac Sim v4.5 as this issue exists there
         if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                omni.log.warn(
+                logger.warning(
                     "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
                     " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
                     " will be disabled in the current workflow and may lead to longer load times and increased memory"

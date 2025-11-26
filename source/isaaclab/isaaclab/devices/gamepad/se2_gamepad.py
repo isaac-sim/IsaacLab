@@ -5,6 +5,8 @@
 
 """Gamepad controller for SE(2) control."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
 import weakref
@@ -16,16 +18,6 @@ import carb.input
 import omni
 
 from ..device_base import DeviceBase, DeviceCfg
-
-
-@dataclass
-class Se2GamepadCfg(DeviceCfg):
-    """Configuration for SE2 gamepad devices."""
-
-    v_x_sensitivity: float = 1.0
-    v_y_sensitivity: float = 1.0
-    omega_z_sensitivity: float = 1.0
-    dead_zone: float = 0.01
 
 
 class Se2Gamepad(DeviceBase):
@@ -209,3 +201,14 @@ class Se2Gamepad(DeviceBase):
         command[command_sign] *= -1
 
         return command
+
+
+@dataclass
+class Se2GamepadCfg(DeviceCfg):
+    """Configuration for SE2 gamepad devices."""
+
+    v_x_sensitivity: float = 1.0
+    v_y_sensitivity: float = 1.0
+    omega_z_sensitivity: float = 1.0
+    dead_zone: float = 0.01
+    class_type: type[DeviceBase] = Se2Gamepad
