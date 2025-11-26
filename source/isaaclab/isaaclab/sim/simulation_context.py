@@ -38,6 +38,9 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
 
+# import logger
+logger = logging.getLogger(__name__)
+
 
 class SimulationContext(_SimulationContext):
     """A class to control simulation-related events such as physics stepping and rendering.
@@ -539,7 +542,7 @@ class SimulationContext(_SimulationContext):
         if self._anim_recording_enabled:
             is_anim_recording_finished = self._update_anim_recording()
             if is_anim_recording_finished:
-                carb.log_warn("[INFO][SimulationContext]: Animation recording finished. Closing app.")
+                logger.warning("[INFO][SimulationContext]: Animation recording finished. Closing app.")
                 self._app.shutdown()
 
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
@@ -927,7 +930,7 @@ class SimulationContext(_SimulationContext):
     def _finish_anim_recording(self):
         """Finishes the animation recording and outputs the baked animation recording."""
 
-        carb.log_warn(
+        logger.warning(
             "[INFO][SimulationContext]: Finishing animation recording. Stage must be saved. Might take a few minutes."
         )
 

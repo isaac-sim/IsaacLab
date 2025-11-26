@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import carb
+import logging
+
 from pxr import Usd, UsdGeom
 
 from isaaclab.sim.utils.stage import get_current_stage
@@ -13,6 +14,9 @@ try:
     import Semantics
 except ModuleNotFoundError:
     from pxr import Semantics
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", overwrite: bool = True) -> None:
@@ -95,14 +99,14 @@ def check_missing_labels(prim_path: str | None = None) -> list[str]:
     prim_paths = []
     stage = get_current_stage()
     if stage is None:
-        carb.log_warn("Invalid stage, skipping label check")
+        logger.warning("Invalid stage, skipping label check")
         return prim_paths
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         # Allow None prim_path for whole stage check, warn if path specified but not found
         if prim_path:
-            carb.log_warn(f"Prim path not found: {prim_path}")
+            logger.warning(f"Prim path not found: {prim_path}")
         return prim_paths
 
     prims_to_check = Usd.PrimRange(start_prim)
@@ -132,13 +136,13 @@ def check_incorrect_labels(prim_path: str | None = None) -> list[list[str]]:
     incorrect_pairs = []
     stage = get_current_stage()
     if stage is None:
-        carb.log_warn("Invalid stage, skipping label check")
+        logger.warning("Invalid stage, skipping label check")
         return incorrect_pairs
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         if prim_path:
-            carb.log_warn(f"Prim path not found: {prim_path}")
+            logger.warning(f"Prim path not found: {prim_path}")
         return incorrect_pairs
 
     prims_to_check = Usd.PrimRange(start_prim)
@@ -178,13 +182,13 @@ def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
     labels_counter = {"missing_labels": 0}
     stage = get_current_stage()
     if stage is None:
-        carb.log_warn("Invalid stage, skipping label check")
+        logger.warning("Invalid stage, skipping label check")
         return labels_counter
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         if prim_path:
-            carb.log_warn(f"Prim path not found: {prim_path}")
+            logger.warning(f"Prim path not found: {prim_path}")
         return labels_counter
 
     prims_to_check = Usd.PrimRange(start_prim)
@@ -245,7 +249,7 @@ def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool =
         for old_instance_name, (old_type, old_data) in old_semantics.items():
 
             if not old_type or not old_data:
-                carb.log_warn(
+                logger.warning(
                     f"[upgrade_prim] Skipping instance '{old_instance_name}' on {current_prim.GetPath()} due to missing"
                     " type or data."
                 )
@@ -271,6 +275,6 @@ def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool =
                 total_upgraded += 1
 
             except Exception as e:
-                carb.log_warn(f"Failed to upgrade instance '{old_instance_name}' on {current_prim.GetPath()}: {e}")
+                logger.warning(f"Failed to upgrade instance '{old_instance_name}' on {current_prim.GetPath()}: {e}")
                 continue
     return total_upgraded
