@@ -9,7 +9,6 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import isaacsim.core.utils.torch as torch_utils
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
