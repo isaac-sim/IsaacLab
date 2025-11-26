@@ -137,6 +137,7 @@ class NewtonManager:
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+            NewtonManager._model.num_envs = NewtonManager._num_envs
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
