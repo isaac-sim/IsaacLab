@@ -9,7 +9,7 @@ Added
 
 * Added reaching task environments for OpenArm unimanual robot:
   * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-v0``.
-  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``OpenArmReachEnvCfg_PLAY``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Play-v0``.
 * Added lifting a cube task environments for OpenArm unimanual robot:
   * :class:`OpenArmCubeLiftEnvCfg`; Gym ID ``Isaac-Lift-Cube-OpenArm-v0``.
   * :class:`OpenArmCubeLiftEnvCfg_PLAY`; Gym ID ``Isaac-Lift-Cube-OpenArm-Play-v0``.
