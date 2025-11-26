@@ -3,10 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 import gymnasium as gym
 
 from . import agents
+
+##
+# Register Gym environments.
+##
+
+##
+# Joint Position Control
+##
 
 gym.register(
     id="Isaac-Reach-OpenArm-v0",
