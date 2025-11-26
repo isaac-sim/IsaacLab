@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/overview/imitation-learning/teleop_imitation.html" >release/2.3.0</option>
             <option value="teleop_imitation.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/overview/imitation-learning/teleop_imitation.html" >release/2.3.0</option>
             <option value="../../../../v2.3.0/source/overview/imitation-learning/teleop_imitation.html" >v2.3.0</option>
             <option value="../../../../v2.2.1/source/overview/imitation-learning/teleop_imitation.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
@@ -1190,6 +1190,16 @@ The robot picks up an object at the initial location (point A) and places it at 
 <figure class="align-center">
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif"><img alt="G1 humanoid robot with locomanipulation performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif" style="width: 100%;" /></a>
 </figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Locomotion policy training</strong></p>
+<p>The locomotion policy used in this integration example was trained using the <a class="reference external" href="https://github.com/nvidia-isaac/WBC-AGILE">AGILE</a> framework.
+AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
+seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
+covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
+updated pre-trained policies with separate upper and lower body policies for flexibtility. They have been verified in the real world and can be
+directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.</p>
+</div>
 <section id="generate-the-manipulation-dataset">
 <h3>Generate the manipulation dataset<a class="headerlink" href="#generate-the-manipulation-dataset" title="Permalink to this heading">#</a></h3>
 <p>The same data generation and policy training steps from Demo 1.0 can be applied to the G1 humanoid robot with locomanipulation capabilities.
