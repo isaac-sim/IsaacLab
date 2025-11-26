@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.11.10 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reaching task environments for OpenArm unimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``OpenArmReachEnvCfg_PLAY``.
+* Added lifting a cube task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCubeLiftEnvCfg`; Gym ID ``Isaac-Lift-Cube-OpenArm-v0``.
+  * :class:`OpenArmCubeLiftEnvCfg_PLAY`; Gym ID ``Isaac-Lift-Cube-OpenArm-Play-v0``.
+* Added opening a drawer task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCabinetEnvCfg`; Gym ID ``Isaac-Open-Drawer-OpenArm-v0``.
+  * :class:`OpenArmCabinetEnvCfg_PLAY`; Gym ID ``Isaac-Open-Drawer-OpenArm-Play-v0``.
+* Added reaching task environments for OpenArm bimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-Bi-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Bi-Play-v0``.
+
 0.11.9 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
