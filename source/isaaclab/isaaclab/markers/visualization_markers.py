@@ -23,16 +23,16 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
 import omni.physx.scripts.utils as physx_utils
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.sim.utils import attach_stage_to_usd_context
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
 

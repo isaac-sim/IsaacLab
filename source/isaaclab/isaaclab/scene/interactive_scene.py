@@ -11,7 +11,6 @@ import carb
 import omni.log
 import omni.usd
 from isaacsim.core.prims import XFormPrim
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
@@ -21,6 +20,7 @@ from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg

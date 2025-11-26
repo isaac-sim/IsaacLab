@@ -17,7 +17,6 @@ from typing import Any
 
 import carb
 import flatdict
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 import omni.usd
@@ -29,6 +28,7 @@ from isaacsim.core.version import get_version
 from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from pxr import Usd
 
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
