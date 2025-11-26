@@ -962,7 +962,6 @@ class AppLauncher:
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
         logger.warning(
