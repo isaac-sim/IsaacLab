@@ -541,7 +541,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             # set sleep threshold to zero
             if "PhysxRigidBodyAPI" not in child_prim.GetAppliedSchemas():
                 child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
-            safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleepThreshold", 0.0, camel_case=False)
+            safe_set_attribute_on_usd_prim(child_prim, "physxRigidBody:sleepThreshold", 0.0, camel_case=False)
             # add contact report API with threshold of zero
             applied_schemas = child_prim.GetAppliedSchemas()
             if "PhysxContactReportAPI" not in applied_schemas:
