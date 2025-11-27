@@ -1,7 +1,7 @@
 import numpy as np
 
-from aloha_kinematics import AlohaKinematics
-from x7_kinematics import X7Kinematics
+from control.aloha_kinematics import AlohaKinematics
+from control.x7_kinematics import X7Kinematics
 
 
 class ArmMapper:

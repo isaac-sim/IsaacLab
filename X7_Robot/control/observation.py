@@ -1,46 +1,7 @@
 from openpi_client import image_tools
 import numpy as np
 import torch
-from mapping import BiArmMapper
-
-# def get_observation(scene):
-#     """Get robot observation: camera images and joint positions."""
-#     # Get the camera image (RGB and depth)
-#     left_image = scene["left_camera"].data.output["rgb"]
-#     print(left_image.shape)
-#     right_image = scene["right_camera"].data.output["rgb"]
-#     head_image = scene["head_camera"].data.output["rgb"]
-    
-#     # Convert Tensors to NumPy arrays if they are Tensors
-#     left_image = left_image.cpu().numpy() if isinstance(left_image, torch.Tensor) else left_image
-#     right_image = right_image.cpu().numpy() if isinstance(right_image, torch.Tensor) else right_image
-#     head_image = head_image.cpu().numpy() if isinstance(head_image, torch.Tensor) else head_image
-    
-#     # Get joint positions as a NumPy array so callers can use `.shape`,
-#     # and msgpack_numpy.Packer can serialize it over the websocket.
-#     joint_positions = scene["robot"].data.default_joint_pos
-#     if isinstance(joint_positions, torch.Tensor):
-#         joint_positions = joint_positions.cpu().numpy()
-#     elif isinstance(joint_positions, np.ndarray):
-#         # already ndarray
-#         pass
-#     else:
-#         # fallback: try to convert to ndarray
-#         joint_positions = np.asarray(joint_positions)
-
-#     # Process image (resize to 224x224 and convert to uint8)
-#     observation = {
-#         "observation/image": image_tools.convert_to_uint8(
-#             image_tools.resize_with_pad(head_image, 224, 224)
-#         ),
-#         "observation/wrist_image": image_tools.convert_to_uint8(
-#             image_tools.resize_with_pad(left_image, 224, 224)
-#         ),
-#         "observation/state": joint_positions,
-#         "prompt": "Grasp the red cube on the table."
-#     }
-    
-#     return observation
+from control.mapping import BiArmMapper
 
 from openpi_client import image_tools
 import numpy as np
