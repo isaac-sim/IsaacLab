@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.48.9 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced PhysX schema interactions via ``pxr.PhysxSchema`` API helpers with direct prim schema apply/get calls.
+* Replaced ``omni.kit.commands.execute("ChangePropertyCommand")`` uses with direct ``CreateAttribute`` + ``Set`` calls.
+
+
 0.48.8 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~~
 
