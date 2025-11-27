@@ -6,8 +6,8 @@ from isaaclab.utils.backend_utils import FactoryBase
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.newton.assets.rigid_object import RigidObject as NewtonRigidObject
-    from isaaclab.newton.assets.rigid_object import RigidObjectData as NewtonRigidObjectData
+    from isaaclab_newton.assets.rigid_object import RigidObject as NewtonRigidObject
+    from isaaclab_newton.assets.rigid_object import RigidObjectData as NewtonRigidObjectData
 
 class RigidObject(FactoryBase):
     """Factory for creating articulation instances."""

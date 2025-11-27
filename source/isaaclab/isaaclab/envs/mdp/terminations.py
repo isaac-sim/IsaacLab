@@ -32,8 +32,8 @@ MDP terminations.
 
 @wp.kernel
 def time_out_kernel(
-    episode_length_buf: wp.array(dtype=wp.float32),
-    max_episode_length: wp.float32,
+    episode_length_buf: wp.array(dtype=wp.int32),
+    max_episode_length: wp.int32,
     done: wp.array(dtype=wp.bool)
 ) -> None:
     i = wp.tid()
@@ -133,6 +133,7 @@ class bad_orientation(ManagerTermBase):
             inputs=[
                 self._asset.data.projected_gravity_b,
                 self._limit_angle,
+                self._done_buf,
             ],
         )
         return self._done_buf
@@ -216,6 +217,23 @@ class root_height_above_maximum(ManagerTermBase):
 Joint terminations.
 """
 
+@wp.func
+def aggregate_out_of_limits(
+    pos: wp.array(dtype=wp.float32),
+    limits: wp.array(dtype=wp.vec2f),
+    indices: wp.array(dtype=wp.int32)
+) -> wp.bool:
+    out_of_limits = 0.0
+
+@wp.kernel
+def joint_pos_out_of_limit_kernel(
+    joint_pos: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    joint_indices: wp.array(dtype=wp.int32),
+    done: wp.array(dtype=wp.bool)
+) -> None:
+    i = wp.tid()
+    done[i] = wp.any(wp.abs(joint_pos[i, joint_indices]) > soft_joint_pos_limits[i, joint_indices])
 
 def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import inspect
 import torch
+import warp as wp
+import numpy as np
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -23,6 +25,50 @@ from .manager_term_cfg import CommandTermCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
+@wp.kernel
+def zero_mask_int32(
+    mask: wp.array(dtype=wp.bool),
+    data: wp.array(dtype=wp.int32),
+):
+    env_index = wp.tid()
+    if mask[env_index]:
+        data[env_index] = 0
+
+@wp.kernel
+def resample_time_left(
+    mask: wp.array(dtype=wp.bool),
+    time_left: wp.array(dtype=wp.int32),
+    lower: wp.float32,
+    upper: wp.float32,
+    state: wp.uint32,
+):
+    env_index = wp.tid()
+    if mask[env_index]:
+        time_left[env_index] = wp.randf(state + wp.uint32(env_index), lower, upper)
+
+@wp.kernel
+def add_to_env(
+    data: wp.array(dtype=wp.int32),
+    value: wp.int32,
+    mask: wp.array(dtype=wp.bool),
+):
+    env_index = wp.tid()
+    if mask[env_index]:
+        data[env_index] += value
+
+@wp.kernel
+def resample_mask_from_time_left(
+    time_left: wp.array(dtype=wp.float32),
+    dt: wp.float32,
+    resampling_mask: wp.array(dtype=wp.bool),
+):
+    env_index = wp.tid()
+
+    time_left[env_index] -= dt
+    if time_left[env_index] < 0:
+        resampling_mask[env_index] = True
+    else:
+        resampling_mask[env_index] = False
 
 class CommandTerm(ManagerTermBase):
     """The base class for implementing a command term.
@@ -50,9 +96,13 @@ class CommandTerm(ManagerTermBase):
         # -- metrics that can be used for logging
         self.metrics = dict()
         # -- time left before resampling
-        self.time_left = torch.zeros(self.num_envs, device=self.device)
+        self.time_left = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         # -- counter for the number of times the command has been resampled within the current episode
-        self.command_counter = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        self.command_counter = wp.zeros(self.num_envs, device=self.device, dtype=wp.int32)
+        self._resampling_mask = wp.zeros(self.num_envs,device=self.device, dtype=wp.bool)
+        seed = np.random.randint(0, 1000000)
+        self._state = wp.rand_init(seed)
+        self._ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -117,7 +167,7 @@ class CommandTerm(ManagerTermBase):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, mask: wp.array(dtype=wp.float32) | None = None) -> dict[str, float]:
         """Reset the command generator and log metrics.
 
         This function resets the command counter and resamples the command. It should be called
@@ -129,22 +179,30 @@ class CommandTerm(ManagerTermBase):
         Returns:
             A dictionary containing the information to log under the "{name}" key.
         """
-        # resolve the environment IDs
-        if env_ids is None:
-            env_ids = slice(None)
+
+        if mask is None:
+            mask = self._ALL_ENV_MASK
 
         # add logging metrics
         extras = {}
-        for metric_name, metric_value in self.metrics.items():
-            # compute the mean metric value
-            extras[metric_name] = torch.mean(metric_value[env_ids]).item()
-            # reset the metric value
-            metric_value[env_ids] = 0.0
+        # FIXME: Re-enable logging
+        #for metric_name, metric_value in self.metrics.items():
+        #    # compute the mean metric value
+        #    extras[metric_name] = torch.mean(metric_value[env_ids]).item()
+        #    # reset the metric value
+        #    metric_value[env_ids] = 0.0
 
         # set the command counter to zero
-        self.command_counter[env_ids] = 0
+        wp.launch(
+            zero_mask_int32,
+            dim=self.num_envs,
+            inputs=[
+                mask,
+                self.command_counter,
+            ],
+        )
         # resample the command
-        self._resample(env_ids)
+        self._resample(mask)
 
         return extras
 
@@ -157,11 +215,16 @@ class CommandTerm(ManagerTermBase):
         # update the metrics based on current state
         self._update_metrics()
         # reduce the time left before resampling
-        self.time_left -= dt
-        # resample the command if necessary
-        resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
-        if len(resample_env_ids) > 0:
-            self._resample(resample_env_ids)
+        wp.launch(
+            resample_mask_from_time_left,
+            self.num_envs,
+            inputs = [
+                self.time_left,
+                dt,
+                self._resampling_mask,
+            ]
+        )
+        self._resample(self._resampling_mask)
         # update the command
         self._update_command()
 
@@ -169,7 +232,7 @@ class CommandTerm(ManagerTermBase):
     Helper functions.
     """
 
-    def _resample(self, env_ids: Sequence[int]):
+    def _resample(self, mask: wp.array(dtype=bool)) -> None:
         """Resample the command.
 
         This function resamples the command and time for which the command is applied for the
@@ -178,13 +241,29 @@ class CommandTerm(ManagerTermBase):
         Args:
             env_ids: The list of environment IDs to resample.
         """
-        if len(env_ids) != 0:
-            # resample the time left before resampling
-            self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
-            # resample the command
-            self._resample_command(env_ids)
-            # increment the command counter
-            self.command_counter[env_ids] += 1
+        wp.launch(
+            resample_time_left,
+            self.num_envs,
+            inputs = [
+                mask,
+                self.time_left,
+                self.cfg.resampling_time_range[0],
+                self.cfg.resampling_time_range[1],
+                self._state,
+            ]
+        )
+        # resample the command
+        self._resample_command(mask)
+        # increment the command counter
+        wp.launch(
+            add_to_env,
+            self.num_envs,
+            inputs = [
+                self.command_counter,
+                1,
+                mask
+            ]
+        )
 
     """
     Implementation specific functions.
@@ -196,7 +275,7 @@ class CommandTerm(ManagerTermBase):
         raise NotImplementedError
 
     @abstractmethod
-    def _resample_command(self, env_ids: Sequence[int]):
+    def _resample_command(self, mask: wp.array(dtype=wp.bool)):
         """Resample the command for the specified environments."""
         raise NotImplementedError
 
@@ -331,7 +410,7 @@ class CommandManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(self, mask: wp.array(dtype=wp.bool)) -> dict[str, wp.array]:
         """Reset the command terms and log their metrics.
 
         This function resets the command counter and resamples the command for each term. It should be called
@@ -343,14 +422,11 @@ class CommandManager(ManagerBase):
         Returns:
             A dictionary containing the information to log under the "Metrics/{term_name}/{metric_name}" key.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
         # store information
         extras = {}
         for name, term in self._terms.items():
             # reset the command term
-            metrics = term.reset(env_ids=env_ids)
+            metrics = term.reset(mask=mask)
             # compute the mean metric value
             for metric_name, metric_value in metrics.items():
                 extras[f"Metrics/{name}/{metric_name}"] = metric_value

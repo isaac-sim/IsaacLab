@@ -4,7 +4,7 @@ from isaaclab.utils.backend_utils import FactoryBase
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
+    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
 
 class ArticulationData(FactoryBase):
     """Factory for creating articulation data instances."""

@@ -72,6 +72,7 @@ from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkp
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
 import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)

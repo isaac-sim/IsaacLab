@@ -39,7 +39,7 @@ class FactoryBase:
         # This is done to only import the module once.
         if backend not in cls._registry:
             # Construct the module name from the backend and the determined subpath.
-            module_name = f"isaaclab.{backend}.{cls._module_subpath}"
+            module_name = f"isaaclab_{backend}.{cls._module_subpath}"
             try:
                 module = importlib.import_module(module_name)
                 module_class = getattr(module, cls.__name__)

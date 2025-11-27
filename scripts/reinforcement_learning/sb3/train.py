@@ -90,6 +90,7 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)

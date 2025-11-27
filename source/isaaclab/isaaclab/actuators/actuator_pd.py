@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
-    from isaaclab.newton.actuators.actuator_pd import ImplicitActuator as NewtonImplicitActuator
-    from isaaclab.newton.actuators.actuator_pd import IdealPDActuator as NewtonIdealPDActuator
-    from isaaclab.newton.actuators.actuator_pd import DCMotor as NewtonDCMotor
-    #from isaaclab.newton.actuators.actuator_pd import DelayedPDActuator as NewtonDelayedPDActuator
-    #from isaaclab.newton.actuators.actuator_pd import RemotizedPDActuator as NewtonRemotizedPDActuator
+    from isaaclab_newton.actuators.actuator_pd import ImplicitActuator as NewtonImplicitActuator
+    from isaaclab_newton.actuators.actuator_pd import IdealPDActuator as NewtonIdealPDActuator
+    from isaaclab_newton.actuators.actuator_pd import DCMotor as NewtonDCMotor
+    #from isaaclab_newton.actuators.actuator_pd import DelayedPDActuator as NewtonDelayedPDActuator
+    #from isaaclab_newton.actuators.actuator_pd import RemotizedPDActuator as NewtonRemotizedPDActuator
 
 """
 Implicit Actuator Models.

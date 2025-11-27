@@ -5,7 +5,7 @@ from isaaclab.utils.backend_utils import FactoryBase
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
+    from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
 
 class RigidObjectData(FactoryBase):
     """Factory for creating rigid object data instances."""

@@ -296,7 +296,7 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> dict[str, wp.array]:
+    def reset(self, mask: wp.array(dtype=wp.bool)) -> dict[str, wp.array]:
         """Resets the action history.
 
         Args:

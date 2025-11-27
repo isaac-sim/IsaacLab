@@ -248,10 +248,7 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array(dtype=wp.bool) | None = None) -> dict[str, float]:
-        if mask is None:
-            mask = self._ALL_ENV_MASK
-
+    def reset(self, mask: wp.array(dtype=wp.bool)) -> dict[str, float]:
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
@@ -261,8 +258,8 @@ class ObservationManager(ManagerBase):
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(mask=mask)
         # call all modifiers that are classes
-        for mod in self._group_obs_class_instances:
-            mod.reset(env_ids=env_ids)
+        #for mod in self._group_obs_class_instances:
+        #    mod.reset(env_ids=env_ids)
 
         # nothing to log here
         return {}
