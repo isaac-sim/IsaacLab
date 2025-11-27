@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
+
 # SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: LicenseRef-NvidiaProprietary
 #
@@ -17,11 +19,13 @@ import torch
 
 import carb
 import carb.settings
-import omni.log
 import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.utils.timer import Timer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class Cloner:

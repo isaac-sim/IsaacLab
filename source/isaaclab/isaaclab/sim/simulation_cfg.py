@@ -12,7 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
@@ -216,7 +216,7 @@ class SimulationCfg:
         # Disable all visualizers
         cfg.sim.visualizer_cfgs = []
 
-        # Use default visualizer (NewtonVisualizerCfg)
+        # No visualizers (default behavior)
         cfg = SimulationCfg()
 
         # Single custom visualizer
