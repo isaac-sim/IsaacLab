@@ -550,7 +550,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             else:
                 logger.debug(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
             # set threshold to zero
-            safe_set_attribute_on_usd_prim(child_prim, "PhysxContactReportAPI:threshold", threshold, camel_case=False)
+            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
             # increment number of contact sensors
             num_contact_sensors += 1
         else:
