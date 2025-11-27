@@ -34,6 +34,9 @@ from prettytable import PrettyTable
 # Local imports
 from test_settings import DEFAULT_TIMEOUT, ISAACLAB_PATH, PER_TEST_TIMEOUTS, TESTS_TO_SKIP
 
+# import logger
+logger = logging.getLogger(__name__)
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
