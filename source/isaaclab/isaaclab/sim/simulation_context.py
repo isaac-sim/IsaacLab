@@ -5,6 +5,7 @@
 
 import builtins
 import enum
+import logging
 import numpy as np
 import os
 import toml
@@ -35,6 +36,9 @@ from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SimulationContext(_SimulationContext):

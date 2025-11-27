@@ -8,6 +8,7 @@ from __future__ import annotations
 import builtins
 import gymnasium as gym
 import inspect
+import logging
 import math
 import numpy as np
 import torch
@@ -18,7 +19,6 @@ from dataclasses import MISSING
 from typing import Any, ClassVar
 
 import omni.kit.app
-import omni.log
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
@@ -35,6 +35,9 @@ from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DirectRLEnv(gym.Env):
@@ -95,7 +98,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -121,7 +124,7 @@ class DirectRLEnv(gym.Env):
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -554,17 +557,17 @@ class DirectRLEnv(gym.Env):
         """Configure the action and observation spaces for the Gym environment."""
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
-            omni.log.warn("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
+            logger.warning("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
             if isinstance(self.cfg.action_space, type(MISSING)):
                 self.cfg.action_space = self.cfg.num_actions
         if self.cfg.num_observations is not None:
-            omni.log.warn(
+            logger.warning(
                 "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
             )
             if isinstance(self.cfg.observation_space, type(MISSING)):
                 self.cfg.observation_space = self.cfg.num_observations
         if self.cfg.num_states is not None:
-            omni.log.warn("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
+            logger.warning("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 
