@@ -53,7 +53,6 @@ import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
-
 from isaacsim.core.utils.viewports import set_camera_view
 
 # import logger

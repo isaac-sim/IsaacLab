@@ -54,7 +54,6 @@ import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation, RigidPrim, SingleGeometryPrim, SingleRigidPrim
-
 from isaacsim.core.utils.viewports import set_camera_view
 from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom

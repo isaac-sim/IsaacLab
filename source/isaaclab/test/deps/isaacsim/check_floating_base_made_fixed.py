@@ -40,7 +40,6 @@ import omni.kit.commands
 import omni.physx
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
-
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
 

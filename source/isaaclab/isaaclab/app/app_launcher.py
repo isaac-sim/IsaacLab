@@ -19,10 +19,7 @@ import os
 import re
 import signal
 import sys
-import toml
 from typing import Any, Literal
-
-import flatdict
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
@@ -879,7 +876,6 @@ class AppLauncher:
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Set animation recording settings."""
         import carb
-        
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
