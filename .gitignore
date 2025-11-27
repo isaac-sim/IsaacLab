@@ -69,3 +69,8 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+# installl logs vscode
+**/install
+**/.vscode
+**/log
