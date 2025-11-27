@@ -10,7 +10,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
-import isaacsim.core.utils.torch as torch_utils
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
@@ -18,8 +17,9 @@ from isaacsim.core.version import get_version
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs
@@ -515,7 +515,7 @@ class ManagerBasedEnv:
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""

@@ -18,7 +18,8 @@ requirements = [
     "toml",
     "hidapi",
     "gymnasium==0.29.0",
-    "trimesh"
+    "trimesh",
+    "websockets"
 ]
 
 modules = [
@@ -27,7 +28,8 @@ modules = [
     "toml",
     "hid",
     "gymnasium",
-    "trimesh"
+    "trimesh",
+    "websockets"
 ]
 
 use_online_index=true

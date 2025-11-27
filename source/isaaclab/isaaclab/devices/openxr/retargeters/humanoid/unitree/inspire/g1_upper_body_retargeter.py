@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import contextlib
 import numpy as np
 import torch
@@ -10,22 +12,13 @@ from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
-from isaaclab.devices import OpenXRDevice
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
 # This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import UnitreeG1DexRetargeting
-
-
-@dataclass
-class UnitreeG1RetargeterCfg(RetargeterCfg):
-    """Configuration for the UnitreeG1 retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class UnitreeG1Retargeter(RetargeterBase):
@@ -48,6 +41,7 @@ class UnitreeG1Retargeter(RetargeterBase):
             hand_joint_names: List of robot hand joint names
         """
 
+        super().__init__(cfg)
         self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = UnitreeG1DexRetargeting(self._hand_joint_names)
 
@@ -81,8 +75,8 @@ class UnitreeG1Retargeter(RetargeterBase):
         """
 
         # Access the left and right hand data using the enum key
-        left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
-        right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+        left_hand_poses = data[DeviceBase.TrackingTarget.HAND_LEFT]
+        right_hand_poses = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
@@ -121,6 +115,9 @@ class UnitreeG1Retargeter(RetargeterBase):
         # Combine all tensors into a single tensor
         return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
 
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
+
     def _retarget_abs(self, wrist: np.ndarray, is_left: bool) -> np.ndarray:
         """Handle absolute pose retargeting.
 
@@ -152,3 +149,13 @@ class UnitreeG1Retargeter(RetargeterBase):
         quat = PoseUtils.quat_from_matrix(rot_mat)
 
         return np.concatenate([pos.numpy(), quat.numpy()])
+
+
+@dataclass
+class UnitreeG1RetargeterCfg(RetargeterCfg):
+    """Configuration for the UnitreeG1 retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = UnitreeG1Retargeter
