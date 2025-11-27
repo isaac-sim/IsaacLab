@@ -123,6 +123,8 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     del cfg["func"]
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"physxDeformableBodyMaterial:{to_camel_case(attr_name)}", value, camel_case=False)
+        safe_set_attribute_on_usd_prim(
+            prim, f"physxDeformableBodyMaterial:{to_camel_case(attr_name)}", value, camel_case=False
+        )
     # return the prim
     return prim
