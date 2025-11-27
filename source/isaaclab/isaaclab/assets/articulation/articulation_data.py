@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import torch
 import weakref
 
-import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ArticulationData:
@@ -110,6 +113,9 @@ class ArticulationData:
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
 
+    spatial_tendon_names: list[str] = None
+    """Spatial tendon names in the order parsed by the simulation view."""
+
     ##
     # Defaults - Initial state.
     ##
@@ -148,8 +154,9 @@ class ArticulationData:
     default_inertia: torch.Tensor = None
     """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
 
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links' actor frame.
+    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
+    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
@@ -187,9 +194,31 @@ class ArticulationData:
     """
 
     default_joint_friction_coeff: torch.Tensor = None
-    """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
+    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
+
+    default_joint_dynamic_friction_coeff: torch.Tensor = None
+    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
+
+    default_joint_viscous_friction_coeff: torch.Tensor = None
+    """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
     """
@@ -199,42 +228,65 @@ class ArticulationData:
 
     The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
     """
-
     default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon damping of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon limit stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon rest length of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon offset of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_pos_limits: torch.Tensor = None
-    """Default tendon position limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
+    """Default tendon position limits of all fixed tendons. Shape is (num_instances, num_fixed_tendons, 2).
 
     The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
     initialization.
+    """
+
+    default_spatial_tendon_stiffness: torch.Tensor = None
+    """Default tendon stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_damping: torch.Tensor = None
+    """Default tendon damping of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Default tendon limit stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_offset: torch.Tensor = None
+    """Default tendon offset of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##
@@ -304,7 +356,21 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
+
+    joint_dynamic_friction_coeff: torch.Tensor = None
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints).
+
+    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+    it is modeled as an effort (torque or force).
+    """
+
+    joint_viscous_friction_coeff: torch.Tensor = None
+    """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_pos_limits: torch.Tensor = None
     """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
@@ -372,6 +438,22 @@ class ArticulationData:
 
     fixed_tendon_pos_limits: torch.Tensor = None
     """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+
+    ##
+    # Spatial tendon properties.
+    ##
+
+    spatial_tendon_stiffness: torch.Tensor = None
+    """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_damping: torch.Tensor = None
+    """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_offset: torch.Tensor = None
+    """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
     ##
     # Root state properties.
@@ -1012,7 +1094,7 @@ class ArticulationData:
     @property
     def joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.joint_pos_limits
@@ -1020,7 +1102,7 @@ class ArticulationData:
     @property
     def default_joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_limits` property will be deprecated in a future release. Please use"
             " `default_joint_pos_limits` instead."
         )
@@ -1029,7 +1111,7 @@ class ArticulationData:
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
             " `joint_vel_limits` instead."
         )
@@ -1038,7 +1120,7 @@ class ArticulationData:
     @property
     def joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
         )
@@ -1047,7 +1129,7 @@ class ArticulationData:
     @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
             " `default_joint_friction_coeff` instead."
         )
@@ -1056,7 +1138,7 @@ class ArticulationData:
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `fixed_tendon_pos_limits` instead."
         )
@@ -1065,7 +1147,7 @@ class ArticulationData:
     @property
     def default_fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `default_fixed_tendon_pos_limits` instead."
         )

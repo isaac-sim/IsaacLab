@@ -45,6 +45,7 @@ import torch
 
 import carb
 import omni
+from isaacsim.core.utils.stage import get_current_stage
 from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
@@ -110,7 +111,7 @@ class H1RoughDemo:
 
     def create_camera(self):
         """Creates a camera to be used for third-person view."""
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         self.viewport = get_viewport_from_window_name("Viewport")
         # Create camera
         self.camera_path = "/World/Camera"

@@ -1,6 +1,13 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# ----------------------------------------------------------------------------------------------------
 # This file defines the agent configuration used to generate the "Training Performance" table in
 # https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html.
 # Ensure that the configurations for the other RL libraries are updated if this one is modified.
+# ----------------------------------------------------------------------------------------------------
 
 seed: 42
 
@@ -18,7 +25,7 @@ models:
     initial_log_std: 0.0
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [400, 200, 100]
         activations: elu
     output: ACTIONS
@@ -27,7 +34,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [400, 200, 100]
         activations: elu
     output: ONE

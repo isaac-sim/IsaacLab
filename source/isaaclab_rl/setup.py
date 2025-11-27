@@ -20,9 +20,9 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch>=2.5.1",
+    "torch>=2.7",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
-    "protobuf>=3.20.2,!=5.26.0",
+    "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
     # data collection
@@ -32,7 +32,8 @@ INSTALL_REQUIRES = [
     # video recording
     "moviepy",
     # make sure this is consistent with isaac sim version
-    "pillow==11.2.1",
+    "pillow==11.3.0",
+    "packaging<24",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
@@ -41,8 +42,11 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
     "skrl": ["skrl>=1.4.3"],
-    "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==2.3.3"],
+    "rl-games": [
+        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+        "gym",
+    ],  # rl-games still needs gym :(
+    "rsl-rl": ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
@@ -71,7 +75,10 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
+        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

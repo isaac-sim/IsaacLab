@@ -2,11 +2,15 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
 import numpy as np
+import torch
+from dataclasses import dataclass
 from scipy.spatial.transform import Rotation, Slerp
 
-from isaaclab.devices import OpenXRDevice
-from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.devices.device_base import DeviceBase
+from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 
@@ -26,35 +30,32 @@ class Se3AbsRetargeter(RetargeterBase):
 
     def __init__(
         self,
-        bound_hand: OpenXRDevice.TrackingTarget,
-        zero_out_xy_rotation: bool = False,
-        use_wrist_rotation: bool = False,
-        use_wrist_position: bool = False,
-        enable_visualization: bool = False,
+        cfg: Se3AbsRetargeterCfg,
     ):
         """Initialize the retargeter.
 
         Args:
-            bound_hand: The hand to track (OpenXRDevice.TrackingTarget.HAND_LEFT or OpenXRDevice.TrackingTarget.HAND_RIGHT)
+            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
             zero_out_xy_rotation: If True, zero out rotation around x and y axes
             use_wrist_rotation: If True, use wrist rotation instead of finger average
             use_wrist_position: If True, use wrist position instead of pinch position
             enable_visualization: If True, visualize the target pose in the scene
+            device: The device to place the returned tensor on ('cpu' or 'cuda')
         """
-        if bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+        super().__init__(cfg)
+        if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
             raise ValueError(
-                "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
-                " OpenXRDevice.TrackingTarget.HAND_RIGHT"
+                "bound_hand must be either DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT"
             )
-        self.bound_hand = bound_hand
+        self.bound_hand = cfg.bound_hand
 
-        self._zero_out_xy_rotation = zero_out_xy_rotation
-        self._use_wrist_rotation = use_wrist_rotation
-        self._use_wrist_position = use_wrist_position
+        self._zero_out_xy_rotation = cfg.zero_out_xy_rotation
+        self._use_wrist_rotation = cfg.use_wrist_rotation
+        self._use_wrist_position = cfg.use_wrist_position
 
         # Initialize visualization if enabled
-        self._enable_visualization = enable_visualization
-        if enable_visualization:
+        self._enable_visualization = cfg.enable_visualization
+        if cfg.enable_visualization:
             frame_marker_cfg = FRAME_MARKER_CFG.copy()
             frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
             self._goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
@@ -62,7 +63,7 @@ class Se3AbsRetargeter(RetargeterBase):
             self._visualization_pos = np.zeros(3)
             self._visualization_rot = np.array([1.0, 0.0, 0.0, 0.0])
 
-    def retarget(self, data: dict) -> np.ndarray:
+    def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to robot end-effector command.
 
         Args:
@@ -70,7 +71,7 @@ class Se3AbsRetargeter(RetargeterBase):
                 The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
 
         Returns:
-            np.ndarray: 7D array containing position (xyz) and orientation (quaternion)
+            torch.Tensor: 7D tensor containing position (xyz) and orientation (quaternion)
                 for the robot end-effector
         """
         # Extract key joint poses from the bound hand
@@ -79,9 +80,15 @@ class Se3AbsRetargeter(RetargeterBase):
         index_tip = hand_data.get("index_tip")
         wrist = hand_data.get("wrist")
 
-        ee_command = self._retarget_abs(thumb_tip, index_tip, wrist)
+        ee_command_np = self._retarget_abs(thumb_tip, index_tip, wrist)
+
+        # Convert to torch tensor
+        ee_command = torch.tensor(ee_command_np, dtype=torch.float32, device=self._sim_device)
 
         return ee_command
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
 
     def _retarget_abs(self, thumb_tip: np.ndarray, index_tip: np.ndarray, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.
@@ -150,3 +157,15 @@ class Se3AbsRetargeter(RetargeterBase):
             quat = Rotation.from_matrix(self._visualization_rot).as_quat()
             rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
             self._goal_marker.visualize(translations=trans, orientations=rot)
+
+
+@dataclass
+class Se3AbsRetargeterCfg(RetargeterCfg):
+    """Configuration for absolute position retargeter."""
+
+    zero_out_xy_rotation: bool = True
+    use_wrist_rotation: bool = False
+    use_wrist_position: bool = True
+    enable_visualization: bool = False
+    bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = Se3AbsRetargeter

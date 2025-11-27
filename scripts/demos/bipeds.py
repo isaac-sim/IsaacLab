@@ -16,7 +16,6 @@ This script demonstrates how to simulate bipedal robots.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import torch
 
 from isaaclab.app import AppLauncher
 
@@ -32,6 +31,8 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation

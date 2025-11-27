@@ -16,6 +16,7 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
+from tensordict import TensorDict
 
 import carb
 import omni.usd
@@ -161,6 +162,8 @@ def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
     """
     if isinstance(data, torch.Tensor):
         return not torch.any(torch.isnan(data))
+    elif isinstance(data, TensorDict):
+        return not data.isnan().any()
     elif isinstance(data, dict):
         valid_tensor = True
         for value in data.values():

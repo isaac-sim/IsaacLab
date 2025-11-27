@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 name: Build & deploy docs
 
 on:
@@ -5,6 +10,7 @@ on:
     branches:
       - main
       - devel
+      - 'release/**'
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -22,8 +28,7 @@ jobs:
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-        BRANCH_REF: ${{ secrets.BRANCH_REF }}
-      if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
+      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devel' || startsWith(github.ref, 'refs/heads/release/')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
 
   build-docs:
@@ -38,7 +43,7 @@ jobs:
     - name: Setup python
       uses: actions/setup-python@v2
       with:
-        python-version: "3.10"
+        python-version: "3.11"
         architecture: x64
 
     - name: Install dev requirements

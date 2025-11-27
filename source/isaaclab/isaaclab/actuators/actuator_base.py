@@ -14,7 +14,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg
+    from .actuator_base_cfg import ActuatorBaseCfg
 
 
 class ActuatorBase(ABC):
@@ -55,13 +55,21 @@ class ActuatorBase(ABC):
     effort_limit: torch.Tensor
     """The effort limit for the actuator group. Shape is (num_envs, num_joints).
 
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    This limit is used differently depending on the actuator type:
+
+    - **Explicit actuators**: Used for internal torque clipping within the actuator model
+      (e.g., motor torque limits in DC motor models).
+    - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).
     """
 
     effort_limit_sim: torch.Tensor
     """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+
+    - **Explicit actuators**: Typically set to a large value (1.0e9) to avoid double-clipping,
+      since the actuator model already clips efforts using :attr:`effort_limit`.
+    - **Implicit actuators**: Same as :attr:`effort_limit` (both values are synchronized).
     """
 
     velocity_limit: torch.Tensor
@@ -86,7 +94,13 @@ class ActuatorBase(ABC):
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
 
     friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
+    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    dynamic_friction: torch.Tensor
+    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    viscous_friction: torch.Tensor
+    """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -106,6 +120,8 @@ class ActuatorBase(ABC):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -115,8 +131,11 @@ class ActuatorBase(ABC):
         are not specified in the configuration, then their values provided in the constructor are used.
 
         .. note::
-            The values in the constructor are typically obtained through the USD schemas corresponding
-            to the joints in the actuator model.
+            The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+            corresponding to the joints in the actuator model; these values serve as default values if the parameters
+            are not specified in the cfg.
+
+
 
         Args:
             cfg: The configuration of the actuator model.
@@ -131,7 +150,11 @@ class ActuatorBase(ABC):
                 If a tensor, then the shape is (num_envs, num_joints).
             armature: The default joint armature. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
+            friction: The default joint static friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            dynamic_friction: The default joint dynamic friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            viscous_friction: The default joint viscous friction. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
             effort_limit: The default effort limit. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
@@ -162,6 +185,8 @@ class ActuatorBase(ABC):
             ("damping", damping),
             ("armature", armature),
             ("friction", friction),
+            ("dynamic_friction", dynamic_friction),
+            ("viscous_friction", viscous_friction),
         ]
         for param_name, usd_val in to_check:
             cfg_val = getattr(self.cfg, param_name)
@@ -182,7 +207,12 @@ class ActuatorBase(ABC):
                 )
 
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
+        # Parse effort_limit with special default handling:
+        # - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)
+        # - Otherwise, use effort_limit_sim as the default
+        # Please refer to the documentation of the effort_limit and effort_limit_sim parameters for more details.
+        effort_default = effort_limit if self.cfg.effort_limit is None else self.effort_limit_sim
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)

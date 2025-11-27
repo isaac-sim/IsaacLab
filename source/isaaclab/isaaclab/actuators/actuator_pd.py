@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
@@ -17,7 +16,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
-    from .actuator_cfg import (
+    from .actuator_pd_cfg import (
         DCMotorCfg,
         DelayedPDActuatorCfg,
         IdealPDActuatorCfg,
@@ -25,6 +24,8 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
+# import logger
+logger = logging.getLogger(__name__)
 
 """
 Implicit Actuator Models.
@@ -57,7 +58,7 @@ class ImplicitActuator(ActuatorBase):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
                 " This parameter will be removed in the future."
                 " To set the effort limit, please use 'effort_limit_sim' instead."
@@ -79,7 +80,7 @@ class ImplicitActuator(ActuatorBase):
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
             # throw a warning that previously this was not set
             # it leads to different simulation behavior so we want to remain backwards compatible
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
                 " Previously, although this value was specified, it was not getting used by implicit"
                 " actuators. Since this parameter affects the simulation behavior, we continue to not"
@@ -152,7 +153,7 @@ class IdealPDActuator(ActuatorBase):
 
     .. math::
 
-        \tau_{j, computed} = k_p * (q - q_{des}) + k_d * (\dot{q} - \dot{q}_{des}) + \tau_{ff}
+        \tau_{j, computed} = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff}
 
     where, :math:`k_p` and :math:`k_d` are joint stiffness and damping gains, :math:`q` and :math:`\dot{q}`
     are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_{des}` and :math:`\tau_{ff}`
@@ -385,6 +386,8 @@ class RemotizedPDActuator(DelayedPDActuator):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -393,7 +396,19 @@ class RemotizedPDActuator(DelayedPDActuator):
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
         super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
+            cfg,
+            joint_names,
+            joint_ids,
+            num_envs,
+            device,
+            stiffness,
+            damping,
+            armature,
+            friction,
+            dynamic_friction,
+            viscous_friction,
+            effort_limit,
+            velocity_limit,
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit

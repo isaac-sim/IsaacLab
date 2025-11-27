@@ -19,10 +19,9 @@ simulation_app = app_launcher.app
 
 import math
 import torch
-import unittest
-from unittest.mock import patch
 
 import omni.usd
+import pytest
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
@@ -181,115 +180,55 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
-@configclass
-class CartpoleEnvCfgFallback(ManagerBasedEnvCfg):
-    """Configuration for the cartpole environment that tests fallback mechanism."""
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_texture_randomization(device):
+    """Test texture randomization for cartpole environment."""
+    # Create a new stage
+    omni.usd.get_context().new_stage()
 
-    # Scene settings
-    scene = CartpoleSceneCfg(env_spacing=2.5)
+    try:
+        # Set the arguments
+        env_cfg = CartpoleEnvCfg()
+        env_cfg.scene.num_envs = 16
+        env_cfg.scene.replicate_physics = False
+        env_cfg.sim.device = device
 
-    # Basic settings
-    actions = ActionsCfg()
-    observations = ObservationsCfg()
-    events = EventCfgFallback()
+        # Setup base environment
+        env = ManagerBasedEnv(cfg=env_cfg)
 
-    def __post_init__(self):
-        """Post initialization."""
-        # viewer settings
-        self.viewer.eye = (4.5, 0.0, 6.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
-        # step settings
-        self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-        # simulation settings
-        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+        try:
+            # Simulate physics
+            with torch.inference_mode():
+                for count in range(50):
+                    # Reset every few steps to check nothing breaks
+                    if count % 10 == 0:
+                        env.reset()
+                    # Sample random actions
+                    joint_efforts = torch.randn_like(env.action_manager.action)
+                    # Step the environment
+                    env.step(joint_efforts)
+        finally:
+            env.close()
+    finally:
+        # Clean up stage
+        omni.usd.get_context().close_stage()
 
 
-class TestTextureRandomization(unittest.TestCase):
-    """Test for texture randomization"""
+def test_texture_randomization_failure_replicate_physics():
+    """Test texture randomization failure when replicate physics is set to True."""
+    # Create a new stage
+    omni.usd.get_context().new_stage()
 
-    """
-    Tests
-    """
-
-    def test_texture_randomization(self):
-        """Test texture randomization for cartpole environment."""
-        for device in ["cpu", "cuda"]:
-            with self.subTest(device=device):
-                # create a new stage
-                omni.usd.get_context().new_stage()
-
-                # set the arguments
-                env_cfg = CartpoleEnvCfg()
-                env_cfg.scene.num_envs = 16
-                env_cfg.scene.replicate_physics = False
-                env_cfg.sim.device = device
-
-                # setup base environment
-                env = ManagerBasedEnv(cfg=env_cfg)
-
-                # simulate physics
-                with torch.inference_mode():
-                    for count in range(50):
-                        # reset every few steps to check nothing breaks
-                        if count % 10 == 0:
-                            env.reset()
-                        # sample random actions
-                        joint_efforts = torch.randn_like(env.action_manager.action)
-                        # step the environment
-                        env.step(joint_efforts)
-
-                env.close()
-
-    def test_texture_randomization_fallback(self):
-        """Test texture randomization fallback mechanism when /visuals pattern doesn't match."""
-
-        def mock_find_matching_prim_paths(pattern):
-            """Mock function that simulates a case where /visuals pattern doesn't match."""
-            # If the pattern contains '/visuals', return empty list to trigger fallback
-            if pattern.endswith("/visuals"):
-                return []
-            return None
-
-        for device in ["cpu", "cuda"]:
-            with self.subTest(device=device):
-                # create a new stage
-                omni.usd.get_context().new_stage()
-
-                # set the arguments - use fallback config
-                env_cfg = CartpoleEnvCfgFallback()
-                env_cfg.scene.num_envs = 16
-                env_cfg.scene.replicate_physics = False
-                env_cfg.sim.device = device
-
-                with patch.object(
-                    mdp.events.sim_utils, "find_matching_prim_paths", side_effect=mock_find_matching_prim_paths
-                ):
-                    # This should trigger the fallback mechanism and log the fallback message
-                    env = ManagerBasedEnv(cfg=env_cfg)
-
-                    # simulate physics
-                    with torch.inference_mode():
-                        for count in range(20):  # shorter test for fallback
-                            # reset every few steps to check nothing breaks
-                            if count % 10 == 0:
-                                env.reset()
-                            # sample random actions
-                            joint_efforts = torch.randn_like(env.action_manager.action)
-                            # step the environment
-                            env.step(joint_efforts)
-
-                    env.close()
-
-    def test_texture_randomization_failure_replicate_physics(self):
-        """Test texture randomization failure when replicate physics is set to True."""
-        # create a new stage
-        omni.usd.get_context().new_stage()
-
-        # set the arguments
+    try:
+        # Set the arguments
         cfg_failure = CartpoleEnvCfg()
         cfg_failure.scene.num_envs = 16
         cfg_failure.scene.replicate_physics = True
 
-        with self.assertRaises(RuntimeError):
+        # Test that creating the environment raises RuntimeError
+        with pytest.raises(RuntimeError):
             env = ManagerBasedEnv(cfg_failure)
             env.close()
+    finally:
+        # Clean up stage
+        omni.usd.get_context().close_stage()

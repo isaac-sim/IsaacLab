@@ -39,8 +39,11 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
 
-    fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
+    fixed_tendons_props: schemas.FixedTendonPropertiesCfg | None = None
     """Properties to apply to the fixed tendons (if any)."""
+
+    spatial_tendons_props: schemas.SpatialTendonPropertiesCfg | None = None
+    """Properties to apply to the spatial tendons (if any)."""
 
     joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
     """Properties to apply to a joint.

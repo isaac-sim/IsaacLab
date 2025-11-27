@@ -5,17 +5,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import torch
-import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.kit.app
-import omni.log
 import omni.physics.tensors.impl.api as physx
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -27,6 +24,9 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
     from .rigid_object_collection_cfg import RigidObjectCollectionCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RigidObjectCollection(AssetBase):
@@ -92,23 +92,8 @@ class RigidObjectCollection(AssetBase):
         # stores object names
         self._object_names_list = []
 
-        # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
-            order=10,
-        )
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
-            order=10,
-        )
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
-        )
+        # register various callback functions
+        self._register_callbacks()
         self._debug_vis_handle = None
 
     """
@@ -521,6 +506,7 @@ class RigidObjectCollection(AssetBase):
             all the external wrenches will be applied in the frame specified by the last call.
 
             .. code-block:: python
+
                 # example of setting external wrench in the global frame
                 asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
                 # example of setting external wrench in the link frame
@@ -560,7 +546,7 @@ class RigidObjectCollection(AssetBase):
         self._external_torque_b[env_ids[:, None], object_ids] = torques
 
         if is_global != self._use_global_wrench_frame:
-            omni.log.warn(
+            logger.warning(
                 f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
                 " may lead to unexpected behavior."
             )
@@ -617,7 +603,9 @@ class RigidObjectCollection(AssetBase):
 
             # find rigid root prims
             root_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
+                template_prim_path,
+                predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
+                traverse_instance_prims=False,
             )
             if len(root_prims) == 0:
                 raise RuntimeError(
@@ -633,7 +621,9 @@ class RigidObjectCollection(AssetBase):
 
             # check that no rigid object has an articulation root API, which decreases simulation performance
             articulation_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+                template_prim_path,
+                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+                traverse_instance_prims=False,
             )
             if len(articulation_prims) != 0:
                 if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
@@ -659,9 +649,9 @@ class RigidObjectCollection(AssetBase):
             raise RuntimeError("Failed to create rigid body collection. Please check PhysX logs.")
 
         # log information about the rigid body
-        omni.log.info(f"Number of instances: {self.num_instances}")
-        omni.log.info(f"Number of distinct objects: {self.num_objects}")
-        omni.log.info(f"Object names: {self.object_names}")
+        logger.info(f"Number of instances: {self.num_instances}")
+        logger.info(f"Number of distinct objects: {self.num_objects}")
+        logger.info(f"Object names: {self.object_names}")
 
         # container for data access
         self._data = RigidObjectCollectionData(self.root_physx_view, self.num_objects, self.device)

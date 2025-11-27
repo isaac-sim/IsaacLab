@@ -44,3 +44,4 @@ from .asset_base_cfg import AssetBaseCfg
 from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
 from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData
 from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
+from .surface_gripper import SurfaceGripper, SurfaceGripperCfg

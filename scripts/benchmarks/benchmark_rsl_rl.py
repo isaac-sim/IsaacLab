@@ -75,7 +75,7 @@ from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+from isaaclab.utils.io import dump_yaml
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
@@ -140,9 +140,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # check for invalid combination of CPU device with distributed training
+    if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
+        raise ValueError(
+            "Distributed training is not supported when using CPU device. "
+            "Please use GPU device (e.g., --device cuda) for distributed training."
+        )
 
     # multi-gpu training configuration
     world_rank = 0
+    world_size = 1
     if args_cli.distributed:
         env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
         agent_cfg.device = f"cuda:{app_launcher.local_rank}"
@@ -152,6 +159,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.seed = seed
         agent_cfg.seed = seed
         world_rank = app_launcher.global_rank
+        world_size = int(os.getenv("WORLD_SIZE", 1))
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -205,8 +213,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-    dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
-    dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
     benchmark.set_phase("sim_runtime")
 
@@ -221,13 +227,17 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         # prepare RL timing dict
         collection_fps = (
-            1 / (np.array(log_data["Perf/collection time"])) * env.unwrapped.num_envs * agent_cfg.num_steps_per_env
+            1
+            / (np.array(log_data["Perf/collection time"]))
+            * env.unwrapped.num_envs
+            * agent_cfg.num_steps_per_env
+            * world_size
         )
         rl_training_times = {
             "Collection Time": (np.array(log_data["Perf/collection time"]) / 1000).tolist(),
             "Learning Time": (np.array(log_data["Perf/learning_time"]) / 1000).tolist(),
             "Collection FPS": collection_fps.tolist(),
-            "Total FPS": log_data["Perf/total_fps"],
+            "Total FPS": log_data["Perf/total_fps"] * world_size,
         }
 
         # log additional metrics to benchmark services

@@ -225,6 +225,70 @@ class ObservationManager(ManagerBase):
         """
         return self._group_obs_concatenate
 
+    @property
+    def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
+        """Get the IO descriptors for the observation manager.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+
+        group_data = {}
+
+        for group_name in self._group_obs_term_names:
+            group_data[group_name] = []
+            # check if group name is valid
+            if group_name not in self._group_obs_term_names:
+                raise ValueError(
+                    f"Unable to find the group '{group_name}' in the observation manager."
+                    f" Available groups are: {list(self._group_obs_term_names.keys())}"
+                )
+            # iterate over all the terms in each group
+            group_term_names = self._group_obs_term_names[group_name]
+            # read attributes for each term
+            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+
+            for term_name, term_cfg in obs_terms:
+                # Call to the observation function to get the IO descriptor with the inspect flag set to True
+                try:
+                    term_cfg.func(self._env, **term_cfg.params, inspect=True)
+                    # Copy the descriptor and update with the term's own extra parameters
+                    desc = term_cfg.func._descriptor.__dict__.copy()
+                    # Create a dictionary to store the overloads
+                    overloads = {}
+                    # Iterate over the term's own parameters and add them to the overloads dictionary
+                    for k, v in term_cfg.__dict__.items():
+                        # For now we do not add the noise modifier
+                        if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                            overloads[k] = v
+                    desc.update(overloads)
+                    group_data[group_name].append(desc)
+                except Exception as e:
+                    print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
+        # Format the data for YAML export
+        formatted_data = {}
+        for group_name, data in group_data.items():
+            formatted_data[group_name] = []
+            for item in data:
+                name = item.pop("name")
+                formatted_item = {"name": name, "overloads": {}, "extras": item.pop("extras")}
+                for k, v in item.items():
+                    # Check if v is a tuple and convert to list
+                    if isinstance(v, tuple):
+                        v = list(v)
+                    # Check if v is a tensor and convert to list
+                    if isinstance(v, torch.Tensor):
+                        v = v.detach().cpu().numpy().tolist()
+                    if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
+                        formatted_item["overloads"][k] = v
+                    elif k in ["modifiers", "description", "units"]:
+                        formatted_item["extras"][k] = v
+                    else:
+                        formatted_item[k] = v
+                formatted_data[group_name].append(formatted_item)
+        formatted_data = {k: v for k, v in formatted_data.items() if k in group_names_to_export}
+        return formatted_data
+
     """
     Operations.
     """

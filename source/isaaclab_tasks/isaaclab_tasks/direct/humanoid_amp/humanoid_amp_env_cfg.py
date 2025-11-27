@@ -68,6 +68,9 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
                 joint_names_expr=[".*"],
                 stiffness=None,
                 damping=None,
+                velocity_limit_sim={
+                    ".*": 100.0,
+                },
             ),
         },
     )

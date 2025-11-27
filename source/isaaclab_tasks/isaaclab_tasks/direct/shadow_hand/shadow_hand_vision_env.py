@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import torch
 
-import omni.usd
-
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
     import Semantics
@@ -20,6 +18,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCamera, TiledCameraCfg
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_apply
 
@@ -65,7 +64,8 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
 
     def __init__(self, cfg: ShadowHandVisionEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
-        self.feature_extractor = FeatureExtractor(self.cfg.feature_extractor, self.device)
+        # Use the log directory from the configuration
+        self.feature_extractor = FeatureExtractor(self.cfg.feature_extractor, self.device, self.cfg.log_dir)
         # hide goal cubes
         self.goal_pos[:, :] = torch.tensor([-0.2, 0.1, 0.6], device=self.device)
         # keypoints buffer
@@ -78,7 +78,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         self.object = RigidObject(self.cfg.object_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
         # get stage
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         # add semantics for in-hand cube
         prim = stage.GetPrimAtPath("/World/envs/env_0/object")
         sem = Semantics.SemanticsAPI.Apply(prim, "Semantics")

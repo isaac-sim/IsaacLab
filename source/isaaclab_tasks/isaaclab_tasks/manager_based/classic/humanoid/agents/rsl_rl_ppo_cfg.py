@@ -21,9 +21,10 @@ class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1000
     save_interval = 100
     experiment_name = "humanoid"
-    empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=True,
+        critic_obs_normalization=True,
         actor_hidden_dims=[400, 200, 100],
         critic_hidden_dims=[400, 200, 100],
         activation="elu",

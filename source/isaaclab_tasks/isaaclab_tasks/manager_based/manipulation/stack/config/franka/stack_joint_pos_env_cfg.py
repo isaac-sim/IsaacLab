@@ -30,7 +30,7 @@ class EventCfg:
 
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
-        mode="startup",
+        mode="reset",
         params={
             "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
         },
@@ -59,6 +59,7 @@ class EventCfg:
 
 @configclass
 class FrankaCubeStackEnvCfg(StackEnvCfg):
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -86,6 +87,10 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
+        # utilities for gripper status check
+        self.gripper_joint_names = ["panda_finger_.*"]
+        self.gripper_open_val = 0.04
+        self.gripper_threshold = 0.005
 
         # Rigid body properties of each cube
         cube_properties = RigidBodyPropertiesCfg(

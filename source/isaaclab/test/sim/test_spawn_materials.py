@@ -13,12 +13,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 
@@ -87,7 +87,6 @@ def test_spawn_rigid_body_material(sim):
         static_friction=0.5,
         restitution_combine_mode="max",
         friction_combine_mode="max",
-        improve_patch_friction=True,
     )
     prim = cfg.func("/Looks/RigidBodyMaterial", cfg)
     # Check validity
@@ -97,7 +96,6 @@ def test_spawn_rigid_body_material(sim):
     assert prim.GetAttribute("physics:staticFriction").Get() == cfg.static_friction
     assert prim.GetAttribute("physics:dynamicFriction").Get() == cfg.dynamic_friction
     assert prim.GetAttribute("physics:restitution").Get() == cfg.restitution
-    assert prim.GetAttribute("physxMaterial:improvePatchFriction").Get() == cfg.improve_patch_friction
     assert prim.GetAttribute("physxMaterial:restitutionCombineMode").Get() == cfg.restitution_combine_mode
     assert prim.GetAttribute("physxMaterial:frictionCombineMode").Get() == cfg.friction_combine_mode
 
@@ -137,7 +135,6 @@ def test_apply_rigid_body_material_on_visual_material(sim):
         static_friction=0.5,
         restitution_combine_mode="max",
         friction_combine_mode="max",
-        improve_patch_friction=True,
     )
     prim = cfg.func("/Looks/Material", cfg)
     # Check validity
@@ -147,7 +144,6 @@ def test_apply_rigid_body_material_on_visual_material(sim):
     assert prim.GetAttribute("physics:staticFriction").Get() == cfg.static_friction
     assert prim.GetAttribute("physics:dynamicFriction").Get() == cfg.dynamic_friction
     assert prim.GetAttribute("physics:restitution").Get() == cfg.restitution
-    assert prim.GetAttribute("physxMaterial:improvePatchFriction").Get() == cfg.improve_patch_friction
     assert prim.GetAttribute("physxMaterial:restitutionCombineMode").Get() == cfg.restitution_combine_mode
     assert prim.GetAttribute("physxMaterial:frictionCombineMode").Get() == cfg.friction_combine_mode
 

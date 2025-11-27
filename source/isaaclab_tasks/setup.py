@@ -19,13 +19,11 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch>=2.5.1",
+    "torch>=2.7",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
-    "protobuf>=3.20.2,!=5.26.0",
+    "protobuf>=4.25.8,!=5.26.0",
     # basic logger
     "tensorboard",
-    # automate
-    "scikit-learn",
     "numba",
 ]
 
@@ -48,7 +46,10 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
+        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

@@ -15,7 +15,7 @@
     "inputs": [
         {
             "id": "isaac_path",
-            "description": "Absolute path to the current Isaac Sim installation. Can be skipped if Isaac Sim installed from pip.",
+            "description": "Absolute path to the current Isaac Sim installation. If you installed IsaacSim from pip, the import of it failed. Please make sure you run the task with the correct python environment. As fallback, you can directly execute the python script by running: ``python.sh <path-to-your-project>/.vscode/tools/setup_vscode.py``",
 {% if platform == "win32" %}
             "default": "C:/isaacsim",
 {% else %}

@@ -1,0 +1,103 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Combine XML Test Results'
+description: 'Combines multiple XML test result files into a single file'
+
+inputs:
+  tests-dir:
+    description: 'Directory containing test result files'
+    default: 'tests'
+    required: false
+  output-file:
+    description: 'Output combined XML file path'
+    required: true
+  reports-dir:
+    description: 'Directory to store the combined results'
+    default: 'reports'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Combine XML Test Results
+      shell: sh
+      run: |
+        # Function to combine multiple XML test results
+        combine_xml_results() {
+          local tests_dir="$1"
+          local output_file="$2"
+          local reports_dir="$3"
+
+          echo "Combining test results from: $tests_dir"
+          echo "Output file: $output_file"
+          echo "Reports directory: $reports_dir"
+
+          # Check if reports directory exists
+          if [ ! -d "$reports_dir" ]; then
+            echo "⚠️ Reports directory does not exist: $reports_dir"
+            mkdir -p "$reports_dir"
+          fi
+
+          # Check if tests directory exists
+          if [ ! -d "$tests_dir" ]; then
+            echo "⚠️ Tests directory does not exist: $tests_dir"
+            echo "Creating fallback XML..."
+            echo '<?xml version="1.0" encoding="utf-8"?><testsuite name="combined" tests="0" failures="0" errors="1" time="0"><testcase classname="setup" name="no_tests_dir"><error message="Tests directory not found">Tests directory was not found</error></testcase></testsuite>' > "$output_file"
+            return
+          fi
+
+          # Find all XML files in the tests directory
+          echo "Searching for XML files in: $tests_dir"
+          xml_files=$(find "$tests_dir" -name "*.xml" -type f 2>/dev/null | sort)
+
+          if [ -z "$xml_files" ]; then
+            echo "⚠️ No XML files found in: $tests_dir"
+            echo "Creating fallback XML..."
+            echo '<?xml version="1.0" encoding="utf-8"?><testsuite name="combined" tests="0" failures="0" errors="1" time="0"><testcase classname="setup" name="no_xml_files"><error message="No XML files found">No XML test result files were found</error></testcase></testsuite>' > "$output_file"
+            return
+          fi
+
+          # Count XML files found
+          file_count=$(echo "$xml_files" | wc -l)
+          echo "✅ Found $file_count XML file(s):"
+          echo "$xml_files" | while read -r file; do
+            echo "  - $file ($(wc -c < "$file") bytes)"
+          done
+
+          # Create combined XML
+          echo "🔄 Combining $file_count XML files..."
+          echo '<?xml version="1.0" encoding="utf-8"?>' > "$output_file"
+          echo '<testsuites>' >> "$output_file"
+
+          # Process each XML file
+          combined_count=0
+          echo "$xml_files" | while read -r file; do
+            if [ -f "$file" ]; then
+              echo "  Processing: $file"
+              # Remove XML declaration and outer testsuites wrapper from each file
+              # Remove first line (XML declaration) and strip outer <testsuites>/</testsuites> tags
+              sed '1d; s/^<testsuites>//; s/<\/testsuites>$//' "$file" >> "$output_file" 2>/dev/null || {
+                echo "  ⚠️ Warning: Could not process $file, skipping..."
+              }
+              combined_count=$((combined_count + 1))
+            fi
+          done
+
+          echo '</testsuites>' >> "$output_file"
+          echo "✅ Successfully combined $combined_count files into: $output_file"
+
+          # Verify output file was created
+          if [ -f "$output_file" ]; then
+            echo "✅ Final output file created: $output_file"
+            echo "📊 Output file size: $(wc -c < "$output_file") bytes"
+          else
+            echo "❌ Failed to create output file: $output_file"
+            exit 1
+          fi
+        }
+
+        # Call the function with provided parameters
+        combine_xml_results "${{ inputs.tests-dir }}" "${{ inputs.output-file }}" "${{ inputs.reports-dir }}"
