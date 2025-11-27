@@ -126,7 +126,7 @@ def main():
         parent_prim = root_prim.GetParent()
         # apply api to parent
         UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-        parent_prim.AddAppliedSchema(Tf.Token("PhysxArticulationAPI"))
+        parent_prim.AddAppliedSchema("PhysxArticulationAPI")
 
         # copy the attributes
         # -- usd attributes
@@ -145,7 +145,7 @@ def main():
 
         # remove api from root
         root_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-        root_prim.RemoveAppliedSchema(Tf.Token("PhysxArticulationAPI"))
+        root_prim.RemoveAppliedSchema("PhysxArticulationAPI")
 
         # rename root path to parent path
         root_prim_path = parent_prim.GetPath().pathString
