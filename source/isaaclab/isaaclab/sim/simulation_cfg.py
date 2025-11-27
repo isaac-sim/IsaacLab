@@ -216,7 +216,7 @@ class SimulationCfg:
         # Disable all visualizers
         cfg.sim.visualizer_cfgs = []
 
-        # Use default visualizer (NewtonVisualizerCfg)
+        # No visualizers (default behavior)
         cfg = SimulationCfg()
 
         # Single custom visualizer
