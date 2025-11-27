@@ -168,13 +168,13 @@ class RerunVisualizer(Visualizer):
 
             # Set the model
             self._viewer.set_model(self._model)
-            
+
             # Set initial camera view using Rerun's blueprint system
             try:
                 # Calculate camera direction vector (from position to target)
                 cam_pos = self.cfg.camera_position
                 cam_target = self.cfg.camera_target
-                
+
                 # Create blueprint with 3D view and camera settings
                 blueprint = rrb.Blueprint(
                     rrb.Spatial3DView(
@@ -184,10 +184,8 @@ class RerunVisualizer(Visualizer):
                     collapse_panels=True,
                 )
                 rr.send_blueprint(blueprint)
-                
-                logger.info(
-                    f"[RerunVisualizer] Set initial camera view: position={cam_pos}, target={cam_target}"
-                )
+
+                logger.info(f"[RerunVisualizer] Set initial camera view: position={cam_pos}, target={cam_target}")
             except Exception as e:
                 logger.warning(f"[RerunVisualizer] Could not set initial camera view: {e}")
 

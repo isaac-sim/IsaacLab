@@ -8,12 +8,12 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Literal
 
-import omni.log
 import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from newton import JointMode, JointType, Model
@@ -33,6 +33,9 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class Articulation(AssetBase):
@@ -786,10 +789,10 @@ class Articulation(AssetBase):
             )
             if warn_limit_violation:
                 # warn level will show in console
-                omni.log.warn(violation_message)
+                logger.warning(violation_message)
             else:
                 # info level is only written to log file
-                omni.log.info(violation_message)
+                logger.info(violation_message)
         # set into simulation
         self._mask.fill_(False)
         self._mask[physx_env_ids] = True
@@ -831,7 +834,7 @@ class Articulation(AssetBase):
         """
         # Warn if using Mujoco solver
         if isinstance(NewtonManager._solver, SolverMuJoCo):
-            omni.log.warn("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
+            logger.warning("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
 
         # resolve indices
         physx_env_ids = env_ids
@@ -1576,7 +1579,7 @@ class Articulation(AssetBase):
             )
             # log information on actuator groups
             model_type = "implicit" if actuator.is_implicit_model else "explicit"
-            omni.log.info(
+            logger.info(
                 f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
                 f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
             )
@@ -1615,7 +1618,7 @@ class Articulation(AssetBase):
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
         if total_act_joints != (self.num_joints - self.num_fixed_tendons):
-            omni.log.warn(
+            logger.warning(
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
                 f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
@@ -1749,7 +1752,7 @@ class Articulation(AssetBase):
                 effort_limits[index],
             ])
         # convert table to string
-        omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
+        logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         # read out all fixed tendon parameters from simulation
         if self.num_fixed_tendons > 0:
@@ -1773,7 +1776,7 @@ class Articulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
-        omni.log.warn(
+        logger.warning(
             "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
             " use 'write_joint_friction_coefficient_to_sim' instead."
         )
@@ -1791,7 +1794,7 @@ class Articulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_position_limit_to_sim` instead.
         """
-        omni.log.warn(
+        logger.warning(
             "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
             " use 'write_joint_position_limit_to_sim' instead."
         )

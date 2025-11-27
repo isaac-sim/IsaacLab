@@ -14,6 +14,7 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
@@ -27,6 +28,9 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
 from isaacsim import SimulationApp
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -114,7 +118,9 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
-        self._visualizer: list[str] | None  # Visualizer backends to use: None or list of ["rerun", "newton", "omniverse"]
+        self._visualizer: (
+            list[str] | None
+        )  # Visualizer backends to use: None or list of ["rerun", "newton", "omniverse"]
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -177,7 +183,7 @@ class AppLauncher:
     @property
     def visualizer(self) -> list[str] | None:
         """The visualizer backend(s) to use.
-        
+
         Returns:
             List of visualizer backend names (e.g., ["rerun", "newton"]) or None if no visualizers specified.
             Empty list means no visualizers should be initialized.
@@ -610,12 +616,12 @@ class AppLauncher:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
-        
+
         # Check if visualizers are requested and if omniverse visualizer is among them
         visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
         visualizers_requested = visualizers is not None and len(visualizers) > 0
         omniverse_visualizer_requested = visualizers_requested and "omniverse" in visualizers
-        
+
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -666,21 +672,18 @@ class AppLauncher:
         """Resolve visualizer related settings."""
         # Get visualizer setting from launcher_args
         visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
-        
+
         # Validate visualizer names
         valid_visualizers = ["rerun", "newton", "omniverse"]
         if visualizers is not None and len(visualizers) > 0:
             invalid = [v for v in visualizers if v not in valid_visualizers]
             if invalid:
-                raise ValueError(
-                    f"Invalid visualizer(s) specified: {invalid}. "
-                    f"Valid options are: {valid_visualizers}"
-                )
-        
+                raise ValueError(f"Invalid visualizer(s) specified: {invalid}. Valid options are: {valid_visualizers}")
+
         # Store visualizer setting for later use
         # Convert empty list to None for consistency
         self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
-        
+
         # Check if both headless and visualizer are specified
         if self._headless and self._visualizer is not None:
             print(
@@ -1061,10 +1064,9 @@ class AppLauncher:
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1126,13 +1128,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 

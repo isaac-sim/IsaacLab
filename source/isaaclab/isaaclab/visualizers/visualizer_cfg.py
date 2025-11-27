@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 @configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
-    
+
     Note:
         This is an abstract base class and should not be instantiated directly.
         Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg.
@@ -46,7 +46,7 @@ class VisualizerCfg:
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
-        
+
         Returns:
             The visualizer type string, or None if not set (base class).
         """
@@ -54,7 +54,7 @@ class VisualizerCfg:
 
     def create_visualizer(self) -> Visualizer:
         """Create visualizer instance from this config using factory pattern.
-        
+
         Raises:
             ValueError: If visualizer_type is None (base class used directly) or not registered.
         """
@@ -70,7 +70,7 @@ class VisualizerCfg:
         if visualizer_class is None:
             raise ValueError(
                 f"Visualizer type '{self.visualizer_type}' is not registered. "
-                f"Valid types: 'newton', 'rerun', 'omniverse'."
+                "Valid types: 'newton', 'rerun', 'omniverse'."
             )
 
         return visualizer_class(self)

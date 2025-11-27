@@ -38,7 +38,7 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
 
-# Set up logger
+# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -551,18 +551,18 @@ class SimulationContext(_SimulationContext):
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configurations for requested visualizer types.
-        
+
         This method creates minimal default configurations for visualizers when none are defined
         in the simulation config. Each visualizer is created with all default parameters.
-        
+
         Args:
             requested_visualizers: List of visualizer type names (e.g., ['newton', 'rerun', 'omniverse']).
-            
+
         Returns:
             List of default visualizer config instances.
         """
         default_configs = []
-        
+
         for viz_type in requested_visualizers:
             try:
                 if viz_type == "newton":
@@ -577,13 +577,11 @@ class SimulationContext(_SimulationContext):
                 else:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
-                        f"Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
+                        "Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
                     )
             except Exception as e:
-                logger.error(
-                    f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {e}"
-                )
-        
+                logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {e}")
+
         return default_configs
 
     def initialize_visualizers(self) -> None:
@@ -610,7 +608,7 @@ class SimulationContext(_SimulationContext):
         requested_visualizers_str = carb_settings_iface.get("/isaaclab/visualizer")
         if requested_visualizers_str is None:
             requested_visualizers_str = ""
-        
+
         # Parse comma-separated visualizer list
         requested_visualizers = [v.strip() for v in requested_visualizers_str.split(",") if v.strip()]
 
@@ -624,7 +622,7 @@ class SimulationContext(_SimulationContext):
                 "Skipping visualizer initialization. Use --visualizer <type> to enable visualizers."
             )
             return
-        
+
         # If in true headless mode (no GUI, no offscreen rendering) but visualizers were requested,
         # filter out visualizers that require GUI (like omniverse)
         if not self._has_gui and not self._offscreen_render:
@@ -639,7 +637,7 @@ class SimulationContext(_SimulationContext):
                 return
             if len(non_gui_visualizers) < len(requested_visualizers):
                 logger.info(
-                    f"[SimulationContext] Headless mode enabled. Filtering visualizers from "
+                    "[SimulationContext] Headless mode enabled. Filtering visualizers from "
                     f"{requested_visualizers} to {non_gui_visualizers} (excluding GUI-dependent visualizers)."
                 )
             requested_visualizers = non_gui_visualizers
@@ -655,31 +653,30 @@ class SimulationContext(_SimulationContext):
         # If no visualizer configs are defined but visualizers were requested, create default configs
         if len(visualizer_cfgs) == 0:
             logger.info(
-                f"[SimulationContext] No visualizer configs found in simulation config. "
+                "[SimulationContext] No visualizer configs found in simulation config. "
                 f"Creating default configs for requested visualizers: {requested_visualizers}"
             )
             visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
         else:
             # Filter visualizers based on --visualizer flag
             original_count = len(visualizer_cfgs)
-            
+
             # Filter to only requested visualizers
-            visualizer_cfgs = [
-                cfg for cfg in visualizer_cfgs
-                if cfg.visualizer_type in requested_visualizers
-            ]
-            
+            visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in requested_visualizers]
+
             if len(visualizer_cfgs) == 0:
                 available_types = [
-                    cfg.visualizer_type for cfg in (
-                        self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) 
+                    cfg.visualizer_type
+                    for cfg in (
+                        self.cfg.visualizer_cfgs
+                        if isinstance(self.cfg.visualizer_cfgs, list)
                         else [self.cfg.visualizer_cfgs]
                     )
                     if cfg.visualizer_type is not None
                 ]
                 logger.warning(
                     f"[SimulationContext] Visualizer(s) {requested_visualizers} requested via --visualizer flag, "
-                    f"but no matching visualizer configs were found in simulation config. "
+                    "but no matching visualizer configs were found in simulation config. "
                     f"Available visualizer types: {available_types}"
                 )
                 return
