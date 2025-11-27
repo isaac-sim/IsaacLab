@@ -19,6 +19,7 @@ import isaaclab.sim as sim_utils
 from scene.a10_scene_cfg import A10SceneCfg
 from control.controller import simple_swing_control, pi_control
 from openpi_client import websocket_client_policy
+from control.robot_reset import reset_robot
 
 # ========= WebSocket client（必须全局初始化一次）=========
 from openpi_client import websocket_client_policy
@@ -39,18 +40,17 @@ def run(sim: sim_utils.SimulationContext, scene: InteractiveScene, client: webso
 
     while simulation_app.is_running():
         # Reset
-        if count % 500 == 0:
-            # reset counter
+        if count > 0 and count % 500 == 0:
+            reset_robot(scene)  # 根姿态 + 关节位姿 + scene.reset()
+            scene.write_data_to_sim()
+            # 给一小步让状态落地
+            sim.step()
+            scene.update(sim_dt)
+            # 重新计时，避免首帧就再触发
             count = 0
-            # reset the scene entities
-            # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            sim_time = 0.0
+            # 跳过本轮控制，避免立刻被新动作覆盖
+            continue
 
         # 控制器：双臂简单双摆
         action_chunk = pi_control(scene, sim_time, client)
@@ -70,8 +70,8 @@ def run(sim: sim_utils.SimulationContext, scene: InteractiveScene, client: webso
             #print(f" Current qpos: {cur_q}")
             
             # 5）更新目标动作：这里用「增量控制」更稳定
-            cur_q[0:6]  += 0.05 * torch.tensor(left_arm,  device=cur_q.device)
-            cur_q[6:12] += 0.05 * torch.tensor(right_arm, device=cur_q.device)
+            cur_q[0:6]  += torch.tensor(left_arm,  device=cur_q.device)
+            cur_q[6:12] += torch.tensor(right_arm, device=cur_q.device)
            
 
             # 6）发给 A10 双臂
