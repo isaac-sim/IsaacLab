@@ -21,8 +21,8 @@ class VisuoTactileSensorData:
     """
 
     # Camera-based tactile data
-    tactile_camera_depth: torch.Tensor | None = None
-    """Tactile depth images. Shape: (num_instances, height, width)."""
+    tactile_depth_image: torch.Tensor | None = None
+    """Tactile depth images. Shape: (num_instances, height, width, 1)."""
 
     tactile_rgb_image: torch.Tensor | None = None
     """Tactile RGB images rendered using the Taxim approach (https://arxiv.org/abs/2109.04027). Shape: (num_instances, height, width, 3)."""

@@ -218,7 +218,7 @@ def test_sensor_minimum_config(setup_minimum_config):
         sensor_minimum.update(dt)
 
     # check data should be None, since both camera and force field are disabled
-    assert sensor_minimum.data.tactile_camera_depth is None
+    assert sensor_minimum.data.tactile_depth_image is None
     assert sensor_minimum.data.tactile_rgb_image is None
     assert sensor_minimum.data.tactile_points_pos_w is None
     assert sensor_minimum.data.tactile_points_quat_w is None
@@ -270,7 +270,7 @@ def test_sensor_cam_set(setup_tactile_cam):
         sensor.update(dt, force_recompute=True)
         robot.update(dt)
     assert sensor.is_initialized
-    assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
+    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w is None
 
@@ -313,7 +313,7 @@ def test_sensor_cam_new_spawn(setup_tactile_cam):
         ## test lazy sensor update
         data = sensor.data
     assert sensor.is_initialized
-    assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
+    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w is None
 
@@ -335,7 +335,7 @@ def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
     # check str
     print(sensor)
     assert sensor.is_initialized
-    assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
+    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w.shape == (1, 50, 3)
     assert sensor.data.penetration_depth.shape == (1, 50)
@@ -366,7 +366,7 @@ def test_sensor_no_contact_object(setup_nut_rgb_ff):
         nut.update(dt)
 
     assert sensor.is_initialized
-    assert sensor.data.tactile_camera_depth.shape == (1, 320, 240, 1)
+    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
     assert sensor.data.tactile_points_pos_w.shape == (1, 50, 3)
     # check no forces are detected

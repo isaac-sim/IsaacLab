@@ -41,9 +41,9 @@ Tactile sensors require specific configuration parameters to define their behavi
         ## Contact object configuration
         contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
         ## Force field physics parameters
-        tactile_kn=1.0,
-        tactile_mu=2.0,
-        tactile_kt=0.1,
+        normal_contact_stiffness=1.0,
+        friction_coefficient=2.0,
+        tangential_stiffness=0.1,
         ## Camera configuration
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
@@ -65,7 +65,7 @@ The configuration supports customization of:
 * **Force Field Grid**: Set tactile grid dimensions (``num_tactile_rows``, ``num_tactile_cols``) and margins, which directly affects the spatial resolution of the computed force field
 * **Contact Object Configuration**: Define properties of interacting objects using prim path expressions to locate objects with SDF collision meshes
 * **Physics Parameters**: Control the sensor's force field computation:
-    * ``tactile_kn``, ``tactile_mu``, ``tactile_kt`` - Normal stiffness, friction coefficient, and tangential stiffness
+    * ``normal_contact_stiffness``, ``friction_coefficient``, ``tangential_stiffness`` - Normal stiffness, friction coefficient, and tangential stiffness
 * **Camera Settings**: Configure resolution, update rates, and data types, currently only ``distance_to_image_plane`` (alias for ``depth``) is supported.
     ``spawn`` is set to ``None`` by default, which means that the camera is already spawned in the USD file.
     If you want to spawn the camera yourself and set focal length, etc., you can set the spawn configuration to a valid spawn configuration.
@@ -126,9 +126,9 @@ Available command-line options include:
 * ``--save_viz``: Save visualization outputs for analysis
 * ``--tactile_compliance_stiffness``: Override compliant contact stiffness (default: use USD asset values)
 * ``--tactile_compliant_damping``: Override compliant contact damping (default: use USD asset values)
-* ``--tactile_kn``: Normal contact stiffness for force field computation
-* ``--tactile_kt``: Tangential stiffness for shear forces
-* ``--tactile_mu``: Friction coefficient for shear forces
+* ``--normal_contact_stiffness``: Normal contact stiffness for force field computation
+* ``--tangential_stiffness``: Tangential stiffness for shear forces
+* ``--friction_coefficient``: Friction coefficient for shear forces
 * ``--debug_sdf_closest_pts``: Visualize closest SDF points for debugging
 * ``--debug_tactile_sensor_pts``: Visualize tactile sensor points for debugging
 * ``--trimesh_vis_tactile_points``: Enable trimesh-based visualization of tactile points
@@ -187,11 +187,14 @@ The tactile sensor is designed to integrate seamlessly with reinforcement learni
         # tactile RGB image
         tactile_rgb = tactile_data.tactile_rgb_image
 
+        # tactile depth image
+        tactile_depth = tactile_data.tactile_depth_image
+
         # force field
         tactile_normal_force = tactile_data.tactile_normal_force
         tactile_shear_force = tactile_data.tactile_shear_force
 
-        return [tactile_rgb, tactile_normal_force, tactile_shear_force]
+        return [tactile_rgb, tactile_depth, tactile_normal_force, tactile_shear_force]
 
 
 

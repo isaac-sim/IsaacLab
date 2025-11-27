@@ -10,6 +10,7 @@ from __future__ import annotations
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from ..camera.tiled_camera_cfg import TiledCameraCfg
 from ..sensor_base_cfg import SensorBaseCfg
@@ -41,12 +42,6 @@ class GelSightRenderCfg:
                 ├── polycalib.npz       # Polynomial calibration data (required)
                 └── real_bg.npy         # Real background data (optional)
 
-    Path Resolution:
-        - If ``base_data_path`` is ``None`` (default): Downloads from Isaac Lab Nucleus at
-          ``{ISAACLAB_NUCLEUS_DIR}/TacSL/{sensor_data_dir_name}/{filename}``
-        - If ``base_data_path`` is provided: Uses custom path at
-          ``{base_data_path}/{sensor_data_dir_name}/{filename}``
-
     Example:
         Using predefined sensor configuration::
 
@@ -64,15 +59,19 @@ class GelSightRenderCfg:
             )
     """
 
-    base_data_path: str | None = None
+    base_data_path: str | None = f"{ISAACLAB_NUCLEUS_DIR}/TacSL"
     """Base path to the directory containing sensor calibration data.
 
-    If ``None`` (default), downloads and caches data from Isaac Lab Nucleus directory.
-    If a custom path is provided, uses the data directly from that location without copying.
+    If ``None``, defaults to Isaac Lab Nucleus directory at
+    ``{ISAACLAB_NUCLEUS_DIR}/TacSL``. Download the data from Nucleus if not present locally.
+    If a custom path is provided, uses the data directly from that location without downloading.
     """
 
     sensor_data_dir_name: str = "gelsight_r15_data"
-    """Directory name containing the sensor calibration and background data."""
+    """Directory name containing the sensor calibration and background data.
+
+    This should be a relative path (directory name) inside the :attr:`base_data_path`.
+    """
 
     background_path: str = "bg.jpg"
     """Filename of the background image within the data directory."""
@@ -134,7 +133,12 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """Number of columns of tactile points for force field sensing."""
 
     tactile_margin: float = 0.003
-    """Margin for tactile point generation (in meters)."""
+    """Margin for tactile point generation (in meters).
+
+    This parameter defines the exclusion margin from the edges of the elastomer mesh when generating
+    the tactile point grid. It ensures that force field points are not generated on the very edges
+    of the sensor surface where geometry might be unstable or less relevant for contact.
+    """
 
     contact_object_prim_path_expr: str | None = None
     """Prim path expression to find the contact object for force field computation.
@@ -154,19 +158,19 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """
 
     # Force field physics parameters
-    tactile_kn: float = 1.0
+    normal_contact_stiffness: float = 1.0
     """Normal contact stiffness for penalty-based force computation."""
 
-    tactile_mu: float = 2.0
+    friction_coefficient: float = 2.0
     """Friction coefficient for shear forces."""
 
-    tactile_kt: float = 0.1
+    tangential_stiffness: float = 0.1
     """Tangential stiffness for shear forces."""
 
     camera_cfg: TiledCameraCfg | None = None
     """Camera configuration for tactile RGB/depth sensing.
 
-    If None, camera-based sensing will be disabled even if enable_camera_tactile is True.
+    If None, camera-based sensing will be disabled even if :attr:`enable_camera_tactile` is True.
     """
 
     # Visualization

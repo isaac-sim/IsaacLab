@@ -14,51 +14,13 @@ from typing import TYPE_CHECKING
 import cv2
 import omni.log
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import retrieve_file_path
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import GelSightRenderCfg
 
 
-def get_gelsight_render_data(base_data_path: str | None, data_dir: str, file_name: str) -> str | None:
-    """Gets the path for the GelSight render data file.
-
-    If using a custom base path, the file is used directly from that location.
-    If using the default Nucleus path, the file is downloaded and cached locally.
-
-    Args:
-        base_data_path: Base path for the sensor data. If None, defaults to
-                       Isaac Lab Nucleus TacSL directory (will download and cache).
-        data_dir: The data directory name containing the render data.
-        file_name: The specific file name to retrieve.
-
-    Returns:
-        The local path to the file, or None if unavailable.
-    """
-    if base_data_path:
-        # Custom path provided - use it directly without copying
-        file_path = os.path.join(base_data_path, data_dir, file_name)
-        if os.path.exists(file_path):
-            omni.log.info(f"Using custom GelSight render data: {file_path}")
-            return file_path
-        else:
-            raise FileNotFoundError(f"Custom GelSight render data not found: {file_path}")
-    else:
-        # Default to Isaac Lab Nucleus directory - download and cache
-        nucleus_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "TacSL", data_dir, file_name)
-        cache_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), data_dir)
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_path = os.path.join(cache_dir, file_name)
-
-        if not os.path.exists(cache_path):
-            omni.log.info(f"Downloading GelSight render data from Nucleus: {nucleus_path}")
-            cache_path = retrieve_file_path(nucleus_path, cache_dir)
-        else:
-            omni.log.info(f"Using cached GelSight render data: {cache_path}")
-        return cache_path
-
-
-def visualize_tactile_shear_image(
+def compute_tactile_shear_image(
     tactile_normal_force: np.ndarray,
     tactile_shear_force: np.ndarray,
     normal_force_threshold: float = 0.00008,
@@ -146,12 +108,8 @@ class GelsightRender:
             raise ValueError(f"mm_per_pixel must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
 
         # Retrieve render data files using the configured base path
-        bg_path = get_gelsight_render_data(
-            self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.background_path
-        )
-        calib_path = get_gelsight_render_data(
-            self.cfg.base_data_path, self.cfg.sensor_data_dir_name, self.cfg.calib_path
-        )
+        bg_path = self._get_render_data(self.cfg.sensor_data_dir_name, self.cfg.background_path)
+        calib_path = self._get_render_data(self.cfg.sensor_data_dir_name, self.cfg.calib_path)
 
         if bg_path is None or calib_path is None:
             raise FileNotFoundError(
@@ -240,14 +198,36 @@ class GelsightRender:
         sim_img = torch.clip(sim_img, 0, 255, out=sim_img).to(torch.uint8)
         return sim_img
 
-    def _generate_normals(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, None]:
+    def _get_render_data(self, data_dir: str, file_name: str) -> str:
+        """Gets the path for the GelSight render data file.
+
+        Args:
+            data_dir: The data directory name containing the render data.
+            file_name: The specific file name to retrieve.
+
+        Returns:
+            The local path to the file.
+
+        Raises:
+            FileNotFoundError: If the file is not found locally or on Nucleus.
+        """
+        # Construct path using the configured base path
+        file_path = os.path.join(self.cfg.base_data_path, data_dir, file_name)
+
+        # Cache directory for downloads
+        cache_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), data_dir)
+
+        # Use retrieve_file_path to handle local/Nucleus paths and caching
+        return retrieve_file_path(file_path, download_dir=cache_dir, force_download=False)
+
+    def _generate_normals(self, img: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Generate the gradient magnitude and direction of the height map.
 
         Args:
             img: Input height map tensor.
 
         Returns:
-            Tuple containing gradient magnitude tensor, gradient direction tensor, and None.
+            Tuple containing gradient magnitude tensor and gradient direction tensor.
         """
         img_grad = torch.gradient(img, dim=(1, 2))
         dzdx, dzdy = img_grad

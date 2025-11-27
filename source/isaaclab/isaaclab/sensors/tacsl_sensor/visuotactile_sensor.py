@@ -24,7 +24,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sensors.tacsl_sensor.gelsight_utils import GelsightRender
+from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
 from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 from isaaclab.utils.timer import Timer
 
@@ -266,7 +266,7 @@ class VisuoTactileSensor(SensorBase):
         self._data.tactile_rgb_image = torch.zeros(
             (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 3), device=self._device
         )
-        self._data.tactile_camera_depth = torch.zeros(
+        self._data.tactile_depth_image = torch.zeros(
             (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 1), device=self._device
         )
 
@@ -587,8 +587,8 @@ class VisuoTactileSensor(SensorBase):
             depth_key = "depth"
 
         if depth_key:
-            self._data.tactile_camera_depth[env_ids] = camera_data.output[depth_key][env_ids].clone()
-            diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_camera_depth[env_ids]
+            self._data.tactile_depth_image[env_ids] = camera_data.output[depth_key][env_ids].clone()
+            diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_depth_image[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 
     #########################################################################################
@@ -794,7 +794,7 @@ class VisuoTactileSensor(SensorBase):
             normals_world = math_utils.quat_apply(contact_object_quat_expanded, normals_local)
 
             # Compute normal contact force: F_n = k_n * depth
-            fc_norm = self.cfg.tactile_kn * depth
+            fc_norm = self.cfg.normal_contact_stiffness * depth
             fc_world = fc_norm.unsqueeze(-1) * normals_world
 
             # Get tactile point velocities using precomputed velocities
@@ -833,8 +833,8 @@ class VisuoTactileSensor(SensorBase):
             vt_norm = torch.norm(vt_world, dim=-1)
 
             # Compute friction force: F_t = min(k_t * |v_t|, mu * F_n)
-            ft_static_norm = self.cfg.tactile_kt * vt_norm
-            ft_dynamic_norm = self.cfg.tactile_mu * fc_norm
+            ft_static_norm = self.cfg.tangential_stiffness * vt_norm
+            ft_dynamic_norm = self.cfg.friction_coefficient * fc_norm
             ft_norm = torch.minimum(ft_static_norm, ft_dynamic_norm)
 
             # Apply friction force opposite to tangential velocity

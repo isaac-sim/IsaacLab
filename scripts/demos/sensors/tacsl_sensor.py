@@ -30,9 +30,9 @@ from isaaclab.utils.timer import Timer
 # Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
-parser.add_argument("--tactile_kn", type=float, default=1.0, help="Tactile normal stiffness.")
-parser.add_argument("--tactile_kt", type=float, default=0.1, help="Tactile tangential stiffness.")
-parser.add_argument("--tactile_mu", type=float, default=2.0, help="Tactile friction coefficient.")
+parser.add_argument("--normal_contact_stiffness", type=float, default=1.0, help="Tactile normal stiffness.")
+parser.add_argument("--tangential_stiffness", type=float, default=0.1, help="Tactile tangential stiffness.")
+parser.add_argument("--friction_coefficient", type=float, default=2.0, help="Tactile friction coefficient.")
 parser.add_argument(
     "--tactile_compliance_stiffness",
     type=float,
@@ -79,7 +79,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 # Import our TactileSensor
 from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.gelsight_utils import visualize_tactile_shear_image
+from isaaclab.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -142,9 +142,9 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         # Contact object configuration
         contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
         # Force field physics parameters
-        tactile_kn=args_cli.tactile_kn,
-        tactile_mu=args_cli.tactile_mu,
-        tactile_kt=args_cli.tactile_kt,
+        normal_contact_stiffness=args_cli.normal_contact_stiffness,
+        friction_coefficient=args_cli.friction_coefficient,
+        tangential_stiffness=args_cli.tangential_stiffness,
         # Camera configuration
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
@@ -225,12 +225,12 @@ def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
         tactile_normal_force = tactile_data.tactile_normal_force.view((num_envs, nrows, ncols))
         tactile_shear_force = tactile_data.tactile_shear_force.view((num_envs, nrows, ncols, 2))
 
-        tactile_image = visualize_tactile_shear_image(
+        tactile_image = compute_tactile_shear_image(
             tactile_normal_force[0, :, :].detach().cpu().numpy(), tactile_shear_force[0, :, :].detach().cpu().numpy()
         )
 
         if tactile_normal_force.shape[0] > 1:
-            tactile_image_1 = visualize_tactile_shear_image(
+            tactile_image_1 = compute_tactile_shear_image(
                 tactile_normal_force[1, :, :].detach().cpu().numpy(),
                 tactile_shear_force[1, :, :].detach().cpu().numpy(),
             )
