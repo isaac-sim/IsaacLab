@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>x7_duo</name>
+  <version>1.0.0</version>
+  <description>
+    <p>URDF Description package for x7_duo</p>
+    <p>This package contains configuration data, 3D models, and launch files
+    for the x7_duo robot.</p>
+  </description>
+
+  <maintainer email="TODO@email.com">TODO</maintainer>
+  <license>BSD</license>
+
+  <!-- 使用 ROS 2 构建系统 -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 依赖项 -->
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
+
+  <!-- 如果还需要用 launch 文件 -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
