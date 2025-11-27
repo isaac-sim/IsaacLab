@@ -60,7 +60,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     # retrieve the collision api
     applied_schemas = prim.GetAppliedSchemas()
     if "PhysxMaterialAPI" not in applied_schemas:
-        prim.AddAppliedSchema(Tf.Token("PhysxMaterialAPI"))
+        prim.AddAppliedSchema("PhysxMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()
@@ -117,7 +117,7 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     # retrieve the deformable-body api
     applied_schemas = prim.GetAppliedSchemas()
     if "PhysxDeformableBodyMaterialAPI" not in applied_schemas:
-        prim.AddAppliedSchema(Tf.Token("PhysxDeformableBodyMaterialAPI"))
+        prim.AddAppliedSchema("PhysxDeformableBodyMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()

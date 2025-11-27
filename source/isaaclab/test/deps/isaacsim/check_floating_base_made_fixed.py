@@ -38,7 +38,7 @@ import omni.kit.commands
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import Tf, UsdPhysics
+from pxr import UsdPhysics
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def main():
         parent_prim = root_prim.GetParent()
         # apply api to parent
         UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-        parent_prim.AddAppliedSchema(Tf.Token("PhysxArticulationAPI"))
+        parent_prim.AddAppliedSchema("PhysxArticulationAPI")
 
         # copy the attributes
         # -- usd attributes
@@ -145,7 +145,7 @@ def main():
 
         # remove api from root
         root_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-        root_prim.RemoveAppliedSchema(Tf.Token("PhysxArticulationAPI"))
+        root_prim.RemoveAppliedSchema("PhysxArticulationAPI")
 
         # rename root path to parent path
         root_prim_path = parent_prim.GetPath().pathString
