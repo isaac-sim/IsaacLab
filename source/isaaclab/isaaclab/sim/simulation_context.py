@@ -144,7 +144,7 @@ class SimulationContext(_SimulationContext):
 
         # acquire settings interface
         # Use settings manager (works in both Omniverse and standalone modes)
-        self.carb_settings = get_settings_manager()
+        self.settings = get_settings_manager()
 
         # apply carb physics settings
         SimulationManager._clear()
@@ -153,29 +153,29 @@ class SimulationContext(_SimulationContext):
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
         self._local_gui = (
-            self.carb_settings.get("/app/window/enabled")
-            if self.carb_settings.get("/app/window/enabled") is not None
+            self.settings.get("/app/window/enabled")
+            if self.settings.get("/app/window/enabled") is not None
             else False
         )
         # read flag for whether livestreaming GUI is enabled
         self._livestream_gui = (
-            self.carb_settings.get("/app/livestream/enabled")
-            if self.carb_settings.get("/app/livestream/enabled") is not None
+            self.settings.get("/app/livestream/enabled")
+            if self.settings.get("/app/livestream/enabled") is not None
             else False
         )
         # read flag for whether XR GUI is enabled
         self._xr_gui = (
-            self.carb_settings.get("/app/xr/enabled")
-            if self.carb_settings.get("/app/xr/enabled") is not None
+            self.settings.get("/app/xr/enabled")
+            if self.settings.get("/app/xr/enabled") is not None
             else False
         )
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
-        self._offscreen_render = bool(self.carb_settings.get("/isaaclab/render/offscreen"))
+        self._offscreen_render = bool(self.settings.get("/isaaclab/render/offscreen"))
         # read flag for whether the default viewport should be enabled
-        self._render_viewport = bool(self.carb_settings.get("/isaaclab/render/active_viewport"))
+        self._render_viewport = bool(self.settings.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui or self._xr_gui
 
@@ -311,7 +311,7 @@ class SimulationContext(_SimulationContext):
         """Sets various carb physics settings."""
         # enable hydra scene-graph instancing
         # note: this allows rendering of instanceable assets on the GUI
-        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+        set_carb_setting(self.settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
 
     def _apply_render_settings_from_cfg(self):
         """Sets rtx settings specified in the RenderCfg."""
@@ -352,7 +352,7 @@ class SimulationContext(_SimulationContext):
             # set presets
             for key, value in preset_dict.items():
                 key = "/" + key.replace(".", "/")  # convert to carb setting format
-                set_carb_setting(self.carb_settings, key, value)
+                set_carb_setting(self.settings, key, value)
 
         # set user-friendly named settings
         for key, value in vars(self.cfg.render_cfg).items():
@@ -365,7 +365,7 @@ class SimulationContext(_SimulationContext):
                     " need to be updated."
                 )
             key = rendering_setting_name_mapping[key]
-            set_carb_setting(self.carb_settings, key, value)
+            set_carb_setting(self.settings, key, value)
 
         # set general carb settings
         carb_settings = self.cfg.render_cfg.carb_settings
@@ -375,9 +375,9 @@ class SimulationContext(_SimulationContext):
                     key = "/" + key.replace("_", "/")  # convert from python variable style string
                 elif "." in key:
                     key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if get_carb_setting(self.carb_settings, key) is None:
+                if get_carb_setting(self.settings, key) is None:
                     raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                set_carb_setting(self.carb_settings, key, value)
+                set_carb_setting(self.settings, key, value)
 
         # set denoiser mode
         if self.cfg.render_cfg.antialiasing_mode is not None:
@@ -389,8 +389,8 @@ class SimulationContext(_SimulationContext):
                 pass
 
         # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
-        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
-            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
+        if get_carb_setting(self.settings, "/rtx/rendermode").lower() == "raytracedlighting":
+            set_carb_setting(self.settings, "/rtx/rendermode", "RaytracedLighting")
 
     """
     Operations - New.
