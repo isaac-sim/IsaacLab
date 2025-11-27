@@ -15,7 +15,7 @@ import isaacsim
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from pxr import Tf, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
@@ -329,11 +329,13 @@ class BaseEnvWindow:
                 # if prim has articulation then disable it
                 if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                     prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                    prim.RemoveAppliedSchema(Tf.Token("PhysxArticulationAPI"))
+                    if "PhysxArticulationAPI" in prim.GetAppliedSchemas():
+                        prim.RemoveAppliedSchema("PhysxArticulationAPI")
                 # if prim has rigid body then disable it
                 if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                    prim.RemoveAppliedSchema(Tf.Token("PhysxRigidBodyAPI"))
+                    if "PhysxRigidBodyAPI" in prim.GetAppliedSchemas():
+                        prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
                 # if prim is a joint type then disable it
                 if prim.IsA(UsdPhysics.Joint):
                     prim.GetAttribute("physics:jointEnabled").Set(False)

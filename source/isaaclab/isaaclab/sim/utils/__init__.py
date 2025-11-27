@@ -4,3 +4,4 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .utils import *  # noqa: F401, F403
+from .stage import attach_stage_to_usd_context, use_stage  # noqa: F401, F403

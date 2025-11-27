@@ -8,9 +8,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
-from pxr import Tf, Usd, UsdPhysics, UsdShade
+from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim, safe_set_attribute_on_usd_schema
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -58,9 +58,8 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     if not usd_physics_material_api:
         usd_physics_material_api = UsdPhysics.MaterialAPI.Apply(prim)
     # retrieve the collision api
-    applied_schemas = prim.GetAppliedSchemas()
-    if "PhysxMaterialAPI" not in applied_schemas:
-        prim.AddAppliedSchema(Tf.Token("PhysxMaterialAPI"))
+    if "PhysxMaterialAPI" not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema("PhysxMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()
@@ -115,9 +114,8 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
     # retrieve the deformable-body api
-    applied_schemas = prim.GetAppliedSchemas()
-    if "PhysxDeformableBodyMaterialAPI" not in applied_schemas:
-        prim.AddAppliedSchema(Tf.Token("PhysxDeformableBodyMaterialAPI"))
+    if "PhysxDeformableBodyMaterialAPI" not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema("PhysxDeformableBodyMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()
