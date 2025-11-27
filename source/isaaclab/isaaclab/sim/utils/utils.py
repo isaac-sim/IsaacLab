@@ -19,7 +19,7 @@ import omni
 import omni.kit.commands
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.version import get_version
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -30,7 +30,7 @@ except ModuleNotFoundError:
 from isaaclab.sim import schemas
 from isaaclab.utils.string import to_camel_case
 
-from .stage import attach_stage_to_usd_context, get_current_stage
+from .stage import get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -106,6 +106,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         sdf_type = Sdf.ValueTypeNames.Int
     elif isinstance(value, float):
         sdf_type = Sdf.ValueTypeNames.Float
+    elif isinstance(value, str):
+        sdf_type = Sdf.ValueTypeNames.Token
     elif isinstance(value, (tuple, list)) and len(value) == 3 and any(isinstance(v, float) for v in value):
         sdf_type = Sdf.ValueTypeNames.Float3
     elif isinstance(value, (tuple, list)) and len(value) == 2 and any(isinstance(v, float) for v in value):
@@ -114,20 +116,10 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         raise NotImplementedError(
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
-
-    # early attach stage to usd context if stage is in memory
-    # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-    attach_stage_to_usd_context(attaching_early=True)
-
-    # change property
-    omni.kit.commands.execute(
-        "ChangePropertyCommand",
-        prop_path=Sdf.Path(f"{prim.GetPath()}.{attr_name}"),
-        value=value,
-        prev=None,
-        type_to_create_if_not_exist=sdf_type,
-        usd_context_name=prim.GetStage(),
-    )
+    attr = prim.GetAttribute(attr_name)
+    if not attr:
+        attr = prim.CreateAttribute(attr_name, sdf_type)
+    attr.Set(value)
 
 
 """
@@ -419,10 +411,11 @@ def bind_physics_material(
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    applied_schemas = prim.GetAppliedSchemas()
+    has_physics_scene_api = "PhysxSceneAPI" in applied_schemas
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
-    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    has_deformable_body = "PhysxDeformableBodyAPI" in applied_schemas
+    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"

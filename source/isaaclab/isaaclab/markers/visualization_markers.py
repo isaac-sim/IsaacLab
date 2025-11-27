@@ -26,7 +26,7 @@ from dataclasses import MISSING
 
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
+from pxr import Gf, Tf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import SpawnerCfg
@@ -386,10 +386,10 @@ class VisualizationMarkers:
             # check if it is physics body -> if so, remove it
             if child_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 child_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                child_prim.RemoveAppliedSchema(Tf.Token("PhysxArticulationAPI"))
             if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 child_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                child_prim.RemoveAppliedSchema(Tf.Token("PhysxRigidBodyAPI"))
             if child_prim.IsA(UsdPhysics.Joint):
                 child_prim.GetAttribute("physics:jointEnabled").Set(False)
             # check if prim is instanced -> if so, make it uninstanceable
