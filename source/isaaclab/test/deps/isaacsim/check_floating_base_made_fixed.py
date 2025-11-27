@@ -38,7 +38,7 @@ import omni.kit.commands
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import PhysxSchema, UsdPhysics
+from pxr import Tf, UsdPhysics
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def main():
         parent_prim = root_prim.GetParent()
         # apply api to parent
         UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-        PhysxSchema.PhysxArticulationAPI.Apply(parent_prim)
+        parent_prim.AddAppliedSchema(Tf.Token("PhysxArticulationAPI"))
 
         # copy the attributes
         # -- usd attributes
@@ -135,14 +135,17 @@ def main():
             attr = root_prim.GetAttribute(attr_name)
             parent_prim.GetAttribute(attr_name).Set(attr.Get())
         # -- physx attributes
-        root_physx_articulation_api = PhysxSchema.PhysxArticulationAPI(root_prim)
-        for attr_name in root_physx_articulation_api.GetSchemaAttributeNames():
-            attr = root_prim.GetAttribute(attr_name)
-            parent_prim.GetAttribute(attr_name).Set(attr.Get())
+        for attr in root_prim.GetAttributes():
+            if not attr.GetName().startswith("physxArticulation:"):
+                continue
+            parent_attr = parent_prim.GetAttribute(attr.GetName())
+            if not parent_attr:
+                parent_attr = parent_prim.CreateAttribute(attr.GetName(), attr.GetTypeName())
+            parent_attr.Set(attr.Get())
 
         # remove api from root
         root_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-        root_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+        root_prim.RemoveAppliedSchema(Tf.Token("PhysxArticulationAPI"))
 
         # rename root path to parent path
         root_prim_path = parent_prim.GetPath().pathString
