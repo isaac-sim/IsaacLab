@@ -27,32 +27,28 @@ A10_CFG = ArticulationCfg(
         ),
     ),
 
-    # # 不预设具体关节名，依 URDF 加载；初始位姿设定为抬高并旋转对齐
     # init_state=ArticulationCfg.InitialStateCfg(
-    #     pos=(0.0, 0.0, 1.0),
-    #     rot=tuple(
-    #         math_utils.quat_from_euler_xyz(
-    #             torch.tensor([0.0]),               # roll
-    #             torch.tensor([-math.pi / 2]),      # pitch
-    #             torch.tensor([0.0]),               # yaw
-    #         )[0].tolist()
-    #     ),
+    #     joint_pos={f"Joint{i}": 0.0 for i in range(1, 15)},
     # ),
 
     # 采用正则匹配为所有关节设置隐式关节驱动；后续可根据具体命名拆分左右臂
     actuators={
-        "all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=3000.0, damping=80.0),
+        "A1": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint1"], stiffness=3000.0, damping=80.0),
+        "A2": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint2"], stiffness=3000.0, damping=80.0),
+        "A3": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint3"], stiffness=3000.0, damping=80.0),
+        "A4": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint4"], stiffness=3000.0, damping=80.0),
+        "A5": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint5"], stiffness=3000.0, damping=80.0),
+        "A6": ImplicitActuatorCfg(joint_names_expr=["Arm1_joint6"], stiffness=3000.0, damping=80.0),
+        #"A7": ImplicitActuatorCfg(joint_names_expr=["Arm1_ee"], stiffness=3000.0, damping=80.0),
+
+        # 右臂 Joint8~Joint14
+        "B1": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint1"], stiffness=3000.0, damping=80.0),
+        "B2": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint2"], stiffness=3000.0, damping=80.0),
+        "B3": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint3"], stiffness=3000.0, damping=80.0),
+        "B4": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint4"], stiffness=3000.0, damping=80.0),
+        "B5": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint5"], stiffness=3000.0, damping=80.0),
+        "B6": ImplicitActuatorCfg(joint_names_expr=["Arm2_joint6"], stiffness=3000.0, damping=80.0),
+       # "B7": ImplicitActuatorCfg(joint_names_expr=["Arm2_ee"], stiffness=3000.0, damping=80.0),
     },
 )
-
-class A10SceneCfg(InteractiveSceneCfg):
-    ground = sim_utils.GroundPlaneCfg()
-    robot = A10_CFG.replace(prim_path="/World/A10")
-
-
-def build_scene(sim):
-    """Create and return an InteractiveScene for A10 duo."""
-    scene = InteractiveScene(sim=sim, scene_cfg=A10SceneCfg())
-    return scene
-
 
