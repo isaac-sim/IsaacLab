@@ -71,7 +71,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"PhysxMaterialAPI:{attr_name}", value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"physxMaterial:{attr_name}", value, camel_case=False)
     # return the prim
     return prim
 
@@ -124,6 +124,6 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     del cfg["func"]
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"PhysxDeformableBodyMaterialAPI:{attr_name}", value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"physxDeformableBodyMaterial:{attr_name}", value, camel_case=False)
     # return the prim
     return prim
