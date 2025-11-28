@@ -131,7 +131,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     tactile_array_size: tuple[int, int] = MISSING
     """Number of tactile points for force field sensing in (rows, cols) format."""
 
-    tactile_margin: float = 0.003
+    tactile_margin: float = MISSING
     """Margin for tactile point generation (in meters).
 
     This parameter defines the exclusion margin from the edges of the elastomer mesh when generating
