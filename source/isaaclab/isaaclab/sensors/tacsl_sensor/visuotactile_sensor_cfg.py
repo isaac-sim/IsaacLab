@@ -94,7 +94,7 @@ class GelSightRenderCfg:
     """Number of bins for gradient magnitude and direction quantization."""
 
     mm_per_pixel: float = MISSING
-    """Millimeters per pixel conversion factor for the tactile sensor."""
+    """Millimeters per pixel conversion factor for reconstructing 2D tactile image from the height map."""
 
 
 ##
