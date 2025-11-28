@@ -27,7 +27,13 @@ def test_gelsight_render_custom_path_missing_file():
     """Test initializing GelsightRender with custom path when file doesn't exist."""
     # Assuming 'non_existent_path' is treated as a local path or Nucleus path
     # If we pass a path that definitely doesn't exist locally or on Nucleus, it should fail
-    cfg = GelSightRenderCfg(base_data_path="non_existent_path")
+    cfg = GelSightRenderCfg(
+        base_data_path="non_existent_path",
+        sensor_data_dir_name="dummy",
+        image_height=100,
+        image_width=100,
+        mm_per_pixel=0.1,
+    )
     # This should raise FileNotFoundError because the directory/files won't exist
     with pytest.raises(FileNotFoundError):
         GelsightRender(cfg, device="cpu")
@@ -48,6 +54,7 @@ def test_gelsight_render_custom_path_success():
             image_width=width,
             image_height=height,
             num_bins=5,
+            mm_per_pixel=0.1,
         )
 
         # 1. Create dummy background image
@@ -77,7 +84,9 @@ def test_gelsight_render_custom_path_success():
 def gelsight_render_setup():
     """Fixture to set up GelsightRender for testing with default (Nucleus/Cache) files."""
     # Use default GelSight R1.5 configuration
-    cfg = GelSightRenderCfg()
+    cfg = GelSightRenderCfg(
+        sensor_data_dir_name="gelsight_r15_data", image_height=320, image_width=240, mm_per_pixel=0.0877
+    )
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Create render instance

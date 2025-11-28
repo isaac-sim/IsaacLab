@@ -136,8 +136,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         enable_camera_tactile=args_cli.use_tactile_rgb,
         enable_force_field=args_cli.use_tactile_ff,
         # Elastomer configuration
-        num_tactile_rows=20,
-        num_tactile_cols=25,
+        tactile_array_size=(20, 25),
         tactile_margin=0.003,
         # Contact object configuration
         contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
@@ -273,8 +272,8 @@ def run_simulator(sim, scene: InteractiveScene):
     torque_tensor = torch.zeros(scene.num_envs, 1, 3, device=sim.device)
     force_tensor[:, 0, 2] = -1.0
 
-    nrows = scene["tactile_sensor"].cfg.num_tactile_rows
-    ncols = scene["tactile_sensor"].cfg.num_tactile_cols
+    nrows = scene["tactile_sensor"].cfg.tactile_array_size[0]
+    ncols = scene["tactile_sensor"].cfg.tactile_array_size[1]
 
     physics_timer = Timer()
     physics_total_time = 0.0

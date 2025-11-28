@@ -7,6 +7,8 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
+from dataclasses import MISSING
+
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.utils import configclass
@@ -67,7 +69,7 @@ class GelSightRenderCfg:
     If a custom path is provided, uses the data directly from that location without downloading.
     """
 
-    sensor_data_dir_name: str = "gelsight_r15_data"
+    sensor_data_dir_name: str = MISSING
     """Directory name containing the sensor calibration and background data.
 
     This should be a relative path (directory name) inside the :attr:`base_data_path`.
@@ -82,16 +84,16 @@ class GelSightRenderCfg:
     real_background: str = "real_bg.npy"
     """Filename of the real background data within the data directory."""
 
-    image_height: int = 320
+    image_height: int = MISSING
     """Height of the tactile image in pixels."""
 
-    image_width: int = 240
+    image_width: int = MISSING
     """Width of the tactile image in pixels."""
 
     num_bins: int = 120
     """Number of bins for gradient magnitude and direction quantization."""
 
-    mm_per_pixel: float = 0.0877
+    mm_per_pixel: float = MISSING
     """Millimeters per pixel conversion factor for the tactile sensor."""
 
 
@@ -111,7 +113,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     class_type: type = VisuoTactileSensor
 
     # Sensor type and capabilities
-    render_cfg: GelSightRenderCfg = GelSightRenderCfg()
+    render_cfg: GelSightRenderCfg = MISSING
     """Configuration for GelSight sensor rendering.
 
     This defines the rendering parameters for converting depth maps to realistic tactile images.
@@ -126,11 +128,8 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """Whether to enable force field tactile sensing."""
 
     # Force field configuration
-    num_tactile_rows: int = 20
-    """Number of rows of tactile points for force field sensing."""
-
-    num_tactile_cols: int = 25
-    """Number of columns of tactile points for force field sensing."""
+    tactile_array_size: tuple[int, int] = MISSING
+    """Number of tactile points for force field sensing in (rows, cols) format."""
 
     tactile_margin: float = 0.003
     """Margin for tactile point generation (in meters).
@@ -184,6 +183,6 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """
 
     trimesh_vis_tactile_points: bool = False
-    """Whether to visualize tactile points for debugging using trimesh."""
+    """Whether to visualize tactile points for debugging using trimesh. Defaults to False."""
     visualize_sdf_closest_pts: bool = False
-    """Whether to visualize SDF closest points for debugging."""
+    """Whether to visualize SDF closest points for debugging. Defaults to False."""

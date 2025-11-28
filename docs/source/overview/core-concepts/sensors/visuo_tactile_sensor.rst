@@ -35,8 +35,7 @@ Tactile sensors require specific configuration parameters to define their behavi
         enable_camera_tactile=True,
         enable_force_field=True,
         ## Elastomer configuration
-        num_tactile_rows=20,
-        num_tactile_cols=25,
+        tactile_array_size=(20, 25),
         tactile_margin=0.003,
         ## Contact object configuration
         contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
@@ -62,7 +61,7 @@ The configuration supports customization of:
 * **Tactile Modalities**:
     * ``enable_camera_tactile`` - Enable tactile RGB imaging through camera sensors
     * ``enable_force_field`` - Enable force field computation and visualization
-* **Force Field Grid**: Set tactile grid dimensions (``num_tactile_rows``, ``num_tactile_cols``) and margins, which directly affects the spatial resolution of the computed force field
+* **Force Field Grid**: Set tactile grid dimensions (``tactile_array_size``) and margins, which directly affects the spatial resolution of the computed force field
 * **Contact Object Configuration**: Define properties of interacting objects using prim path expressions to locate objects with SDF collision meshes
 * **Physics Parameters**: Control the sensor's force field computation:
     * ``normal_contact_stiffness``, ``friction_coefficient``, ``tangential_stiffness`` - Normal stiffness, friction coefficient, and tangential stiffness

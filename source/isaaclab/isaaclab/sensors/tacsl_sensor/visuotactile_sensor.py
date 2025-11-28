@@ -288,7 +288,7 @@ class VisuoTactileSensor(SensorBase):
 
         # Generate tactile points on elastomer surface
         self._generate_tactile_points(
-            num_divs=[self.cfg.num_tactile_rows, self.cfg.num_tactile_cols],
+            num_divs=list(self.cfg.tactile_array_size),
             margin=getattr(self.cfg, "tactile_margin", 0.003),
             visualize=self.cfg.trimesh_vis_tactile_points,
         )
@@ -318,7 +318,7 @@ class VisuoTactileSensor(SensorBase):
 
         contact_object_mesh, contact_object_rigid_body = self._find_contact_object_components()
         # Create SDF view for collision detection
-        num_query_points = self.cfg.num_tactile_rows * self.cfg.num_tactile_cols
+        num_query_points = self.cfg.tactile_array_size[0] * self.cfg.tactile_array_size[1]
         mesh_path_pattern = contact_object_mesh.GetPath().pathString.replace("env_0", "env_*")
         self._contact_object_sdf_view = SdfShapePrim(
             prim_paths_expr=mesh_path_pattern,
@@ -486,10 +486,10 @@ class VisuoTactileSensor(SensorBase):
         # in the frame of the elastomer
         self._tactile_pos_local = torch.tensor(tactile_points, dtype=torch.float32, device=self._device)
         self.num_tactile_points = self._tactile_pos_local.shape[0]
-        if self.num_tactile_points != self.cfg.num_tactile_rows * self.cfg.num_tactile_cols:
+        if self.num_tactile_points != self.cfg.tactile_array_size[0] * self.cfg.tactile_array_size[1]:
             raise RuntimeError(
                 f"Number of tactile points does not match expected: {self.num_tactile_points} !="
-                f" {self.cfg.num_tactile_rows * self.cfg.num_tactile_cols}"
+                f" {self.cfg.tactile_array_size[0] * self.cfg.tactile_array_size[1]}"
             )
 
         # Assume tactile frame rotation are all the same

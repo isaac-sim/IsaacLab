@@ -26,11 +26,19 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
+from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 # Sample sensor poses
+
+TEST_RENDER_CFG = GelSightRenderCfg(
+    sensor_data_dir_name="gelsight_r15_data",
+    image_height=320,
+    image_width=240,
+    mm_per_pixel=0.0877,
+)
 
 
 def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
@@ -51,6 +59,8 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             prim_path="/World/Robot/elastomer/sensor_minimum_config",
             enable_camera_tactile=False,
             enable_force_field=False,
+            render_cfg=TEST_RENDER_CFG,
+            tactile_array_size=(10, 10),
         )
     elif sensor_type == "tactile_cam":
         return VisuoTactileSensorCfg(
@@ -64,6 +74,8 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
                 data_types=["distance_to_image_plane"],
                 spawn=None,
             ),
+            render_cfg=TEST_RENDER_CFG,
+            tactile_array_size=(10, 10),
         )
 
     elif sensor_type == "nut_rgb_ff":
@@ -81,8 +93,8 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
                 data_types=["distance_to_image_plane"],
                 spawn=None,
             ),
-            num_tactile_rows=5,
-            num_tactile_cols=10,
+            render_cfg=TEST_RENDER_CFG,
+            tactile_array_size=(5, 10),
             contact_object_prim_path_expr="/World/Nut",
         )
 
