@@ -20,6 +20,7 @@ except ModuleNotFoundError:
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
 from isaaclab.utils.assets import check_usd_path_with_timeout
 
