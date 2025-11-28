@@ -61,6 +61,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             enable_force_field=False,
             render_cfg=TEST_RENDER_CFG,
             tactile_array_size=(10, 10),
+            tactile_margin=0.003,
         )
     elif sensor_type == "tactile_cam":
         return VisuoTactileSensorCfg(
@@ -76,6 +77,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             ),
             render_cfg=TEST_RENDER_CFG,
             tactile_array_size=(10, 10),
+            tactile_margin=0.003,
         )
 
     elif sensor_type == "nut_rgb_ff":
@@ -95,6 +97,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             ),
             render_cfg=TEST_RENDER_CFG,
             tactile_array_size=(5, 10),
+            tactile_margin=0.003,
             contact_object_prim_path_expr="/World/Nut",
         )
 
