@@ -63,7 +63,7 @@ def compute_tactile_shear_image(
     return imgs_tactile
 
 
-def visualize_penetration_depth(
+def compute_penetration_depth(
     penetration_depth_img: np.ndarray, resolution: int = 5, depth_multiplier: float = 300.0
 ) -> np.ndarray:
     """Visualize the penetration depth.
