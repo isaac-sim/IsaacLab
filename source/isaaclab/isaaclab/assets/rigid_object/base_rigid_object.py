@@ -75,6 +75,12 @@ class BaseRigidObject(AssetBase):
         This is always 1 since each object is a single rigid body.
         """
         raise NotImplementedError()
+    
+    @property
+    @abstractmethod
+    def num_shapes_per_body(self) -> list[int]:
+        """Number of shapes per body in the asset."""
+        raise NotImplementedError()
 
     @property
     @abstractmethod
@@ -388,6 +394,46 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
+    def set_masses(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set masses of all bodies in the simulation world frame.
+        
+        Args:
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_inertias(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set inertias of all bodies in the simulation world frame.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
+            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def set_external_force_and_torque(
         self,
         forces: torch.Tensor | wp.array,
@@ -395,8 +441,8 @@ class BaseRigidObject(AssetBase):
         positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
-        body_mask: torch.Tensor | wp.array | None = None,
-        env_mask: torch.Tensor | wp.array | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
         is_global: bool = False,
     ) -> None:
         """Set external force and torque to apply on the asset's bodies in their local frame.

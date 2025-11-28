@@ -15,12 +15,9 @@ import torch
 import warp as wp
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import TerminationTermCfg
-from isaaclab.utils.warp.utils import resolve_asset_cfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -30,219 +27,68 @@ if TYPE_CHECKING:
 MDP terminations.
 """
 
-@wp.kernel
-def time_out_kernel(
-    episode_length_buf: wp.array(dtype=wp.int32),
-    max_episode_length: wp.int32,
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = episode_length_buf[i] >= max_episode_length
 
-class time_out(ManagerTermBase):
+def time_out(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Terminate the episode when the episode length exceeds the maximum episode length."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
-    def update_config(self) -> None:
-        pass
+    return env.episode_length_buf >= env.max_episode_length
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
-        wp.launch(
-            time_out_kernel,
-            dim=env.num_envs,
-            inputs=[
-                env.episode_length_buf,
-                env.max_episode_length,
-                self._done_buf,
-            ],
-        )
-        return self._done_buf
 
-@wp.kernel
-def command_resample_kernel(
-    time_left: wp.array(dtype=wp.float32),
-    command_counter: wp.array(dtype=wp.int32),
-    num_resamples: wp.int32,
-    dt: wp.float32,
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = (time_left[i] <= dt) and (command_counter[i] == num_resamples)
+def command_resample(env: ManagerBasedRLEnv, command_name: str, num_resamples: int = 1) -> torch.Tensor:
+    """Terminate the episode based on the total number of times commands have been re-sampled.
 
-class command_resample(ManagerTermBase):
-    """Terminate the episode based on the total number of times commands have been re-sampled."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
-        self._command_name = "None"
-        self._num_resamples = 1
-        self.update_config(**cfg.params)
-        self._command: CommandTerm = env.command_manager.get_term(self._command_name)
+    This makes the maximum episode length fluid in nature as it depends on how the commands are
+    sampled. It is useful in situations where delayed rewards are used :cite:`rudin2022advanced`.
+    """
+    command: CommandTerm = env.command_manager.get_term(command_name)
+    return torch.logical_and((command.time_left <= env.step_dt), (command.command_counter == num_resamples))
 
-    def update_config(self, command_name: str, num_resamples: int = 1) -> None:
-        self._command_name = command_name
-        self._num_resamples = num_resamples
-
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
-        wp.launch(
-            command_resample_kernel,
-            dim=env.num_envs,
-            inputs=[
-                self._command.time_left,
-                self._command.command_counter,
-                self._num_resamples,
-                env.step_dt,
-                self._done_buf,
-            ],
-        )
-        return self._done_buf
 
 """
 Root terminations.
 """
 
 
-@wp.kernel
-def bad_orientation_kernel(
-    projected_gravity_b: wp.array(dtype=wp.vec3f),
-    limit_angle: wp.float32,
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = wp.abs(wp.acos(-projected_gravity_b[i, 2])) > limit_angle
+def bad_orientation(
+    env: ManagerBasedRLEnv, limit_angle: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Terminate when the asset's orientation is too far from the desired orientation limits.
 
-class bad_orientation(ManagerTermBase):
-    """Terminate when the asset's orientation is too far from the desired orientation limits."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
-        self._asset: Articulation = env.scene[asset_cfg.name]
-        self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
-        self._limit_angle = 0.0
+    This is computed by checking the angle between the projected gravity vector and the z-axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return torch.acos(-wp.to_torch(asset.data.projected_gravity_b)[:, 2]).abs() > limit_angle
 
-        self.update_config(**cfg.params)
 
-    def update_config(self, limit_angle: float, asset_cfg: SceneEntityCfg | None = None) -> None:
-        self._limit_angle = limit_angle
-
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
-        wp.launch(
-            bad_orientation_kernel,
-            dim=env.num_envs,
-            inputs=[
-                self._asset.data.projected_gravity_b,
-                self._limit_angle,
-                self._done_buf,
-            ],
-        )
-        return self._done_buf
-
-@wp.kernel
-def root_height_below_minimum_kernel(
-    root_pose_w: wp.array(dtype=wp.transformf),
-    minimum_height: wp.float32,
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = root_pos_w[i][2] < minimum_height
-
-class root_height_below_minimum(ManagerTermBase):
+def root_height_below_minimum(
+    env: ManagerBasedRLEnv, minimum_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Terminate when the asset's root height is below the minimum height.
 
     Note:
         This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
     """
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
-        self._asset: Articulation = env.scene[asset_cfg.name]
-        self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
-        self._minimum_height = 0.0
-
-        self.update_config(**cfg.params)
-
-    def update_config(self, minimum_height: float, asset_cfg: SceneEntityCfg | None = None) -> None:
-        self._minimum_height = minimum_height
-
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
-        wp.launch(
-            root_height_below_minimum_kernel,
-            dim=env.num_envs,
-            inputs=[
-                self._asset.data.root_pose_w,
-                self._minimum_height,
-                self._done_buf,
-            ],
-        )
-        return self._done_buf
-
-@wp.kernel
-def root_height_above_maximum_kernel(
-    root_pose_w: wp.array(dtype=wp.transformf),
-    maximum_height: wp.float32,
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = root_pose_w[i][2] > maximum_height
-
-class root_height_above_maximum(ManagerTermBase):
-    """Terminate when the asset's root height is above the maximum height."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
-        self._asset: Articulation = env.scene[asset_cfg.name]
-        self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
-        self._maximum_height = 0.0
-
-        self.update_config(**cfg.params)
-
-    def update_config(self, maximum_height: float, asset_cfg: SceneEntityCfg | None = None) -> None:
-        self._maximum_height = maximum_height
-
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
-        wp.launch(
-            root_height_above_maximum_kernel,
-            dim=env.num_envs,
-            inputs=[
-                self._asset.data.root_pose_w,
-                self._maximum_height,
-                self._done_buf,
-            ],
-        )
-        return self._done_buf
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return wp.to_torch(asset.data.root_pos_w)[:, 2] < minimum_height
 
 
 """
 Joint terminations.
 """
 
-@wp.func
-def aggregate_out_of_limits(
-    pos: wp.array(dtype=wp.float32),
-    limits: wp.array(dtype=wp.vec2f),
-    indices: wp.array(dtype=wp.int32)
-) -> wp.bool:
-    out_of_limits = 0.0
-
-@wp.kernel
-def joint_pos_out_of_limit_kernel(
-    joint_pos: wp.array2d(dtype=wp.float32),
-    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    joint_indices: wp.array(dtype=wp.int32),
-    done: wp.array(dtype=wp.bool)
-) -> None:
-    i = wp.tid()
-    done[i] = wp.any(wp.abs(joint_pos[i, joint_indices]) > soft_joint_pos_limits[i, joint_indices])
 
 def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos > asset.data.soft_joint_pos_limits[..., 1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos < asset.data.soft_joint_pos_limits[..., 0], dim=1)
-    return torch.logical_or(out_of_upper_limits[:, asset_cfg.joint_ids], out_of_lower_limits[:, asset_cfg.joint_ids])
+    if asset_cfg.joint_ids is None:
+        asset_cfg.joint_ids = slice(None)
+
+    limits = wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids]
+    out_of_upper_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
+    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
 def joint_pos_out_of_manual_limit(
@@ -258,8 +104,8 @@ def joint_pos_out_of_manual_limit(
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
     # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > bounds[1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < bounds[0], dim=1)
+    out_of_upper_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] < bounds[0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -268,8 +114,8 @@ def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
-    limits = asset.data.soft_joint_vel_limits
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
+    limits = wp.to_torch(asset.data.soft_joint_vel_limits)
+    return torch.any(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
 
 
 def joint_vel_out_of_manual_limit(
@@ -279,7 +125,7 @@ def joint_vel_out_of_manual_limit(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
+    return torch.any(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
 
 
 def joint_effort_out_of_limit(
@@ -289,13 +135,13 @@ def joint_effort_out_of_limit(
 
     In the actuators, the applied torque are the efforts applied on the joints. These are computed by clipping
     the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
-    torques.
+    torques. If they are not, it means that clipping has occurred.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
-    out_of_limits = torch.isclose(
-        asset.data.computed_torque[:, asset_cfg.joint_ids], asset.data.applied_torque[:, asset_cfg.joint_ids]
+    out_of_limits = ~torch.isclose(
+        wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids], wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
     )
     return torch.any(out_of_limits, dim=1)
 
@@ -305,12 +151,12 @@ Contact sensor.
 """
 
 
-#def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-#    """Terminate when the contact force on the sensor exceeds the force threshold."""
-#    # extract the used quantities (to enable type-hinting)
-#    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-#    net_contact_forces = contact_sensor.data.net_forces_w_history
-#    # check if any contact force exceeds the threshold
-#    return torch.any(
-#        torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1
-#    )
+def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Terminate when the contact force on the sensor exceeds the force threshold."""
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    # check if any contact force exceeds the threshold
+    return torch.any(
+        torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1
+    )

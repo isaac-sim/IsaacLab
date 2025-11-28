@@ -8,19 +8,20 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import torch
-import warp as wp
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
-
-import omni.log
 
 from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class EventManager(ManagerBase):
@@ -121,22 +122,6 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def update_term_config(
-        self,
-        term_name: str,
-        params: dict[str, Any],
-    ):
-        """Updates the configuration of the specified term.
-
-        Args:
-            term_name: The name of the event term.
-            params: The parameters to update the configuration with.
-        """
-        term_cfg = self.get_term_cfg(term_name)
-        # IF IS CLASS TERM CALL METHOD UPDATE CLASS
-        # ELSE UPDATE PARAMETERS DIRECTLY
-            
-
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
@@ -152,7 +137,7 @@ class EventManager(ManagerBase):
         # when the episode starts. otherwise the counter will start from the last time
         # for that environment
         if "interval" in self._mode_term_cfgs:
-            for index, term_cfg in enumerate(self._mode_class_term_cfgs["interval"]):
+            for index, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
                 # sample a new interval and set that as time left
                 # note: global time events are based on simulation time and not episode time
                 #   so we do not reset them
@@ -168,7 +153,6 @@ class EventManager(ManagerBase):
         self,
         mode: str,
         env_ids: Sequence[int] | None = None,
-        mask: wp.array(dtype=wp.bool) | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -189,8 +173,6 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
-            mask: The mask of the environments to apply the event to.
-                Defaults to None, in which case the event is applied to all environments when applicable.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -205,7 +187,7 @@ class EventManager(ManagerBase):
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
-            omni.log.warn(f"Event mode '{mode}' is not defined. Skipping event.")
+            logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
         # check if mode is interval and dt is not provided
@@ -237,17 +219,16 @@ class EventManager(ManagerBase):
                         self._interval_term_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
-                        term_cfg.func(self._env, None, mask=None, **term_cfg.params)
+                        term_cfg.func(self._env, None, **term_cfg.params)
                 else:
-                    mask_ = (time_left < 1e-6)
-                    valid_env_ids = mask_.nonzero().flatten()
+                    valid_env_ids = (time_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
 
                         # call the event term
-                        term_cfg.func(self._env, valid_env_ids, mask=wp.from_torch(mask_), **term_cfg.params)
+                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
@@ -262,7 +243,7 @@ class EventManager(ManagerBase):
                     self._reset_term_last_triggered_once[index][env_ids] = True
 
                     # call the event term with the environment indices
-                    term_cfg.func(self._env, env_ids, mask=mask, **term_cfg.params)
+                    term_cfg.func(self._env, env_ids, **term_cfg.params)
                 else:
                     # extract last reset step for this term
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
@@ -288,10 +269,10 @@ class EventManager(ManagerBase):
                         self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
 
                         # call the event term
-                        term_cfg.func(self._env, valid_env_ids, mask=wp.from_torch(valid_trigger), **term_cfg.params)
+                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             else:
                 # call the event term
-                term_cfg.func(self._env, env_ids, mask=mask, **term_cfg.params)
+                term_cfg.func(self._env, env_ids, **term_cfg.params)
 
     """
     Operations - Term settings.
@@ -369,7 +350,7 @@ class EventManager(ManagerBase):
                 )
 
             if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
-                omni.log.warn(
+                logger.warning(
                     f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
                     " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
                 )
@@ -391,7 +372,7 @@ class EventManager(ManagerBase):
             # can be initialized before the simulation starts.
             # this is done to ensure that the USD-level randomization is possible before the simulation starts.
             if inspect.isclass(term_cfg.func) and term_cfg.mode == "prestartup":
-                omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
+                logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
                 term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
             # check if mode is a new mode

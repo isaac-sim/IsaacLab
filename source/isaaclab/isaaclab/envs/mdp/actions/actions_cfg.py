@@ -5,10 +5,18 @@
 
 from dataclasses import MISSING
 
+#from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions
+from . import (
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    #surface_gripper_actions,
+    #task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -123,6 +131,9 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
         This operation is performed after applying the scale factor.
     """
 
+    preserve_order: bool = False
+    """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
 
 @configclass
 class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
@@ -138,7 +149,6 @@ class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
 
     If set to 1.0, the processed action is applied directly without any moving average window.
     """
-
 
 ##
 # Gripper actions.
@@ -180,6 +190,41 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
 
 
+@configclass
+class AbsBinaryJointPositionActionCfg(ActionTermCfg):
+    """Configuration for the absolute binary joint position action term.
+
+    This action term is used for robust grasping by converting continuous gripper joint position actions
+    into binary open/close commands. Unlike directly applying continuous gripper joint position actions, this class
+    applies a threshold-based decision mechanism to determine whether to
+    open or close the gripper.
+
+    The action works by:
+    1. Taking a continuous input action value
+    2. Comparing it against a configurable threshold
+    3. Mapping the result to either open or close commands based on the threshold comparison
+    4. Applying the corresponding gripper open/close commands
+
+    This approach provides more predictable and stable grasping behavior compared to directly applying
+    continuous gripper joint position actions.
+
+    See :class:`AbsBinaryJointPositionAction` for more details.
+    """
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    open_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *open* configuration."""
+    close_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *close* configuration."""
+    threshold: float = 0.5
+    """The threshold for the binary action. Defaults to 0.5."""
+    positive_threshold: bool = True
+    """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
+
+    class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+
+
 ##
 # Non-holonomic actions.
 ##
@@ -211,6 +256,8 @@ class NonHolonomicActionCfg(ActionTermCfg):
 ##
 # Task-space Actions.
 ##
+
+
 @configclass
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for inverse differential kinematics action term.
@@ -218,72 +265,8 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
 
-    pass
-    # @configclass
-    # class OffsetCfg:
-    #    """The offset pose from parent frame to child frame.
-
-    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
-    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-    #    "panda_hand" frame.
-    #    """
-
-    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
-
-    # class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
-
-    # joint_names: list[str] = MISSING
-    # """List of joint names or regex expressions that the action will be mapped to."""
-    # body_name: str = MISSING
-    # """Name of the body or frame for which IK is performed."""
-    # body_offset: OffsetCfg | None = None
-    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    # scale: float | tuple[float, ...] = 1.0
-    # """Scale factor for the action. Defaults to 1.0."""
-    # controller: DifferentialIKControllerCfg = MISSING
-    # """The configuration for the differential IK controller."""
-
-
-@configclass
-class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
-    """Configuration for inverse differential kinematics action term.
-
-    See :class:`DifferentialInverseKinematicsAction` for more details.
-    """
-
-    pass
-
-    # @configclass
-    # class OffsetCfg:
-    #    """The offset pose from parent frame to child frame.
-
-    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
-    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-    #    "panda_hand" frame.
-    #    """
-
-    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
-
-    # class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsNewtonAction
-
-    # joint_names: list[str] = MISSING
-    # """List of joint names or regex expressions that the action will be mapped to."""
-    # body_name: str = MISSING
-    # """Name of the body or frame for which IK is performed."""
-    # body_offset: OffsetCfg | None = None
-    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    # scale: float | tuple[float, ...] = 1.0
-    # """Scale factor for the action. Defaults to 1.0."""
-    # controller: DifferentialIKControllerCfg = MISSING
-    # """The configuration for the differential IK controller."""
+    def __post_init__(self):
+        raise NotImplementedError("DifferentialInverseKinematicsAction is not implemented for newton.")
 
 
 @configclass
@@ -293,58 +276,22 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     See :class:`OperationalSpaceControllerAction` for more details.
     """
 
-    pass
+    def __post_init__(self):
+        raise NotImplementedError("OperationalSpaceControllerAction is not implemented for newton.")
 
-    # @configclass
-    # class OffsetCfg:
-    #    """The offset pose from parent frame to child frame.
 
-    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
-    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-    #    "panda_hand" frame.
-    #    """
 
-    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+##
+# Surface Gripper actions.
+##
 
-    # class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
 
-    # joint_names: list[str] = MISSING
-    # """List of joint names or regex expressions that the action will be mapped to."""
+@configclass
+class SurfaceGripperBinaryActionCfg(ActionTermCfg):
+    """Configuration for the binary surface gripper action term.
 
-    # body_name: str = MISSING
-    # """Name of the body or frame for which motion/force control is performed."""
+    See :class:`SurfaceGripperBinaryAction` for more details.
+    """
 
-    # body_offset: OffsetCfg | None = None
-    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-
-    # task_frame_rel_path: str = None
-    # """The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
-
-    # controller_cfg: OperationalSpaceControllerCfg = MISSING
-    # """The configuration for the operational space controller."""
-
-    # position_scale: float = 1.0
-    # """Scale factor for the position targets. Defaults to 1.0."""
-
-    # orientation_scale: float = 1.0
-    # """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
-
-    # wrench_scale: float = 1.0
-    # """Scale factor for the wrench targets. Defaults to 1.0."""
-
-    # stiffness_scale: float = 1.0
-    # """Scale factor for the stiffness commands. Defaults to 1.0."""
-
-    # damping_ratio_scale: float = 1.0
-    # """Scale factor for the damping ratio commands. Defaults to 1.0."""
-
-    # nullspace_joint_pos_target: str = "none"
-    # """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
-
-    # Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
-    #    ``OperationalSpaceControllerCfg``.
-    # """
+    def __post_init__(self):
+        raise NotImplementedError("SurfaceGripperBinaryAction is not implemented for newton.")

@@ -8,18 +8,18 @@
 from __future__ import annotations
 
 import inspect
-import warp as wp
+import re
+import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 
 from isaaclab.assets import AssetBase
-
-from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
+from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -52,6 +52,8 @@ class ActionTerm(ManagerTermBase):
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
+        self._IO_descriptor = GenericActionIODescriptor()
+        self._export_IO_descriptor = True
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -76,13 +78,13 @@ class ActionTerm(ManagerTermBase):
 
     @property
     @abstractmethod
-    def raw_actions(self) -> wp.array:
+    def raw_actions(self) -> torch.Tensor:
         """The input/raw actions sent to the term."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def processed_actions(self) -> wp.array:
+    def processed_actions(self) -> torch.Tensor:
         """The actions computed by the term after applying any processing."""
         raise NotImplementedError
 
@@ -92,6 +94,20 @@ class ActionTerm(ManagerTermBase):
         # check if function raises NotImplementedError
         source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor for the action term."""
+        self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
+        self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
+        self._IO_descriptor.export = self.export_IO_descriptor
+        return self._IO_descriptor
+
+    @property
+    def export_IO_descriptor(self) -> bool:
+        """Whether to export the IO descriptor for the action term."""
+        return self._export_IO_descriptor
 
     """
     Operations.
@@ -128,7 +144,7 @@ class ActionTerm(ManagerTermBase):
         return True
 
     @abstractmethod
-    def process_actions(self, actions: wp.array):
+    def process_actions(self, actions: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
@@ -195,9 +211,8 @@ class ActionManager(ManagerBase):
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
         # create buffers to store actions
-        self._action = wp.zeros((self.num_envs, self.total_action_dim), dtype=wp.float32, device=self.device)
-        self._prev_action = wp.zeros_like(self._action)
-        self._ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
+        self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
+        self._prev_action = torch.zeros_like(self._action)
 
         # check if any term has debug visualization implemented
         self.cfg.debug_vis = False
@@ -244,12 +259,12 @@ class ActionManager(ManagerBase):
         return [term.action_dim for term in self._terms.values()]
 
     @property
-    def action(self) -> wp.array:
+    def action(self) -> torch.Tensor:
         """The actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._action
 
     @property
-    def prev_action(self) -> wp.array:
+    def prev_action(self) -> torch.Tensor:
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
 
@@ -261,6 +276,41 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             has_debug_vis |= term.has_debug_vis_implementation
         return has_debug_vis
+
+    @property
+    def get_IO_descriptors(self) -> list[dict[str, Any]]:
+        """Get the IO descriptors for the action manager.
+
+        Returns:
+            A dictionary with keys as the term names and values as the IO descriptors.
+        """
+
+        data = []
+
+        for term_name, term in self._terms.items():
+            try:
+                data.append(term.IO_descriptor.__dict__.copy())
+            except Exception as e:
+                print(f"Error getting IO descriptor for term '{term_name}': {e}")
+
+        formatted_data = []
+        for item in data:
+            name = item.pop("name")
+            formatted_item = {"name": name, "extras": item.pop("extras")}
+            print(item["export"])
+            if not item.pop("export"):
+                continue
+            for k, v in item.items():
+                # Check if v is a tuple and convert to list
+                if isinstance(v, tuple):
+                    v = list(v)
+                if k in ["description", "units"]:
+                    formatted_item["extras"][k] = v
+                else:
+                    formatted_item[k] = v
+            formatted_data.append(formatted_item)
+
+        return formatted_data
 
     """
     Operations.
@@ -280,7 +330,7 @@ class ActionManager(ManagerBase):
         terms = []
         idx = 0
         for name, term in self._terms.items():
-            term_actions = wp.to_torch(self._action[env_idx, idx : idx + term.action_dim]).cpu()
+            term_actions = self._action[env_idx, idx : idx + term.action_dim].cpu()
             terms.append((name, term_actions.tolist()))
             idx += term.action_dim
         return terms
@@ -296,7 +346,7 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, mask: wp.array(dtype=wp.bool)) -> dict[str, wp.array]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.
 
         Args:
@@ -307,38 +357,18 @@ class ActionManager(ManagerBase):
             An empty dictionary.
         """
         # resolve environment ids
-        #if env_ids is None:
-        #    env_ids = slice(None)
-        if mask is not None:
-            mask = self._ALL_ENV_MASK
+        if env_ids is None:
+            env_ids = slice(None)
         # reset the action history
-        wp.launch(
-            update_array2D_with_value_masked,
-            dim=(self.num_envs, self.total_action_dim),
-            inputs=[
-                0.0,
-                self._action,
-                mask,
-                None,
-            ],
-        )
-        wp.launch(
-            update_array2D_with_value_masked,
-            dim=(self.num_envs, self.total_action_dim),
-            inputs=[
-                0.0,
-                self._prev_action,
-                mask,
-                None,
-            ],
-        )
+        self._prev_action[env_ids] = 0.0
+        self._action[env_ids] = 0.0
         # reset all action terms
         for term in self._terms.values():
-            term.reset(env_ids=env_ids, mask=mask)
+            term.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
-    def process_action(self, action: wp.array):
+    def process_action(self, action: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
@@ -351,8 +381,8 @@ class ActionManager(ManagerBase):
         if self.total_action_dim != action.shape[1]:
             raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
         # store the input actions
-        self._prev_action.assign(self._action)
-        self._action = action
+        self._prev_action[:] = self._action
+        self._action[:] = action.to(self.device)
 
         # split the actions and apply to each tensor
         idx = 0

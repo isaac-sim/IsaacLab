@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from newton.selection import ArticulationView as NewtonArticulationView
+from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
@@ -23,6 +24,8 @@ from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectDat
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
     update_array2D_with_value_masked,
+    update_array1D_with_array1D_masked,
+    update_array2D_with_array2D_masked,
 )
 from isaaclab_newton.kernels import (
     generate_mask_from_ids,
@@ -674,11 +677,14 @@ class RigidObject(BaseRigidObject):
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # set into simulation
-        self._update_array_with_array_masked(
-            root_velocity,
-            self._data.root_link_vel_w.data,
-            env_mask,
-            self.num_instances
+        wp.launch(
+            update_array1D_with_array1D_masked,
+            dim=(self.num_instances,),
+            inputs=[
+                root_velocity,
+                self._data._root_link_vel_w.data,
+                env_mask,
+            ]
         )
         # set into internal buffers
         wp.launch(
@@ -700,7 +706,80 @@ class RigidObject(BaseRigidObject):
     Operations - Setters.
     """
 
-    @abstractmethod
+    def set_masses(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set masses of all bodies in the simulation world frame.
+        
+        Args:
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        #raise NotImplementedError()
+        if isinstance(masses, torch.Tensor):
+            masses, env_mask, body_mask = self._torch_to_warp_dual_index(masses, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
+
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[
+                masses,
+                self._data.body_mass,
+                env_mask,
+                body_mask,
+            ],
+        )
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+
+    def set_inertias(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set inertias of all bodies in the simulation world frame.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
+            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        if isinstance(inertias, torch.Tensor):
+            inertias, env_mask, body_mask = self._torch_to_warp_dual_index(inertias, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.mat33f)
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[
+                inertias,
+                self._data.body_inertia,
+                env_mask,
+                body_mask,
+            ],
+        )
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+    
     def set_external_force_and_torque(
         self,
         forces: torch.Tensor | wp.array,
@@ -869,11 +948,6 @@ class RigidObject(BaseRigidObject):
             wp.spatial_vectorf(*default_root_velocity),
             self._data.default_root_vel,
             self.num_instances
-        )
-        # -- joint pos
-        # joint pos
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_pos, self.joint_names
         )
 
     """

@@ -62,6 +62,24 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    def default_root_pose(self) ->  wp.array:
+        """Default root pose ``[pos, quat]`` in the local environment frame. Shape is (num_instances, 7).
+
+        The position and quaternion are of the articulation root's actor frame.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def default_root_vel(self) ->  wp.array:
+        """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 6).
+
+        The linear and angular velocities are of the articulation root's center of mass frame.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def default_root_state(self) ->  wp.array:
         """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
 
@@ -135,6 +153,27 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    def computed_effort(self) ->  wp.array:
+        """Joint efforts computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
+
+        This quantity is the raw effort output from the actuator mode, before any clipping is applied.
+        It is exposed for users who want to inspect the computations inside the actuator model.
+        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def applied_effort(self) ->  wp.array:
+        """Joint efforts applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
+
+        These efforts are set into the simulation, after clipping the :attr:`computed_effort` based on the
+        actuator model.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def computed_torque(self) ->  wp.array:
         """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
 
@@ -152,6 +191,18 @@ class BaseArticulationData(ABC):
         These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
         actuator model.
         """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def actuator_stiffness(self) ->  wp.array:
+        """Actuator stiffness. Shape is (num_instances, num_joints)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def actuator_damping(self) ->  wp.array:
+        """Actuator damping. Shape is (num_instances, num_joints)."""
         raise NotImplementedError
 
     ##
@@ -412,11 +463,13 @@ class BaseArticulationData(ABC):
     ##
 
     @property
+    @abstractmethod
     def body_mass(self) ->  wp.array:
         """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def body_inertia(self) ->  wp.array:
         """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
         raise NotImplementedError

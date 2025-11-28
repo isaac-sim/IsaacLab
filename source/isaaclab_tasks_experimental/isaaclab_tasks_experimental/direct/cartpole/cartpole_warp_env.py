@@ -13,7 +13,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg, DirectRLEnvWarp
+from isaaclab_experimental.envs import DirectRLEnvCfg, DirectRLEnvWarp
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg

@@ -59,6 +59,24 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
+    def default_root_pose(self) -> wp.array:
+        """Default root pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, 7).
+
+        The position and quaternion are of the rigid body's actor frame.
+        """
+        raise NotImplementedError()
+        
+    @property
+    @abstractmethod
+    def default_root_vel(self) -> wp.array:
+        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 6).
+
+        The linear and angular velocities are of the rigid body's center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
     def default_root_state(self) -> wp.array:
         """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
 
@@ -239,6 +257,20 @@ class BaseRigidObjectData(ABC):
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (w, x, y, z) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def body_mass(self) -> wp.array:
+        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1).
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def body_inertia(self) -> wp.array:
+        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3).
         """
         raise NotImplementedError()
 

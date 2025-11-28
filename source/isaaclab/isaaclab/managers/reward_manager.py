@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-import warp as wp
+import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -57,12 +57,12 @@ class RewardManager(ManagerBase):
         # prepare extra info to store individual reward term information
         self._episode_sums = dict()
         for term_name in self._term_names:
-            self._episode_sums[term_name] = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+            self._episode_sums[term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         # create buffer for managing reward per environment
-        self._reward_buf = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self._reward_buf = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
         # Buffer which stores the current step reward for each term for each environment
-        self._step_reward = wp.zeros((self.num_envs, len(self._term_names)), dtype=wp.float32, device=self.device)
+        self._step_reward = torch.zeros((self.num_envs, len(self._term_names)), dtype=torch.float, device=self.device)
 
     def __str__(self) -> str:
         """Returns: A string representation for reward manager."""
@@ -97,7 +97,7 @@ class RewardManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, mask: wp.array(dtype=wp.bool)) -> dict[str, wp.array]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Returns the episodic sum of individual reward terms.
 
         Args:
@@ -108,25 +108,24 @@ class RewardManager(ManagerBase):
             Dictionary of episodic sum of individual reward terms.
         """
         # resolve environment ids
-        #if env_ids is None:
-        #    env_ids = slice(None)
+        if env_ids is None:
+            env_ids = slice(None)
         # store information
         extras = {}
-        # FIXME: do not condition logging to resets? 
-        #for key in self._episode_sums.keys():
-        #    # store information
-        #    # r_1 + r_2 + ... + r_n
-        #    episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-        #    extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
-        #    # reset episodic sum
-        #    self._episode_sums[key][env_ids] = 0.0
+        for key in self._episode_sums.keys():
+            # store information
+            # r_1 + r_2 + ... + r_n
+            episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
+            extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
+            # reset episodic sum
+            self._episode_sums[key][env_ids] = 0.0
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(mask=mask)
+            term_cfg.func.reset(env_ids=env_ids)
         # return logged information
         return extras
 
-    def compute(self, dt: float) -> wp.array:
+    def compute(self, dt: float) -> torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
         This function calls each reward term managed by the class and adds them to compute the net
@@ -139,12 +138,12 @@ class RewardManager(ManagerBase):
             The net reward signal of shape (num_envs,).
         """
         # reset computation
-        self._reward_buf.zero_()
+        self._reward_buf[:] = 0.0
         # iterate over all the reward terms
         for term_idx, (name, term_cfg) in enumerate(zip(self._term_names, self._term_cfgs)):
             # skip if weight is zero (kind of a micro-optimization)
             if term_cfg.weight == 0.0:
-                self._step_reward[:, term_idx].zero_()
+                self._step_reward[:, term_idx] = 0.0
                 continue
             # compute term's value
             value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
@@ -154,7 +153,7 @@ class RewardManager(ManagerBase):
             self._episode_sums[name] += value
 
             # Update current reward for this step.
-            self._step_reward[:, term_idx].assign(value / dt)
+            self._step_reward[:, term_idx] = value / dt
 
         return self._reward_buf
 
@@ -207,7 +206,7 @@ class RewardManager(ManagerBase):
         """
         terms = []
         for idx, name in enumerate(self._term_names):
-            terms.append((name, [self._step_reward[env_idx, idx].numpy().item()]))
+            terms.append((name, [self._step_reward[env_idx, idx].cpu().item()]))
         return terms
 
     """

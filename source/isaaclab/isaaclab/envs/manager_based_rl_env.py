@@ -9,7 +9,6 @@ from __future__ import annotations
 import gymnasium as gym
 import math
 import numpy as np
-import warp as wp
 import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
@@ -18,28 +17,11 @@ from isaacsim.core.version import get_version
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
-@wp.kernel
-def zero_mask_int32(
-    mask: wp.array(dtype=wp.bool),
-    data: wp.array(dtype=wp.int32),
-):
-    env_index = wp.tid()
-    if mask[env_index]:
-        data[env_index] = 0
-
-@wp.kernel
-def add_to_env(
-    data: wp.array(dtype=wp.int32),
-    value: wp.int32,
-):
-    env_index = wp.tid()
-    data[env_index] += value
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """The superclass for the manager-based workflow reinforcement learning-based environments.
@@ -94,7 +76,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.common_step_counter = 0
 
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
-        self.episode_length_buf = wp.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=wp.int32)
+        self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -169,7 +151,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
-    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -206,8 +187,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
-                self.sim.step(render=False)
+            self.sim.step(render=False)
+            self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -218,14 +199,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # post-step:
         # -- update env counters (used for curriculum generation)
-        wp.launch(
-            add_to_env,
-            dim=self.num_envs,
-            inputs=[
-                self.episode_length_buf,
-                1,
-            ],
-        )
+        self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
         # -- check terminations
         self.reset_buf = self.termination_manager.compute()
@@ -240,21 +214,20 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        #reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        #if len(reset_env_ids) > 0:
-        #    # trigger recorder terms for pre-reset calls
-        #    self.recorder_manager.record_pre_reset(reset_env_ids)
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            # trigger recorder terms for pre-reset calls
+            self.recorder_manager.record_pre_reset(reset_env_ids)
 
-        self._reset_idx(self.reset_buf)
-        # update articulation kinematics
-        self.scene.write_data_to_sim()
+            self._reset_idx(reset_env_ids)
 
-        # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+            # if sensors are added to the scene, make sure we render to reflect changes in reset
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
-        # trigger recorder terms for post-reset calls
-        #self.recorder_manager.record_post_reset(reset_env_ids)
+            # trigger recorder terms for post-reset calls
+            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
@@ -274,7 +247,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -359,10 +332,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict({
-                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_dim)
-                })
+                group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                term_dict = {}
+                for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
+                    high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
+                    term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
+                self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
@@ -371,8 +347,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    @Timer(name="reset_idx", msg="Reset idx took:", enable=True, format="us")
-    def _reset_idx(self, mask: wp.array):
+    def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
 
         Args:
@@ -392,35 +367,29 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
         # -- observation manager
-        info = self.observation_manager.reset(mask)
+        info = self.observation_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- action manager
-        info = self.action_manager.reset(mask)
+        info = self.action_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- rewards manager
-        info = self.reward_manager.reset(mask)
+        info = self.reward_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- curriculum manager
-        #info = self.curriculum_manager.reset(mask)
-        #self.extras["log"].update(info)
+        info = self.curriculum_manager.reset(env_ids)
+        self.extras["log"].update(info)
         # -- command manager
-        info = self.command_manager.reset(mask)
+        info = self.command_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- event manager
-        info = self.event_manager.reset(mask)
+        info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- termination manager
-        info = self.termination_manager.reset(mask)
+        info = self.termination_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- recorder manager
-        #info = self.recorder_manager.reset(mask)
-        #self.extras["log"].update(info)
+        info = self.recorder_manager.reset(env_ids)
+        self.extras["log"].update(info)
 
-        wp.launch(
-            zero_mask_int32,
-            dim=self.num_envs,
-            inputs=[
-                mask,
-                self.episode_length_buf,
-            ],
-        )
+        # reset the episode length buffer
+        self.episode_length_buf[env_ids] = 0
