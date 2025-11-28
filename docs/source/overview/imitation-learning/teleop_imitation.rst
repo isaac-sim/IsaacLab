@@ -566,6 +566,16 @@ The robot picks up an object at the initial location (point A) and places it at 
    :alt: G1 humanoid robot with locomanipulation performing a pick and place task
    :figclass: align-center
 
+.. note::
+   **Locomotion policy training**
+
+   The locomotion policy used in this integration example was trained using the `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__ framework.
+   AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
+   seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
+   covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
+   updated pre-trained policies with separate upper and lower body policies for flexibtility. They have been verified in the real world and can be
+   directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
+
 Generate the manipulation dataset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

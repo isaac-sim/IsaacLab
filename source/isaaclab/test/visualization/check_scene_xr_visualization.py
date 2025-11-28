@@ -70,8 +70,9 @@ def get_camera_position():
         tuple: (x, y, z) camera position or None if not available
     """
     try:
-        import isaacsim.core.utils.stage as stage_utils
         from pxr import UsdGeom
+
+        from isaaclab.sim.utils import stage as stage_utils
 
         stage = stage_utils.get_current_stage()
         if stage is not None:
