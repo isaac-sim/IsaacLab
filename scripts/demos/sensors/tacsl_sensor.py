@@ -147,7 +147,6 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         # Camera configuration
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
-            update_period=1 / 60,  # 60 Hz
             height=GELSIGHT_R15_CFG.image_height,
             width=GELSIGHT_R15_CFG.image_width,
             data_types=["distance_to_image_plane"],
@@ -278,8 +277,6 @@ def run_simulator(sim, scene: InteractiveScene):
     physics_timer = Timer()
     physics_total_time = 0.0
     physics_total_count = 0
-
-    scene.update(sim_dt)
 
     entity_list = ["robot"]
     if "contact_object" in scene.keys():

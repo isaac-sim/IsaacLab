@@ -413,3 +413,26 @@ def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
+
+
+@pytest.mark.isaacsim_ci
+def test_sensor_update_period_mismatch(setup_nut_rgb_ff):
+    """Test sensor with both camera and force field enabled, detecting contact forces."""
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
+    sensor_cfg.update_period = dt
+    sensor_cfg.camera_cfg.update_period = dt * 2
+    robot = Articulation(cfg=robot_cfg)
+    sensor = VisuoTactileSensor(cfg=sensor_cfg)
+    nut = RigidObject(cfg=nut_cfg)
+    sim.reset()
+    sensor.get_initial_render()
+    assert sensor.cfg.camera_cfg.update_period == sensor.cfg.update_period
+    for i in range(10):
+        sim.step()
+        sensor.update(dt, force_recompute=True)
+        robot.update(dt)
+        nut.update(dt)
+        assert torch.allclose(sensor._timestamp_last_update, torch.tensor((i + 1) * dt, device=sensor.device))
+        assert torch.allclose(
+            sensor._camera_sensor._timestamp_last_update, torch.tensor((i + 1) * dt, device=sensor.device)
+        )

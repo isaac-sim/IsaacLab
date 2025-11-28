@@ -250,6 +250,13 @@ class VisuoTactileSensor(SensorBase):
             raise ValueError(
                 f"Camera configuration data types are not supported. Data types: {self.cfg.camera_cfg.data_types}"
             )
+        if self.cfg.camera_cfg.update_period != self.cfg.update_period:
+            omni.log.warn(
+                f"Camera configuration update period ({self.cfg.camera_cfg.update_period}) is not equal to sensor"
+                f" update period ({self.cfg.update_period}), changing camera update period to match sensor update"
+                " period"
+            )
+            self.cfg.camera_cfg.update_period = self.cfg.update_period
 
         # gelsightRender
         self._tactile_rgb_render = GelsightRender(self.cfg.render_cfg, device=self.device)
