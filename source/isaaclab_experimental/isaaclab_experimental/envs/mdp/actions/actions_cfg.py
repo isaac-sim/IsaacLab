@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab_experimental.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
 from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions

@@ -11,21 +11,20 @@ the reward introduced by the function.
 
 from __future__ import annotations
 
-import torch
 import warp as wp
 from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import RewardTermCfg
 from isaaclab.sensors import ContactSensor
-from isaaclab.utils.warp.utils import resolve_asset_cfg
-from isaaclab.utils.warp.math_ops import inplace_add
-from isaaclab.utils.warp.math_ops import inplace_mul
+from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.managers.manager_base import ManagerTermBase
+from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg
+from isaaclab_experimental.utils.warp.utils import resolve_asset_cfg
+from isaaclab_experimental.utils.warp.math_ops import inplace_add
+from isaaclab_experimental.utils.warp.math_ops import inplace_mul
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
 """
 General.
@@ -45,14 +44,14 @@ def bool_mask_to_float_kernel(
 
 class is_alive(ManagerTermBase):
     """Reward for being alive."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._alive_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
 
     def update_config(self) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             bool_mask_to_float_kernel,
             dim=env.num_envs,
@@ -66,14 +65,14 @@ class is_alive(ManagerTermBase):
 
 class is_terminated(ManagerTermBase):
     """Penalize terminated episodes that don't correspond to episodic timeouts."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._terminated_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
 
     def update_config(self) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             bool_mask_to_float_kernel,
             dim=env.num_envs,
@@ -108,7 +107,7 @@ class is_terminated_term(ManagerTermBase):
     if two termination terms are active, the reward is 2.
     """
 
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         # initialize the base class
         super().__init__(cfg, env)
         # find and store the termination terms
@@ -120,7 +119,7 @@ class is_terminated_term(ManagerTermBase):
     def update_config(self, term_keys: str | list[str] = ".*") -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         # Return the unweighted reward for the termination terms
         for term in self._term_names:
             # Sums over terminations term values to account for multiple terminations in the same step
@@ -152,7 +151,7 @@ def lin_vel_z_l2_kernel(
 
 class lin_vel_z_l2(ManagerTermBase):
     """Penalize z-axis base linear velocity using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -161,7 +160,7 @@ class lin_vel_z_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             lin_vel_z_l2_kernel,
             dim=env.num_envs,
@@ -182,7 +181,7 @@ def ang_vel_xy_l2_kernel(
 
 class ang_vel_xy_l2(ManagerTermBase):
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -191,7 +190,7 @@ class ang_vel_xy_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             ang_vel_xy_l2_kernel,
             dim=env.num_envs,
@@ -212,7 +211,7 @@ def flat_orientation_l2_kernel(
 
 class flat_orientation_l2(ManagerTermBase):
     """Penalize non-flat base orientation using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -221,7 +220,7 @@ class flat_orientation_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             flat_orientation_l2_kernel,
             dim=env.num_envs,
@@ -243,7 +242,7 @@ def base_height_l2_kernel(
 
 class base_height_l2(ManagerTermBase):
     """Penalize asset height from its target using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._sensor_cfg = cfg.params.get("sensor_cfg", None)
@@ -262,7 +261,7 @@ class base_height_l2(ManagerTermBase):
         self._target_height = target_height
         
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         if self._sensor_cfg is not None: # noqa: R506
             raise NotImplementedError("Height scan is not implemented in IsaacLab for Newton.")
         else:
@@ -299,7 +298,7 @@ def body_lin_acc_l2_kernel(
 
 class body_lin_acc_l2(ManagerTermBase):
     """Penalize the linear acceleration of bodies using L2-kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -309,7 +308,7 @@ class body_lin_acc_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             body_lin_acc_l2_kernel,
             dim=env.num_envs,
@@ -348,7 +347,7 @@ def joint_torques_l2_kernel(
 
 class joint_torques_l2(ManagerTermBase):
     """Penalize joint torques applied on the articulation using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -358,7 +357,7 @@ class joint_torques_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_torques_l2_kernel,
             dim=env.num_envs,
@@ -388,7 +387,7 @@ def joint_vel_l1_kernel(
 
 class joint_vel_l1(ManagerTermBase):
     """Penalize joint velocities on the articulation using an L1-kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -398,7 +397,7 @@ class joint_vel_l1(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_vel_l1_kernel,
             dim=env.num_envs,
@@ -421,7 +420,7 @@ def joint_vel_l2_kernel(
 
 class joint_vel_l2(ManagerTermBase):
     """Penalize joint velocities on the articulation using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -431,7 +430,7 @@ class joint_vel_l2(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_vel_l2_kernel,
             dim=env.num_envs,
@@ -456,7 +455,7 @@ def joint_deviation_l1_kernel(
 
 class joint_deviation_l1(ManagerTermBase):
     """Penalize joint positions that deviate from the default one using L1-kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -466,7 +465,7 @@ class joint_deviation_l1(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_deviation_l1_kernel,
             dim=env.num_envs,
@@ -522,7 +521,7 @@ def joint_pos_limits_kernel(
 
 class joint_pos_limits(ManagerTermBase):
     """Penalize joint positions if they cross the soft limits."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -532,7 +531,7 @@ class joint_pos_limits(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_pos_limits_kernel,
             dim=env.num_envs,
@@ -580,7 +579,7 @@ def joint_pos_limits_unified_kernel(
 
 class joint_pos_limits_unified(ManagerTermBase):
     """Penalize joint positions if they cross the soft limits using unified kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -593,7 +592,7 @@ class joint_pos_limits_unified(ManagerTermBase):
     def update_config(self, soft_ratio: float, asset_cfg: SceneEntityCfg | None = None) -> None:
         self._soft_ratio = soft_ratio
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             joint_pos_limits_unified_kernel,
             dim=env.num_envs,
@@ -635,7 +634,7 @@ def applied_torque_limits_kernel(
 
 class applied_torque_limits(ManagerTermBase):
     """Penalize applied torques if they cross the limits."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -645,7 +644,7 @@ class applied_torque_limits(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             applied_torque_limits_kernel,
             dim=env.num_envs,
@@ -679,14 +678,14 @@ def action_rate_l2_kernel(
 
 class action_rate_l2(ManagerTermBase):
     """Penalize the rate of change of the actions using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._action_rate_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
 
     def update_config(self, **kwargs) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             action_rate_l2_kernel,
             dim=env.num_envs,
@@ -717,14 +716,14 @@ def action_l2_kernel(
 
 class action_l2(ManagerTermBase):
     """Penalize the actions using L2 squared kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._action_l2_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
 
     def update_config(self, **kwargs) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             action_l2_kernel,
             dim=env.num_envs,
@@ -741,7 +740,7 @@ Contact sensor.
 """
 
 
-#def undesired_contacts(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+#def undesired_contacts(env: ManagerBasedRLEnvWarp, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
 #    """Penalize undesired contacts as the number of violations that are above a threshold."""
 #    # extract the used quantities (to enable type-hinting)
 #    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -762,7 +761,7 @@ Contact sensor.
 #    return 1.0 * zero_contact
 #
 #
-#def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+#def contact_forces(env: ManagerBasedRLEnvWarp, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
 #    """Penalize contact forces as the amount of violations of the net contact force."""
 #    # extract the used quantities (to enable type-hinting)
 #    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -802,7 +801,7 @@ def track_lin_vel_xy_exp_kernel(
 
 class track_lin_vel_xy_exp(ManagerTermBase):
     """Reward tracking of linear velocity commands (xy axes) using exponential kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -816,7 +815,7 @@ class track_lin_vel_xy_exp(ManagerTermBase):
         self._std = std
         self._command_name = command_name
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             track_lin_vel_xy_exp_kernel,
             dim=env.num_envs,
@@ -850,7 +849,7 @@ def track_ang_vel_z_exp_kernel(
 
 class track_ang_vel_z_exp(ManagerTermBase):
     """Reward tracking of angular velocity commands (yaw) using exponential kernel."""
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -864,7 +863,7 @@ class track_ang_vel_z_exp(ManagerTermBase):
         self._std = std
         self._command_name = command_name
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.float32):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.float32):
         wp.launch(
             track_ang_vel_z_exp_kernel,
             dim=env.num_envs,

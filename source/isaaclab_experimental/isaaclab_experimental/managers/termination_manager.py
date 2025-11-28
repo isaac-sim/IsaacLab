@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
 
 class TerminationManager(ManagerBase):
@@ -43,10 +43,10 @@ class TerminationManager(ManagerBase):
     configuration :attr:`TerminationTermCfg.time_out` decides whether the term is a timeout or a termination term.
     """
 
-    _env: ManagerBasedRLEnv
+    _env: ManagerBasedRLEnvWarp
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnvWarp):
         """Initializes the termination manager.
 
         Args:

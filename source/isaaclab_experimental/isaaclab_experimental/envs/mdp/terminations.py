@@ -16,15 +16,15 @@ import warp as wp
 from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import TerminationTermCfg
-from isaaclab.utils.warp.utils import resolve_asset_cfg
+from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.managers.manager_base import ManagerTermBase
+from isaaclab_experimental.managers.manager_term_cfg import TerminationTermCfg
+from isaaclab_experimental.utils.warp.utils import resolve_asset_cfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.managers.command_manager import CommandTerm
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
+    from isaaclab_experimental.managers.command_manager import CommandTerm
 
 """
 MDP terminations.
@@ -41,13 +41,13 @@ def time_out_kernel(
 
 class time_out(ManagerTermBase):
     """Terminate the episode when the episode length exceeds the maximum episode length."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
     def update_config(self) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.bool):
         wp.launch(
             time_out_kernel,
             dim=env.num_envs,
@@ -72,7 +72,7 @@ def command_resample_kernel(
 
 class command_resample(ManagerTermBase):
     """Terminate the episode based on the total number of times commands have been re-sampled."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         self._done_buf = wp.zeros((env.num_envs,), dtype=wp.bool, device=env.device)
         self._command_name = "None"
@@ -84,7 +84,7 @@ class command_resample(ManagerTermBase):
         self._command_name = command_name
         self._num_resamples = num_resamples
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.bool):
         wp.launch(
             command_resample_kernel,
             dim=env.num_envs,
@@ -114,7 +114,7 @@ def bad_orientation_kernel(
 
 class bad_orientation(ManagerTermBase):
     """Terminate when the asset's orientation is too far from the desired orientation limits."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -126,7 +126,7 @@ class bad_orientation(ManagerTermBase):
     def update_config(self, limit_angle: float, asset_cfg: SceneEntityCfg | None = None) -> None:
         self._limit_angle = limit_angle
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.bool):
         wp.launch(
             bad_orientation_kernel,
             dim=env.num_envs,
@@ -152,7 +152,7 @@ class root_height_below_minimum(ManagerTermBase):
     Note:
         This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
     """
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -164,7 +164,7 @@ class root_height_below_minimum(ManagerTermBase):
     def update_config(self, minimum_height: float, asset_cfg: SceneEntityCfg | None = None) -> None:
         self._minimum_height = minimum_height
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.bool):
         wp.launch(
             root_height_below_minimum_kernel,
             dim=env.num_envs,
@@ -187,7 +187,7 @@ def root_height_above_maximum_kernel(
 
 class root_height_above_maximum(ManagerTermBase):
     """Terminate when the asset's root height is above the maximum height."""
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -199,7 +199,7 @@ class root_height_above_maximum(ManagerTermBase):
     def update_config(self, maximum_height: float, asset_cfg: SceneEntityCfg | None = None) -> None:
         self._maximum_height = maximum_height
 
-    def __call__(self, env: ManagerBasedRLEnv, **kwargs) -> wp.array(dtype=wp.bool):
+    def __call__(self, env: ManagerBasedRLEnvWarp, **kwargs) -> wp.array(dtype=wp.bool):
         wp.launch(
             root_height_above_maximum_kernel,
             dim=env.num_envs,
@@ -216,8 +216,25 @@ class root_height_above_maximum(ManagerTermBase):
 Joint terminations.
 """
 
+@wp.func
+def aggregate_out_of_limits(
+    pos: wp.array(dtype=wp.float32),
+    limits: wp.array(dtype=wp.vec2f),
+    indices: wp.array(dtype=wp.int32)
+) -> wp.bool:
+    out_of_limits = 0.0
 
-def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+@wp.kernel
+def joint_pos_out_of_limit_kernel(
+    joint_pos: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    joint_indices: wp.array(dtype=wp.int32),
+    done: wp.array(dtype=wp.bool)
+) -> None:
+    i = wp.tid()
+    done[i] = wp.any(wp.abs(joint_pos[i, joint_indices]) > soft_joint_pos_limits[i, joint_indices])
+
+def joint_pos_out_of_limit(env: ManagerBasedRLEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -228,7 +245,7 @@ def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
 
 
 def joint_pos_out_of_manual_limit(
-    env: ManagerBasedRLEnv, bounds: tuple[float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnvWarp, bounds: tuple[float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the configured bounds.
 
@@ -245,7 +262,7 @@ def joint_pos_out_of_manual_limit(
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_vel_out_of_limit(env: ManagerBasedRLEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -255,7 +272,7 @@ def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
 
 
 def joint_vel_out_of_manual_limit(
-    env: ManagerBasedRLEnv, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnvWarp, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside the provided limits."""
     # extract the used quantities (to enable type-hinting)
@@ -265,7 +282,7 @@ def joint_vel_out_of_manual_limit(
 
 
 def joint_effort_out_of_limit(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when effort applied on the asset's joints are outside of the soft joint limits.
 
@@ -287,7 +304,7 @@ Contact sensor.
 """
 
 
-#def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+#def illegal_contact(env: ManagerBasedRLEnvWarp, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
 #    """Terminate when the contact force on the sensor exceeds the force threshold."""
 #    # extract the used quantities (to enable type-hinting)
 #    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]

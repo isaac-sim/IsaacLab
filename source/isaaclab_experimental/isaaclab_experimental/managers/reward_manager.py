@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
 
 class RewardManager(ManagerBase):
@@ -37,10 +37,10 @@ class RewardManager(ManagerBase):
 
     """
 
-    _env: ManagerBasedRLEnv
+    _env: ManagerBasedRLEnvWarp
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnvWarp):
         """Initialize the reward manager.
 
         Args:

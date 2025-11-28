@@ -25,7 +25,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
 
 
 class ActionTerm(ManagerTermBase):
@@ -41,7 +41,7 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
-    def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnvWarp):
         """Initialize the action term.
 
         Args:
@@ -178,7 +178,7 @@ class ActionManager(ManagerBase):
       scene (such as robots). It should be called before every simulation step.
     """
 
-    def __init__(self, cfg: object, env: ManagerBasedEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnvWarp):
         """Initialize the action manager.
 
         Args:

@@ -22,7 +22,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
 
 
 class ObservationManager(ManagerBase):
@@ -63,7 +63,7 @@ class ObservationManager(ManagerBase):
     The observations are clipped and scaled as per the configuration settings.
     """
 
-    def __init__(self, cfg: object, env: ManagerBasedEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnvWarp):
         """Initialize observation manager.
 
         Args:

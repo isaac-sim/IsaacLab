@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from typing import Any
 
-from ..common import SpaceType
+from isaaclab.envs.common import SpaceType
 
 
 def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:

@@ -13,13 +13,12 @@ import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
-from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value_masked, update_array2D_with_value, update_array1D_with_array1D_indexed
-from isaaclab.envs.mdp.kernels.action_kernels import process_joint_action, apply_relative_joint_position_action
+from isaaclab_experimental.managers.action_manager import ActionTerm
+from isaaclab_experimental.envs.mdp.kernels.action_kernels import process_joint_action, apply_relative_joint_position_action
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
     from . import actions_cfg
 
 
@@ -55,7 +54,7 @@ class JointAction(ActionTerm):
     _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.JointActionCfg, env: ManagerBasedEnv) -> None:
+    def __init__(self, cfg: actions_cfg.JointActionCfg, env: ManagerBasedEnvWarp) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -197,7 +196,7 @@ class JointPositionAction(JointAction):
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint positions as offset
@@ -237,7 +236,7 @@ class RelativeJointPositionAction(JointAction):
     cfg: actions_cfg.RelativeJointPositionActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.RelativeJointPositionActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.RelativeJointPositionActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
         # use zero offset for relative position
@@ -268,7 +267,7 @@ class JointVelocityAction(JointAction):
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointVelocityActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.JointVelocityActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint velocity as offset
@@ -295,7 +294,7 @@ class JointEffortAction(JointAction):
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
     def apply_actions(self):

@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
 
 class CurriculumManager(ManagerBase):
@@ -30,10 +30,10 @@ class CurriculumManager(ManagerBase):
     parameters. Each curriculum term should instantiate the :class:`CurriculumTermCfg` class.
     """
 
-    _env: ManagerBasedRLEnv
+    _env: ManagerBasedRLEnvWarp
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnvWarp):
         """Initialize the manager.
 
         Args:

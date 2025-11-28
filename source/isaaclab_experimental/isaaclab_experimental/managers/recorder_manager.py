@@ -20,7 +20,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
 
 
 class DatasetExportMode(enum.IntEnum):
@@ -64,7 +64,7 @@ class RecorderTerm(ManagerTermBase):
     * Post-step recording: This callback is invoked at the end of `env.step()` when all the managers are processed.
     """
 
-    def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnvWarp):
         """Initialize the recorder term.
 
         Args:
@@ -127,7 +127,7 @@ class RecorderTerm(ManagerTermBase):
 class RecorderManager(ManagerBase):
     """Manager for recording data from recorder terms."""
 
-    def __init__(self, cfg: object, env: ManagerBasedEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnvWarp):
         """Initialize the recorder manager.
 
         Args:

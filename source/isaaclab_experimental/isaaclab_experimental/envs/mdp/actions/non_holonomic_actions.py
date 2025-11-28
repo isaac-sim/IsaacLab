@@ -13,13 +13,12 @@ import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
-from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
-from isaaclab.envs.mdp.kernels.action_kernels import process_non_holonomic_action, apply_non_holonomic_action
+from isaaclab_experimental.managers.action_manager import ActionTerm
+from isaaclab_experimental.envs.mdp.kernels.action_kernels import process_non_holonomic_action, apply_non_holonomic_action
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
     from . import actions_cfg
 
 
@@ -64,7 +63,7 @@ class NonHolonomicAction(ActionTerm):
     _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
 

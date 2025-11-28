@@ -15,13 +15,13 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.managers import ManagerTermBase
+from isaaclab_experimental.managers import ManagerTermBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
 
-def modify_reward_weight(env: ManagerBasedRLEnv, env_ids: Sequence[int], term_name: str, weight: float, num_steps: int):
+def modify_reward_weight(env: ManagerBasedRLEnvWarp, env_ids: Sequence[int], term_name: str, weight: float, num_steps: int):
     """Curriculum that modifies a reward weight a given number of steps.
 
     Args:
@@ -95,7 +95,7 @@ class modify_env_param(ManagerTermBase):
 
     def __call__(
         self,
-        env: ManagerBasedRLEnv,
+        env: ManagerBasedRLEnvWarp,
         env_ids: Sequence[int],
         address: str,
         modify_fn: callable,

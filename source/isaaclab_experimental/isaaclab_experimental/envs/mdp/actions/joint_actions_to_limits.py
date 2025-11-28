@@ -13,13 +13,12 @@ import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
-from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value, update_array2D_with_value_masked, update_array2D_with_array2D_masked
-from isaaclab.envs.mdp.kernels.action_kernels import process_joint_position_to_limits_action, process_ema_joint_position_to_limits_action
+from isaaclab_experimental.managers.action_manager import ActionTerm
+from isaaclab_experimental.envs.mdp.kernels.action_kernels import process_joint_position_to_limits_action, process_ema_joint_position_to_limits_action
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
     from . import actions_cfg
 
 
@@ -48,7 +47,7 @@ class JointPositionToLimitsAction(ActionTerm):
     _clip: wp.array(dtype=wp.vec2f)
     """The clip applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -189,7 +188,7 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     cfg: actions_cfg.EMAJointPositionToLimitsActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.EMAJointPositionToLimitsActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.EMAJointPositionToLimitsActionCfg, env: ManagerBasedEnvWarp):
         # initialize the action term
         super().__init__(cfg, env)
 

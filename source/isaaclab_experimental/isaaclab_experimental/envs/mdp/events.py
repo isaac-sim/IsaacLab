@@ -24,17 +24,17 @@ from newton.solvers import SolverNotifyFlags
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation
-from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.warp.utils import resolve_asset_cfg
+from isaaclab_experimental.utils.warp.utils import resolve_asset_cfg
+from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp
 
 
 #def randomize_rigid_body_scale(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    scale_range: tuple[float, float] | dict[str, tuple[float, float]],
 #    asset_cfg: SceneEntityCfg,
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 
 #class randomize_rigid_body_material(ManagerTermBase):
-#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
 #        """Initialize the term.
 #
 #        Args:
@@ -85,7 +85,7 @@ if TYPE_CHECKING:
 #
 #    def __call__(
 #        self,
-#        env: ManagerBasedEnv,
+#        env: ManagerBasedEnvWarp,
 #        env_ids: torch.Tensor | None,
 #        static_friction_range: tuple[float, float],
 #        dynamic_friction_range: tuple[float, float],
@@ -182,7 +182,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_rigid_body_mass(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    asset_cfg: SceneEntityCfg,
 #    mass_distribution_params: tuple[float, float],
@@ -271,7 +271,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_rigid_body_com(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    com_range: dict[str, tuple[float, float]],
 #    asset_cfg: SceneEntityCfg,
@@ -317,7 +317,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_rigid_body_collider_offsets(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    asset_cfg: SceneEntityCfg,
 #    rest_offset_distribution_params: tuple[float, float] | None = None,
@@ -328,7 +328,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_physics_scene_gravity(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    gravity_distribution_params: tuple[list[float], list[float]],
 #    operation: Literal["add", "scale", "abs"],
@@ -338,7 +338,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_actuator_gains(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    asset_cfg: SceneEntityCfg,
 #    stiffness_distribution_params: tuple[float, float] | None = None,
@@ -411,7 +411,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_joint_parameters(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    asset_cfg: SceneEntityCfg,
 #    friction_distribution_params: tuple[float, float] | None = None,
@@ -513,7 +513,7 @@ if TYPE_CHECKING:
 
 
 #def randomize_fixed_tendon_parameters(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor | None,
 #    asset_cfg: SceneEntityCfg,
 #    stiffness_distribution_params: tuple[float, float] | None = None,
@@ -530,7 +530,7 @@ if TYPE_CHECKING:
 
 
 #def apply_external_force_torque(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor,
 #    force_range: tuple[float, float],
 #    torque_range: tuple[float, float],
@@ -561,7 +561,7 @@ if TYPE_CHECKING:
 
 
 #def push_by_setting_velocity(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor,
 #    velocity_range: dict[str, tuple[float, float]],
 #    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -676,7 +676,7 @@ class reset_root_state_uniform(ManagerTermBase):
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
     """
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
         # resolve the asset configuration
@@ -730,7 +730,7 @@ class reset_root_state_uniform(ManagerTermBase):
     
     def __call__(
         self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         env_ids: torch.Tensor,
         mask: wp.array(dtype=wp.bool) | None = None,
         **kwargs,
@@ -805,7 +805,7 @@ class reset_root_state_with_random_orientation(ManagerTermBase):
     The values are tuples of the form ``(min, max)``. If the dictionary does not contain a particular key,
     the position is set to zero for that axis.
     """
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
         # resolve the asset configuration
@@ -852,7 +852,7 @@ class reset_root_state_with_random_orientation(ManagerTermBase):
     
     def __call__(
         self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         env_ids: torch.Tensor,
         mask: wp.array(dtype=wp.bool) | None = None,
         **kwargs,
@@ -877,7 +877,7 @@ class reset_root_state_with_random_orientation(ManagerTermBase):
 
 
 #def reset_root_state_from_terrain(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor,
 #    pose_range: dict[str, tuple[float, float]],
 #    velocity_range: dict[str, tuple[float, float]],
@@ -979,7 +979,7 @@ def reset_joints_by_scale_kernel(
 
 
 class reset_joints_by_scale(ManagerTermBase):
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
         # resolve the asset configuration
@@ -1013,7 +1013,7 @@ class reset_joints_by_scale(ManagerTermBase):
 
     def __call__(
         self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         env_ids: torch.Tensor,
         mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
@@ -1074,7 +1074,7 @@ def reset_joints_by_offset_kernel(
         )
 
 class reset_joints_by_offset(ManagerTermBase):
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
         # resolve the asset configuration
@@ -1108,7 +1108,7 @@ class reset_joints_by_offset(ManagerTermBase):
     
     def __call__(
         self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         env_ids: torch.Tensor,
         mask: wp.array(dtype=wp.bool) | None = None,
         **kwargs,
@@ -1181,7 +1181,7 @@ def reset_articulation_joints_to_default_kernel(
 
 # FIXME: Add deformable support
 def reset_scene_to_default(
-    env: ManagerBasedEnv,
+    env: ManagerBasedEnvWarp,
     env_ids: torch.Tensor,
     mask: wp.array(dtype=wp.bool) | None = None,
     **kwargs,
@@ -1236,7 +1236,7 @@ def reset_scene_to_default(
 
 
 #def reset_nodal_state_uniform(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    env_ids: torch.Tensor,
 #    position_range: dict[str, tuple[float, float]],
 #    velocity_range: dict[str, tuple[float, float]],
@@ -1246,12 +1246,12 @@ def reset_scene_to_default(
 
 
 #class randomize_visual_texture_material(ManagerTermBase):
-#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
 #        raise NotImplementedError("Not implemented")
 #
 #    def __call__(
 #        self,
-#        env: ManagerBasedEnv,
+#        env: ManagerBasedEnvWarp,
 #        env_ids: torch.Tensor,
 #        event_name: str,
 #        asset_cfg: SceneEntityCfg,
@@ -1262,12 +1262,12 @@ def reset_scene_to_default(
 
 
 #class randomize_visual_color(ManagerTermBase):
-#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+#    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnvWarp):
 #        raise NotImplementedError("Not implemented")
 #
 #    def __call__(
 #        self,
-#        env: ManagerBasedEnv,
+#        env: ManagerBasedEnvWarp,
 #        env_ids: torch.Tensor,
 #        event_name: str,
 #        asset_cfg: SceneEntityCfg,

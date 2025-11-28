@@ -17,15 +17,15 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.envs.mdp.kernels.obs_kernels import extract_z_from_pose, make_quat_unique_1D, get_body_world_pose_flattened, project_gravity_to_body, get_joint_data_by_indices, get_joint_data_rel_by_indices, get_root_pos_w
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.utils.warp.utils import resolve_asset_cfg
+from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.envs.mdp.kernels.obs_kernels import extract_z_from_pose, make_quat_unique_1D, get_body_world_pose_flattened, project_gravity_to_body, get_joint_data_by_indices, get_joint_data_rel_by_indices, get_root_pos_w
+from isaaclab_experimental.managers.manager_base import ManagerTermBase
+from isaaclab_experimental.managers.manager_term_cfg import ObservationTermCfg
+from isaaclab_experimental.utils.warp.utils import resolve_asset_cfg
 #from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab_experimental.envs import ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
 
 """
 Root state.
@@ -39,7 +39,7 @@ class base_pos_z(ManagerTermBase):
     The torch based implementation 
     
     """
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         self._z_buffer = wp.zeros((env.num_envs,), dtype=wp.float32, device=env.device)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
@@ -48,27 +48,27 @@ class base_pos_z(ManagerTermBase):
     def update_config(self, asset_cfg: SceneEntityCfg | None = None) -> None:
         pass
 
-    def __call__(self, env: ManagerBasedEnv, **kwargs) -> wp.array:
+    def __call__(self, env: ManagerBasedEnvWarp, **kwargs) -> wp.array:
         # extract the used quantities (to enable type-hinting)
         wp.launch(extract_z_from_pose, dim=env.num_envs, inputs=[self._asset.data.root_pose_w, self._z_buffer])
         return self._z_buffer
 
 
-def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+def base_lin_vel(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_b.view(wp.float32)
 
 
-def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+def base_ang_vel(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_ang_vel_b.view(wp.float32)
 
 
-def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+def projected_gravity(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -77,7 +77,7 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
 
 class root_pos_w(ManagerTermBase):
     """Asset root position in the environment frame."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: RigidObject = env.scene[asset_cfg.name]
@@ -87,7 +87,7 @@ class root_pos_w(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """Asset root position in the environment frame."""
@@ -110,7 +110,7 @@ class root_quat_w(ManagerTermBase):
     the quaternion has non-negative real component. This is because both ``q`` and ``-q`` represent
     the same orientation.
     """
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
 
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
@@ -123,7 +123,7 @@ class root_quat_w(ManagerTermBase):
         self._make_quat_unique = make_quat_unique
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """Asset root orientation (x, y, z, w) in the environment frame.
@@ -141,14 +141,14 @@ class root_quat_w(ManagerTermBase):
         else:
             return quat.view(wp.float32)
 
-def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+def root_lin_vel_w(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_w.view(wp.float32)
 
 
-def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
+def root_ang_vel_w(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> wp.array:
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -164,7 +164,7 @@ class body_pose_w(ManagerTermBase):
 
     Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
     """
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -175,7 +175,7 @@ class body_pose_w(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The flattened body poses of the asset w.r.t the env.scene.origin.
@@ -212,7 +212,7 @@ class body_projected_gravity_b(ManagerTermBase):
 
     Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
     """
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -223,7 +223,7 @@ class body_projected_gravity_b(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The direction of gravity projected on to bodies of an Articulation.
@@ -260,7 +260,7 @@ Joint state.
 
 class joint_pos(ManagerTermBase):
     """The joint positions of the asset."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -271,7 +271,7 @@ class joint_pos(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The joint positions of the asset."""
@@ -288,7 +288,7 @@ class joint_pos(ManagerTermBase):
 
 class joint_pos_rel(ManagerTermBase):
     """The joint positions of the asset w.r.t. the default joint positions."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -299,7 +299,7 @@ class joint_pos_rel(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The joint positions of the asset w.r.t. the default joint positions.
@@ -319,7 +319,7 @@ class joint_pos_rel(ManagerTermBase):
         return self._joint_pos_rel_buffer
 
 def joint_pos_limit_normalized(
-    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """The joint positions of the asset normalized with the asset's joint limits.
 
@@ -335,7 +335,7 @@ def joint_pos_limit_normalized(
 
 class joint_vel(ManagerTermBase):
     """The joint velocities of the asset."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -346,7 +346,7 @@ class joint_vel(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The joint velocities of the asset.
@@ -366,7 +366,7 @@ class joint_vel(ManagerTermBase):
 
 class joint_vel_rel(ManagerTermBase):
     """The joint velocities of the asset w.r.t. the default joint velocities."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -377,7 +377,7 @@ class joint_vel_rel(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The joint velocities of the asset w.r.t. the default joint velocities.
@@ -399,7 +399,7 @@ class joint_vel_rel(ManagerTermBase):
 
 class joint_effort(ManagerTermBase):
     """The joint applied effort of the asset."""
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = resolve_asset_cfg(cfg.params, env)
         self._asset: Articulation = env.scene[asset_cfg.name]
@@ -410,7 +410,7 @@ class joint_effort(ManagerTermBase):
         pass
 
     def __call__(self,
-        env: ManagerBasedEnv,
+        env: ManagerBasedEnvWarp,
         **kwargs,
     ) -> wp.array:
         """The joint applied effort of the asset."""
@@ -431,7 +431,7 @@ Sensors.
 """
 
 
-#def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+#def height_scan(env: ManagerBasedEnvWarp, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
 #    """Height scan from the given sensor w.r.t. the sensor's frame.
 #
 #    The provided offset (Defaults to 0.5) is subtracted from the returned values.
@@ -442,7 +442,7 @@ Sensors.
 #    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
 #
 #
-#def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+#def body_incoming_wrench(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 #    """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
 #
 #    This is the 6-D wrench (force and torque) applied to the body link by the incoming joint force.
@@ -454,7 +454,7 @@ Sensors.
 #    return body_incoming_joint_wrench_b.view(env.num_envs, -1)
 #
 #
-#def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+#def imu_orientation(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor orientation in the simulation world frame.
 #
 #    Args:
@@ -470,7 +470,7 @@ Sensors.
 #    return asset.data.quat_w
 #
 #
-#def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+#def imu_projected_gravity(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor orientation w.r.t the env.scene.origin.
 #
 #    Args:
@@ -485,7 +485,7 @@ Sensors.
 #    return asset.data.projected_gravity_b
 #
 #
-#def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+#def imu_ang_vel(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.
 #
 #    Args:
@@ -501,7 +501,7 @@ Sensors.
 #    return asset.data.ang_vel_b
 #
 #
-#def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+#def imu_lin_acc(env: ManagerBasedEnvWarp, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.
 #
 #    Args:
@@ -516,7 +516,7 @@ Sensors.
 #
 #
 #def image(
-#    env: ManagerBasedEnv,
+#    env: ManagerBasedEnvWarp,
 #    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
 #    data_type: str = "rgb",
 #    convert_perspective_to_orthogonal: bool = False,
@@ -608,7 +608,7 @@ Sensors.
 #        ValueError: When the model name is not found in the default model zoo configuration.
 #    """
 #
-#    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+#    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnvWarp):
 #        # initialize the base class
 #        super().__init__(cfg, env)
 #
@@ -666,7 +666,7 @@ Sensors.
 #
 #    def __call__(
 #        self,
-#        env: ManagerBasedEnv,
+#        env: ManagerBasedEnvWarp,
 #        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
 #        data_type: str = "rgb",
 #        convert_perspective_to_orthogonal: bool = False,
@@ -795,7 +795,7 @@ Actions.
 """
 
 
-def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> wp.array:
+def last_action(env: ManagerBasedEnvWarp, action_name: str | None = None) -> wp.array:
     """The last input action to the environment.
 
     The name of the action term for which the action is required. If None, the
@@ -812,7 +812,7 @@ Commands.
 """
 
 
-def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None) -> wp.array:
+def generated_commands(env: ManagerBasedRLEnvWarp, command_name: str | None = None) -> wp.array:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
 
@@ -822,11 +822,11 @@ Time.
 """
 
 
-def current_time_s(env: ManagerBasedRLEnv) -> wp.array:
+def current_time_s(env: ManagerBasedRLEnvWarp) -> wp.array:
     """The current time in the episode (in seconds)."""
     return env.episode_length_buf.reshape(-1, 1) * env.step_dt
 
 
-def remaining_time_s(env: ManagerBasedRLEnv) -> wp.array:
+def remaining_time_s(env: ManagerBasedRLEnvWarp) -> wp.array:
     """The maximum time remaining in the episode (in seconds)."""
     return env.max_episode_length_s - env.episode_length_buf.reshape(-1, 1) * env.step_dt
