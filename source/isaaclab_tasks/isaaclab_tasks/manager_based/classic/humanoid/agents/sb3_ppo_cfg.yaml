@@ -13,7 +13,7 @@
 
 seed: 42
 policy: "MlpPolicy"
-n_timesteps: !!float 3.2e4
+n_timesteps: !!float 5e7
 # For 4 minibatches with 4096 envs
 # batch_size = (n_envs * n_steps) / n_minibatches = 32768
 n_minibatches: 4
