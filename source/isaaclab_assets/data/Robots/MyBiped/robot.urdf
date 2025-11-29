@@ -1,0 +1,1069 @@
+<?xml version="1.0" ?>
+<!-- Generated using onshape-to-robot -->
+<!-- Onshape document_id: 368c96c0b7e478103ece27df -->
+<robot name="my_robot_export">
+  <!-- Link body_bottom -->
+  <link name="body_bottom">
+    <inertial>
+      <origin xyz="0.0344438 0.000455803 0.232203" rpy="0 0 0"/>
+      <mass value="1.65289"/>
+      <inertia ixx="0.00916236" ixy="4.88568e-05" ixz="-0.00119642" iyy="0.0103589" iyz="-3.71615e-05" izz="0.00651708"/>
+    </inertial>
+    <!-- Part talentcell_battery -->
+    <visual>
+      <origin xyz="-0.0536449 -0.048587 0.2907" rpy="-1.5708 -1.77007e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/talentcell_battery.stl"/>
+      </geometry>
+      <material name="talentcell_battery_material">
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0536449 -0.048587 0.2907" rpy="-1.5708 -1.77007e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/talentcell_battery.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part robot_head -->
+    <visual>
+      <origin xyz="-0.0155167 -7.63616e-05 0.2829" rpy="1.5708 -1.77143e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/robot_head.stl"/>
+      </geometry>
+      <material name="robot_head_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0155167 -7.63616e-05 0.2829" rpy="1.5708 -1.77143e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/robot_head.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part pi_camera_module3 -->
+    <visual>
+      <origin xyz="0.0429931 2.36384e-05 0.284769" rpy="3.90646e-16 -1.77143e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/pi_camera_module3.stl"/>
+      </geometry>
+      <material name="pi_camera_module3_material">
+        <color rgba="0.792157 0.819608 0.933333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0429931 2.36384e-05 0.284769" rpy="3.90646e-16 -1.77143e-12 1.5708"/>
+      <geometry>
+        <mesh filename="assets/pi_camera_module3.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part battery_holder -->
+    <visual>
+      <origin xyz="-0.0228007 0.00391302 0.2667" rpy="-1.5708 1.77133e-12 -1.5708"/>
+      <geometry>
+        <mesh filename="assets/battery_holder.stl"/>
+      </geometry>
+      <material name="battery_holder_material">
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0228007 0.00391302 0.2667" rpy="-1.5708 1.77133e-12 -1.5708"/>
+      <geometry>
+        <mesh filename="assets/battery_holder.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part trunk_top -->
+    <visual>
+      <origin xyz="-0.14329 -0.117421 0.272909" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/trunk_top.stl"/>
+      </geometry>
+      <material name="trunk_top_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.14329 -0.117421 0.272909" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/trunk_top.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor -->
+    <visual>
+      <origin xyz="0.0085631 0.0254317 0.193621" rpy="2.90577e-27 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0085631 0.0254317 0.193621" rpy="2.90577e-27 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a -->
+    <visual>
+      <origin xyz="0.0375631 0.0349317 0.158621" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0375631 0.0349317 0.158621" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a -->
+    <visual>
+      <origin xyz="0.0082631 0.0349317 0.158621" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0082631 0.0349317 0.158621" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_2 -->
+    <visual>
+      <origin xyz="0.0085631 0.0254317 0.193621" rpy="-1.36349e-15 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_2_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0085631 0.0254317 0.193621" rpy="-1.36349e-15 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part trunk_bottom -->
+    <visual>
+      <origin xyz="0.0230631 -7.63623e-05 0.2239" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/trunk_bottom.stl"/>
+      </geometry>
+      <material name="trunk_bottom_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0230631 -7.63623e-05 0.2239" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/trunk_bottom.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part roll_motor_bottom -->
+    <visual>
+      <origin xyz="0.147817 0.0276977 0.126821" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_motor_bottom.stl"/>
+      </geometry>
+      <material name="roll_motor_bottom_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.147817 0.0276977 0.126821" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_motor_bottom.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part roll_bearing -->
+    <visual>
+      <origin xyz="0.0894216 -0.10519 0.122429" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_bearing.stl"/>
+      </geometry>
+      <material name="roll_bearing_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0894216 -0.10519 0.122429" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_bearing.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part roll_bearing_2 -->
+    <visual>
+      <origin xyz="0.0894216 -0.0351896 0.122429" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_bearing.stl"/>
+      </geometry>
+      <material name="roll_bearing_2_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0894216 -0.0351896 0.122429" rpy="1.77143e-12 2.44929e-16 -2.89975e-27"/>
+      <geometry>
+        <mesh filename="assets/roll_bearing.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part roll_motor_bottom_2 -->
+    <visual>
+      <origin xyz="0.147817 -0.0423022 0.126821" rpy="1.77143e-12 2.44929e-16 -2.22045e-16"/>
+      <geometry>
+        <mesh filename="assets/roll_motor_bottom.stl"/>
+      </geometry>
+      <material name="roll_motor_bottom_2_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.147817 -0.0423022 0.126821" rpy="1.77143e-12 2.44929e-16 -2.22045e-16"/>
+      <geometry>
+        <mesh filename="assets/roll_motor_bottom.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_3 -->
+    <visual>
+      <origin xyz="0.0085631 -0.0445736 0.193625" rpy="-1.77636e-15 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_3_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0085631 -0.0445736 0.193625" rpy="-1.77636e-15 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_2 -->
+    <visual>
+      <origin xyz="0.0375631 -0.0350736 0.158625" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_2_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0375631 -0.0350736 0.158625" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_2 -->
+    <visual>
+      <origin xyz="0.0082631 -0.0350736 0.158625" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_2_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0082631 -0.0350736 0.158625" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_4 -->
+    <visual>
+      <origin xyz="0.0085631 -0.0445736 0.193625" rpy="-2.77556e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_4_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0085631 -0.0445736 0.193625" rpy="-2.77556e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link servomotor -->
+  <link name="servomotor">
+    <inertial>
+      <origin xyz="-0.000239413 -0.0523487 0.0164364" rpy="0 0 0"/>
+      <mass value="0.302283"/>
+      <inertia ixx="0.00010812" ixy="-4.05642e-08" ixz="1.93412e-07" iyy="7.39138e-05" iyz="-2.15054e-06" izz="6.75592e-05"/>
+    </inertial>
+    <!-- Part right_roll_to_pitch -->
+    <visual>
+      <origin xyz="-0.160322 0.0910221 -0.00705841" rpy="-4.78785e-12 -1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/right_roll_to_pitch.stl"/>
+      </geometry>
+      <material name="right_roll_to_pitch_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.160322 0.0910221 -0.00705841" rpy="-4.78785e-12 -1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/right_roll_to_pitch.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_5 -->
+    <visual>
+      <origin xyz="0.00944625 -0.0695 0.036925" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_5_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00944625 -0.0695 0.036925" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_3 -->
+    <visual>
+      <origin xyz="-5.37526e-05 -0.0405 0.001925" rpy="4.78813e-12 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_3_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-5.37526e-05 -0.0405 0.001925" rpy="4.78813e-12 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_3 -->
+    <visual>
+      <origin xyz="-5.37526e-05 -0.0698 0.001925" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_3_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-5.37526e-05 -0.0698 0.001925" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_6 -->
+    <visual>
+      <origin xyz="0.00944625 -0.0695 0.036925" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_6_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00944625 -0.0695 0.036925" rpy="-1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link part_1 -->
+  <link name="part_1">
+    <inertial>
+      <origin xyz="0.0547762 -0.0308127 0.0193477" rpy="0 0 0"/>
+      <mass value="0.288928"/>
+      <inertia ixx="6.20007e-05" ixy="2.6105e-05" ixz="-8.94918e-08" iyy="9.37092e-05" iyz="4.69547e-08" izz="9.17057e-05"/>
+    </inertial>
+    <!-- Part part_1 -->
+    <visual>
+      <origin xyz="0.0135868 -0.00458863 0.0417138" rpy="1.5708 -2.01855e-15 -2.08328"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0135868 -0.00458863 0.0417138" rpy="1.5708 -2.01855e-15 -2.08328"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part part_1_2 -->
+    <visual>
+      <origin xyz="0.0107936 -0.00911394 -0.0041136" rpy="-1.5708 1.46344e-15 1.05831"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+      <material name="part_1_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0107936 -0.00911394 -0.0041136" rpy="-1.5708 1.46344e-15 1.05831"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_7 -->
+    <visual>
+      <origin xyz="0.0334695 -0.0297255 0.0044794" rpy="-2.24059e-15 -1.38899e-15 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_7_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0334695 -0.0297255 0.0044794" rpy="-2.24059e-15 -1.38899e-15 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_4 -->
+    <visual>
+      <origin xyz="0.0686313 -0.0386081 0.0334794" rpy="1.5708 -1.3138e-15 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_4_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0686313 -0.0386081 0.0334794" rpy="1.5708 -1.3138e-15 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_4 -->
+    <visual>
+      <origin xyz="0.0686313 -0.0386081 0.0041794" rpy="-1.5708 -8.33879e-16 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_4_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0686313 -0.0386081 0.0041794" rpy="-1.5708 -8.33879e-16 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_8 -->
+    <visual>
+      <origin xyz="0.0334695 -0.0297255 0.0044794" rpy="3.12574e-16 1.93808e-16 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_8_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0334695 -0.0297255 0.0044794" rpy="3.12574e-16 1.93808e-16 -0.512488"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link part_1_2 -->
+  <link name="part_1_2">
+    <inertial>
+      <origin xyz="-0.000988258 -0.0628401 0.0193477" rpy="0 0 0"/>
+      <mass value="0.288928"/>
+      <inertia ixx="0.000108382" ixy="-9.66452e-07" ixz="-1.36253e-09" iyy="4.7328e-05" iyz="1.01053e-07" izz="9.17057e-05"/>
+    </inertial>
+    <!-- Part part_1_3 -->
+    <visual>
+      <origin xyz="0.00244006 -0.0141316 0.0417138" rpy="1.5708 -1.87099e-15 3.12578"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_3_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00244006 -0.0141316 0.0417138" rpy="1.5708 -1.87099e-15 3.12578"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part part_1_4 -->
+    <visual>
+      <origin xyz="-0.00286946 -0.0138323 -0.0041136" rpy="-1.5708 2.03752e-15 -0.0158084"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+      <material name="part_1_4_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00286946 -0.0138323 -0.0041136" rpy="-1.5708 2.03752e-15 -0.0158084"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_9 -->
+    <visual>
+      <origin xyz="-0.0101852 -0.0435898 0.0044794" rpy="-1.87099e-15 3.39388e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_9_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0101852 -0.0435898 0.0044794" rpy="-1.87099e-15 3.39388e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_5 -->
+    <visual>
+      <origin xyz="-0.00123968 -0.0787356 0.0334794" rpy="1.5708 3.31061e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_5_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00123968 -0.0787356 0.0334794" rpy="1.5708 3.31061e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_5 -->
+    <visual>
+      <origin xyz="-0.00123968 -0.0787356 0.0041794" rpy="-1.5708 3.39388e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_5_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00123968 -0.0787356 0.0041794" rpy="-1.5708 3.39388e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_10 -->
+    <visual>
+      <origin xyz="-0.0101852 -0.0435898 0.0044794" rpy="-2.03752e-15 3.11632e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_10_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0101852 -0.0435898 0.0044794" rpy="-2.03752e-15 3.11632e-15 -1.5866"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link left_foot_bottom_mirrored -->
+  <link name="left_foot_bottom_mirrored">
+    <inertial>
+      <origin xyz="0.0338638 0.00469396 0.0190216" rpy="0 0 0"/>
+      <mass value="0.241457"/>
+      <inertia ixx="0.00026865" ixy="0.000123118" ixz="5.08364e-08" iyy="0.000151412" iyz="3.78538e-08" izz="0.000336212"/>
+    </inertial>
+    <!-- Part left_foot_main_mirrored -->
+    <visual>
+      <origin xyz="-0.199463 -0.140897 0.1299" rpy="-1.5708 -3.99584e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_main_mirrored.stl"/>
+      </geometry>
+      <material name="left_foot_main_mirrored_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.199463 -0.140897 0.1299" rpy="-1.5708 -3.99584e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_main_mirrored.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part left_foot_side_mirrored -->
+    <visual>
+      <origin xyz="-0.199463 -0.140897 0.1289" rpy="-1.5708 -3.99584e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_side_mirrored.stl"/>
+      </geometry>
+      <material name="left_foot_side_mirrored_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.199463 -0.140897 0.1289" rpy="-1.5708 -3.99584e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_side_mirrored.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part left_foot_bottom_mirrored -->
+    <visual>
+      <origin xyz="-0.199908 -0.141126 0.1294" rpy="-1.5708 -3.96115e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_bottom_mirrored.stl"/>
+      </geometry>
+      <material name="left_foot_bottom_mirrored_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.199908 -0.141126 0.1294" rpy="-1.5708 -3.96115e-16 -1.03962"/>
+      <geometry>
+        <mesh filename="assets/left_foot_bottom_mirrored.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joint from part_1_2 to left_foot_bottom_mirrored -->
+  <joint name="R_foot_joint" type="revolute">
+    <origin xyz="-0.00123968 -0.0787356 0.0007294" rpy="-1.87099e-15 3.39388e-15 -1.5866"/>
+    <parent link="part_1_2"/>
+    <child link="left_foot_bottom_mirrored"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-2.62557" upper="1.56322"/>
+  </joint>
+  <!-- Joint from part_1 to part_1_2 -->
+  <joint name="R_knee_joint" type="revolute">
+    <origin xyz="0.0686313 -0.0386081 0.0007294" rpy="-2.24059e-15 -1.38899e-15 -0.512488"/>
+    <parent link="part_1"/>
+    <child link="part_1_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-0.50779" upper="3.681"/>
+  </joint>
+  <!-- Joint from servomotor to part_1 -->
+  <joint name="R_hip_roll_joint" type="revolute">
+    <origin xyz="-5.37526e-05 -0.07325 0.001925" rpy="-1.5708 1.5708 0"/>
+    <parent link="servomotor"/>
+    <child link="part_1"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-1.58191" upper="2.60688"/>
+  </joint>
+  <!-- Joint from body_bottom to servomotor -->
+  <joint name="R_hip_pitch_joint" type="revolute">
+    <origin xyz="0.0048131 -0.0350736 0.158625" rpy="-1.77636e-15 1.5708 0"/>
+    <parent link="body_bottom"/>
+    <child link="servomotor"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-2.0944" upper="2.0944"/>
+  </joint>
+  <!-- Link left_roll_to_pitch -->
+  <link name="left_roll_to_pitch">
+    <inertial>
+      <origin xyz="-0.000239414 0.0523486 0.0164364" rpy="0 0 0"/>
+      <mass value="0.302283"/>
+      <inertia ixx="0.000108121" ixy="4.05509e-08" ixz="1.93425e-07" iyy="7.39138e-05" iyz="2.1506e-06" izz="6.75597e-05"/>
+    </inertial>
+    <!-- Part left_roll_to_pitch -->
+    <visual>
+      <origin xyz="-0.160322 -0.0910221 -0.00705841" rpy="-4.78783e-12 -1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/left_roll_to_pitch.stl"/>
+      </geometry>
+      <material name="left_roll_to_pitch_material">
+        <color rgba="0.964706 0.964706 0.952941 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.160322 -0.0910221 -0.00705841" rpy="-4.78783e-12 -1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/left_roll_to_pitch.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_11 -->
+    <visual>
+      <origin xyz="-0.00955375 0.0695 0.036925" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_11_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00955375 0.0695 0.036925" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_6 -->
+    <visual>
+      <origin xyz="-5.37526e-05 0.0405 0.001925" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_6_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-5.37526e-05 0.0405 0.001925" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_6 -->
+    <visual>
+      <origin xyz="-5.37526e-05 0.0698 0.001925" rpy="4.78771e-12 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_6_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-5.37526e-05 0.0698 0.001925" rpy="4.78771e-12 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_12 -->
+    <visual>
+      <origin xyz="-0.00955375 0.0695 0.036925" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_12_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00955375 0.0695 0.036925" rpy="1.5708 1.5708 0"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link part_1_3 -->
+  <link name="part_1_3">
+    <inertial>
+      <origin xyz="0.054618 0.0310922 0.0193477" rpy="0 0 0"/>
+      <mass value="0.288928"/>
+      <inertia ixx="6.22686e-05" ixy="-2.62658e-05" ixz="-8.92067e-08" iyy="9.34414e-05" iyz="-4.74887e-08" izz="9.17057e-05"/>
+    </inertial>
+    <!-- Part part_1_5 -->
+    <visual>
+      <origin xyz="0.0109403 0.00926452 0.0417138" rpy="1.5708 -3.26509e-16 -1.0532"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_5_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0109403 0.00926452 0.0417138" rpy="1.5708 -3.26509e-16 -1.0532"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part part_1_6 -->
+    <visual>
+      <origin xyz="0.0133697 0.00456246 -0.0041136" rpy="-1.5708 3.26509e-16 2.08839"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+      <material name="part_1_6_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0133697 0.00456246 -0.0041136" rpy="-1.5708 3.26509e-16 2.08839"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_13 -->
+    <visual>
+      <origin xyz="0.0427183 0.013385 0.0044794" rpy="-2.15486e-16 2.26032e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_13_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0427183 0.013385 0.0044794" rpy="-2.15486e-16 2.26032e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_7 -->
+    <visual>
+      <origin xyz="0.0684331 0.0389584 0.0334794" rpy="1.5708 -7.29019e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_7_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0684331 0.0389584 0.0334794" rpy="1.5708 -7.29019e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_7 -->
+    <visual>
+      <origin xyz="0.0684331 0.0389584 0.0041794" rpy="-1.5708 -4.52476e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_7_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0684331 0.0389584 0.0041794" rpy="-1.5708 -4.52476e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_14 -->
+    <visual>
+      <origin xyz="0.0427183 0.013385 0.0044794" rpy="-1.04464e-16 2.26032e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_14_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0427183 0.013385 0.0044794" rpy="-1.04464e-16 2.26032e-16 0.517598"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link part_1_4 -->
+  <link name="part_1_4">
+    <inertial>
+      <origin xyz="-0.000216801 0.0628475 0.0193477" rpy="0 0 0"/>
+      <mass value="0.288928"/>
+      <inertia ixx="0.000108396" ixy="2.17029e-07" ixz="-2.51389e-09" iyy="4.73135e-05" iyz="-1.01028e-07" izz="9.17057e-05"/>
+    </inertial>
+    <!-- Part part_1_7 -->
+    <visual>
+      <origin xyz="0.0026014 0.0138852 -0.0041136" rpy="-1.5708 -4.69046e-15 -3.13806"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+      <material name="part_1_7_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0026014 0.0138852 -0.0041136" rpy="-1.5708 -4.69046e-15 -3.13806"/>
+      <geometry>
+        <mesh filename="assets/part_1__2.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part part_1_8 -->
+    <visual>
+      <origin xyz="-0.00268751 0.0140819 0.0417138" rpy="1.5708 5.65188e-16 0.00353328"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_8_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.00268751 0.0140819 0.0417138" rpy="1.5708 5.65188e-16 0.00353328"/>
+      <geometry>
+        <mesh filename="assets/part_1.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_15 -->
+    <visual>
+      <origin xyz="0.00935048 0.0437787 0.0044794" rpy="4.69046e-15 -5.22143e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+      <material name="servomotor_15_material">
+        <color rgba="0.211765 0.203922 0.196078 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00935048 0.0437787 0.0044794" rpy="4.69046e-15 -5.22143e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/servomotor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_adapter__lx_16a_8 -->
+    <visual>
+      <origin xyz="-0.000273129 0.0787449 0.0334794" rpy="1.5708 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="motor_adapter__lx_16a_8_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.000273129 0.0787449 0.0334794" rpy="1.5708 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/motor_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part shaft_adapter__lx_16a_8 -->
+    <visual>
+      <origin xyz="-0.000273129 0.0787449 0.0041794" rpy="-1.5708 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+      <material name="shaft_adapter__lx_16a_8_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.000273129 0.0787449 0.0041794" rpy="-1.5708 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/shaft_adapter__lx_16a.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part servomotor_16 -->
+    <visual>
+      <origin xyz="0.00935048 0.0437787 0.0044794" rpy="2.66453e-16 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+      <material name="servomotor_16_material">
+        <color rgba="0.901961 0.74902 0.423529 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00935048 0.0437787 0.0044794" rpy="2.66453e-16 -5.19367e-15 1.57433"/>
+      <geometry>
+        <mesh filename="assets/servomotor__2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link left_foot_side -->
+  <link name="left_foot_side">
+    <inertial>
+      <origin xyz="0.033906 -0.00438029 0.0190215" rpy="0 0 0"/>
+      <mass value="0.241455"/>
+      <inertia ixx="0.000270918" ixy="-0.000122012" ixz="5.03309e-08" iyy="0.000149141" iyz="-3.70812e-08" izz="0.000336209"/>
+    </inertial>
+    <!-- Part left_foot_side -->
+    <visual>
+      <origin xyz="-0.200759 0.139044 0.1289" rpy="-1.5708 6.76526e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_side.stl"/>
+      </geometry>
+      <material name="left_foot_side_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.200759 0.139044 0.1289" rpy="-1.5708 6.76526e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_side.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part left_foot_bottom -->
+    <visual>
+      <origin xyz="-0.201206 0.139269 0.1294" rpy="-1.5708 6.76526e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_bottom.stl"/>
+      </geometry>
+      <material name="left_foot_bottom_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.201206 0.139269 0.1294" rpy="-1.5708 6.76526e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_bottom.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part left_foot_main -->
+    <visual>
+      <origin xyz="-0.200759 0.139044 0.1299" rpy="-1.5708 6.75885e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_main.stl"/>
+      </geometry>
+      <material name="left_foot_main_material">
+        <color rgba="0.980392 0.713725 0.00392157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.200759 0.139044 0.1299" rpy="-1.5708 6.75885e-15 1.04888"/>
+      <geometry>
+        <mesh filename="assets/left_foot_main.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joint from part_1_4 to left_foot_side -->
+  <joint name="L_foot_joint" type="revolute">
+    <origin xyz="-0.000273129 0.0787449 0.0007294" rpy="4.69046e-15 -5.22143e-15 1.57433"/>
+    <parent link="part_1_4"/>
+    <child link="left_foot_side"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-1.57248" upper="2.61631"/>
+  </joint>
+  <!-- Joint from part_1_3 to part_1_4 -->
+  <joint name="L_knee_joint" type="revolute">
+    <origin xyz="0.0684331 0.0389584 0.0007294" rpy="-2.15486e-16 2.26032e-16 0.517598"/>
+    <parent link="part_1_3"/>
+    <child link="part_1_4"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.66872" upper="0.520065"/>
+  </joint>
+  <!-- Joint from left_roll_to_pitch to part_1_3 -->
+  <joint name="L_hip_roll_joint" type="revolute">
+    <origin xyz="-5.37526e-05 0.07325 0.001925" rpy="1.5708 1.5708 0"/>
+    <parent link="left_roll_to_pitch"/>
+    <child link="part_1_3"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-2.61199" upper="1.5768"/>
+  </joint>
+  <!-- Joint from body_bottom to left_roll_to_pitch -->
+  <joint name="L_hip_pitch_joint" type="revolute">
+    <origin xyz="0.0048131 0.0349317 0.158621" rpy="2.90577e-27 1.5708 0"/>
+    <parent link="body_bottom"/>
+    <child link="left_roll_to_pitch"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-2.0944" upper="2.0944"/>
+  </joint>
+</robot>

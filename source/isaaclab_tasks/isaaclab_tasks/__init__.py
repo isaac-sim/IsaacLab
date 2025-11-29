@@ -15,6 +15,7 @@ The package is structured as follows:
 
 import os
 import toml
+import gymnasium as gym
 
 # Conveniences to other module directories via relative paths
 ISAACLAB_TASKS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
@@ -37,3 +38,13 @@ from .utils import import_packages
 _BLACKLIST_PKGS = ["utils", ".mdp", "pick_place"]
 # Import all configs in this package
 import_packages(__name__, _BLACKLIST_PKGS)
+#from gym import gym
+gym.register(
+    id="Isaac-Velocity-MyBiped-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": "isaaclab_tasks.manager_based.locomotion.velocity.config.my_biped.flat_env_cfg:MyBipedFlatEnvCfg",
+        "rsl_rl_cfg_entry_point": "isaaclab_tasks.manager_based.locomotion.velocity.config.my_biped.agents.rsl_rl_ppo_cfg:MyBipedPPORunnerCfg",
+    },
+)

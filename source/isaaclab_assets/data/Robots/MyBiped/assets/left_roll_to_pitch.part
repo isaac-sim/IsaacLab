@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "d7e12d223022b7df859d1d89",
+    "documentMicroversion": "87a1c063b86a100637e3c336",
+    "documentVersion": "c7f27428bab03073ca9d6a30",
+    "elementId": "9c40795b4176d8cf8d5e8b6c",
+    "fullConfiguration": "default",
+    "id": "Mxvm0pFOvsA+/G1ZX",
+    "isStandardContent": false,
+    "name": "left_roll_to_pitch <1>",
+    "partId": "JFD",
+    "suppressed": false,
+    "type": "Part"
+}

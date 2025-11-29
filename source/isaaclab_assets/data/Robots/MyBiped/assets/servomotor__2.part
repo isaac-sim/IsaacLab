@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "18814fec52a826c6cfe057df",
+    "documentMicroversion": "ae0c621d6367c8015414f847",
+    "documentVersion": "dc02322ab216c69dbbcc9b31",
+    "elementId": "b50d86557c64162ab2777124",
+    "fullConfiguration": "default",
+    "id": "Mmm3R1XZea/cEyZUm",
+    "isStandardContent": false,
+    "name": "ServoMotor <2>",
+    "partId": "JFP",
+    "suppressed": false,
+    "type": "Part"
+}

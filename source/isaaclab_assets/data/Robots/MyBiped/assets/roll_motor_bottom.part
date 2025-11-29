@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "fa5273e289c0e44f00e46b4e",
+    "documentMicroversion": "6733fda2fb5f60cefc50927e",
+    "documentVersion": "a09b50bce57e2818bae4ece0",
+    "elementId": "34d13bd615a55f02c4a2b9b5",
+    "fullConfiguration": "default",
+    "id": "MsTO8DS3pEM9caiMK",
+    "isStandardContent": false,
+    "name": "roll_motor_bottom <2>",
+    "partId": "JFD",
+    "suppressed": false,
+    "type": "Part"
+}

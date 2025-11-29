@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "71c222bf75e03107fa8f72a0",
+    "documentMicroversion": "0590da52211de16823e01f34",
+    "documentVersion": "b096fc5f5ce21eb12401374f",
+    "elementId": "a2934825a607592f7b43d596",
+    "fullConfiguration": "default",
+    "id": "McPfASQWGPw/DCfJN",
+    "isStandardContent": false,
+    "name": "battery_holder <1>",
+    "partId": "JFD",
+    "suppressed": false,
+    "type": "Part"
+}
