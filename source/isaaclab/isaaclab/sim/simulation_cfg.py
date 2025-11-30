@@ -11,6 +11,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from typing import Literal
 
+# from isaaclab.renderer import NewtonWarpRendererCfg, RendererCfg
 from isaaclab.utils import configclass
 
 from ._impl.newton_manager_cfg import NewtonCfg
