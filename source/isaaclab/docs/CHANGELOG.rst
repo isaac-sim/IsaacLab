@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.48.7 (2025-11-25)
+0.48.9 (2025-11-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,24 @@ Fixed
 
 * Fixed advanced indexing issue in resetting prev action
   in :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` .
+
+
+0.48.8 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+
+
+0.48.7 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` to properly propagate the Isaac Sim stage context.
 
 
 0.48.6 (2025-11-18)

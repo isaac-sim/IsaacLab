@@ -18,8 +18,8 @@ from typing import Any
 # import logger
 logger = logging.getLogger(__name__)
 
-import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.stage import get_current_stage_id
 
 from .xr_cfg import XrAnchorRotationMode
 
@@ -72,7 +72,7 @@ class XrAnchorSynchronizer:
             if self._xr_cfg.anchor_prim_path is None:
                 return
 
-            stage_id = sim_utils.get_current_stage_id()
+            stage_id = get_current_stage_id()
             rt_stage = usdrt.Usd.Stage.Attach(stage_id)
             if rt_stage is None:
                 return
