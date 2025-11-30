@@ -29,7 +29,7 @@ from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 def random_quaternion():

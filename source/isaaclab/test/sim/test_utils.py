@@ -25,7 +25,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.fixture(autouse=True)

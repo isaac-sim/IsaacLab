@@ -22,7 +22,7 @@ from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUT
 from isaaclab.utils.string import to_camel_case
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.fixture

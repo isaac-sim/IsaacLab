@@ -20,7 +20,7 @@ from env_test_utils import _check_random_actions, setup_environment
 import isaaclab_tasks  # noqa: F401
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])

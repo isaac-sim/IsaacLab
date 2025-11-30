@@ -19,7 +19,7 @@ import pytest
 from isaaclab.envs.mdp import NullCommandCfg
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.fixture

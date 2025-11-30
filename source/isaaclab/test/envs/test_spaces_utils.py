@@ -26,7 +26,7 @@ import pytest
 from isaaclab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 def test_spec_to_gym_space():

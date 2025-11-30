@@ -31,7 +31,7 @@ from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_fr
 from isaaclab.utils.io import dump_yaml, load_yaml
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 """
 Mock classes and functions.

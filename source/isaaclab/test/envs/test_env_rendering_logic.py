@@ -31,7 +31,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @configclass

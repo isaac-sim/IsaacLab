@@ -41,7 +41,7 @@ from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsReta
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.fixture

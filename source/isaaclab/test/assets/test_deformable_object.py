@@ -30,7 +30,7 @@ from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 def generate_cubes_scene(

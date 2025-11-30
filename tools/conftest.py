@@ -26,7 +26,7 @@ def pytest_ignore_collect(collection_path, config):
     return True
 
 
-def capture_test_output_with_timeout(cmd, timeout, env):
+def capture_test_output_with_timeout(cmd, timeout, env):  # noqa: C901
     """Run a command with timeout and capture all output while streaming in real-time."""
     stdout_data = b""
     stderr_data = b""
@@ -49,16 +49,41 @@ def capture_test_output_with_timeout(cmd, timeout, env):
             stderr_queue = queue.Queue()
 
             def read_output(pipe, queue_obj, output_stream):
-                """Read from pipe and put in queue while streaming to console."""
+                """Read from pipe and put in queue, filtering output to console."""
+                buffer = b""
                 with contextlib.suppress(Exception):
                     while True:
                         chunk = pipe.read(1024)
                         if not chunk:
                             break
                         queue_obj.put(chunk)
-                        # Stream to console in real-time
-                        output_stream.buffer.write(chunk)
-                        output_stream.buffer.flush()
+                        # Filter and stream only important lines (test results, not internal logs)
+                        buffer += chunk
+                        while b"\n" in buffer:
+                            line, buffer = buffer.split(b"\n", 1)
+                            try:
+                                line_str = line.decode("utf-8", errors="replace")
+                                # Show test results and summaries, hide internal logs
+                                if any(
+                                    keyword in line_str
+                                    for keyword in [
+                                        "PASSED",
+                                        "FAILED",
+                                        "SKIPPED",
+                                        "ERROR",
+                                        "::",
+                                        "collected",
+                                        "test session",
+                                        "====",
+                                        "----",
+                                        "passed",
+                                        "failed",
+                                    ]
+                                ):
+                                    output_stream.write(line_str + "\n")
+                                    output_stream.flush()
+                            except Exception:
+                                pass
 
             # Start threads for reading stdout and stderr
             stdout_thread = threading.Thread(target=read_output, args=(process.stdout, stdout_queue, sys.stdout))
@@ -136,16 +161,29 @@ def capture_test_output_with_timeout(cmd, timeout, env):
                                 chunk = process.stdout.read(1024)
                                 if chunk:
                                     stdout_data += chunk
-                                    # Print to stdout in real-time
-                                    sys.stdout.buffer.write(chunk)
-                                    sys.stdout.buffer.flush()
+                                    # Filter and print only important lines
+                                    for line in chunk.decode("utf-8", errors="replace").split("\n"):
+                                        if any(
+                                            keyword in line
+                                            for keyword in [
+                                                "PASSED",
+                                                "FAILED",
+                                                "SKIPPED",
+                                                "ERROR",
+                                                "collected",
+                                                "test session",
+                                                "====",
+                                                "----",
+                                                "passed",
+                                                "failed",
+                                            ]
+                                        ):
+                                            sys.stdout.write(line + "\n")
+                                            sys.stdout.flush()
                             elif fd == stderr_fd:
                                 chunk = process.stderr.read(1024)
                                 if chunk:
                                     stderr_data += chunk
-                                    # Print to stderr in real-time
-                                    sys.stderr.buffer.write(chunk)
-                                    sys.stderr.buffer.flush()
                 except OSError:
                     # select failed, fall back to simple polling
                     time.sleep(0.1)
@@ -210,6 +248,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
         # Prepare command
         cmd = [
             sys.executable,
+            "-u",  # Unbuffered Python output
             "-m",
             "pytest",
             "-v",
@@ -225,10 +264,10 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             cmd.append("isaacsim_ci")
         elif windows_platform:
             cmd.append("-m")
-            cmd.append("windows")
+            cmd.append("windows_ci")
         elif arm_platform:
             cmd.append("-m")
-            cmd.append("arm")
+            cmd.append("arm_ci")
 
         # Add the test file path last
         cmd.append(str(test_file))
@@ -236,8 +275,11 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
         # Run test with timeout and capture output
         returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
 
+        # Print a newline for spacing after test output
+        print()
+
         if timed_out:
-            print(f"Test {test_file} timed out after {timeout} seconds...")
+            print(f"⏱️  {file_name}: TIMEOUT after {timeout} seconds\n")
             failed_tests.append(test_file)
 
             # Create a special XML report for timeout tests with captured logs
@@ -265,7 +307,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
-            print(f"Warning: Test report not found at {report_file}")
+            print(f"❌ {file_name}: Test report not found (return code: {returncode})\n")
             failed_tests.append(test_file)
             test_status[test_file] = {
                 "errors": 1,  # Assume error since we can't read the report
@@ -297,7 +339,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             tests = int(report.tests) if report.tests is not None else 0
             time_elapsed = float(report.time) if report.time is not None else 0.0
         except Exception as e:
-            print(f"Error reading test report {report_file}: {e}")
+            print(f"❌ {file_name}: Error reading test report - {e}\n")
             failed_tests.append(test_file)
             test_status[test_file] = {
                 "errors": 1,
@@ -322,6 +364,15 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             "time_elapsed": time_elapsed,
         }
 
+        # Print summary for this test file
+        if failures > 0:
+            print(f"   {failures} failed")
+        if errors > 0:
+            print(f"   {errors} errors")
+        if skipped > 0:
+            print(f"   {skipped} skipped")
+        print()
+
     print("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status
@@ -341,7 +392,7 @@ def pytest_sessionstart(session):
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
-    windows_platform = os.environ.get("WINDOWS_PLATFORM", "false") == "true"
+    windows_platform = os.environ.get("WINDOWS_PLATFORM", "true") == "true"
     arm_platform = os.environ.get("ARM_PLATFORM", "false") == "true"
 
     # Also try to get from pytest config
@@ -405,7 +456,7 @@ def pytest_sessionstart(session):
         for test_file in test_files:
             with open(test_file, encoding="utf-8") as f:
                 content = f.read()
-                if "@pytest.mark.windows" in content or "pytest.mark.windows" in content:
+                if "@pytest.mark.windows_ci" in content or "pytest.mark.windows_ci" in content:
                     new_test_files.append(test_file)
         test_files = new_test_files
     elif arm_platform:
@@ -413,7 +464,7 @@ def pytest_sessionstart(session):
         for test_file in test_files:
             with open(test_file, encoding="utf-8") as f:
                 content = f.read()
-                if "@pytest.mark.arm" in content or "pytest.mark.arm" in content:
+                if "@pytest.mark.arm_ci" in content or "pytest.mark.arm_ci" in content:
                     new_test_files.append(test_file)
         test_files = new_test_files
 

@@ -9,7 +9,7 @@ import torch.utils.benchmark as benchmark
 import pytest
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 @pytest.mark.isaacsim_ci

@@ -53,8 +53,8 @@ def registered_tasks():
     return registered_tasks
 
 
-@pytest.mark.windows
-@pytest.mark.arm
+@pytest.mark.windows_ci
+@pytest.mark.arm_ci
 def test_random_actions(registered_tasks):
     """Run random actions and check environments return valid signals."""
     # common parameters
@@ -107,8 +107,8 @@ def test_random_actions(registered_tasks):
         env.close()
 
 
-@pytest.mark.windows
-@pytest.mark.arm
+@pytest.mark.windows_ci
+@pytest.mark.arm_ci
 def test_no_time_outs(registered_tasks):
     """Check that environments with finite horizon do not send time-out signals."""
     # common parameters

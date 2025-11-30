@@ -39,7 +39,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows, pytest.mark.arm]
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 def generate_surface_gripper_cfgs(
