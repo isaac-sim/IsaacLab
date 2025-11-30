@@ -38,6 +38,9 @@ from .camera_data import CameraData
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
+from isaaclab.renderer import NewtonWarpRenderer
+from isaaclab.renderer_cfg import NewtonWarpRendererCfg
+
 
 class Camera(SensorBase):
     r"""The camera sensor for acquiring visual data.
@@ -115,6 +118,7 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
+        # =================================== setting only for Kit app Renderer ===================================
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
         settings_manager = get_settings_manager()
@@ -168,6 +172,7 @@ class Camera(SensorBase):
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
+            f"\trenderer type : {self.cfg.renderer_type}"
         )
 
     """
@@ -364,6 +369,9 @@ class Camera(SensorBase):
         # Reset the frame count
         self._frame[env_ids] = 0
 
+        # Reset the renderer
+        self._renderer.reset()
+
     """
     Implementation.
     """
@@ -400,11 +408,26 @@ class Camera(SensorBase):
                 f" the number of environments ({self._num_envs})."
             )
 
+        # Create a renderer from the config
+        if self.cfg.renderer_type == "newton_warp":
+            renderer_cfg = NewtonWarpRendererCfg(
+                width=self.cfg.width,
+                height=self.cfg.height,
+                num_cameras=self._num_cameras,
+                num_envs=self._num_envs,
+            )
+            self._renderer = NewtonWarpRenderer(renderer_cfg)
+        else:
+            raise ValueError(f"Renderer type '{self.cfg.renderer_type}' is not supported.")
+
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
+        # TODO: fill this function
+        self._renderer.initialize()
+        # =================================== initialization of annotators only for Kit app Renderer ===================================
         # Attach the sensor data types to render node
         self._render_product_paths: list[str] = list()
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
@@ -474,6 +497,7 @@ class Camera(SensorBase):
                 rep_annotator.attach(render_prod_path)
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
+        # =================================== initialization of annotators only for Kit app Renderer end ===================================
 
         # Create internal buffers
         self._create_buffers()
@@ -493,17 +517,19 @@ class Camera(SensorBase):
             self._create_annotator_data()
         else:
             # iterate over all the data types
-            for name, annotators in self._rep_registry.items():
-                # iterate over all the annotators
+            for name, data_buffers in self._renderer.get_output().items():
+                # iterate over all the cameras
                 for index in env_ids:
                     # get the output
-                    output = annotators[index].get_data()
+                    output = data_buffers[index]
                     # process the output
                     data, info = self._process_annotator_output(name, output)
                     # add data to output
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
+
+                # =================================== processing of data only for Kit app Renderer ===================================
                 # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
                 #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
                 #       larger than the clipping range in the output. We apply an additional clipping to ensure values
@@ -517,6 +543,7 @@ class Camera(SensorBase):
                     self._data.output[name][torch.isinf(self._data.output[name])] = (
                         0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                     )
+                # =================================== processing of data only for Kit app Renderer end ===================================
 
     """
     Private Helpers
@@ -618,14 +645,14 @@ class Camera(SensorBase):
 
         This is an expensive operation and should be called only once.
         """
-        # add data from the annotators
-        for name, annotators in self._rep_registry.items():
+        # add data from the renderer output buffers
+        for name, data_buffers in self._renderer.get_output().items():
             # create a list to store the data for each annotator
             data_all_cameras = list()
             # iterate over all the annotators
             for index in self._ALL_INDICES:
                 # get the output
-                output = annotators[index].get_data()
+                output = data_buffers[index]
                 # process the output
                 data, info = self._process_annotator_output(name, output)
                 # append the data
@@ -648,6 +675,7 @@ class Camera(SensorBase):
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                 )
 
+    # TODO: Move this function to renderer class
     def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         """Process the annotator output.
 
