@@ -92,7 +92,7 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Remove install of quadprog dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+# RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
