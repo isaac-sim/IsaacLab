@@ -26,6 +26,7 @@ PER_TEST_TIMEOUTS = {
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_operational_space.py": 300,
     "test_environments_training.py": 5000,
+    "test_solver_convergence.py": 1500,  # This test checks environments for solver congence
 }
 """A dictionary of tests and their timeouts in seconds.
 
