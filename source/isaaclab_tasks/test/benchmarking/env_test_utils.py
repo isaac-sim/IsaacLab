@@ -12,7 +12,6 @@ import re
 import yaml
 from datetime import datetime
 
-import carb
 from tensorboard.backend.event_processing import event_accumulator
 
 
@@ -138,7 +137,7 @@ def process_kpi_data(kpi_payloads, tag=""):
 def output_payloads(payloads):
     """Output the KPI payloads to a json file."""
     # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
     output_path = os.path.join(repo_path, "logs/kpi.json")
     # create directory if it doesn't exist
     if not os.path.exists(os.path.dirname(output_path)):
@@ -151,7 +150,7 @@ def output_payloads(payloads):
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
     from isaacsim.core.version import get_version
 
     if int(get_version()[2]) < 5:
