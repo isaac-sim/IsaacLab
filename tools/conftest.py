@@ -394,7 +394,7 @@ def pytest_sessionstart(session):
     if isaacsim_ci:
         new_test_files = []
         for test_file in test_files:
-            with open(test_file, encoding='utf-8') as f:
+            with open(test_file, encoding="utf-8") as f:
                 content = f.read()
                 if "@pytest.mark.isaacsim_ci" in content or "pytest.mark.isaacsim_ci" in content:
                     new_test_files.append(test_file)
@@ -402,7 +402,7 @@ def pytest_sessionstart(session):
     elif windows_platform:
         new_test_files = []
         for test_file in test_files:
-            with open(test_file, encoding='utf-8') as f:
+            with open(test_file, encoding="utf-8") as f:
                 content = f.read()
                 if "@pytest.mark.windows" in content or "pytest.mark.windows" in content:
                     new_test_files.append(test_file)
@@ -410,7 +410,7 @@ def pytest_sessionstart(session):
     elif arm_platform:
         new_test_files = []
         for test_file in test_files:
-            with open(test_file, encoding='utf-8') as f:
+            with open(test_file, encoding="utf-8") as f:
                 content = f.read()
                 if "@pytest.mark.arm" in content or "pytest.mark.arm" in content:
                     new_test_files.append(test_file)
