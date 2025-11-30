@@ -30,8 +30,6 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 # from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 
-
-
 @pytest.fixture(scope="module")
 def registered_tasks():
     # acquire all Isaac environments names
