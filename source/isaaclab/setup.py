@@ -48,7 +48,7 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco>=3.3.8.dev821851540",
+    "mujoco>=3.3.8.dev832233427",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@bbd757cace561de47512b560517ee728c8416de5",
     "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
     "imgui-bundle==1.92.0",
@@ -63,8 +63,6 @@ if platform.system() == "Linux":
         "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
-
 # Installation operation
 setup(
     name="isaaclab",
@@ -78,13 +76,12 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )
