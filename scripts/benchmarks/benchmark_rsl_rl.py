@@ -79,9 +79,8 @@ import numpy as np
 import torch
 from datetime import datetime
 
-from rsl_rl.runners import OnPolicyRunner
-
 from isaaclab.utils.timer import Timer
+from rsl_rl.runners import OnPolicyRunner
 
 Timer.enable_display_output = False
 
