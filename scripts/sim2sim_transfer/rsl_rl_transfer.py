@@ -58,8 +58,9 @@ import time
 import torch
 import yaml
 
-from isaaclab.utils.timer import Timer
 from rsl_rl.runners import OnPolicyRunner
+
+from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
