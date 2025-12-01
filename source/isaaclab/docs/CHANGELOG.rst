@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.48.9 (2025-11-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add navigation state API to IsaacLabManagerBasedRLMimicEnv
+* Add optional custom recorder config to MimicEnvCfg
+
+
 0.48.8 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -17,6 +28,7 @@ Changed
 ^^^^^^^
 
 * Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` to properly propagate the Isaac Sim stage context.
+
 
 0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
