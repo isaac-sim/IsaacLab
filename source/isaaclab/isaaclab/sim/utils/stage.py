@@ -12,8 +12,8 @@ from collections.abc import Generator
 
 import carb
 import omni
-import usdrt
 import omni.kit.app
+import usdrt
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
@@ -181,7 +181,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
                 _context.stage = previous_stage
 
 
-def get_current_stage(fabric: bool = False) -> typing.Union[Usd.Stage, usdrt.Usd._Usd.Stage]:
+def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
     """Get the current open USD or Fabric stage
 
     Args:
