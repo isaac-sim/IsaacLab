@@ -112,7 +112,6 @@ def main():
                     usd_file_name=f"{filename[:-5]}.usd",
                     fix_base=args_cli.fix_base,
                     merge_fixed_joints=args_cli.merge_joints,
-                    merge_fixed_ignore_inertia=args_cli.merge_joints,
                     force_usd_conversion=True,
                     make_instanceable=args_cli.make_instanceable,
                 )
