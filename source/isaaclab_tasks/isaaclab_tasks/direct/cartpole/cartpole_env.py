@@ -36,7 +36,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         njmax=5,
-        ncon_per_env=3,
+        nconmax=3,
         ls_iterations=3,
         cone="pyramidal",
         impratio=1,

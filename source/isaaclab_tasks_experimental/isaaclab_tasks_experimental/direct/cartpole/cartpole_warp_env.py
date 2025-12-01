@@ -13,7 +13,8 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab_experimental.envs import DirectRLEnvCfg, DirectRLEnvWarp
+from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -34,7 +35,7 @@ class CartpoleWarpEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         njmax=5,
-        ncon_per_env=3,
+        nconmax=3,
         ls_iterations=3,
         cone="pyramidal",
         impratio=1,

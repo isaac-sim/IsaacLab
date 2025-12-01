@@ -20,7 +20,7 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+from isaaclab.sensors import Camera#, Imu, RayCaster, RayCasterCamera, TiledCamera
 
 from isaaclab.utils.math import convert_quat
 

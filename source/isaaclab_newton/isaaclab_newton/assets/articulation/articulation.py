@@ -166,6 +166,22 @@ class Articulation(BaseArticulation):
         """Number of bodies in articulation."""
         return self._root_view.link_count
 
+    def num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes per body in the articulation.
+
+        This property returns a list where each element represents the number of collision
+        shapes for the corresponding body in the articulation. This is cached for efficient
+        access during material property randomization and other operations.
+
+        Returns:
+            List of integers representing the number of shapes per body.
+        """
+        if not hasattr(self, "_num_shapes_per_body"):
+            self._num_shapes_per_body = []
+            for shapes in self._root_newton_view.body_shapes:
+                self._num_shapes_per_body.append(len(shapes))
+        return self._num_shapes_per_body
+
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
