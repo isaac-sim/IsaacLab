@@ -9,7 +9,7 @@ Changelog
 Added
 ^^^^^
 
-* Add state_dependent_std rsl_rl param to RSL-RL wrapper.
+* Added state_dependent_std rsl_rl param to RSL-RL wrapper.
 
 
 0.4.4 (2025-10-15)
