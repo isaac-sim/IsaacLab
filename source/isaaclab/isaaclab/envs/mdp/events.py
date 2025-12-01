@@ -323,11 +323,12 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 "Randomization term 'randomize_rigid_body_mass' does not support operation:"
                 f" '{cfg.params['operation']}'."
             )
-        if cfg.params["min_mass"] < 1e-6:
-            raise ValueError(
-                "Randomization term 'randomize_rigid_body_mass' does not support 'min_mass' less than 1e-6 to avoid"
-                " physics errors."
-            )
+        if cfg.params.get("min_mass") is not None:
+            if cfg.params.get("min_mass") < 1e-6:
+                raise ValueError(
+                    "Randomization term 'randomize_rigid_body_mass' does not support 'min_mass' less than 1e-6 to avoid"
+                    " physics errors."
+                )
 
     def __call__(
         self,
