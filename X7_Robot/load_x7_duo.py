@@ -23,7 +23,7 @@ from robot.x7_duo_cfg import X7_DUO_CFG
 from scene.x7_scene_cfg import X7SceneCfg
 from control.controller import pi_control
 
-from utils.robot_reset import reset_robot
+from control.robot_reset import reset_robot
 import torch
 
 # ========= WebSocket client（必须全局初始化一次）=========
@@ -45,19 +45,18 @@ def run(sim: sim_utils.SimulationContext, scene: InteractiveScene, client: webso
 
     while simulation_app.is_running():
         # Reset
-        if count % 500 == 0:
-            # reset counter
+        if count > 0 and count % 700 == 0:
+            reset_robot(scene)  # 根姿态 + 关节位姿 + scene.reset()
+            scene.write_data_to_sim()
+            # 给一小步让状态落地
+            sim.step()
+            scene.update(sim_dt)
+            # 重新计时，避免首帧就再触发
             count = 0
-            # reset the scene entities
-            # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
-
+            sim_time = 0.0
+            # 跳过本轮控制，避免立刻被新动作覆盖
+            continue
+        
         # 控制器：双臂简单双摆
         action_chunk = pi_control(scene, sim_time, client)
         for i in range(10):
@@ -66,7 +65,7 @@ def run(sim: sim_utils.SimulationContext, scene: InteractiveScene, client: webso
             # -------------- ALOHA 动作结构 --------------
             left_arm   = a[0:6]
             #left_grip  = a[6]
-            right_arm  = a[7:13]
+            right_arm  = -a[7:13]
             #right_grip = a[13]
             # ---------------------------------------------
 
