@@ -12,6 +12,7 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
+from isaaclab.sim.utils.stage import get_current_stage
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.utils.timer import Timer
