@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 27, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 01, 2025"/>
   </head>
   
   
@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="data_generator.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="../../../../v2.3.0/index.html" >v2.3.0</option>
             <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
@@ -600,11 +600,16 @@
 <span class="sd">Base class for data generator.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">PoseUtils</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ManagerBasedRLMimicEnv</span><span class="p">,</span>
     <span class="n">MimicEnvCfg</span><span class="p">,</span>
@@ -1281,6 +1286,10 @@
             <span class="n">eef_subtasks_done</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="n">prev_src_demo_datagen_info_pool_size</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_navigation_controller</span><span class="p">:</span>
+            <span class="n">was_navigating</span> <span class="o">=</span> <span class="kc">False</span>
+
         <span class="c1"># While loop that runs per time step</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">asyncio_lock</span><span class="p">:</span>
@@ -1473,8 +1482,54 @@
                 <span class="n">generated_actions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">])</span>
                 <span class="n">generated_success</span> <span class="o">=</span> <span class="n">generated_success</span> <span class="ow">or</span> <span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;success&quot;</span><span class="p">]</span>
 
+            <span class="c1"># Get the navigation state</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_navigation_controller</span><span class="p">:</span>
+                <span class="n">processed_nav_subtask</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">navigation_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_navigation_state</span><span class="p">(</span><span class="n">env_id</span><span class="p">)</span>
+                <span class="k">assert</span> <span class="n">navigation_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Navigation state cannot be None when using navigation controller&quot;</span>
+                <span class="n">is_navigating</span> <span class="o">=</span> <span class="n">navigation_state</span><span class="p">[</span><span class="s2">&quot;is_navigating&quot;</span><span class="p">]</span>
+                <span class="n">navigation_goal_reached</span> <span class="o">=</span> <span class="n">navigation_state</span><span class="p">[</span><span class="s2">&quot;navigation_goal_reached&quot;</span><span class="p">]</span>
+
             <span class="k">for</span> <span class="n">eef_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
                 <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="c1"># Execute locomanip navigation controller if it is enabled via the use_navigation_controller flag</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_navigation_controller</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="s2">&quot;body&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                        <span class="n">error_msg</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="s1">&#39;End effector with name &quot;body&quot; not found in subtask configs. &quot;body&quot; must be a valid end&#39;</span>
+                            <span class="s2">&quot; effector to use the navigation controller.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">error_msg</span><span class="p">)</span>
+                        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">error_msg</span><span class="p">)</span>
+
+                    <span class="c1"># Repeat the last nav subtask action if the robot is navigating and hasn&#39;t reached the waypoint goal</span>
+                    <span class="k">if</span> <span class="p">(</span>
+                        <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="s2">&quot;body&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="s2">&quot;body&quot;</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+                        <span class="ow">and</span> <span class="ow">not</span> <span class="n">processed_nav_subtask</span>
+                    <span class="p">):</span>
+                        <span class="k">if</span> <span class="n">is_navigating</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">navigation_goal_reached</span><span class="p">:</span>
+                            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                                <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+                            <span class="n">processed_nav_subtask</span> <span class="o">=</span> <span class="kc">True</span>
+
+                    <span class="c1"># Else skip to the end of the nav subtask if the robot has reached the waypoint goal before the end</span>
+                    <span class="c1"># of the human recorded trajectory</span>
+                    <span class="k">elif</span> <span class="n">was_navigating</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_navigating</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">processed_nav_subtask</span><span class="p">:</span>
+                        <span class="n">number_of_steps_to_skip</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="s2">&quot;body&quot;</span><span class="p">])</span> <span class="o">-</span> <span class="p">(</span>
+                            <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="s2">&quot;body&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                        <span class="p">)</span>
+                        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                            <span class="k">if</span> <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+</span> <span class="n">number_of_steps_to_skip</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span>
+                                <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                            <span class="p">):</span>
+                                <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                                    <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+</span> <span class="n">number_of_steps_to_skip</span>
+                                <span class="p">)</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">name</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+                        <span class="n">processed_nav_subtask</span> <span class="o">=</span> <span class="kc">True</span>
+
                 <span class="n">subtask_ind</span> <span class="o">=</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
                 <span class="k">if</span> <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
                     <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
@@ -1516,6 +1571,10 @@
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
                         <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_navigation_controller</span><span class="p">:</span>
+                <span class="n">was_navigating</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">is_navigating</span><span class="p">)</span>
+
             <span class="c1"># Check if all eef_subtasks_done values are True</span>
             <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">eef_subtasks_done</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
                 <span class="k">break</span>
@@ -1616,7 +1675,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 27, 2025.
+  Last updated on Dec 01, 2025.
   <br/>
 </p>
   </div>

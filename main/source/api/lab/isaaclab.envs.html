@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Nov 27, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 01, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.envs.html" >release/2.3.0</option>
             <option value="isaaclab.envs.html" selected>main</option>
             <option value="../../../../release/2.1.0/source/api/lab/isaaclab.envs.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab/isaaclab.envs.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.envs.html" >release/2.3.0</option>
             <option value="../../../../v2.3.0/source/api/lab/isaaclab.envs.html" >v2.3.0</option>
             <option value="../../../../v2.2.1/source/api/lab/isaaclab.envs.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/api/lab/isaaclab.envs.html" >v2.2.0</option>
@@ -868,6 +868,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_start_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_term_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.serialize()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_navigation_state()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.device</span></code></a></li>
@@ -3723,43 +3724,46 @@ pick-and-place and interacting with articulated objects.</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize" title="isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">serialize</span></code></a>()</p></td>
 <td><p>Save all information needed to re-instantiate this environment in a dictionary.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__" title="isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, render_mode])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_navigation_state</span></code></a>([env_ids])</p></td>
+<td><p>Optional method.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__" title="isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, render_mode])</p></td>
 <td><p>Initialize the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close" title="isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close" title="isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
 <td><p>Cleanup for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors" title="isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_IO_descriptors</span></code></a>([output_dir])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors" title="isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_IO_descriptors</span></code></a>([output_dir])</p></td>
 <td><p>Export the IO descriptors for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.load_managers" title="isaaclab.envs.ManagerBasedRLMimicEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.load_managers" title="isaaclab.envs.ManagerBasedRLMimicEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
 <td><p>Load the managers for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.render" title="isaaclab.envs.ManagerBasedRLMimicEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.render" title="isaaclab.envs.ManagerBasedRLMimicEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
 <td><p>Run rendering without stepping through the physics.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
 <td><p>Resets the specified environments and returns observations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset_to" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset_to" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
 <td><p>Resets specified environments to provided states.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.seed" title="isaaclab.envs.ManagerBasedRLMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.seed" title="isaaclab.envs.ManagerBasedRLMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
 <td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers" title="isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers" title="isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
 <td><p>Creates live visualizers for manager terms.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.step" title="isaaclab.envs.ManagerBasedRLMimicEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.step" title="isaaclab.envs.ManagerBasedRLMimicEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
 <td><p>Execute one time-step of the environment's dynamics and reset terminated environments.</p></td>
 </tr>
 </tbody>
@@ -3934,6 +3938,24 @@ subtask term signal annotation.</p>
 <dd><p>Save all information needed to re-instantiate this environment in a dictionary.
 This is the same as &#64;env_meta - environment metadata stored in hdf5 datasets,
 and used in utils/env_utils.py.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state">
+<span class="sig-name descname"><span class="pre">get_navigation_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/manager_based_rl_mimic_env.html#ManagerBasedRLMimicEnv.get_navigation_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Optional method. Only required when using navigation controller locomanipulation data generation.</p>
+<p>Gets the navigation state of the robot. Required when use of the navigation controller is
+enabled. The navigation state includes a boolean flag “is_navigating” to indicate when the
+robot is under control by the navigation controller, and a boolean flag “navigation_goal_reached”
+to indicate when the navigation goal has been reached.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment index to get the navigation state for. If None, all envs are considered.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary that of navigation state flags (False or True).</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -4877,6 +4899,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_start_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_term_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.serialize()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_navigation_state()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.device</span></code></a></li>
@@ -4982,7 +5005,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 27, 2025.
+  Last updated on Dec 01, 2025.
   <br/>
 </p>
   </div>
