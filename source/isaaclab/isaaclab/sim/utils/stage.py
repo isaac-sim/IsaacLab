@@ -12,6 +12,7 @@ from collections.abc import Generator
 
 import carb
 import omni
+import usdrt
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
@@ -180,7 +181,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
                 _context.stage = previous_stage
 
 
-def get_current_stage(fabric: bool = False) -> Usd.Stage:
+def get_current_stage(fabric: bool = False) -> typing.Union[Usd.Stage, usdrt.Usd._Usd.Stage]:
     """Get the current open USD or Fabric stage
 
     Args:
@@ -201,6 +202,12 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                         pathResolverContext=<invalid repr>)
     """
     stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
+    if fabric:
+        stage_cache = UsdUtils.StageCache.Get()
+        stage_id = stage_cache.GetId(stage).ToLongInt()
+        if stage_id < 0:
+            stage_id = stage_cache.Insert(stage).ToLongInt()
+        return usdrt.Usd.Stage.Attach(stage_id)
     return stage
 
 
