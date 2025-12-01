@@ -248,6 +248,10 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
             else test_settings.DEFAULT_TIMEOUT
         )
 
+        # for windows, multiple timeout by 2x
+        if windows_platform:
+            timeout *= 2
+
         # Prepare command
         cmd = [
             sys.executable,

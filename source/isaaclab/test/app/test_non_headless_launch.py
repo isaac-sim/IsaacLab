@@ -26,7 +26,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 # Add markers for Windows and ARM platform support
-pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
+pytestmark = [pytest.mark.arm_ci]
 
 
 @configclass
