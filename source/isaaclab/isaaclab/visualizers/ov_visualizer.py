@@ -8,13 +8,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
-import omni.log
 from pxr import UsdGeom
 
 from .ov_visualizer_cfg import OVVisualizerCfg
 from .visualizer import Visualizer
+
+logger = logging.getLogger(__name__)
 
 
 class OVVisualizer(Visualizer):
@@ -38,7 +40,7 @@ class OVVisualizer(Visualizer):
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize OV visualizer."""
         if self._is_initialized:
-            omni.log.warn("[OVVisualizer] Already initialized.")
+            logger.warning("[OVVisualizer] Already initialized.")
             return
 
         usd_stage = None
@@ -73,7 +75,7 @@ class OVVisualizer(Visualizer):
 
         num_envs = metadata.get("num_envs", 0)
         physics_backend = metadata.get("physics_backend", "unknown")
-        omni.log.info(f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)")
+        logger.info(f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)")
 
         self._is_initialized = True
 
@@ -155,20 +157,20 @@ class OVVisualizer(Visualizer):
 
                     # Check if running in headless mode
                     if self._simulation_app.config.get("headless", False):
-                        omni.log.warn(
+                        logger.warning(
                             "[OVVisualizer] Running in headless mode. "
                             "OV visualizer requires GUI mode (launch with --headless=False) to create viewports."
                         )
                     else:
-                        omni.log.info("[OVVisualizer] Using existing Isaac Sim app instance.")
+                        logger.info("[OVVisualizer] Using existing Isaac Sim app instance.")
                 else:
                     # App is running but we couldn't get SimulationApp instance
                     # This is okay - we can still use omni APIs
-                    omni.log.info("[OVVisualizer] Isaac Sim app is running (via omni.kit.app).")
+                    logger.info("[OVVisualizer] Isaac Sim app is running (via omni.kit.app).")
 
             except ImportError:
                 # SimulationApp not available, but omni.kit.app is running
-                omni.log.info("[OVVisualizer] Using running Isaac Sim app (SimulationApp module not available).")
+                logger.info("[OVVisualizer] Using running Isaac Sim app (SimulationApp module not available).")
 
         except ImportError as e:
             raise ImportError(
@@ -202,7 +204,7 @@ class OVVisualizer(Visualizer):
                     docked=True,
                 )
 
-                omni.log.info(f"[OVVisualizer] Created viewport '{self.cfg.viewport_name}'")
+                logger.info(f"[OVVisualizer] Created viewport '{self.cfg.viewport_name}'")
 
                 # Dock the viewport asynchronously (needs to wait for window creation)
                 asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
@@ -216,19 +218,19 @@ class OVVisualizer(Visualizer):
                     self._viewport_window = vp_utils.get_viewport_window_by_name(self.cfg.viewport_name)
 
                     if self._viewport_window is None:
-                        omni.log.warn(
+                        logger.warning(
                             f"[OVVisualizer] Viewport '{self.cfg.viewport_name}' not found. "
                             "Using active viewport instead."
                         )
                         self._viewport_window = vp_utils.get_active_viewport_window()
                     else:
-                        omni.log.info(f"[OVVisualizer] Using existing viewport '{self.cfg.viewport_name}'")
+                        logger.info(f"[OVVisualizer] Using existing viewport '{self.cfg.viewport_name}'")
                 else:
                     self._viewport_window = vp_utils.get_active_viewport_window()
-                    omni.log.info("[OVVisualizer] Using existing active viewport")
+                    logger.info("[OVVisualizer] Using existing active viewport")
 
             if self._viewport_window is None:
-                omni.log.warn("[OVVisualizer] Could not get/create viewport.")
+                logger.warning("[OVVisualizer] Could not get/create viewport.")
                 return
 
             # Get viewport API for camera control
@@ -237,14 +239,12 @@ class OVVisualizer(Visualizer):
             # Set camera pose (uses existing camera if not created above)
             self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
 
-            omni.log.info(
-                f"[OVVisualizer] Viewport configured (size: {self.cfg.window_width}x{self.cfg.window_height})"
-            )
+            logger.info(f"[OVVisualizer] Viewport configured (size: {self.cfg.window_width}x{self.cfg.window_height})")
 
         except ImportError as e:
-            omni.log.warn(f"[OVVisualizer] Viewport utilities unavailable: {e}")
+            logger.warning(f"[OVVisualizer] Viewport utilities unavailable: {e}")
         except Exception as e:
-            omni.log.error(f"[OVVisualizer] Error setting up viewport: {e}")
+            logger.error(f"[OVVisualizer] Error setting up viewport: {e}")
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock viewport window asynchronously after it's created.
@@ -262,12 +262,12 @@ class OVVisualizer(Visualizer):
             for i in range(10):  # Try up to 10 frames
                 viewport_window = omni.ui.Workspace.get_window(viewport_name)
                 if viewport_window:
-                    omni.log.info(f"[OVVisualizer] Found viewport window '{viewport_name}' after {i} frames")
+                    logger.info(f"[OVVisualizer] Found viewport window '{viewport_name}' after {i} frames")
                     break
                 await omni.kit.app.get_app().next_update_async()
 
             if not viewport_window:
-                omni.log.warn(
+                logger.warning(
                     f"[OVVisualizer] Could not find viewport window '{viewport_name}' in workspace for docking."
                 )
                 return
@@ -297,18 +297,18 @@ class OVVisualizer(Visualizer):
                 await omni.kit.app.get_app().next_update_async()
                 viewport_window.focus()
 
-                omni.log.info(
+                logger.info(
                     f"[OVVisualizer] Docked viewport '{viewport_name}' at position {self.cfg.dock_position} and set as"
                     " active"
                 )
             else:
-                omni.log.info(
+                logger.info(
                     f"[OVVisualizer] Could not find main viewport for docking. Viewport '{viewport_name}' will remain"
                     " floating."
                 )
 
         except Exception as e:
-            omni.log.warn(f"[OVVisualizer] Error docking viewport: {e}")
+            logger.warning(f"[OVVisualizer] Error docking viewport: {e}")
 
     def _create_and_assign_camera(self, usd_stage) -> None:
         """Create a dedicated camera for this viewport and assign it."""
@@ -321,17 +321,17 @@ class OVVisualizer(Visualizer):
             if not camera_prim.IsValid():
                 # Create camera prim
                 UsdGeom.Camera.Define(usd_stage, camera_path)
-                omni.log.info(f"[OVVisualizer] Created camera: {camera_path}")
+                logger.info(f"[OVVisualizer] Created camera: {camera_path}")
             else:
-                omni.log.info(f"[OVVisualizer] Using existing camera: {camera_path}")
+                logger.info(f"[OVVisualizer] Using existing camera: {camera_path}")
 
             # Assign camera to viewport
             if self._viewport_api:
                 self._viewport_api.set_active_camera(camera_path)
-                omni.log.info(f"[OVVisualizer] Assigned camera '{camera_path}' to viewport '{self.cfg.viewport_name}'")
+                logger.info(f"[OVVisualizer] Assigned camera '{camera_path}' to viewport '{self.cfg.viewport_name}'")
 
         except Exception as e:
-            omni.log.warn(f"[OVVisualizer] Could not create/assign camera: {e}. Using default camera.")
+            logger.warning(f"[OVVisualizer] Could not create/assign camera: {e}. Using default camera.")
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Set viewport camera position and target using Isaac Sim utilities."""
@@ -352,7 +352,7 @@ class OVVisualizer(Visualizer):
                 eye=list(position), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
             )
 
-            omni.log.info(f"[OVVisualizer] Camera set: pos={position}, target={target}, camera={camera_path}")
+            logger.info(f"[OVVisualizer] Camera set: pos={position}, target={target}, camera={camera_path}")
 
         except Exception as e:
-            omni.log.warn(f"[OVVisualizer] Could not set camera: {e}")
+            logger.warning(f"[OVVisualizer] Could not set camera: {e}")
