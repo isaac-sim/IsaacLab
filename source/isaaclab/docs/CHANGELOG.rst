@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.48.7 (2025-11-26)
+0.48.9 (2025-12-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -11,6 +11,23 @@ Fixed
   The collision approximation attribute is now properly set on the USD prim when converting meshes with mesh collision
   properties.
 
+
+0.48.8 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+
+
+0.48.7 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` to properly propagate the Isaac Sim stage context.
 
 0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
