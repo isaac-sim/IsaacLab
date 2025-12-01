@@ -8,13 +8,15 @@ Base class for data generator.
 """
 import asyncio
 import copy
+import logging
 import numpy as np
 import torch
 from typing import Any
 
-import omni.log
-
 import isaaclab.utils.math as PoseUtils
+
+logger = logging.getLogger(__name__)
+
 from isaaclab.envs import (
     ManagerBasedRLMimicEnv,
     MimicEnvCfg,
@@ -905,7 +907,7 @@ class DataGenerator:
                             'End effector with name "body" not found in subtask configs. "body" must be a valid end'
                             " effector to use the navigation controller.\n"
                         )
-                        omni.log.error(error_msg)
+                        logger.error(error_msg)
                         raise RuntimeError(error_msg)
 
                     # Repeat the last nav subtask action if the robot is navigating and hasn't reached the waypoint goal
