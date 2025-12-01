@@ -855,7 +855,7 @@ class AssemblyEnv(DirectRLEnv):
         self.step_sim_no_action()
 
         grasp_time = 0.0
-        while grasp_time < 0.25:
+        while grasp_time < 1.0:
             self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
             self.ctrl_target_gripper_dof_pos = 0.0
             self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)
