@@ -15,9 +15,9 @@ import isaacsim
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
