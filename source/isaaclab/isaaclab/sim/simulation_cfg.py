@@ -12,7 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, VisualizerCfg
+from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, VisualizerCfg  # noqa: F401
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
