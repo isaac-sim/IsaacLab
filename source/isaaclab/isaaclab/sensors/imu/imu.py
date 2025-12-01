@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class Imu(SensorBase):
     """The Inertia Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any prim path and produces body-frame linear acceleration and angular velocity,
+    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,
     along with world-frame pose and body-frame linear and angular accelerations/velocities.
 
     If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
