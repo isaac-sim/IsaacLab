@@ -232,6 +232,9 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platfo
     failed_tests = []
     test_status = {}
 
+    # Ensure tests directory exists for report files
+    os.makedirs("tests", exist_ok=True)
+
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
         # get file name from path
