@@ -66,6 +66,9 @@ class BaseEnvWindow:
         # Listeners for environment selection changes
         self._ui_listeners: list[ManagerLiveVisualizer] = []
 
+        # Check if any visualizer has live plots enabled
+        self._enable_live_plots = self._check_live_plots_enabled()
+
         print("Creating window for environment.")
         # create window for UI
         self.ui_window = omni.ui.Window(
@@ -101,6 +104,29 @@ class BaseEnvWindow:
             self.ui_window.visible = False
             self.ui_window.destroy()
             self.ui_window = None
+
+    """
+    Helper methods.
+    """
+
+    def _check_live_plots_enabled(self) -> bool:
+        """Check if any visualizer has live plots enabled.
+
+        Returns:
+            True if any visualizer supports and has live plots enabled, False otherwise.
+        """
+        # Check if simulation has visualizers
+        if not hasattr(self.env.sim, "_visualizers"):
+            return False
+
+        # Check each visualizer
+        for visualizer in self.env.sim._visualizers:
+            # Check if visualizer supports live plots and has it enabled
+            if hasattr(visualizer, "cfg") and hasattr(visualizer.cfg, "enable_live_plots"):
+                if visualizer.supports_live_plots() and visualizer.cfg.enable_live_plots:
+                    return True
+
+        return False
 
     """
     Build sub-sections of the UI.
@@ -421,6 +447,11 @@ class BaseEnvWindow:
                 is_checked = (hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis) or (
                     hasattr(elem, "debug_vis") and elem.debug_vis
                 )
+
+            # Auto-enable live plots for ManagerLiveVisualizer if visualizer has enable_live_plots=True
+            if isinstance(elem, ManagerLiveVisualizer) and self._enable_live_plots:
+                is_checked = True
+
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
@@ -434,6 +465,9 @@ class BaseEnvWindow:
             self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
             if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
                 print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
+
+            # Pass the enable_live_plots flag to the visualizer
+            elem._auto_expand_frames = self._enable_live_plots
 
         # Add listener for environment selection changes
         if isinstance(elem, ManagerLiveVisualizer):

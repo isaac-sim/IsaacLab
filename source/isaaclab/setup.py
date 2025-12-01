@@ -53,8 +53,10 @@ INSTALL_REQUIRES = [
     "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
+    # Note, this older version of rerun causes the view to flash dark & light
+    # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
+    "rerun-sdk==0.23",
 ]
-
 
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":
