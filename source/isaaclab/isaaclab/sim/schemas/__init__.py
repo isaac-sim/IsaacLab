@@ -33,6 +33,7 @@ Locally, the schemas are defined in the following files:
 """
 
 from .schemas import (
+    MESH_APPROXIMATION_TOKENS,
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
     activate_contact_sensors,
@@ -122,4 +123,5 @@ __all__ = [
     # Constants for configs that use PhysX vs USD API
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
+    "MESH_APPROXIMATION_TOKENS",
 ]
