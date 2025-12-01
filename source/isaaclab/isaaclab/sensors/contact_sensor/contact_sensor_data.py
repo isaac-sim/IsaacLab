@@ -21,6 +21,7 @@ class ContactSensorData:
 
     Note:
         If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.
+
     """
 
     contact_pos_w: torch.Tensor | None = None
@@ -29,13 +30,15 @@ class ContactSensorData:
     Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
     and M is the number of filtered bodies.
 
-    Collision pairs not in contact will result in nan.
+    Collision pairs not in contact will result in NaN.
 
     Note:
-        If the :attr:`ContactSensorCfg.track_contact_points` is False, then this quantity is None.
-        If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is an empty tensor.
-        If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1, then this quantity
-            will not be calculated.
+
+        * If the :attr:`ContactSensorCfg.track_contact_points` is False, then this quantity is None.
+        * If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is an empty tensor.
+        * If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1, then this quantity
+          will not be calculated.
+
     """
 
     quat_w: torch.Tensor | None = None

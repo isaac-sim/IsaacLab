@@ -20,6 +20,7 @@ from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
 
 
 @configclass
@@ -95,11 +96,17 @@ class RmpFlowController:
             # add robot reference
             robot = SingleArticulation(prim_path)
             robot.initialize()
+            # download files if they are not local
+
+            local_urdf_file = retrieve_file_path(self.cfg.urdf_file, force_download=True)
+            local_collision_file = retrieve_file_path(self.cfg.collision_file, force_download=True)
+            local_config_file = retrieve_file_path(self.cfg.config_file, force_download=True)
+
             # add controller
             rmpflow = controller_cls(
-                robot_description_path=self.cfg.collision_file,
-                urdf_path=self.cfg.urdf_file,
-                rmpflow_config_path=self.cfg.config_file,
+                robot_description_path=local_collision_file,
+                urdf_path=local_urdf_file,
+                rmpflow_config_path=local_config_file,
                 end_effector_frame_name=self.cfg.frame_name,
                 maximum_substep_size=physics_dt / self.cfg.evaluations_per_frame,
                 ignore_robot_state_updates=self.cfg.ignore_robot_state_updates,

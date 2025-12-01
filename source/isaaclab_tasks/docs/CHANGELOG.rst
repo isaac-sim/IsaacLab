@@ -1,6 +1,132 @@
 Changelog
 ---------
 
+0.11.9 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXR motion controller support for the G1 robot locomanipulation environment
+  ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``. This enables teleoperation using XR motion controllers
+  in addition to hand tracking.
+* Added :class:`OpenXRDeviceMotionController` for motion controller-based teleoperation with headset anchoring control.
+* Added motion controller-specific retargeters:
+  * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
+  * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
+
+0.11.8 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed to use of ``num_rerenders_on_reset`` and ``DLAA`` in visuomotor imitation learning environments.
+
+
+0.11.7 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured all imports follows the string import style instead of direct import of environment.
+
+
+0.11.6 (2025-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refined further the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
+0.11.5 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed scikit-learn dependency because we are no longer using this package.
+
+
+0.11.4 (2025-10-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
+0.11.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed how the Sim rendering settings are modified by the Cosmos-Mimic env cfg.
+
+
+0.11.2 (2025-10-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXRteleoperation devices to the Galbot stack environments.
+
+
+0.11.1 (2025-09-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting pbt configuration example cfg for rl_games.
+
+
+0.11.0 (2025-09-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting and dextrous reorientation manipulation rl environments.
+
+
+0.10.51 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added SkillGen-specific cube stacking environments:
+  * :class:`FrankaCubeStackSkillgenEnvCfg`; Gym ID ``Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0``.
+* Added bin cube stacking environment for SkillGen/Mimic:
+  * :class:`FrankaBinStackEnvCfg`; Gym ID ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0``.
+
+
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
+
+0.10.49 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
+
 0.10.48 (2025-09-03)
 ~~~~~~~~~~~~~~~~~~~~
 

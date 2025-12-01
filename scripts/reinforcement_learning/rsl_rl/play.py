@@ -112,6 +112,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     log_dir = os.path.dirname(resume_path)
 
+    # set the log directory for the environment (works for all environment types)
+    env_cfg.log_dir = log_dir
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -182,7 +185,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             # agent stepping
             actions = policy(obs)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, dones, _ = env.step(actions)
+            # reset recurrent states for episodes that have terminated
+            policy_nn.reset(dones)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video

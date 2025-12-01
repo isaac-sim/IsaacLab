@@ -46,6 +46,10 @@ class PinkIKControllerCfg:
     """
 
     joint_names: list[str] | None = None
+    """A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
+    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+
+    all_joint_names: list[str] | None = None
     """A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.
     This value is currently designed to be automatically populated by the action term in a manager based environment."""
 
@@ -62,3 +66,6 @@ class PinkIKControllerCfg:
     """If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
     will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
     closest solution found."""
+
+    xr_enabled: bool = False
+    """If True, the Pink IK controller will send information to the XRVisualization."""

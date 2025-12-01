@@ -1,5 +1,5 @@
-Simulation Performance
-=======================
+Simulation Performance  and Tuning
+====================================
 
 The performance of the simulation can be affected by various factors, including the number of objects in the scene,
 the complexity of the physics simulation, and the hardware being used. Here are some tips to improve performance:
@@ -43,8 +43,30 @@ collision detection will fall back to CPU. Collisions with particles and deforma
 Suitable workarounds include switching to a bounding cube approximation, or using a static triangle mesh collider
 if the geometry is not part of a dynamic rigid body.
 
+CPU Governor Settings on Linux
+------------------------------
+
+CPU governors dictate the operating clock frequency range and scaling of the CPU. This can be a limiting factor for Isaac Sim performance. For maximum performance, the CPU governor should be set to ``performance``. To modify the CPU governor, run the following commands:
+
+.. code-block:: bash
+
+    sudo apt-get install linux-tools-common
+    cpupower frequency-info # Check available governors
+    sudo cpupower frequency-set -g performance # Set governor with root permissions
+
+.. note::
+
+    Not all governors are available on all systems. Governors enabling higher clock speed are typically more performance-centric and will yield better performance for Isaac Sim.
+
 Additional Performance Guides
 -----------------------------
+
+There are many ways to "tune" the performance of the simulation, but the way you choose largely depends on what you are trying to simulate. In general, the first place
+you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering
+and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to
+start hunting for performance gains.
+
+We have recently released a new `gripper tuning guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/gripper_tuning_example.html>`_ , specific to contact and grasp tuning. Please check it first if you intend to use robot grippers. For additional details, you should also checkout these guides!
 
 * `Isaac Sim Performance Optimization Handbook <https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/sim_performance_optimization_handbook.html>`_
 * `Omni Physics Simulation Performance Guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
