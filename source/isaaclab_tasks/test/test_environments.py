@@ -5,10 +5,9 @@
 
 """Launch Isaac Sim Simulator first."""
 
-import sys
-
 # Omniverse logger
-import omni.log
+import logging
+import sys
 
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
@@ -38,6 +37,9 @@ from isaaclab.envs.utils.spaces import sample_space
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 # @pytest.fixture(scope="module", autouse=True)

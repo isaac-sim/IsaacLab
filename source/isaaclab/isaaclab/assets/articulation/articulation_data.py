@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import torch
 import weakref
 
-import omni.log
 import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedBuffer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ArticulationData:
@@ -1075,7 +1078,7 @@ class ArticulationData:
     @property
     def joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.joint_pos_limits
@@ -1083,7 +1086,7 @@ class ArticulationData:
     @property
     def default_joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_limits` property will be deprecated in a future release. Please use"
             " `default_joint_pos_limits` instead."
         )
@@ -1092,7 +1095,7 @@ class ArticulationData:
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
             " `joint_vel_limits` instead."
         )
@@ -1101,7 +1104,7 @@ class ArticulationData:
     @property
     def joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
         )
@@ -1110,7 +1113,7 @@ class ArticulationData:
     @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
             " `default_joint_friction_coeff` instead."
         )
@@ -1119,7 +1122,7 @@ class ArticulationData:
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `fixed_tendon_pos_limits` instead."
         )
@@ -1128,7 +1131,7 @@ class ArticulationData:
     @property
     def default_fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `default_fixed_tendon_pos_limits` instead."
         )

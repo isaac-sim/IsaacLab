@@ -53,7 +53,6 @@ except ModuleNotFoundError:
 import omni.replicator.core as rep
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation, RigidPrim, SingleGeometryPrim, SingleRigidPrim
-from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom
@@ -86,7 +85,7 @@ def main():
         world.get_physics_context().enable_flatcache(True)
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Populate scene
     # Ground

@@ -14,19 +14,20 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
 import sys
-import toml
 from typing import Any, Literal
-
-import flatdict
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
 from isaacsim import SimulationApp
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -859,35 +860,22 @@ class AppLauncher:
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Set RTX rendering settings to the values from the selected preset."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode")
 
-        # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-        if not self._enable_cameras and rendering_mode is None:
-            return
-
-        # default to balanced mode
         if rendering_mode is None:
-            rendering_mode = "balanced"
+            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
+            if not self._enable_cameras:
+                return
+            rendering_mode = ""
 
-        # parse preset file
-        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-        preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename) as file:
-            preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-        # set presets
-        carb_setting = carb.settings.get_settings()
-        for key, value in preset_dict.items():
-            key = "/" + key.replace(".", "/")  # convert to carb setting format
-            set_carb_setting(carb_setting, key, value)
+        # store rendering mode in carb settings
+        carb_settings = carb.settings.get_settings()
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Set animation recording settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
@@ -907,9 +895,9 @@ class AppLauncher:
 
         # store config in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
@@ -958,10 +946,9 @@ class AppLauncher:
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1023,13 +1010,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 
