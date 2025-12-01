@@ -6,9 +6,9 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
+import logging
 import math
 
-import omni.log
 import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import Usd, UsdPhysics
@@ -28,6 +28,8 @@ from . import schemas_cfg
 """
 Articulation root properties.
 """
+
+logger = logging.getLogger(__name__)
 
 
 def define_articulation_root_properties(
@@ -142,12 +144,12 @@ def modify_articulation_root_properties(
         # if we found a fixed joint, enable/disable it based on the input
         # otherwise, create a fixed joint between the world and the root link
         if existing_fixed_joint_prim is not None:
-            omni.log.info(
+            logger.info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
             )
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
-            omni.log.info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
+            logger.info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
 
             # note: we have to assume that the root prim is a rigid body,
             #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
@@ -534,10 +536,10 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleep_threshold", 0.0, camel_case=True)
             # add contact report API with threshold of zero
             if "PhysxContactReportAPI" not in applied_schemas:
-                omni.log.verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
+                logger.debug(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
                 child_prim.AddAppliedSchema("PhysxContactReportAPI")
             else:
-                omni.log.verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
+                logger.debug(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
             # set threshold to zero
             safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=True)
             # increment number of contact sensors

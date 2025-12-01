@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import omni.kit.commands
-import omni.log
 from pxr import Gf, Sdf, Usd
 
 import isaaclab.sim.utils.prims as prim_utils
@@ -31,6 +31,8 @@ from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import from_files_cfg
+
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -182,7 +184,7 @@ def spawn_ground_plane(
         # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
         # is not supported in stage in memory
         if is_current_stage_in_memory():
-            omni.log.warn(
+            logger.warning(
                 "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
             )
 
@@ -281,7 +283,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
