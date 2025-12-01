@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>=2",
     "torch>=2.7",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
@@ -48,19 +48,23 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco>=3.3.6.dev802089588",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@64bb938f87b6aaf840753ef9ddc198db655020c0",
-    "newton @ git+https://github.com/newton-physics/newton.git@beta-1-1",
+    "mujoco>=3.3.8.dev821851540",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@bbd757cace561de47512b560517ee728c8416de5",
+    "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
+    # Note, this older version of rerun causes the view to flash dark & light
+    # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
+    # kelly: seems like we can run with numpy >= 2 so far, if issues arise, we can revert back to 0.23
+    "rerun-sdk==0.27",
 ]
-
 
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":
     INSTALL_REQUIRES += [
         "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+        # kelly: 0.5.0 is required for numpy >= 2, if we need to revert back to numpy < 2, we can go back to dex-retargeting==0.4.6
+        "dex-retargeting==0.5.0",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]

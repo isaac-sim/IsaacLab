@@ -18,7 +18,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=75,
-                ncon_per_env=10,
+                nconmax=10,
                 ls_iterations=10,
                 ls_parallel=True,
                 cone="pyramidal",

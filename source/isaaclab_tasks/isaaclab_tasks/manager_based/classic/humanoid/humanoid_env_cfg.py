@@ -209,7 +209,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120.0
         self.sim.newton_cfg.num_substeps = 2
         self.sim.newton_cfg.solver_cfg.njmax = 80
-        self.sim.newton_cfg.solver_cfg.ncon_per_env = 25
+        self.sim.newton_cfg.solver_cfg.nconmax = 25
         self.sim.newton_cfg.solver_cfg.ls_iterations = 15
         self.sim.newton_cfg.solver_cfg.ls_parallel = True
         self.sim.newton_cfg.solver_cfg.cone = "pyramidal"

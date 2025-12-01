@@ -161,6 +161,14 @@ class TerminationsCfg:
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
 
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                nconmax=5,
+            ),
+        )
+    )
+
     # Scene settings
     scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
     # Basic settings

@@ -29,7 +29,6 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # Joint ordering arguments
 parser.add_argument(
     "--policy_transfer_file",
@@ -148,8 +147,8 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
-        newton_visualizer=args_cli.newton_visualizer,
     )
+
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(task_name, args_cli)
 
     # specify directory for logging experiments

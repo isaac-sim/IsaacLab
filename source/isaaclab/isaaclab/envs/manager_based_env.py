@@ -30,6 +30,9 @@ from .utils.io_descriptors import export_articulations_data, export_scene_data
 # import logger
 logger = logging.getLogger(__name__)
 
+# import logger
+logger = logging.getLogger(__name__)
+
 
 class ManagerBasedEnv:
     """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
