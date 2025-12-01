@@ -74,11 +74,11 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 """Rest everything follows."""
 
 import gymnasium as gym
+import logging
 import os
 import torch
 from datetime import datetime
 
-import omni
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.utils.timer import Timer
@@ -102,6 +102,9 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
@@ -145,7 +148,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
     else:
-        omni.log.warn(
+        logger.warning(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
         )
 

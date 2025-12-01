@@ -5,6 +5,7 @@
 
 import builtins
 import enum
+import logging
 import numpy as np
 import os
 import toml
@@ -17,18 +18,17 @@ from typing import Any
 
 import carb
 import flatdict
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from pxr import Usd
 
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 from isaaclab.visualizers import Visualizer
@@ -37,6 +37,9 @@ from .scene_data_provider import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SimulationContext(_SimulationContext):
@@ -291,7 +294,7 @@ class SimulationContext(_SimulationContext):
                 device=self.cfg.device,
                 stage=self._initial_stage,
             )
-        self.set_setting("/app/player/playSimulations", False)
+        self.carb_settings.set_bool("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
         NewtonManager.set_solver_settings(newton_params)
         physx_sim_interface = omni.physx.get_physx_simulation_interface()
@@ -306,7 +309,7 @@ class SimulationContext(_SimulationContext):
         """Sets various carb physics settings."""
         # enable hydra scene-graph instancing
         # note: this allows rendering of instanceable assets on the GUI
-        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+        self.carb_settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     def _apply_render_settings_from_cfg(self):
         """Sets rtx settings specified in the RenderCfg."""
@@ -347,7 +350,7 @@ class SimulationContext(_SimulationContext):
             # set presets
             for key, value in preset_dict.items():
                 key = "/" + key.replace(".", "/")  # convert to carb setting format
-                set_carb_setting(self.carb_settings, key, value)
+                self.set_setting(key, value)
 
         # set user-friendly named settings
         for key, value in vars(self.cfg.render_cfg).items():
@@ -360,7 +363,7 @@ class SimulationContext(_SimulationContext):
                     " need to be updated."
                 )
             key = rendering_setting_name_mapping[key]
-            set_carb_setting(self.carb_settings, key, value)
+            self.set_setting(key, value)
 
         # set general carb settings
         carb_settings = self.cfg.render_cfg.carb_settings
@@ -370,9 +373,9 @@ class SimulationContext(_SimulationContext):
                     key = "/" + key.replace("_", "/")  # convert from python variable style string
                 elif "." in key:
                     key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if get_carb_setting(self.carb_settings, key) is None:
+                if self.get_setting(key) is None:
                     raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                set_carb_setting(self.carb_settings, key, value)
+                self.set_setting(key, value)
 
         # set denoiser mode
         if self.cfg.render_cfg.antialiasing_mode is not None:
@@ -384,8 +387,8 @@ class SimulationContext(_SimulationContext):
                 pass
 
         # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
-        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
-            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
+        if self.get_setting("/rtx/rendermode").lower() == "raytracedlighting":
+            self.set_setting("/rtx/rendermode", "RaytracedLighting")
 
     """
     Operations - New.
@@ -513,20 +516,29 @@ class SimulationContext(_SimulationContext):
 
     def set_setting(self, name: str, value: Any):
         """Set simulation settings using the Carbonite SDK.
-
         .. note::
             If the input setting name does not exist, it will be created. If it does exist, the value will be
             overwritten. Please make sure to use the correct setting name.
-
             To understand the settings interface, please refer to the
             `Carbonite SDK <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/settings.html>`_
             documentation.
-
         Args:
             name: The name of the setting.
             value: The value of the setting.
         """
-        self._settings.set(name, value)
+        # Route through typed setters for correctness and consistency for common scalar types.
+        if isinstance(value, bool):
+            self.carb_settings.set_bool(name, value)
+        elif isinstance(value, int):
+            self.carb_settings.set_int(name, value)
+        elif isinstance(value, float):
+            self.carb_settings.set_float(name, value)
+        elif isinstance(value, str):
+            self.carb_settings.set_string(name, value)
+        elif isinstance(value, (list, tuple)):
+            self.carb_settings.set(name, value)
+        else:
+            raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get_setting(self, name: str) -> Any:
         """Read the simulation setting using the Carbonite SDK.
@@ -537,7 +549,7 @@ class SimulationContext(_SimulationContext):
         Returns:
             The value of the setting.
         """
-        return self._settings.get(name)
+        return self.carb_settings.get(name)
 
     def forward(self) -> None:
         """Updates articulation kinematics and scene data for rendering."""
@@ -672,7 +684,7 @@ class SimulationContext(_SimulationContext):
     """
 
     def reset(self, soft: bool = False):
-        self.set_setting("/app/player/playSimulations", False)
+        self.carb_settings.set_bool("/app/player/playSimulations", False)
         self._disable_app_control_on_stop_handle = True
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
@@ -792,7 +804,7 @@ class SimulationContext(_SimulationContext):
                 self._render_throttle_counter = 0
                 # here we don't render viewport so don't need to flush fabric data
                 # note: we don't call super().render() anymore because they do flush the fabric data
-                self.set_setting("/app/player/playSimulations", False)
+                self.carb_settings.set_bool("/app/player/playSimulations", False)
                 self._app.update()
         else:
             # manually flush the fabric data to update Hydra textures
@@ -800,7 +812,7 @@ class SimulationContext(_SimulationContext):
             # render the simulation
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
-            self.set_setting("/app/player/playSimulations", False)
+            self.carb_settings.set_bool("/app/player/playSimulations", False)
             self._app.update()
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
@@ -827,9 +839,9 @@ class SimulationContext(_SimulationContext):
         with use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
-            self.set_setting("/app/player/playSimulations", False)
+            self.carb_settings.set_bool("/app/player/playSimulations", False)
             self._app.update()
-            self.set_setting("/app/player/playSimulations", True)
+            self.carb_settings.set_bool("/app/player/playSimulations", True)
             # set additional physx parameters and bind material
             self._set_additional_physics_params()
             # load flatcache/fabric interface
