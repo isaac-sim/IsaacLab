@@ -38,10 +38,10 @@ simulation_app = app_launcher.app
 import os
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

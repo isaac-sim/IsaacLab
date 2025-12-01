@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.48.10 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
+
 
 0.48.9 (2025-11-21)
 ~~~~~~~~~~~~~~~~~~~
@@ -27,7 +35,9 @@ Added
 Changed
 ^^^^^^^
 
-* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` to properly propagate the Isaac Sim stage context.
+* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` in ``isaaclab.devices.openxr.xr_anchor_utils.py``
+  to properly propagate the Isaac Sim stage context.
+
 
 
 0.48.6 (2025-11-18)

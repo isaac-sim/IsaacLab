@@ -8,12 +8,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import clone
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context
+import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import attach_stage_to_usd_context, clone
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:

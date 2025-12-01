@@ -64,12 +64,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.carb import set_carb_setting
-from isaacsim.core.utils.stage import get_current_stage
 
+import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
 
@@ -96,7 +95,7 @@ def main():
     sim.get_physics_context().set_gpu_total_aggregate_pairs_capacity(2**21)
     # enable hydra scene-graph instancing
     # this is needed to visualize the scene when fabric is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=args_cli.spacing, stage=stage)

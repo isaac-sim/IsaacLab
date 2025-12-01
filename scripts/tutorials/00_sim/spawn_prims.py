@@ -31,9 +31,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
-
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 

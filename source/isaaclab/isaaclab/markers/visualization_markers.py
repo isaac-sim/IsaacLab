@@ -29,8 +29,8 @@ import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
 
@@ -68,7 +68,7 @@ class VisualizationMarkers:
     The class parses the configuration to create different the marker prototypes into the stage. Each marker
     prototype prim is created as a child of the :class:`UsdGeom.PointInstancer` prim. The prim path for the
     marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`
-    dictionary. The marker prototypes are created using the :meth:`isaacsim.core.utils.create_prim`
+    dictionary. The marker prototypes are created using the :meth:`isaaclab.sim.utils.prims.create_prim`
     function, and then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple
     instances of the marker prims.
 

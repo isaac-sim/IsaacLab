@@ -20,7 +20,6 @@ import numpy as np
 import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
@@ -28,8 +27,9 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()

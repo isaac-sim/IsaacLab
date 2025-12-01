@@ -14,10 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 

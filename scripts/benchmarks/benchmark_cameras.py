@@ -245,11 +245,10 @@ import random
 import time
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import psutil
-from isaacsim.core.utils.stage import create_new_stage
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene.interactive_scene import InteractiveScene
 from isaaclab.sensors import (
@@ -261,6 +260,7 @@ from isaaclab.sensors import (
     TiledCameraCfg,
     patterns,
 )
+from isaaclab.sim.utils.stage import create_new_stage
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
