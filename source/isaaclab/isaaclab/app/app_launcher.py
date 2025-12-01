@@ -115,6 +115,9 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._visualizer: (
+            list[str] | None
+        )  # Visualizer backends to use: None or list of ["rerun", "newton", "omniverse"]
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -174,6 +177,16 @@ class AppLauncher:
         else:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
 
+    @property
+    def visualizer(self) -> list[str] | None:
+        """The visualizer backend(s) to use.
+
+        Returns:
+            List of visualizer backend names (e.g., ["rerun", "newton"]) or None if no visualizers specified.
+            Empty list means no visualizers should be initialized.
+        """
+        return self._visualizer
+
     """
     Operations.
     """
@@ -225,6 +238,21 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
+        * ``visualizer`` (list[str]): The visualizer backend(s) to use for the simulation.
+          Valid options are:
+
+          - ``rerun``: Use Rerun visualizer.
+          - ``newton``: Use Newton visualizer.
+          - ``omniverse``: Use Omniverse visualizer.
+          - Multiple visualizers can be specified: ``--visualizer rerun newton``
+          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
+
+          Note: If visualizer configs are not defined in the simulation config, default configs will be
+          automatically created with all default parameters.
+          If --headless is specified, it takes precedence and NO visualizers will be initialized.
+          When omniverse visualizer is specified, the app will launch in non-headless mode automatically.
+          When only non-GUI visualizers (rerun, newton) are specified, headless mode is auto-enabled.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -362,6 +390,19 @@ class AppLauncher:
                 " exceeded, then the animation is not recorded."
             ),
         )
+        arg_group.add_argument(
+            "--visualizer",
+            type=str,
+            nargs="*",
+            default=None,
+            help=(
+                "The visualizer backend(s) to use for the simulation."
+                ' Can be one or more of: "rerun", "newton", "omniverse".'
+                " Multiple visualizers can be specified: --visualizer rerun newton."
+                " If not specified (default), NO visualizers will be created and headless mode is auto-enabled."
+                " If no visualizer configs are defined in sim config, default configs will be created automatically."
+            ),
+        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -382,6 +423,7 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
+        "visualizer": ([list, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -479,6 +521,7 @@ class AppLauncher:
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
+        self._resolve_visualizer_settings(launcher_args)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
@@ -570,9 +613,16 @@ class AppLauncher:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
+
+        # Check if visualizers are requested and if omniverse visualizer is among them
+        visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
+        visualizers_requested = visualizers is not None and len(visualizers) > 0
+        omniverse_visualizer_requested = visualizers_requested and "omniverse" in visualizers
+
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
+            # User explicitly requested headless mode
             self._headless = headless_arg
         elif self._livestream in {1, 2}:
             # we are always headless on the host machine
@@ -588,11 +638,55 @@ class AppLauncher:
                     f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly"
                     f" overridden the environment variable `HEADLESS={headless_env}` to True."
                 )
+        elif omniverse_visualizer_requested and headless_env == 0:
+            # Omniverse visualizer requires non-headless mode (needs Isaac Sim viewport)
+            self._headless = False
+            print(
+                "[INFO][AppLauncher]: Omniverse visualizer requested via --visualizer flag. "
+                "Launching in non-headless mode to enable viewport visualization."
+            )
+        elif visualizers_requested and not omniverse_visualizer_requested and headless_env == 0:
+            # Newton and Rerun don't need Isaac Sim viewport (they create their own windows or are web-based)
+            self._headless = True
+            print(
+                f"[INFO][AppLauncher]: Visualizer(s) {visualizers} requested. "
+                "Enabling headless mode (Isaac Sim viewport disabled)."
+            )
+        elif not visualizers_requested and headless_env == 0:
+            # No visualizers requested and headless not explicitly set -> enable headless mode
+            self._headless = True
+            print(
+                "[INFO][AppLauncher]: No visualizers specified via --visualizer flag. "
+                "Automatically enabling headless mode. Use --visualizer <type> to enable GUI."
+            )
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
+
+    def _resolve_visualizer_settings(self, launcher_args: dict):
+        """Resolve visualizer related settings."""
+        # Get visualizer setting from launcher_args
+        visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
+
+        # Validate visualizer names
+        valid_visualizers = ["rerun", "newton", "omniverse"]
+        if visualizers is not None and len(visualizers) > 0:
+            invalid = [v for v in visualizers if v not in valid_visualizers]
+            if invalid:
+                raise ValueError(f"Invalid visualizer(s) specified: {invalid}. Valid options are: {valid_visualizers}")
+
+        # Store visualizer setting for later use
+        # Convert empty list to None for consistency
+        self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
+
+        # Check if both headless and visualizer are specified
+        if self._headless and self._visualizer is not None:
+            print(
+                f"[WARN][AppLauncher]: Both headless mode and visualizer(s) {self._visualizer} were specified."
+                " Headless mode is enabled, so no visualizers will be initialized."
+            )
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -830,6 +924,14 @@ class AppLauncher:
         # this flag is set to True when an RTX-rendering related sensor is created
         # for example: the `Camera` sensor class
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # set carb setting to store the visualizer backend(s) specified via command-line
+        # this allows SimulationContext to filter visualizers based on the --visualizer flag
+        # Store as comma-separated string for carb settings compatibility
+        if self._visualizer is not None:
+            carb_settings_iface.set_string("/isaaclab/visualizer", ",".join(self._visualizer))
+        else:
+            carb_settings_iface.set_string("/isaaclab/visualizer", "")
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())

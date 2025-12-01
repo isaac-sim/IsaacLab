@@ -3,21 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Rerun-based visualizer using rerun-sdk."""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-
-import omni.log
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # Try to import rerun and Newton's ViewerRerun
 try:
@@ -111,7 +108,7 @@ class RerunVisualizer(Visualizer):
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize visualizer with Newton Model and State."""
         if self._is_initialized:
-            omni.log.warn("[RerunVisualizer] Already initialized. Skipping re-initialization.")
+            logger.warning("[RerunVisualizer] Already initialized. Skipping re-initialization.")
             return
 
         # Import NewtonManager for metadata access
@@ -138,7 +135,7 @@ class RerunVisualizer(Visualizer):
             )
 
         if self._state is None:
-            omni.log.warn("[RerunVisualizer] No Newton State available. Visualization may not work correctly.")
+            logger.warning("[RerunVisualizer] No Newton State available. Visualization may not work correctly.")
 
         # Build metadata from NewtonManager
         metadata = {
@@ -151,7 +148,7 @@ class RerunVisualizer(Visualizer):
         # Create Newton ViewerRerun wrapper
         try:
             if self.cfg.record_to_rrd:
-                omni.log.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
+                logger.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
 
             self._viewer = NewtonViewerRerun(
                 server=self.cfg.server_mode,
@@ -167,15 +164,35 @@ class RerunVisualizer(Visualizer):
             # Set the model
             self._viewer.set_model(self._model)
 
+            # Set initial camera view using Rerun's blueprint system
+            try:
+                # Calculate camera direction vector (from position to target)
+                cam_pos = self.cfg.camera_position
+                cam_target = self.cfg.camera_target
+
+                # Create blueprint with 3D view and camera settings
+                blueprint = rrb.Blueprint(
+                    rrb.Spatial3DView(
+                        name="3D View",
+                        origin="/",
+                    ),
+                    collapse_panels=True,
+                )
+                rr.send_blueprint(blueprint)
+
+                logger.info(f"[RerunVisualizer] Set initial camera view: position={cam_pos}, target={cam_target}")
+            except Exception as e:
+                logger.warning(f"[RerunVisualizer] Could not set initial camera view: {e}")
+
             # Log initialization
             num_envs = metadata.get("num_envs", 0)
             physics_backend = metadata.get("physics_backend", "newton")
-            omni.log.info(f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})")
+            logger.info(f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})")
 
             self._is_initialized = True
 
         except Exception as e:
-            omni.log.error(f"[RerunVisualizer] Failed to initialize viewer: {e}")
+            logger.error(f"[RerunVisualizer] Failed to initialize viewer: {e}")
             raise
 
     def step(self, dt: float, state: Any | None = None) -> None:
@@ -192,7 +209,7 @@ class RerunVisualizer(Visualizer):
             state: Unused (deprecated parameter, kept for API compatibility).
         """
         if not self._is_initialized or self._viewer is None:
-            omni.log.warn("[RerunVisualizer] Not initialized. Call initialize() first.")
+            logger.warning("[RerunVisualizer] Not initialized. Call initialize() first.")
             return
 
         # Fetch updated state from scene data provider
@@ -224,19 +241,19 @@ class RerunVisualizer(Visualizer):
 
         try:
             if self.cfg.record_to_rrd:
-                omni.log.info(f"[RerunVisualizer] Finalizing recording to: {self.cfg.record_to_rrd}")
+                logger.info(f"[RerunVisualizer] Finalizing recording to: {self.cfg.record_to_rrd}")
             self._viewer.close()
-            omni.log.info("[RerunVisualizer] Closed successfully.")
+            logger.info("[RerunVisualizer] Closed successfully.")
             if self.cfg.record_to_rrd:
                 import os
 
                 if os.path.exists(self.cfg.record_to_rrd):
                     size = os.path.getsize(self.cfg.record_to_rrd)
-                    omni.log.info(f"[RerunVisualizer] Recording saved: {self.cfg.record_to_rrd} ({size} bytes)")
+                    logger.info(f"[RerunVisualizer] Recording saved: {self.cfg.record_to_rrd} ({size} bytes)")
                 else:
-                    omni.log.warn(f"[RerunVisualizer] Recording file not found: {self.cfg.record_to_rrd}")
+                    logger.warning(f"[RerunVisualizer] Recording file not found: {self.cfg.record_to_rrd}")
         except Exception as e:
-            omni.log.warn(f"[RerunVisualizer] Error during close: {e}")
+            logger.warning(f"[RerunVisualizer] Error during close: {e}")
 
         self._viewer = None
         self._is_initialized = False

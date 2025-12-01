@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the Rerun visualizer."""
 
 from __future__ import annotations
@@ -48,3 +43,9 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
+
+    camera_position: tuple[float, float, float] = (5.0, 5.0, 2.0)
+    """Initial camera position (x, y, z). Closer to robots than default (10, 10, 3)."""
+
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera target/look-at point (x, y, z)."""

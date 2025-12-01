@@ -17,10 +17,15 @@ if TYPE_CHECKING:
 
 @configclass
 class VisualizerCfg:
-    """Base configuration for all visualizer backends."""
+    """Base configuration for all visualizer backends.
 
-    visualizer_type: str = "base"
-    """Type identifier (e.g., 'newton', 'rerun', 'omniverse')."""
+    Note:
+        This is an abstract base class and should not be instantiated directly.
+        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg.
+    """
+
+    visualizer_type: str | None = None
+    """Type identifier (e.g., 'newton', 'rerun', 'omniverse'). Must be overridden by subclasses."""
 
     # Note: Partial environment visualization will come later
     # env_ids: list[Integer] = []
@@ -39,16 +44,33 @@ class VisualizerCfg:
     This provides a better out-of-the-box experience when you want to monitor training metrics.
     """
 
-    def get_visualizer_type(self) -> str:
-        """Get the visualizer type identifier."""
+    def get_visualizer_type(self) -> str | None:
+        """Get the visualizer type identifier.
+
+        Returns:
+            The visualizer type string, or None if not set (base class).
+        """
         return self.visualizer_type
 
     def create_visualizer(self) -> Visualizer:
-        """Create visualizer instance from this config using factory pattern."""
+        """Create visualizer instance from this config using factory pattern.
+
+        Raises:
+            ValueError: If visualizer_type is None (base class used directly) or not registered.
+        """
         from . import get_visualizer_class
+
+        if self.visualizer_type is None:
+            raise ValueError(
+                "Cannot create visualizer from base VisualizerCfg class. "
+                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg."
+            )
 
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
-            raise ValueError(f"Visualizer type '{self.visualizer_type}' is not registered.")
+            raise ValueError(
+                f"Visualizer type '{self.visualizer_type}' is not registered. "
+                "Valid types: 'newton', 'rerun', 'omniverse'."
+            )
 
         return visualizer_class(self)
