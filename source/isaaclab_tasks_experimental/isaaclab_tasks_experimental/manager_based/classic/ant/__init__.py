@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Ant-v0",
+    id="Isaac-AntWarp-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

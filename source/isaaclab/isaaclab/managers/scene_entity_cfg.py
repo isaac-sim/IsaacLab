@@ -134,13 +134,13 @@ class SceneEntityCfg:
         self._resolve_joint_names(scene)
 
         # convert fixed tendon names to indices based on regex
-        self._resolve_fixed_tendon_names(scene)
+        #self._resolve_fixed_tendon_names(scene)
 
         # convert body names to indices based on regex
         self._resolve_body_names(scene)
 
         # convert object collection names to indices based on regex
-        self._resolve_object_collection_names(scene)
+        #self._resolve_object_collection_names(scene)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -152,7 +152,7 @@ class SceneEntityCfg:
                     self.joint_names = [self.joint_names]
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
-                joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
+                _, _, joint_ids = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
                 joint_names = [entity.joint_names[i] for i in self.joint_ids]
                 if joint_ids != self.joint_ids or joint_names != self.joint_names:
                     raise ValueError(
@@ -165,7 +165,7 @@ class SceneEntityCfg:
             elif self.joint_names is not None:
                 if isinstance(self.joint_names, str):
                     self.joint_names = [self.joint_names]
-                self.joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
+                _, _, self.joint_ids = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all joint in the entity order are selected
                 if len(self.joint_ids) == entity.num_joints and self.joint_names == entity.joint_names:
@@ -186,10 +186,10 @@ class SceneEntityCfg:
                     self.fixed_tendon_names = [self.fixed_tendon_names]
                 if isinstance(self.fixed_tendon_ids, int):
                     self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                fixed_tendon_ids, _ = entity.find_fixed_tendons(
+                _, _, fixed_tendon_ids = entity.find_fixed_tendons(
                     self.fixed_tendon_names, preserve_order=self.preserve_order
                 )
-                fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
+                _, _, fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
                 if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
                     raise ValueError(
                         "Both 'fixed_tendon_names' and 'fixed_tendon_ids' are specified, and are not consistent."
@@ -201,7 +201,7 @@ class SceneEntityCfg:
             elif self.fixed_tendon_names is not None:
                 if isinstance(self.fixed_tendon_names, str):
                     self.fixed_tendon_names = [self.fixed_tendon_names]
-                self.fixed_tendon_ids, _ = entity.find_fixed_tendons(
+                _, _, self.fixed_tendon_ids = entity.find_fixed_tendons(
                     self.fixed_tendon_names, preserve_order=self.preserve_order
                 )
                 # performance optimization (slice offers faster indexing than list of indices)
@@ -227,7 +227,7 @@ class SceneEntityCfg:
                     self.body_names = [self.body_names]
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
+                _, _, body_ids = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
                 body_names = [entity.body_names[i] for i in self.body_ids]
                 if body_ids != self.body_ids or body_names != self.body_names:
                     raise ValueError(
@@ -240,7 +240,7 @@ class SceneEntityCfg:
             elif self.body_names is not None:
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
-                self.body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
+                _, _, self.body_ids = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all bodies in the entity order are selected
                 if len(self.body_ids) == entity.num_bodies and self.body_names == entity.body_names:
