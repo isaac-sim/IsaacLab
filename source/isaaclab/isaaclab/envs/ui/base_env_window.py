@@ -15,7 +15,6 @@ import isaacsim
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
-
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage

@@ -13,9 +13,8 @@ import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import Usd, UsdPhysics
 
-from isaaclab.utils.string import to_camel_case
-
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import to_camel_case
 
 from ..utils import (
     apply_nested,
