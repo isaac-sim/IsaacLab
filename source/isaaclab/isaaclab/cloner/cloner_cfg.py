@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass
 
-from .cloner import physx_replicate
-from .cloner_utils import random
+from .cloner_strategies import random
+from .cloner_utils import physx_replicate
 
 
 @configclass
@@ -34,7 +34,7 @@ class TemplateCloneCfg:
 
     .. code-block:: python
 
-        from isaaclab.cloner.cloner import TemplateCloneCfg, clone_from_template
+        from isaaclab.cloner import TemplateCloneCfg, clone_from_template
         from isaacsim.core.utils.stage import get_current_stage
 
         stage = get_current_stage()

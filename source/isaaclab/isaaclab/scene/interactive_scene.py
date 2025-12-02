@@ -14,6 +14,7 @@ from isaacsim.core.prims import XFormPrim
 from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -31,7 +32,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, 
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab import cloner
+
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger
