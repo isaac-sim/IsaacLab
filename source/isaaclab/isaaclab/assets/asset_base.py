@@ -90,9 +90,9 @@ class AssetBase(ABC):
                 orientation=self.cfg.init_state.rot,
             )
         # check that spawn was successful
-        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+        # matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        # if len(matching_prims) == 0:
+        #     raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
 
         # register simulator callbacks (with weakref safety to avoid crashes on deletion)
         def safe_callback(callback_name, event, obj_ref):
@@ -107,7 +107,7 @@ class AssetBase(ABC):
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
         obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
         # register timeline PLAY event callback (lower priority with order=10)
@@ -308,8 +308,9 @@ class AssetBase(ABC):
         """
         if not self._is_initialized:
             # obtain simulation related information
-            self._backend = SimulationManager.get_backend()
-            self._device = SimulationManager.get_physics_sim_device()
+            # self._backend = SimulationManager.get_backend()
+            # self._device = SimulationManager.get_physics_sim_device()
+            self._device = SimulationContext.instance().device
             # initialize the asset
             try:
                 self._initialize_impl()

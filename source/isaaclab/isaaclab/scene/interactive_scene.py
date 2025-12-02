@@ -11,13 +11,13 @@ from typing import Any, TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
-from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-
+from isaaclab.scene.cloner import CLONE, newton_replicate, usd_replicate, grid_transforms, filter_collisions
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger
@@ -119,92 +119,36 @@ class InteractiveScene:
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
-        self.cloner.define_base_env(self.env_ns)
-        self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
+        self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+        target_env_ids = torch.arange(self.cfg.num_envs).unsqueeze(0)
+        usd_replicate(self.stage, [f"{self.env_ns}/env_0"], [f"{self.env_ns}/env_{{}}"], target_env_ids)
 
-        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
-        # this triggers per-object level cloning in the spawner.
-        if not self.cfg.replicate_physics:
-            # clone the env xform
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this won't do anything because we are not replicating physics
-                clone_in_fabric=self.cfg.clone_in_fabric,
-            )
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
-        else:
-            # otherwise, environment origins will be initialized during cloning at the end of environment creation
-            self._default_env_origins = None
+        self._default_env_origins, self.env_orientations = grid_transforms(self.cfg.num_envs, self.cfg.env_spacing, up_axis="z", device="cuda")
 
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
             # add entities from config
             self._add_entities_from_cfg()
-            # clone environments on a global scope if environment is homogeneous
-            if self.cfg.replicate_physics:
-                self.clone_environments(copy_from_source=False)
-            # replicate physics if we have more than one environment
-            # this is done to make scene initialization faster at play time
-            # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-            # to filter collisions if replicate_physics is not enabled
-            # additionally, env_ids is only supported in GPU simulation
+            self.clone_environments(copy_from_source=False)
+
             if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
-        """Creates clones of the environment ``/World/envs/env_0``.
-
-        Args:
-            copy_from_source: (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.
-            If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
-            may increase). Defaults to False.
-        """
-        # check if user spawned different assets in individual environments
-        # this flag will be None if no multi asset is spawned
-        settings_manager = get_settings_manager()
-        has_multi_assets = settings_manager.get("/isaaclab/spawn/multi_assets")
-        if has_multi_assets and self.cfg.replicate_physics:
-            logger.warning(
-                "Varying assets might have been spawned under different environments."
-                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
-                " This may adversely affect PhysX parsing. We recommend disabling this property."
+        """Creates clones of the environment from clone instructions."""
+        # clone environments on a global scope if environment is homogeneous
+        if self.cfg.replicate_physics:
+            newton_replicate(
+                stage=self.stage,
+                sources=CLONE['source'],
+                destinations=CLONE['destination'],
+                mapping=CLONE['mapping'],
+                positions=self._default_env_origins,
+                orientations=self.env_orientations[:, [1, 2, 3, 0]],  # w,x,y,z -> x,y,z,w
             )
-
-        # clone the environment
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=self.cfg.replicate_physics,
-            copy_from_source=copy_from_source,
-            enable_env_ids=(
-                self.cfg.filter_collisions if self.device != "cpu" else False
-            ),  # this automatically filters collisions between environments
-            clone_in_fabric=self.cfg.clone_in_fabric,
-        )
-
-        # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-        # to filter collisions if replicate_physics is not enabled
-        # additionally, env_ids is only supported in GPU simulation
-        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-            # if scene is specified through cfg, this is already taken care of
-            if not self._is_scene_setup_from_cfg():
-                logger.warning(
-                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
-                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
-                    " environments."
-                )
-
-        # in case of heterogeneous cloning, the env origins is specified at init
-        if self._default_env_origins is None:
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+        usd_replicate(self.stage, CLONE['source'], CLONE['destination'], CLONE['mapping'])
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -232,11 +176,8 @@ class InteractiveScene:
             self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
-        self.cloner.filter_collisions(
-            self.physics_scene_path,
-            "/World/collisions",
-            self.env_prim_paths,
-            global_paths=self._global_prim_paths,
+        filter_collisions(
+            self.stage, self.physics_scene_path, "/World/collisions", self.env_prim_paths, self._global_prim_paths
         )
 
     def __str__(self) -> str:
@@ -244,7 +185,7 @@ class InteractiveScene:
         msg = f"<class {self.__class__.__name__}>\n"
         msg += f"\tNumber of environments: {self.cfg.num_envs}\n"
         msg += f"\tEnvironment spacing   : {self.cfg.env_spacing}\n"
-        msg += f"\tSource prim name      : {self.env_prim_paths[0]}\n"
+        msg += f"\tSource prim name      : {self.env_ns}/env_0\n"
         msg += f"\tGlobal prim paths     : {self._global_prim_paths}\n"
         msg += f"\tReplicate physics     : {self.cfg.replicate_physics}"
         return msg
@@ -348,7 +289,7 @@ class InteractiveScene:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
         The keys are the names of the miscellaneous objects, and the values are XFormPrim instances
-        from isaacsim.core.prims.
+        from isaaclab.sim.prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -631,7 +572,6 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                from isaacsim.core.prims import XFormPrim
                 self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")

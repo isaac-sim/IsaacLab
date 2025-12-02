@@ -348,6 +348,9 @@ class SimulationContext():
         self.physics_prim_path = self.cfg.physics_prim_path
         self.device = self.cfg.device
 
+        self._is_playing = False
+        self.physics_sim_view = None
+
         self.settings.set_bool("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
         NewtonManager.set_solver_settings(newton_params)
@@ -476,7 +479,7 @@ class SimulationContext():
 
         .. _NVIDIA RTX documentation: https://developer.nvidia.com/rendering-technologies
         """
-        return self._settings.get_as_bool("/isaaclab/render/rtx_sensors")
+        return self.settings.get("/isaaclab/render/rtx_sensors")
 
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled.
@@ -862,18 +865,19 @@ class SimulationContext():
     def reset(self, soft: bool = False):
         self.settings.set_bool("/app/player/playSimulations", False)
         self._disable_app_control_on_stop_handle = True
-        # check if we need to raise an exception that was raised in a callback
-        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-            raise exception_to_raise
+        # # check if we need to raise an exception that was raised in a callback
+        # if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+        #     exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+        #     builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+        #     raise exception_to_raise
 
         if not soft:
-            if not self.is_stopped():
-                self.stop()
+            # if not self.is_stopped():
+            #     self.stop()
             NewtonManager.start_simulation()
-            self.play()
+            # self.play()
             NewtonManager.initialize_solver()
+            self._is_playing = True
 
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -948,6 +952,14 @@ class SimulationContext():
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+    def is_playing(self) -> bool:
+        """Checks if the simulation is playing.
+
+        Returns:
+            True if the simulation is playing, False otherwise.
+        """
+        return self._is_playing
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.

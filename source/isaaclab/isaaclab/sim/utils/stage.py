@@ -6,6 +6,7 @@
 import builtins
 import contextlib
 import logging
+import os
 import threading
 import typing
 from collections.abc import Generator
@@ -23,6 +24,9 @@ from pxr import Sdf, Usd, UsdGeom, UsdUtils
 # import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
+
+# Import for remote file handling
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -56,14 +60,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
 
-    from isaacsim.core.simulation_manager import SimulationManager
-
     from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        return
 
     # if stage is not in memory, we can return early
     if not is_current_stage_in_memory():
@@ -404,10 +401,15 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     Adds a reference to an external USD file at the specified prim path on the current stage.
     If the prim does not exist, it will be created with the specified type.
-    This function also handles stage units verification to ensure compatibility.
+    
+    This function supports both local and remote USD files (HTTP, HTTPS, S3). Remote files
+    are automatically downloaded to a local cache before being referenced.
+
+    Note:
+        This is a USD-core only implementation that does not use omni APIs for metrics checking.
 
     Args:
-        usd_path: The path to USD file to reference.
+        usd_path: The path to USD file to reference. Can be a local path or remote URL (HTTP, HTTPS, S3).
         prim_path: The prim path where the reference will be attached.
         prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
 
@@ -423,43 +425,76 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
         >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
-        >>> # load an USD file (franka.usd) to the stage under the path /World/panda
+        >>> # load a local USD file
         >>> prim = stage_utils.add_reference_to_stage(
         ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd",
         ...     prim_path="/World/panda"
         ... )
         >>> prim
         Usd.Prim(</World/panda>)
+        >>>
+        >>> # load a remote USD file from S3
+        >>> prim = stage_utils.add_reference_to_stage(
+        ...     usd_path="https://s3.amazonaws.com/bucket/robot.usd",
+        ...     prim_path="/World/robot"
+        ... )
     """
+    # Store original path for error messages
+    original_usd_path = usd_path
+    
+    # Check if file is remote and download if needed
+    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    file_status = check_file_path(usd_path)
+    
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: {usd_path}")
+    
+    # Download remote files to local cache
+    if file_status == 2:
+        logger.info(f"Downloading remote USD file: {original_usd_path}")
+        try:
+            usd_path = retrieve_file_path(usd_path, force_download=False)
+            logger.info(f"  Downloaded to: {usd_path}")
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to download USD file from {original_usd_path}: {e}")
+    
+    # Verify the local file exists and can be opened
+    if not os.path.exists(usd_path):
+        raise FileNotFoundError(f"USD file does not exist at local path: {usd_path} (original: {original_usd_path})")
+    
     stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-    # logger.info("Loading Asset from path {} ".format(usd_path))
-    # Handle units
+    
+    # Try to open the USD layer with the local path
     sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
     if not sdf_layer:
-        pass
-        # logger.info(f"Could not get Sdf layer for {usd_path}")
-    else:
+        raise FileNotFoundError(f"Could not open USD file at {usd_path} (original: {original_usd_path})")
+    
+    # Attempt to use omni metrics assembler for unit checking (if available)
+    try:
+        from omni.metrics.assembler.core import get_metrics_assembler_interface
+        
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         ret_val = get_metrics_assembler_interface().check_layers(
             stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
         )
         if ret_val["ret_val"]:
-            try:
-                import omni.metrics.assembler.ui
-
-                payref = Sdf.Reference(usd_path)
-                omni.kit.commands.execute("AddReference", stage=stage, prim_path=prim.GetPath(), reference=payref)
-            except Exception:
-                success_bool = prim.GetReferences().AddReference(usd_path)
-                if not success_bool:
-                    raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
-        else:
+            # Metrics check passed, add reference using pure USD API
             success_bool = prim.GetReferences().AddReference(usd_path)
             if not success_bool:
-                raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
+                raise FileNotFoundError(f"Failed to add reference to {usd_path}")
+        else:
+            # Metrics check didn't pass, use pure USD
+            success_bool = prim.GetReferences().AddReference(usd_path)
+            if not success_bool:
+                raise FileNotFoundError(f"Failed to add reference to {usd_path}")
+    except (ImportError, Exception):
+        # Omni APIs not available or failed, fall back to pure USD implementation
+        success_bool = prim.GetReferences().AddReference(usd_path)
+        if not success_bool:
+            raise FileNotFoundError(f"Failed to add reference to {usd_path}")
 
     return prim
 

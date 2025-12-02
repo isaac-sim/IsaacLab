@@ -17,11 +17,10 @@ import logging
 import numpy as np
 import torch
 
-import carb
-import carb.settings
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.utils.timer import Timer
+from isaaclab.sim.utils import get_current_stage
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -45,7 +44,6 @@ class Cloner:
         self._root_path = None
         self._stage = stage
         if stage is None:
-            from isaaclab.sim.utils import get_current_stage
             self._stage = get_current_stage()
 
     def define_base_env(self, base_env_path: str):
@@ -109,6 +107,8 @@ class Cloner:
             Exception: Raises exception if source prim path is not valid.
 
         """
+        import carb
+
         # check if inputs are valid
         if positions is not None:
             if len(positions) != len(prim_paths):

@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 # from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+from isaaclab.sim.prims import XFormPrim
+from isaaclab.sim.utils.stage import add_reference_to_stage, get_current_stage
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -126,9 +128,6 @@ def create_prim(
         ... )
         Usd.Prim(</World/panda>)
     """
-    # Note: Imported here to prevent cyclic dependency in the module.
-    from isaacsim.core.prims import XFormPrim
-
     # create prim in stage
     prim = define_prim(prim_path=prim_path, prim_type=prim_type)
     if not prim:
@@ -160,26 +159,17 @@ def create_prim(
         if not data_attr:
             data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
         data_attr.Set(semantic_label)
-    # apply the transformations
-    from isaacsim.core.api.simulation_context.simulation_context import SimulationContext
-
-    if SimulationContext.instance() is None:
-        # FIXME: remove this, we should never even use backend utils  especially not numpy ones
-        import isaacsim.core.utils.numpy as backend_utils
-
-        device = "cpu"
-    else:
-        backend_utils = SimulationContext.instance().backend_utils
-        device = SimulationContext.instance().device
-    if position is not None:
-        position = backend_utils.expand_dims(backend_utils.convert(position, device), 0)
-    if translation is not None:
-        translation = backend_utils.expand_dims(backend_utils.convert(translation, device), 0)
-    if orientation is not None:
-        orientation = backend_utils.expand_dims(backend_utils.convert(orientation, device), 0)
-    if scale is not None:
-        scale = backend_utils.expand_dims(backend_utils.convert(scale, device), 0)
-    XFormPrim(prim_path, positions=position, translations=translation, orientations=orientation, scales=scale)
+    
+    # Apply the transformations using pure USD implementation
+    # XFormPrim handles conversion of position/translation/orientation/scale automatically
+    if position is not None or translation is not None or orientation is not None or scale is not None:
+        XFormPrim(
+            prim_path, 
+            positions=position, 
+            translations=translation, 
+            orientations=orientation, 
+            scales=scale
+        )
 
     return prim
 
@@ -1529,25 +1519,16 @@ def clone(func: Callable) -> Callable:
             _schemas.activate_contact_sensors(prim_paths[0])
         # clone asset using cloner API
         if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+            # NEW: decide the mapping once, outside the ChangeBlock
+            from isaaclab.scene.cloner import CLONE
+            import torch
+            destination_template = f"{root_path.replace('.*', '')}{{}}/{prim_paths[0].split('/')[-1]}"
+            # for proto_prim_path in proto_prim_paths:
+            CLONE['source'].append(prim_paths[0])
+            CLONE['destination'].append(destination_template)
+
+            mapping = torch.ones((1, len(prim_paths)), dtype=torch.bool)
+            CLONE["mapping"] = torch.cat((CLONE["mapping"].reshape(-1, mapping.size(1)), mapping), dim=0)
         # return the source prim
         return prim
 
@@ -1792,7 +1773,6 @@ def create_default_xform_ops(
         True if successful, False if the prim is not xformable or doesn't exist.
     """
     if stage is None:
-        from .stage import get_current_stage
         stage = get_current_stage()
     
     if isinstance(prim_path, Sdf.Path):

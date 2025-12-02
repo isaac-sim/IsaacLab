@@ -5,18 +5,16 @@
 
 from __future__ import annotations
 
-import random
 import re
+import torch
 from typing import TYPE_CHECKING
 
-import carb
-from pxr import Sdf, Usd
+from pxr import Usd
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
-from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -47,9 +45,6 @@ def spawn_multi_asset(
     Returns:
         The created prim at the first prim path.
     """
-    # get stage handle
-    stage = get_current_stage()
-
     # resolve: {SPAWN_NS}/AssetName
     # note: this assumes that the spawn namespace already exists in the stage
     root_path, asset_path = prim_path.rsplit("/", 1)
@@ -103,32 +98,19 @@ def spawn_multi_asset(
     # resolve prim paths for spawning and cloning
     prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
 
-    # manually clone prims if the source prim path is a regex expression
-    # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
-    #   This is because the "spawn" calls during the creation of the proto prims already handles this operation.
-    with Sdf.ChangeBlock():
-        for index, prim_path in enumerate(prim_paths):
-            # spawn single instance
-            env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
-            # randomly select an asset configuration
-            if cfg.random_choice:
-                proto_path = random.choice(proto_prim_paths)
-            else:
-                proto_path = proto_prim_paths[index % len(proto_prim_paths)]
-            # copy the proto prim
-            Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
+    # NEW: decide the mapping once, outside the ChangeBlock
+    from isaaclab.scene.cloner import CLONE
+    destination_template = f"{root_path.replace('.*', '')}{{}}/{prim_paths[0].split('/')[-1]}"
+    for proto_prim_path in proto_prim_paths:
+        CLONE['source'].append(proto_prim_path)
+        CLONE['destination'].append(destination_template)
 
-    # delete the dataset prim after spawning
-    prim_utils.delete_prim(template_prim_path)
-
-    # set carb setting to indicate Isaac Lab's environments that different prims have been spawned
-    # at varying prim paths. In this case, PhysX parser shouldn't optimize the stage parsing.
-    # the flag is mainly used to inform the user that they should disable `InteractiveScene.replicate_physics`
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/isaaclab/spawn/multi_assets", True)
-
+    mapping = torch.zeros((len(proto_prim_paths), len(prim_paths)), dtype=torch.bool)
+    cols = torch.arange(len(prim_paths))
+    mapping[cols % len(proto_prim_paths), cols] = True
+    CLONE["mapping"] = torch.cat((CLONE["mapping"].reshape(-1, mapping.size(1)), mapping), dim=0)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_paths[0])
+    return prim_utils.get_prim_at_path(proto_prim_paths[0])
 
 
 def spawn_multi_usd_file(
