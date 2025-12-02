@@ -131,9 +131,7 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.get_initial_stage()):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                # Attach stage to USD context only if Kit app (Omniverse visualizer) is being used
-                if self.sim.has_gui():
-                    attach_stage_to_usd_context()
+                # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

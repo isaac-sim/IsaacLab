@@ -89,9 +89,6 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # skip this callback to avoid wiping the stage after attachment
     SimulationContext.instance().skip_next_stage_open_callback()
 
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
-
     # enable physics fabric
     SimulationContext.instance()._physics_context.enable_fabric(True)
 
@@ -101,9 +98,6 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # attach stage to physx
     physx_sim_interface = omni.physx.get_physx_simulation_interface()
     physx_sim_interface.attach_stage(stage_id)
-
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
 
 
 def is_current_stage_in_memory() -> bool:
@@ -198,11 +192,18 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
-    if fabric:
-        logger.warning("Fabric stage support has been removed. Returning standard USD stage.")
-    
+
     # Try to get stage from thread-local context first
     stage = getattr(_context, "stage", None)
+
+    if fabric:
+        import usdrt
+        stage_cache = UsdUtils.StageCache.Get()
+        stage_id = stage_cache.GetId(stage).ToLongInt()
+        if stage_id < 0:
+            stage_id = stage_cache.Insert(stage).ToLongInt()
+        return usdrt.Usd.Stage.Attach(stage_id)
+
     if stage is not None:
         return stage
     
@@ -459,6 +460,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
             raise FileNotFoundError(f"Failed to download USD file from {original_usd_path}: {e}")
     
     # Verify the local file exists and can be opened
+    import os
     if not os.path.exists(usd_path):
         raise FileNotFoundError(f"USD file does not exist at local path: {usd_path} (original: {original_usd_path})")
     

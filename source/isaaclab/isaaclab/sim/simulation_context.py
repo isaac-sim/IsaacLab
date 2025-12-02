@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from typing import Any
 
 # Import settings manager for both Omniverse and standalone modes
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.app.settings_manager import SettingsManager
 import flatdict
 # import omni.physx
 # import omni.usd
@@ -159,7 +159,7 @@ class SimulationContext():
         # check that the config is valid
         cfg.validate()
         self.cfg = cfg
-        
+
         # create or get stage using USD core APIs
         if self.cfg.create_stage_in_memory:
             # Create new stage in memory using USD core API
@@ -188,7 +188,7 @@ class SimulationContext():
 
         # acquire settings interface
         # Use settings manager (works in both Omniverse and standalone modes)
-        self.settings = get_settings_manager()
+        self.settings = SettingsManager.instance()
 
         # apply carb physics settings
         # SimulationManager._clear()
@@ -465,6 +465,35 @@ class SimulationContext():
         True if the simulation has a GUI enabled either locally or live-streamed.
         """
         return self._has_gui
+    
+    def has_omniverse_visualizer(self) -> bool:
+        """Returns whether the Omniverse visualizer is enabled.
+        
+        This checks both the configuration (before initialization) and the active visualizers
+        (after initialization) to determine if the Omniverse visualizer will be or is active.
+        
+        Returns:
+            True if the Omniverse visualizer is requested or active, False otherwise.
+        """
+        # First, check if already initialized visualizers include OVVisualizer
+        for visualizer in self._visualizers:
+            # Check if visualizer has visualizer_type attribute set to "omniverse"
+            if hasattr(visualizer, 'cfg') and hasattr(visualizer.cfg, 'visualizer_type'):
+                if visualizer.cfg.visualizer_type == "omniverse":
+                    return True
+            # Alternative: check the class name
+            if type(visualizer).__name__ == "OVVisualizer":
+                return True
+        
+        # If not initialized yet, check the configuration/settings
+        requested_visualizers_str = self.settings.get("/isaaclab/visualizer")
+        if requested_visualizers_str:
+            requested_visualizers = [v.strip() for v in requested_visualizers_str.split(",") if v.strip()]
+            if "omniverse" in requested_visualizers:
+                # Only return True if we have a GUI (omniverse requires GUI)
+                return self._has_gui
+        
+        return False
 
     def has_rtx_sensors(self) -> bool:
         """Returns whether the simulation has any RTX-rendering related sensors.
@@ -519,19 +548,30 @@ class SimulationContext():
     ):
         """Set the location and target of the viewport camera in the stage.
 
-        Note:
-            This is a wrapper around the :math:`isaacsim.core.utils.viewports.set_camera_view` function.
-            It is provided here for convenience to reduce the amount of imports needed.
+        This method sets the camera view by calling the OVVisualizer's set_camera_view method.
+        If no OVVisualizer is active, this method has no effect.
 
         Args:
             eye: The location of the camera eye.
             target: The location of the camera target.
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
-                "/OmniverseKit_Persp".
+                "/OmniverseKit_Persp". Note: This parameter is ignored as the camera path
+                is determined by the active viewport.
         """
-        # safe call only if we have a GUI or viewport rendering enabled
-        if self._has_gui or self._offscreen_render or self._render_viewport:
-            set_camera_view(eye, target, camera_prim_path)
+        # Find the Omniverse visualizer and call its set_camera_view method
+        for visualizer in self._visualizers:
+            if hasattr(visualizer, 'cfg') and hasattr(visualizer.cfg, 'visualizer_type'):
+                if visualizer.cfg.visualizer_type == "omniverse":
+                    if hasattr(visualizer, 'set_camera_view'):
+                        visualizer.set_camera_view(eye, target)
+                        return
+            # Alternative: check the class name
+            if type(visualizer).__name__ == "OVVisualizer":
+                if hasattr(visualizer, 'set_camera_view'):
+                    visualizer.set_camera_view(eye, target)
+                    return
+        
+        logger.debug("No Omniverse visualizer found - set_camera_view has no effect.")
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -679,8 +719,7 @@ class SimulationContext():
         """
 
         # Check if specific visualizers were requested via command-line flag
-        settings_manager = get_settings_manager()
-        requested_visualizers_str = settings_manager.get("/isaaclab/visualizer")
+        requested_visualizers_str = self.settings.get("/isaaclab/visualizer")
         if requested_visualizers_str is None:
             requested_visualizers_str = ""
 
@@ -925,7 +964,7 @@ class SimulationContext():
             # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
-            self.app.update()
+            omni.kit.app.get_app().update()
 
         # step the simulation
         if self.stage is None:
@@ -941,7 +980,7 @@ class SimulationContext():
             elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:  # noqa: SIM114
                 SimulationContext.render(self)
             else:
-                self._app.update()
+                omni.kit.app.get_app().update()
         else:
             if self.is_playing():
                 NewtonManager.step()
@@ -973,6 +1012,8 @@ class SimulationContext():
         Args:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
+        import omni.kit.app
+
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
@@ -993,7 +1034,7 @@ class SimulationContext():
                 # here we don't render viewport so don't need to flush fabric data
                 # note: we don't call super().render() anymore because they do flush the fabric data
                 self.settings.set_bool("/app/player/playSimulations", False)
-                self._app.update()
+                omni.kit.app.get_app().update()
         else:
             # manually flush the fabric data to update Hydra textures
             self.forward()
@@ -1001,7 +1042,7 @@ class SimulationContext():
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.settings.set_bool("/app/player/playSimulations", False)
-            self._app.update()
+            omni.kit.app.get_app().update()
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:

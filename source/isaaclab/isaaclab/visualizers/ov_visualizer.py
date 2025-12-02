@@ -122,6 +122,34 @@ class OVVisualizer(Visualizer):
         """
         return True
 
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set the viewport camera position and target.
+
+        This method positions the viewport camera at the specified eye location and orients it to look at
+        the target location. It uses the active camera of the viewport managed by this visualizer.
+
+        Args:
+            eye: Camera position in world coordinates (x, y, z).
+            target: Target/look-at position in world coordinates (x, y, z).
+
+        Example:
+
+        .. code-block:: python
+
+            # Set camera to look at the origin from position (2.5, 2.5, 2.5)
+            >>> visualizer.set_camera_view(
+            ...     eye=[2.5, 2.5, 2.5],
+            ...     target=[0.0, 0.0, 0.0],
+            ... )
+        """
+        if not self._is_initialized:
+            logger.warning("[OVVisualizer] Cannot set camera view - visualizer not initialized.")
+            return
+
+        self._set_viewport_camera(tuple(eye), tuple(target))
+
     # ------------------------------------------------------------------
     # Private methods
     # ------------------------------------------------------------------
