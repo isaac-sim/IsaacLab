@@ -32,6 +32,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
+from .cloner_cfg import TemplateCloneCfg
 from . import cloner
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -136,9 +137,8 @@ class InteractiveScene:
         # prepare cloner for environment replication
         self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
 
-        self.cloner_cfg = cloner.TemplateCloneCfg(
+        self.cloner_cfg = TemplateCloneCfg(
             clone_regex=self.env_regex_ns,
-            random_heterogeneous_cloning=self.cfg.random_heterogeneous_cloning,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
         )
@@ -182,7 +182,7 @@ class InteractiveScene:
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
         if self._is_scene_setup_from_cfg():
-            self.cloner_cfg.clone_physx = not copy_from_source
+            self.cloner_cfg.clone_physics = not copy_from_source
             cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
         else:
             mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)

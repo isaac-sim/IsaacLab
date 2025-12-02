@@ -4,89 +4,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 import math
 import torch
+import itertools
 
 from omni.physx import get_physx_replicator_interface
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 
-
-@configclass
-class TemplateCloneCfg:
-    """Configuration for template-based cloning.
-
-    This configuration is consumed by :func:`~isaaclab.scene.cloner.clone_from_template` to
-    replicate one or more "prototype" prims authored under a template root into multiple
-    per-environment destinations. It supports both USD-spec replication and PhysX replication
-    and allows choosing between random or round-robin prototype assignment across environments.
-
-    The cloning flow is:
-
-    1. Discover prototypes under :attr:`template_root` whose base name starts with
-        :attr:`template_prototype_identifier` (for example, ``proto_asset_0``, ``proto_asset_1``).
-    2. Build a per-prototype mapping to environments according to
-        :attr:`random_heterogeneous_cloning` (random) or modulo assignment (deterministic).
-    3. Stamp the selected prototypes to destinations derived from :attr:`clone_regex`.
-    4. Optionally perform PhysX replication for the same mapping.
-
-    Example
-    -------
-
-    .. code-block:: python
-
-        from isaaclab.scene.cloner import TemplateCloneCfg, clone_from_template
-        from isaacsim.core.utils.stage import get_current_stage
-
-        stage = get_current_stage()
-        cfg = TemplateCloneCfg(
-            num_clones=128,
-            template_root="/World/template",
-            template_prototype_identifier="proto_asset",
-            clone_regex="/World/envs/env_.*",
-            clone_usd=True,
-            clone_physx=True,
-            random_heterogeneous_cloning=False,  # use round-robin mapping
-            device="cpu",
-        )
-
-        clone_from_template(stage, num_clones=cfg.num_clones, template_clone_cfg=cfg)
-    """
-
-    template_root: str = "/World/template"
-    """Root path under which template prototypes are authored."""
-
-    template_prototype_identifier: str = "proto_asset"
-    """Name prefix used to identify prototype prims under :attr:`template_root`."""
-
-    clone_regex: str = "/World/envs/env_.*"
-    """Destination template for per-environment paths.
-
-    The substring ``".*"`` is replaced with ``"{}"`` internally and formatted with the
-    environment index (e.g., ``/World/envs/env_0``, ``/World/envs/env_1``).
-    """
-
-    clone_usd: bool = True
-    """Enable USD-spec replication to author cloned prims and optional transforms."""
-
-    clone_physx: bool = True
-    """Enable PhysX replication for the same mapping to speed up physics setup."""
-
-    random_heterogeneous_cloning: bool = True
-    """Randomly assign prototypes to environments. Default is True.
-
-    When enabled, each environment selects a prototype at random from the available prototypes
-    under a given template root. When disabled, environments use a round‑robin assignment based
-    on ``env_index % num_prototypes`` for deterministic distribution.
-    """
-
-    device: str = "cpu"
-    """Torch device on which mapping buffers are allocated."""
-
-    clone_in_fabric: bool = False
-    """Enable/disable cloning in fabric for PhysX replication. Default is False."""
+if TYPE_CHECKING:
+    from .cloner_cfg import TemplateCloneCfg
 
 
 def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
@@ -103,9 +32,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         template_clone_cfg: Configuration describing template location, destination pattern,
             and replication/mapping behavior.
     """
-    cfg = template_clone_cfg
+    cfg: TemplateCloneCfg = template_clone_cfg
     world_indices = torch.arange(num_clones, device=cfg.device)
-    clone_plan = {"src": [], "dest": [], "mapping": torch.empty((0,), dtype=torch.bool).to(cfg.device)}
     clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
     prototype_id = cfg.template_prototype_identifier
     prototypes = sim_utils.get_all_matching_child_prims(
@@ -114,21 +42,20 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
     )
     if len(prototypes) > 0:
         prototype_root_set = {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
+        # discover prototypes per root then make a clone plan
+        sources: list[list[str]] = []
+        destinations: list[str] = []
+
         for prototype_root in prototype_root_set:
             protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
             protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
-            m = torch.zeros((len(protos), num_clones), dtype=torch.bool, device=cfg.device)
-            # Optionally select prototypes randomly per environment; else round-robin by modulo
-            if cfg.random_heterogeneous_cloning:
-                rand_idx = torch.randint(len(protos), (num_clones,), device=cfg.device)
-                m[rand_idx, world_indices] = True
-            else:
-                m[world_indices % len(protos), world_indices] = True
+            sources.append(protos)
+            destinations.append(prototype_root.replace(cfg.template_root, clone_path_fmt))
 
-            clone_plan["src"].extend(protos)
-            clone_plan["dest"].extend([prototype_root.replace(cfg.template_root, clone_path_fmt)] * len(protos))
-            clone_plan["mapping"] = torch.cat((clone_plan["mapping"].reshape(-1, m.size(1)), m), dim=0)
+        clone_plan = make_clone_plan(sources, destinations, num_clones, cfg.clone_strategy, cfg.device)
 
+        # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
+        # will be served as sources for usd and physx replication.
         proto_idx = clone_plan["mapping"].to(torch.int32).argmax(dim=1)
         proto_mask = torch.zeros_like(clone_plan["mapping"])
         proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_plan["mapping"].any(dim=1, keepdim=True))
@@ -137,13 +64,12 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
 
         # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
         if torch.all(proto_idx == 0):
+            # args: src_paths, dest_paths, env_ids, mask
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_plan["mapping"]
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
-                get_translate = (
-                    lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
-                )  # noqa: E731
-                positions = torch.tensor([get_translate(clone_path_fmt.format(i)) for i in world_indices])
+                get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
+                positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
                 usd_replicate(stage, *replicate_args, positions=positions)
         else:
             src = [tpl.format(int(idx)) for tpl, idx in zip(clone_plan["dest"], proto_idx.tolist())]
@@ -151,8 +77,40 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 
-        if cfg.clone_physx:
+        if cfg.clone_physics:
             physx_replicate(stage, *replicate_args, use_fabric=cfg.clone_in_fabric)
+
+
+def make_clone_plan(
+    sources: list[list[str]],
+    destinations: list[str],
+    num_clones: int,
+    clone_strategy: callable,
+    device: str = "cpu",
+):
+    clone_plan = {"src": [], "dest": [], "mapping": torch.empty((0,), dtype=torch.bool, device=device)}
+    # 1) Flatten into clone_plan["src"] and clone_plan["dest"]
+    clone_plan["src"] = [p for group in sources for p in group]
+    clone_plan["dest"] = [dst for dst, group in zip(destinations, sources) for _ in group]
+    group_sizes = [len(group) for group in sources]
+
+    # 2) Enumerate all combinations of "one prototype per group"
+    #    all_combos: list of tuples (g0_idx, g1_idx, ..., g_{G-1}_idx)
+    all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
+    combos = torch.tensor(all_combos, dtype=torch.long, device=device)
+
+    # 3) Assign a combination to each environment
+    chosen = clone_strategy(combos, num_clones, device)
+
+    # 4) Build mapping: [num_src, num_clones] boolean
+    #    For each env, for each group, mark exactly one prototype row as True.
+    group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
+    rows = (chosen + group_offsets).view(-1)
+    cols = torch.arange(num_clones, device=device).view(-1, 1).expand(-1, len(group_sizes)).reshape(-1)
+
+    clone_plan["mapping"] = torch.zeros((sum(group_sizes), num_clones), dtype=torch.bool, device=device)
+    clone_plan["mapping"][rows, cols] = True
+    return clone_plan
 
 
 def usd_replicate(
