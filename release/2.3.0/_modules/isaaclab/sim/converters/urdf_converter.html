@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="urdf_converter.html" selected>release/2.3.0</option>
             <option value="../../../../../../main/index.html" >main</option>
             <option value="../../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="urdf_converter.html" selected>release/2.3.0</option>
             <option value="../../../../../../v2.3.0/index.html" >v2.3.0</option>
             <option value="../../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../../v2.2.0/index.html" >v2.2.0</option>
@@ -639,8 +639,8 @@
 <span class="sd">            cfg: The configuration instance for URDF to USD conversion.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">manager</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app</span><span class="p">()</span><span class="o">.</span><span class="n">get_extension_manager</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_extension_enabled</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf&quot;</span><span class="p">):</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_extension_enabled</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">):</span>
+            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">)</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.asset.importer.urdf._urdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">acquire_urdf_interface</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_urdf_interface</span> <span class="o">=</span> <span class="n">acquire_urdf_interface</span><span class="p">()</span>
@@ -713,6 +713,7 @@
         <span class="n">import_config</span><span class="o">.</span><span class="n">set_collision_from_visuals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_from_visuals</span><span class="p">)</span>
         <span class="c1"># consolidating links that are connected by fixed joints</span>
         <span class="n">import_config</span><span class="o">.</span><span class="n">set_merge_fixed_joints</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">merge_fixed_joints</span><span class="p">)</span>
+        <span class="n">import_config</span><span class="o">.</span><span class="n">set_merge_fixed_ignore_inertia</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">merge_fixed_joints</span><span class="p">)</span>
         <span class="c1"># -- physics settings</span>
         <span class="c1"># create fix joint for base link</span>
         <span class="n">import_config</span><span class="o">.</span><span class="n">set_fix_base</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">fix_base</span><span class="p">)</span>
