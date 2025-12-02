@@ -16,13 +16,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.scene.cloner_cfg import TemplateCloneCfg
 from isaaclab.scene.cloner_utils import sequential
 from isaaclab.scene.cloner import clone_from_template, physx_replicate, usd_replicate
