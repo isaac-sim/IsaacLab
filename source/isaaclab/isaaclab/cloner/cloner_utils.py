@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
@@ -67,19 +68,21 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         if torch.all(proto_idx == 0):
             # args: src_paths, dest_paths, env_ids, mask
             replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_masking
+            get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
+            positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
+            if cfg.clone_physics:
+                template_clone_cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
             if cfg.clone_usd:
                 # parse env_origins directly from clone_path
-                get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
-                positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
                 usd_replicate(stage, *replicate_args, positions=positions)
+
         else:
             selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
+            if cfg.clone_physics:
+                template_clone_cfg.physics_clone_fn(stage, *replicate_args)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
-
-        if cfg.clone_physics:
-            physx_replicate(stage, *replicate_args, use_fabric=cfg.clone_in_fabric)
 
 
 def make_clone_plan(
@@ -269,12 +272,12 @@ def physx_replicate(
 
 def newton_replicate(
     stage: Usd.Stage,
-    sources: list[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
-    destinations: list[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
-    env_ids: torch.Tensor,  # env indices
-    mapping: torch.Tensor,  # (num_sources, num_envs) bool; True -> place sources[i] into world=j
-    positions: torch.Tensor | None = None,  # [E, 3]
-    quaternions: torch.Tensor | None = None,  # [E, 4] wxyz
+    sources: list[str],
+    destinations: list[str],
+    env_ids: torch.Tensor,
+    mapping: torch.Tensor,
+    positions: torch.Tensor | None = None,
+    quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
 ):
@@ -289,11 +292,11 @@ def newton_replicate(
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
-        quaternions[:, 0] = 1.0
+        quaternions[:, 3] = 1.0
 
-    # load everything except the prototype subtrees
+    # load empty stage  
     builder = ModelBuilder(up_axis=up_axis)
-    stage_info = builder.add_usd(stage, ignore_paths=sources, load_non_physics_prims=False)
+    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources, load_non_physics_prims=False)
 
     # build a prototype for each source
     protos: dict[str, ModelBuilder] = {}
@@ -315,8 +318,8 @@ def newton_replicate(
 
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
-        ol = len(src_path.rstrip("/"))
-        swap = lambda name, new_root: new_root + name[ol:]  # noqa: E731
+        src_prefix_len = len(src_path.rstrip("/"))
+        swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
@@ -354,11 +357,10 @@ def filter_collisions(
     Returns:
         None
     """
-    from pxr import PhysxSchema
-    physx_scene = PhysxSchema.PhysxSceneAPI(stage.GetPrimAtPath(physicsscene_path))
-
-    # We invert the collision group filters for more efficient collision filtering across environments
-    physx_scene.CreateInvertCollisionGroupFilterAttr().Set(True)
+    # Invert collision group filters for more efficient cross-environment filtering
+    safe_set_attribute_on_usd_prim(
+        stage.GetPrimAtPath(physicsscene_path), "physxScene:invertCollisionGroupFilter", value=True, camel_case=False
+    )
 
     # Make sure we create the collision_scope in the RootLayer since the edit target may be a live layer in the case of Live Sync.
     with Usd.EditContext(stage, Usd.EditTarget(stage.GetRootLayer())):

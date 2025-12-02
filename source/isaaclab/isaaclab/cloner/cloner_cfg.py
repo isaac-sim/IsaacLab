@@ -72,7 +72,7 @@ class TemplateCloneCfg:
     """Enable PhysX replication for the same mapping to speed up physics setup."""
 
     physics_clone_fn: callable = newton_replicate
-    """Function used to perform physics replication. Default is :func:`physx_replicate`."""
+    """Function used to perform physics replication. Default is :func:`newton_replicate`."""
 
     clone_strategy: callable = random
     """Function used to build prototype-to-environment mapping. Default is :func:`random`."""
