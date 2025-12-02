@@ -10,8 +10,6 @@ import torch
 import isaacsim.core.utils.torch as torch_utils
 import warp as wp
 from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
-from isaaclab.utils.math import convert_quat
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -72,7 +70,7 @@ class LocomotionEnv(DirectRLEnv):
         self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
-        self.torso_position, self.torso_rotation = wp.to_torch(self.robot.data.root_pos_w), convert_quat(wp.to_torch(self.robot.data.root_quat_w).clone(), "wxyz")
+        self.torso_position, self.torso_rotation = wp.to_torch(self.robot.data.root_pos_w), wp.to_torch(self.robot.data.root_quat_w)
         self.velocity, self.ang_velocity = wp.to_torch(self.robot.data.root_lin_vel_w), wp.to_torch(self.robot.data.root_ang_vel_w)
         self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
 

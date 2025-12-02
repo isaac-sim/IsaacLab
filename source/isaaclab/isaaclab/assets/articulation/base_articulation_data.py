@@ -792,7 +792,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_com_quat_w(self) ->  wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the articulation bodies' actor frame.
@@ -848,7 +848,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_com_quat_b(self) ->  wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
+        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.

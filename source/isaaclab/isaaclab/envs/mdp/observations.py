@@ -22,8 +22,6 @@ from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.sensors import Camera#, Imu, RayCaster, RayCasterCamera, TiledCamera
 
-from isaaclab.utils.math import convert_quat
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
@@ -105,7 +103,7 @@ def root_quat_w(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    quat = convert_quat(wp.to_torch(asset.data.root_quat_w), to="wxyz")
+    quat = wp.to_torch(asset.data.root_quat_w)
     # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
@@ -158,7 +156,7 @@ def body_pose_w(
     # access the body poses in world frame
     pose = wp.to_torch(asset.data.body_pose_w)[:, asset_cfg.body_ids, :7]
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
-    pose[..., 3:7] = convert_quat(pose[..., 3:7], to="wxyz")
+    pose[..., 3:7] = pose[..., 3:7]
     return pose.reshape(env.num_envs, -1)
 
 

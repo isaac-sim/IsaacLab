@@ -16,7 +16,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat, convert_quat
+from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -118,7 +118,7 @@ class UniformPose2dCommand(CommandTerm):
     def _update_command(self):
         """Re-target the position command to the current root state."""
         target_vec = self.pos_command_w - wp.to_torch(self.robot.data.root_pos_w)[:, :3]
-        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(convert_quat(wp.to_torch(self.robot.data.root_quat_w), to="wxyz")), target_vec)
+        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(wp.to_torch(self.robot.data.root_quat_w)), target_vec)
         self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
 
     def _set_debug_vis_impl(self, debug_vis: bool):

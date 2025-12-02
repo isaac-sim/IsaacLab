@@ -34,7 +34,6 @@ from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import convert_quat
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -298,9 +297,8 @@ class VisualizationMarkers:
             # check that shape is correct
             if orientations.shape[1] != 4 or len(orientations.shape) != 2:
                 raise ValueError(f"Expected `orientations` to have shape (M, 4). Received: {orientations.shape}.")
-            # roll orientations from (w, x, y, z) to (x, y, z, w)
             # internally USD expects (x, y, z, w)
-            orientations = convert_quat(orientations, to="xyzw")
+            orientations = orientations
             # apply orientations
             self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations))
             # update number of markers

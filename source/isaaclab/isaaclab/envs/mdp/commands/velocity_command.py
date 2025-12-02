@@ -17,7 +17,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import convert_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -213,7 +212,7 @@ class UniformVelocityCommand(CommandTerm):
         zeros = torch.zeros_like(heading_angle)
         arrow_quat = math_utils.quat_from_euler_xyz(zeros, zeros, heading_angle)
         # convert everything back from base to world frame
-        base_quat_w = convert_quat(wp.to_torch(self.robot.data.root_quat_w), to="wxyz")
+        base_quat_w = wp.to_torch(self.robot.data.root_quat_w)
         arrow_quat = math_utils.quat_mul(base_quat_w, arrow_quat)
 
         return arrow_scale, arrow_quat
