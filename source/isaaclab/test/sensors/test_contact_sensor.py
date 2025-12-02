@@ -28,6 +28,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -90,7 +91,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
 
 
 CUBE_CFG = ContactSensorRigidObjectCfg(
-    prim_path="/World/Objects/Cube",
+    prim_path="{ENV_REGEX_NS}/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -109,7 +110,7 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
 """Configuration of the cube prim."""
 
 SPHERE_CFG = ContactSensorRigidObjectCfg(
-    prim_path="/World/Objects/Sphere",
+    prim_path="{ENV_REGEX_NS}/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -128,7 +129,7 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
 """Configuration of the sphere prim."""
 
 CYLINDER_CFG = ContactSensorRigidObjectCfg(
-    prim_path="/World/Objects/Cylinder",
+    prim_path="{ENV_REGEX_NS}/Cylinder",
     spawn=sim_utils.CylinderCfg(
         radius=0.5,
         height=0.01,
@@ -149,7 +150,7 @@ CYLINDER_CFG = ContactSensorRigidObjectCfg(
 """Configuration of the cylinder prim."""
 
 CAPSULE_CFG = ContactSensorRigidObjectCfg(
-    prim_path="/World/Objects/Capsule",
+    prim_path="{ENV_REGEX_NS}/Capsule",
     spawn=sim_utils.CapsuleCfg(
         radius=0.25,
         height=0.5,
@@ -170,7 +171,7 @@ CAPSULE_CFG = ContactSensorRigidObjectCfg(
 """Configuration of the capsule prim."""
 
 CONE_CFG = ContactSensorRigidObjectCfg(
-    prim_path="/World/Objects/Cone",
+    prim_path="{ENV_REGEX_NS}/Cone",
     spawn=sim_utils.ConeCfg(
         radius=0.5,
         height=0.5,
@@ -418,9 +419,6 @@ def test_contact_sensor_threshold(setup_simulation, device):
         # Play the simulator
         sim.reset()
 
-        # Get the stage and check the USD threshold attribute on the rigid body prim
-        from isaacsim.core.utils.stage import get_current_stage
-
         stage = get_current_stage()
         prim_path = scene_cfg.shape.prim_path
         prim = stage.GetPrimAtPath(prim_path)
@@ -467,7 +465,7 @@ def _run_contact_sensor_test(
 
                     scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
                     scene_cfg.terrain = terrain
-                    scene_cfg.shape = shape_cfg
+                    scene_cfg.shape = shape_cfg.copy()
                     test_contact_position = False
                     if (type(shape_cfg.spawn) is sim_utils.SphereCfg) and (terrain.terrain_type == "plane"):
                         test_contact_position = True
@@ -492,6 +490,8 @@ def _run_contact_sensor_test(
                         track_contact_points=track_contact_points,
                         filter_prim_paths_expr=filter_prim_paths_expr,
                     )
+                    # replicating physx will mess up the test......
+                    scene_cfg.replicate_physics = False
                     scene = InteractiveScene(scene_cfg)
 
                     # Play the simulation

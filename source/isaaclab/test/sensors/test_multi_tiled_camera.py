@@ -20,7 +20,6 @@ import numpy as np
 import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
@@ -28,8 +27,9 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()
@@ -82,7 +82,7 @@ def test_multi_tiled_camera_init(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -178,7 +178,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
         camera_cfg.data_types = all_annotator_types
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -278,7 +278,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera_cfg.height, camera_cfg.width = resolutions[i]
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
@@ -349,7 +349,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -417,7 +417,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}_.*/CameraSensor"
         camera_cfg.offset = TiledCameraCfg.OffsetCfg(pos=positions[i], rot=rotations[i], convention="ros")
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)

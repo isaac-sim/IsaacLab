@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import numpy as np
-import re
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
@@ -21,8 +20,8 @@ from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -102,16 +101,6 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the camera sensor: {self.cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class

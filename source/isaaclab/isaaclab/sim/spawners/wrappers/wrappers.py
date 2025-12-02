@@ -5,20 +5,17 @@
 
 from __future__ import annotations
 
-import random
-import re
 from typing import TYPE_CHECKING
 
-import carb
-import isaacsim.core.utils.prims as prim_utils
-from pxr import Sdf, Usd
-
-import isaaclab.sim as sim_utils
+from pxr import Usd
+import logging
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
-from isaaclab.sim.utils import stage as stage_utils
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
+
+logger = logging.getLogger(__name__)
 
 
 def spawn_multi_asset(
@@ -29,11 +26,14 @@ def spawn_multi_asset(
     clone_in_fabric: bool = False,
     replicate_physics: bool = False,
 ) -> Usd.Prim:
-    """Spawn multiple assets based on the provided configurations.
+    """Spawn multiple assets into numbered prim paths derived from the provided configuration.
 
-    This function spawns multiple assets based on the provided configurations. The assets are spawned
-    in the order they are provided in the list. If the :attr:`~MultiAssetSpawnerCfg.random_choice` parameter is
-    set to True, a random asset configuration is selected for each spawn.
+    Assets are created in the order they appear in ``cfg.assets_cfg`` using the base name in ``prim_path``,
+    which must contain ``.*`` (for example, ``/World/Env_0/asset_.*`` spawns ``asset_0``, ``asset_1``, ...).
+    The prefix portion of ``prim_path`` may also include ``.*`` (for example, ``/World/env_.*/asset_.*``);
+    this is only allowed when :attr:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg.enable_clone`
+    is True, in which case assets are spawned under the first match (``env_0``) and that structure is cloned to
+    other matching environments.
 
     Args:
         prim_path: The prim path to spawn the assets.
@@ -46,32 +46,27 @@ def spawn_multi_asset(
     Returns:
         The created prim at the first prim path.
     """
-    # get stage handle
-    stage = stage_utils.get_current_stage()
+    split_path = prim_path.split("/")
+    prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
+    if ".*" in prefix_path and not cfg.enable_clone:
+        raise ValueError(
+            f" Found '.*' in prefix path '{prefix_path}' but enable_clone is False. Set enable_clone=True to allow"
+            f" this pattern, which would replicate all {len(cfg.assets_cfg)} assets into every environment that"
+            " matches the prefix. If you want heterogeneous assets across envs, instead of set enable_clone to True"
+            "spawn them under a single template (e.g., /World/Template/Robot) and use the cloner to place"
+            "them at their final paths."
+        )
+    if ".*" not in base_name:
+        raise ValueError(
+            f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
+            " the path each individual multiple-asset to be spawned."
+        )
+    if cfg.random_choice:
+        logger.warning(
+            "`random_choice` parameter in `spawn_multi_asset` is deprecated, and nothing will happen. "
+            "Use `isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead."
+        )
 
-    # resolve: {SPAWN_NS}/AssetName
-    # note: this assumes that the spawn namespace already exists in the stage
-    root_path, asset_path = prim_path.rsplit("/", 1)
-    # check if input is a regex expression
-    # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
-    is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
-
-    # resolve matching prims for source prim path expression
-    if is_regex_expression and root_path != "":
-        source_prim_paths = sim_utils.find_matching_prim_paths(root_path)
-        # if no matching prims are found, raise an error
-        if len(source_prim_paths) == 0:
-            raise RuntimeError(
-                f"Unable to find source prim path: '{root_path}'. Please create the prim before spawning."
-            )
-    else:
-        source_prim_paths = [root_path]
-
-    # find a free prim path to hold all the template prims
-    template_prim_path = stage_utils.get_next_free_path("/World/Template")
-    prim_utils.create_prim(template_prim_path, "Scope")
-
-    # spawn everything first in a "Dataset" prim
     proto_prim_paths = list()
     for index, asset_cfg in enumerate(cfg.assets_cfg):
         # append semantic tags if specified
@@ -86,8 +81,8 @@ def spawn_multi_asset(
             attr_value = getattr(cfg, attr_name)
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
                 setattr(asset_cfg, attr_name, attr_value)
-        # spawn single instance
-        proto_prim_path = f"{template_prim_path}/Asset_{index:04d}"
+
+        proto_prim_path = f"{prefix_path}/{base_name.replace('.*', str(index))}"
         asset_cfg.func(
             proto_prim_path,
             asset_cfg,
@@ -99,35 +94,7 @@ def spawn_multi_asset(
         # append to proto prim paths
         proto_prim_paths.append(proto_prim_path)
 
-    # resolve prim paths for spawning and cloning
-    prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
-
-    # manually clone prims if the source prim path is a regex expression
-    # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
-    #   This is because the "spawn" calls during the creation of the proto prims already handles this operation.
-    with Sdf.ChangeBlock():
-        for index, prim_path in enumerate(prim_paths):
-            # spawn single instance
-            env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
-            # randomly select an asset configuration
-            if cfg.random_choice:
-                proto_path = random.choice(proto_prim_paths)
-            else:
-                proto_path = proto_prim_paths[index % len(proto_prim_paths)]
-            # copy the proto prim
-            Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
-
-    # delete the dataset prim after spawning
-    prim_utils.delete_prim(template_prim_path)
-
-    # set carb setting to indicate Isaac Lab's environments that different prims have been spawned
-    # at varying prim paths. In this case, PhysX parser shouldn't optimize the stage parsing.
-    # the flag is mainly used to inform the user that they should disable `InteractiveScene.replicate_physics`
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/isaaclab/spawn/multi_assets", True)
-
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_paths[0])
+    return prim_utils.find_first_matching_prim(proto_prim_paths[0])
 
 
 def spawn_multi_usd_file(
@@ -177,8 +144,6 @@ def spawn_multi_usd_file(
     for usd_path in usd_paths:
         usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
-    # set random choice
-    multi_asset_cfg.random_choice = cfg.random_choice
 
     # propagate the contact sensor settings
     # note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.

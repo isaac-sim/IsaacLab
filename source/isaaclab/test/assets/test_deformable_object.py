@@ -20,11 +20,11 @@ import ctypes
 import torch
 
 import carb
-import isaacsim.core.utils.prims as prim_utils
 import pytest
 from flaky import flaky
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
@@ -85,7 +85,6 @@ def generate_cubes_scene(
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     cube_object = DeformableObject(cfg=cube_object_cfg)
-
     return cube_object
 
 
