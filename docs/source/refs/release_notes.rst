@@ -22,6 +22,7 @@ Key fixes include:
 Bug Fixes
 ---------
 
+* Updates URDF importer to 2.4.31 to continue support for merge-joints by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4000
 * Separates per-step termination and last-episode termination bookkeeping by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3745
 * Uses effort_limit from USD if not specified in actuator cfg by @JuanaDd in https://github.com/isaac-sim/IsaacLab/pull/3522
 * Fixes type name for tendon properties in from_files config by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3941
