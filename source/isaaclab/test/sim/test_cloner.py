@@ -135,7 +135,7 @@ def test_clone_from_template(sim):
     - Verify modulo placement exists; then call sim.reset(), and create PhysX view
     """
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(random_heterogeneous_cloning=False, device=sim.cfg.device)
+    clone_cfg = TemplateCloneCfg(device=sim.cfg.device)
     prim_utils.create_prim(clone_cfg.template_root, "Xform")
     prim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
@@ -194,7 +194,7 @@ def test_clone_from_template(sim):
 def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):
     """Shared harness for colocated collision filter checks across devices."""
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(random_heterogeneous_cloning=False, device=sim.cfg.device)
+    clone_cfg = TemplateCloneCfg(device=sim.cfg.device)
     prim_utils.create_prim(clone_cfg.template_root, "Xform")
     prim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
