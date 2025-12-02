@@ -23,7 +23,9 @@ from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.scene.cloner import TemplateCloneCfg, clone_from_template, physx_replicate, usd_replicate
+from isaaclab.scene.cloner_cfg import TemplateCloneCfg
+from isaaclab.scene.cloner_utils import sequential
+from isaaclab.scene.cloner import clone_from_template, physx_replicate, usd_replicate
 from isaaclab.sim import build_simulation_context
 
 
@@ -135,7 +137,7 @@ def test_clone_from_template(sim):
     - Verify modulo placement exists; then call sim.reset(), and create PhysX view
     """
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device)
+    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
     prim_utils.create_prim(clone_cfg.template_root, "Xform")
     prim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
@@ -194,7 +196,7 @@ def test_clone_from_template(sim):
 def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):
     """Shared harness for colocated collision filter checks across devices."""
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device)
+    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
     prim_utils.create_prim(clone_cfg.template_root, "Xform")
     prim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
