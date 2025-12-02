@@ -387,6 +387,7 @@ class EventManager(ManagerBase):
 
             # check if the term is a class
             if inspect.isclass(term_cfg.func):
+                term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
                 self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # resolve the mode of the events
