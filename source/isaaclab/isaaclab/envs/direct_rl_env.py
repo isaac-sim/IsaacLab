@@ -18,10 +18,9 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import omni.kit.app
-import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
@@ -69,7 +68,7 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
+        # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -305,9 +304,10 @@ class DirectRLEnv(gym.Env):
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        # TODO: Fix this
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
         return self._get_observations(), self.extras
@@ -497,13 +497,13 @@ class DirectRLEnv(gym.Env):
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
 
-            # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
-                    self.sim.clear()
+            # # clear callbacks and instance
+            # if float(".".join(get_version()[2])) >= 5:
+            #     if self.cfg.sim.create_stage_in_memory:
+            #         # detach physx stage
+            #         omni.physx.get_physx_simulation_interface().detach_stage()
+            #         self.sim.stop()
+            #         self.sim.clear()
 
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
@@ -528,6 +528,7 @@ class DirectRLEnv(gym.Env):
             Whether the debug visualization was successfully set. False if the environment
             does not support debug visualization.
         """
+        import omni.kit.app
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False

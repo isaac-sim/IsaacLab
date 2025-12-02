@@ -11,7 +11,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim.simulation_context import SimulationContext
 
 with suppress(ImportError):
     # isaacsim.gui is not available when running in headless mode.
@@ -69,6 +69,7 @@ class LiveLinePlot(UIWidgetWrapper):
         show_legend: bool = True,
         legends: list[str] | None = None,
         max_datapoints: int = 200,
+        dt: float | None = None,
     ):
         """Create a new LiveLinePlot widget.
 
@@ -80,6 +81,7 @@ class LiveLinePlot(UIWidgetWrapper):
             show_legend: Whether to display the legend. Defaults to True.
             legends: A list of strings containing the legend labels for each series. If None, the default labels are "Series_0", "Series_1", etc. Defaults to None.
             max_datapoints: The maximum number of data points to display. If the number of data points exceeds this value, the oldest data points are removed. Defaults to 200.
+            dt: Time delta between samples for derivative computation. If None, will attempt to use SimulationContext.instance().get_rendering_dt() if available. Defaults to None.
         """
         super().__init__(self._create_ui_widget())
         self.plot_height = plot_height
@@ -100,6 +102,7 @@ class LiveLinePlot(UIWidgetWrapper):
         self._filter_mode = None
         self._last_values = None
         self._is_paused = False
+        self._dt = dt
 
         # Gets populated when widget is built
         self._main_plot_frame = None
@@ -144,7 +147,7 @@ class LiveLinePlot(UIWidgetWrapper):
 
         # self._container_frame.rebuild()
 
-    def add_datapoint(self, y_coords: list[float]):
+    def add_datapoint(self, y_coords: list[float], dt: float | None = None):
         """Add a data point to the plot.
 
         The data point is added to the end of the plot. If the number of data points exceeds the maximum number
@@ -154,6 +157,7 @@ class LiveLinePlot(UIWidgetWrapper):
 
         Args:
             y_coords: A list of floats containing the y coordinates of the new data points.
+            dt: Time delta for this data point. If None, uses the dt from constructor or SimulationContext. Defaults to None.
         """
 
         for idx, y_coord in enumerate(y_coords):
@@ -170,7 +174,12 @@ class LiveLinePlot(UIWidgetWrapper):
                     y_coord = self._y_data[idx][-1] + y_coord
             elif self._filter_mode == "Derivative":
                 if self._last_values is not None:
-                    y_coord = (y_coord - self._last_values[idx]) / SimulationContext.instance().get_rendering_dt()
+                    # Use provided dt, fall back to stored dt, then to SimulationContext
+                    time_delta = dt if dt is not None else self._dt
+                    if time_delta is None:
+                        # Fall back to SimulationContext only if no dt is provided
+                        time_delta = SimulationContext.instance().get_rendering_dt()
+                    y_coord = (y_coord - self._last_values[idx]) / time_delta
 
             self._y_data[idx].append(float(y_coord))
 

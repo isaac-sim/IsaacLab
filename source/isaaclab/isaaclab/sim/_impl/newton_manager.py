@@ -6,7 +6,6 @@
 import numpy as np
 import re
 
-import usdrt
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
@@ -125,6 +124,7 @@ class NewtonManager:
         for callback in NewtonManager._on_start_callbacks:
             callback()
         if not NewtonManager._clone_physics_only:
+            import usdrt
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             for i, prim_path in enumerate(NewtonManager._model.body_key):
                 prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
@@ -136,10 +136,9 @@ class NewtonManager:
 
     @classmethod
     def instantiate_builder_from_stage(cls):
-        import omni.usd
         from pxr import UsdGeom
 
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
         builder.add_usd(stage)

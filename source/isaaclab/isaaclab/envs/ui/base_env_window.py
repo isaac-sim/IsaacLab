@@ -11,10 +11,6 @@ import weakref
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import isaacsim
-import omni.kit.app
-import omni.kit.commands
-import omni.usd
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
@@ -300,6 +296,9 @@ class BaseEnvWindow:
 
     def _toggle_recording_animation_fn(self, value: bool):
         """Toggles the animation recording."""
+        import omni.kit.commands
+        import omni.usd
+
         if value:
             # log directory to save the recording
             if not hasattr(self, "animation_log_dir"):

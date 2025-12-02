@@ -15,7 +15,6 @@
 import numpy as np
 import torch
 
-import omni.usd
 from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.cloner import Cloner
@@ -169,9 +168,10 @@ class GridCloner(Cloner):
 
         positions, orientations = self.get_clone_transforms(num_clones, position_offsets, orientation_offsets)
         if replicate_physics:
+            from isaaclab.sim.utils import get_current_stage
             clone_base_path = self._root_path if root_path is None else root_path
             builder, stage_info = replicate_environment(
-                omni.usd.get_context().get_stage(),
+                get_current_stage(),
                 source_prim_path,
                 clone_base_path + "{}",
                 positions,

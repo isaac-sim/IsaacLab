@@ -11,8 +11,7 @@ import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim.simulation_context import SimulationContext
 
 from isaaclab.managers import ManagerBase
 from isaaclab.utils import configclass
@@ -184,6 +183,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         Args:
             debug_vis: Whether to enable or disable debug visualization.
         """
+
+        import omni.kit.app
 
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")

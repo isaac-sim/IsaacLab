@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 import math
 
-import omni.physx.scripts.utils as physx_utils
-from omni.physx.scripts import deformableUtils as deformable_utils
+# import omni.physx.scripts.utils as physx_utils
+# from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
@@ -162,7 +162,8 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            # physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            # TODO: fix this
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.

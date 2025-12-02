@@ -20,9 +20,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.kit.app
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+# import omni.kit.app
+# import omni.timeline
+# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
@@ -75,24 +75,24 @@ class SensorBase(ABC):
                 # Object has been deleted; ignore.
                 pass
 
-        # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
-        obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        # # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
+        # # add callbacks for stage play/stop
+        # obj_ref = weakref.proxy(self)
+        # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
-        # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
-        # register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            order=10,
-        )
-        # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
-        )
+        # # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+        # NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        # # register timeline STOP event callback (lower priority with order=10)
+        # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #     int(omni.timeline.TimelineEventType.STOP),
+        #     lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
+        #     order=10,
+        # )
+        # # register prim deletion callback
+        # self._prim_deletion_callback_id = SimulationManager.register_callback(
+        #     lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+        #     event=IsaacEvents.PRIM_DELETION,
+        # )
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -181,6 +181,7 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

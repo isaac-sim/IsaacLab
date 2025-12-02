@@ -9,9 +9,9 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
@@ -318,9 +318,10 @@ class ManagerBasedEnv:
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        # TODO: Fix this
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
         return self.obs_buf, self.extras
@@ -463,13 +464,13 @@ class ManagerBasedEnv:
             del self.recorder_manager
             del self.scene
 
-            # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
-                    self.sim.clear()
+            # # clear callbacks and instance
+            # if float(".".join(get_version()[2])) >= 5:
+            #     if self.cfg.sim.create_stage_in_memory:
+            #         # detach physx stage
+            #         omni.physx.get_physx_simulation_interface().detach_stage()
+            #         self.sim.stop()
+            #         self.sim.clear()
 
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()

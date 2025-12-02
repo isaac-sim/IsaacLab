@@ -19,7 +19,6 @@ import torch
 
 import carb
 import carb.settings
-import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.utils.timer import Timer
@@ -46,7 +45,8 @@ class Cloner:
         self._root_path = None
         self._stage = stage
         if stage is None:
-            self._stage = omni.usd.get_context().get_stage()
+            from isaaclab.sim.utils import get_current_stage
+            self._stage = get_current_stage()
 
     def define_base_env(self, base_env_path: str):
         """Creates a USD Scope at base_env_path. This is designed to be the parent that holds all clones.

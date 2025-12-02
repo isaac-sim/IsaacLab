@@ -24,14 +24,11 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.kit.commands
-import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
@@ -401,20 +398,14 @@ class VisualizationMarkers:
                 child_prim.SetInstanceable(False)
             # check if prim is a mesh -> if so, make it invisible to secondary rays
             if child_prim.IsA(UsdGeom.Gprim):
-                # early attach stage to usd context if stage is in memory
-                # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                attach_stage_to_usd_context(attaching_early=True)
-
-                # invisible to secondary rays such as depth images
-                omni.kit.commands.execute(
-                    "ChangePropertyCommand",
-                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
-                    value=True,
-                    prev=None,
-                    type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-                )
+                # invisible to secondary rays such as depth images using USD core API
+                attr = child_prim.GetAttribute("primvars:invisibleToSecondaryRays")
+                if not attr:
+                    attr = child_prim.CreateAttribute("primvars:invisibleToSecondaryRays", Sdf.ValueTypeNames.Bool)
+                attr.Set(True)
             # add children to list
             all_prims += child_prim.GetChildren()
 
         # remove any physics on the markers because they are only for visualization!
+        import omni.physx.scripts.utils as physx_utils
         physx_utils.removeRigidBodySubtree(prim)

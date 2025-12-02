@@ -10,24 +10,19 @@ import threading
 import typing
 from collections.abc import Generator
 
-import carb
-import omni
-import omni.kit.app
-import usdrt
-from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.version import get_version
-from omni.metrics.assembler.core import get_metrics_assembler_interface
-from omni.usd.commands import DeletePrimsCommand
+# import carb
+# import omni
+# import omni.kit.app
+# import usdrt
+# from isaacsim.core.utils import stage as sim_stage
+# from isaacsim.core.version import get_version
+# from omni.metrics.assembler.core import get_metrics_assembler_interface
+# from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
 # import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
-
-# _context is a singleton design in isaacsim and for that reason
-#  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-#  that singleton to this _context
-sim_stage._context = _context
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -137,9 +132,10 @@ def is_current_stage_in_memory() -> bool:
 
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
+    """Context manager that sets a thread-local stage.
 
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
+    This allows different threads or nested contexts to use different USD stages
+    without interfering with each other.
 
     Args:
         stage: The stage to set temporarily.
@@ -160,35 +156,39 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...    pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        # check stage
-        assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
-        # store previous context value if it exists
-        previous_stage = getattr(_context, "stage", None)
-        # set new context value
-        try:
-            _context.stage = stage
-            yield
-        # remove context value or restore previous one if it exists
-        finally:
-            if previous_stage is None:
+    # check stage
+    assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
+    # store previous context value if it exists
+    previous_stage = getattr(_context, "stage", None)
+    # set new context value
+    try:
+        _context.stage = stage
+        yield
+    # remove context value or restore previous one if it exists
+    finally:
+        if previous_stage is None:
+            if hasattr(_context, "stage"):
                 delattr(_context, "stage")
-            else:
-                _context.stage = previous_stage
+        else:
+            _context.stage = previous_stage
 
 
-def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
-    """Get the current open USD or Fabric stage
+def get_current_stage(fabric: bool = False) -> Usd.Stage:
+    """Get the current open USD stage.
+
+    This function retrieves the current USD stage using the following priority:
+    1. Thread-local stage context (set via use_stage context manager)
+    2. SimulationContext singleton's stage (if initialized)
+    3. USD StageCache (standard USD way to track open stages)
 
     Args:
-        fabric: True to get the fabric stage. False to get the USD stage. Defaults to False.
+        fabric: Deprecated parameter, kept for backward compatibility. Defaults to False.
+
+    Raises:
+        RuntimeError: If no USD stage is currently open.
 
     Returns:
-        The USD or Fabric stage as specified by the input arg fabric.
+        The USD stage.
 
     Example:
 
@@ -201,14 +201,35 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage | usdrt.Usd._Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
-    stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
     if fabric:
-        stage_cache = UsdUtils.StageCache.Get()
-        stage_id = stage_cache.GetId(stage).ToLongInt()
-        if stage_id < 0:
-            stage_id = stage_cache.Insert(stage).ToLongInt()
-        return usdrt.Usd.Stage.Attach(stage_id)
-    return stage
+        logger.warning("Fabric stage support has been removed. Returning standard USD stage.")
+    
+    # Try to get stage from thread-local context first
+    stage = getattr(_context, "stage", None)
+    if stage is not None:
+        return stage
+    
+    # Try to get stage from SimulationContext singleton (if initialized)
+    try:
+        # Import here to avoid circular dependency
+        from isaaclab.sim.simulation_context import SimulationContext
+        sim_context = SimulationContext.instance()
+        if sim_context is not None and hasattr(sim_context, "stage") and sim_context.stage is not None:
+            return sim_context.stage
+    except (ImportError, RuntimeError):
+        # SimulationContext may not be initialized yet
+        pass
+    
+    # Fall back to USD StageCache - get the first stage in the cache
+    # This is the standard USD way to track open stages
+    stage_cache = UsdUtils.StageCache.Get()
+    if stage_cache.Size() > 0:
+        # Get all stages and return the first one (most recently accessed)
+        all_stages = stage_cache.GetAllStages()
+        if all_stages:
+            return all_stages[0]
+    
+    raise RuntimeError("No USD stage is currently open. Please create a stage first.")
 
 
 def get_current_stage_id() -> int:
@@ -349,6 +370,9 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
 def print_stage_prim_paths(fabric: bool = False) -> None:
     """Traverses the stage and prints all prim (hidden or not) paths.
 
+    Args:
+        fabric: Deprecated parameter, kept for backward compatibility. Defaults to False.
+
     Example:
 
     .. code-block:: python
@@ -461,7 +485,10 @@ def create_new_stage() -> Usd.Stage:
 
 
 def create_new_stage_in_memory() -> Usd.Stage:
-    """Creates a new stage in memory, if supported.
+    """Creates a new stage in memory using USD core APIs.
+    
+    This function creates a stage in memory and adds it to the USD StageCache
+    so it can be properly tracked and retrieved by get_current_stage().
 
     Returns:
         The new stage in memory.
@@ -477,15 +504,15 @@ def create_new_stage_in_memory() -> Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
-            " stage attached to USD context."
-        )
-        return create_new_stage()
-    else:
-        return Usd.Stage.CreateInMemory()
+    # Create a new stage in memory using USD core API
+    stage = Usd.Stage.CreateInMemory()
+    
+    # Add to StageCache so it can be found by get_current_stage()
+    # This ensures the stage is properly tracked and can be retrieved later
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_cache.Insert(stage)
+    
+    return stage
 
 
 def open_stage(usd_path: str) -> bool:
@@ -598,6 +625,9 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
 
 def traverse_stage(fabric=False) -> typing.Iterable:
     """Traverse through prims (hidden or not) in the opened Usd stage.
+
+    Args:
+        fabric: Deprecated parameter, kept for backward compatibility. Defaults to False.
 
     Returns:
         Generator which yields prims from the stage in depth-first-traversal order.

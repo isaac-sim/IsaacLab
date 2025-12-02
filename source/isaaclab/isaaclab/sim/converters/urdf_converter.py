@@ -8,12 +8,6 @@ from __future__ import annotations
 import math
 import re
 
-import isaacsim
-import omni.kit.app
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
-
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 
@@ -46,6 +40,12 @@ class UrdfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for URDF to USD conversion.
         """
+        import isaacsim
+        import omni.kit.app
+        import omni.kit.commands
+        import omni.usd
+        from isaacsim.core.utils.extensions import enable_extension
+
         manager = omni.kit.app.get_app().get_extension_manager()
         if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
             enable_extension("isaacsim.asset.importer.urdf")

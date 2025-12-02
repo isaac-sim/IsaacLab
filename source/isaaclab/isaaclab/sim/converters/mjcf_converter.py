@@ -7,10 +7,6 @@ from __future__ import annotations
 
 import os
 
-import isaacsim
-import omni.kit.commands
-import omni.usd
-
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
 
@@ -55,6 +51,7 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
+        import omni.kit.commands
         import_config = self._get_mjcf_import_config()
         file_basename, _ = os.path.basename(cfg.asset_path).split(".")
         omni.kit.commands.execute(

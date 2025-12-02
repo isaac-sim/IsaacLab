@@ -14,9 +14,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.kit.app
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+# import omni.kit.app
+# import omni.timeline
+# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -118,17 +118,17 @@ class AssetBase(ABC):
         #    order=10,
         # )
 
-        # register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            order=10,
-        )
-        # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
-        )
+        # # register timeline STOP event callback (lower priority with order=10)
+        # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #     int(omni.timeline.TimelineEventType.STOP),
+        #     lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
+        #     order=10,
+        # )
+        # # register prim deletion callback
+        # self._prim_deletion_callback_id = SimulationManager.register_callback(
+        #     lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+        #     event=IsaacEvents.PRIM_DELETION,
+        # )
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None

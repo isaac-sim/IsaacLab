@@ -13,8 +13,6 @@ import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-from isaacsim.core.version import get_version
-
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
@@ -58,7 +56,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
+        # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 

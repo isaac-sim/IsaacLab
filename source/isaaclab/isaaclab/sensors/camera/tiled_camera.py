@@ -7,16 +7,14 @@ from __future__ import annotations
 
 import json
 import math
-import numpy as np
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
 import warp as wp
-from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
@@ -83,6 +81,7 @@ class TiledCamera(Camera):
             RuntimeError: If Isaac Sim version < 4.2
             ValueError: If the provided data types are not supported by the camera.
         """
+
         super().__init__(cfg)
 
     def __del__(self):
@@ -139,8 +138,8 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        settings_manager = get_settings_manager()
+        if not settings_manager.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -151,6 +150,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
+        from isaacsim.core.prims import XFormPrim
         self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
@@ -241,7 +241,9 @@ class TiledCamera(Camera):
 
             # convert data buffer to warp array
             if isinstance(tiled_data_buffer, np.ndarray):
-                tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device, dtype=wp.uint8)
+                # Let warp infer the dtype from numpy array instead of hardcoding uint8
+                # Different annotators return different dtypes: RGB(uint8), depth(float32), segmentation(uint32)
+                tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device)
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=self.device)
 
@@ -262,17 +264,16 @@ class TiledCamera(Camera):
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
-            wp.launch(
-                kernel=reshape_tiled_image,
-                dim=(self._view.count, self.cfg.height, self.cfg.width),
-                inputs=[
-                    tiled_data_buffer.flatten(),
-                    wp.from_torch(self._data.output[data_type]),  # zero-copy alias
-                    *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
-                    self._tiling_grid_shape()[0],  # num_tiles_x
-                ],
-                device=self.device,
-            )
+            # Use torch to reshape tiled image buffer to batched image buffer
+           # Use PyTorch implementation for reshape
+            self._data.output[data_type][:self._view.count] = reshape_with_pytorch(
+                wp.to_torch(tiled_data_buffer.flatten()),
+                self._view.count,
+                self.cfg.height,
+                self.cfg.width,
+                self._data.output[data_type].shape[-1],
+                self._tiling_grid_shape()[0],
+            )[:self._view.count]
 
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:

@@ -6,13 +6,10 @@
 import logging
 import torch
 from collections.abc import Sequence
-from typing import Any
-
-import carb
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
+from typing import Any, TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
 from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
@@ -131,31 +128,17 @@ class InteractiveScene:
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                )
-            else:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                    clone_in_fabric=self.cfg.clone_in_fabric,
-                )
+            # clone the env xform
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=False,
+                copy_from_source=True,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this won't do anything because we are not replicating physics
+                clone_in_fabric=self.cfg.clone_in_fabric,
+            )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
             # otherwise, environment origins will be initialized during cloning at the end of environment creation
@@ -186,8 +169,8 @@ class InteractiveScene:
         """
         # check if user spawned different assets in individual environments
         # this flag will be None if no multi asset is spawned
-        carb_settings_iface = carb.settings.get_settings()
-        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
+        settings_manager = get_settings_manager()
+        has_multi_assets = settings_manager.get("/isaaclab/spawn/multi_assets")
         if has_multi_assets and self.cfg.replicate_physics:
             logger.warning(
                 "Varying assets might have been spawned under different environments."
@@ -195,31 +178,17 @@ class InteractiveScene:
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
             )
 
-        # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        isaac_sim_version = float(".".join(get_version()[2]))
-        if isaac_sim_version < 5:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
-            )
-        else:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
-                clone_in_fabric=self.cfg.clone_in_fabric,
-            )
+        # clone the environment
+        env_origins = self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=self.cfg.replicate_physics,
+            copy_from_source=copy_from_source,
+            enable_env_ids=(
+                self.cfg.filter_collisions if self.device != "cpu" else False
+            ),  # this automatically filters collisions between environments
+            clone_in_fabric=self.cfg.clone_in_fabric,
+        )
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
@@ -375,11 +344,11 @@ class InteractiveScene:
         raise NotImplementedError("Surface grippers are not supported in IsaacLab for Newton.")
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
+    def extras(self) -> dict[str, Any]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
-        of the corresponding prims.
+        The keys are the names of the miscellaneous objects, and the values are XFormPrim instances
+        from isaacsim.core.prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -387,9 +356,6 @@ class InteractiveScene:
         Note:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
-
-        .. _XFormPrim: https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.core/docs/index.html#isaacsim.core.prims.XFormPrim
-
         """
         return self._extras
 
@@ -665,6 +631,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
+                from isaacsim.core.prims import XFormPrim
                 self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
