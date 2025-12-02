@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 import tempfile
 import torch
 
@@ -14,9 +15,9 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
+from isaaclab.devices.retargeters import DexBiManualRetargeterCfg, DexHandRetargeterCfg, Se3AbsRetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -384,16 +385,60 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
 
+        # Extract hand joint names for each hand
+        original_hand_joints = self.actions.upper_body_ik.hand_joint_names
+        left_hand_joints = [j for j in original_hand_joints if "L_" in j]
+        right_hand_joints = [j for j in original_hand_joints if "R_" in j]
+
         self.teleop_devices = DevicesCfg(
             devices={
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
+                            target_offset_rot=(1.0, 0.0, 0.0, 0.0),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
+                            target_offset_rot=(0.0, 0.0, 0.0, 1.0),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        DexBiManualRetargeterCfg(
+                            target_joint_names=original_hand_joints,
+                            sim_device=self.sim.device,
+                            left_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_LEFT,
+                                enable_visualization=True,
+                                # number of joints in both hands
+                                num_open_xr_hand_joints=self.NUM_OPENXR_HAND_JOINTS,
+                                sim_device=self.sim.device,
+                                hand_joint_names=left_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "config/dex_retargeting/fourier_hand_left_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_left_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, -1, 0, -1, 0, 0, 0, 0, -1),
+                            ),
+                            right_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_RIGHT,
+                                enable_visualization=True,
+                                # number of joints in both hands
+                                num_open_xr_hand_joints=self.NUM_OPENXR_HAND_JOINTS,
+                                sim_device=self.sim.device,
+                                hand_joint_names=right_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "config/dex_retargeting/fourier_hand_right_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_right_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, -1, 0, -1, 0, 0, 0, 0, -1),
+                            ),
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -401,15 +446,53 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 ),
                 "manusvive": ManusViveCfg(
                     retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            num_open_xr_hand_joints=2 * 26,
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
+                            target_offset_rot=(1.0, 0.0, 0.0, 0.0),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
+                            target_offset_rot=(0.0, 0.0, 0.0, 1.0),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        DexBiManualRetargeterCfg(
+                            target_joint_names=original_hand_joints,
+                            sim_device=self.sim.device,
+                            left_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_LEFT,
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=left_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "config/dex_retargeting/fourier_hand_left_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_left_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, -1, 0, -1, 0, 0, 0, 0, -1),
+                            ),
+                            right_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_RIGHT,
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=right_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "config/dex_retargeting/fourier_hand_right_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_right_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, -1, 0, -1, 0, 0, 0, 0, -1),
+                            ),
                         ),
                     ],
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
                 ),
-            }
+            },
         )

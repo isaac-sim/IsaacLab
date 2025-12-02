@@ -680,32 +680,20 @@ the OpenXRDevice during initialization.
 
 Isaac Lab provides three main retargeters for hand tracking:
 
-.. dropdown:: Se3RelRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3RelRetargeter`)
+.. dropdown:: Se3RelRetargeter (:class:`isaaclab.devices.retargeters.Se3RelRetargeter`)
 
    * Generates incremental robot commands from relative hand movements
    * Best for precise manipulation tasks
 
-.. dropdown:: Se3AbsRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3AbsRetargeter`)
+.. dropdown:: Se3AbsRetargeter (:class:`isaaclab.devices.retargeters.Se3AbsRetargeter`)
 
    * Maps hand position directly to robot end-effector position
    * Enables 1:1 spatial control
 
-.. dropdown:: GripperRetargeter (:class:`isaaclab.devices.openxr.retargeters.GripperRetargeter`)
+.. dropdown:: GripperRetargeter (:class:`isaaclab.devices.retargeters.GripperRetargeter`)
 
    * Controls gripper state based on thumb-index finger distance
    * Used alongside position retargeters for full robot control
-
-.. dropdown:: GR1T2Retargeter (:class:`isaaclab.devices.openxr.retargeters.GR1T2Retargeter`)
-
-   * Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands
-   * Handles both left and right hands, converting hand poses to joint angles for the GR1T2 robot's hands
-   * Supports visualization of tracked hand joints
-
-.. dropdown:: UnitreeG1Retargeter (:class:`isaaclab.devices.openxr.retargeters.UnitreeG1Retargeter`)
-
-   * Retargets OpenXR hand tracking data to Unitree G1 using Inspire 5-finger hand end-effector commands
-   * Handles both left and right hands, converting hand poses to joint angles for the G1 robot's hands
-   * Supports visualization of tracked hand joints
 
 Retargeters can be combined to control different robot functions simultaneously.
 
@@ -717,7 +705,7 @@ Here's an example of setting up hand tracking:
 .. code-block:: python
 
    from isaaclab.devices import OpenXRDevice, OpenXRDeviceCfg
-   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter, GripperRetargeter
+   from isaaclab.devices.retargeters import Se3AbsRetargeter, GripperRetargeter
 
    # Create retargeters
    position_retargeter = Se3AbsRetargeter(
@@ -796,7 +784,7 @@ XR-based teleoperation can be integrated with Isaac Lab's environment configurat
    from isaaclab.envs import ManagerBasedEnvCfg
    from isaaclab.devices import DevicesCfg, OpenXRDeviceCfg
    from isaaclab.devices.openxr import XrCfg
-   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
+   from isaaclab.devices.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
 
    @configclass
    class MyEnvironmentCfg(ManagerBasedEnvCfg):

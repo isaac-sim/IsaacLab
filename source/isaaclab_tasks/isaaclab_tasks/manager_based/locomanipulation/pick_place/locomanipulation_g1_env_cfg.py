@@ -3,24 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
+
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_motion_controller_locomotion import (
-    G1LowerBodyStandingMotionControllerRetargeterCfg,
-)
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
-    G1TriHandUpperBodyMotionControllerRetargeterCfg,
-)
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
-    G1TriHandUpperBodyRetargeterCfg,
-)
 from isaaclab.devices.openxr.xr_cfg import XrAnchorRotationMode
+from isaaclab.devices.retargeters import (
+    DexBiManualRetargeterCfg,
+    DexHandRetargeterCfg,
+    DexMotionControllerCfg,
+    Se3AbsRetargeterCfg,
+)
+from isaaclab.devices.retargeters.locomotion import LocomotionFixedRootCmdRetargeterCfg, LocomotionRootCmdRetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -213,6 +212,11 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
+        # Extract hand joint names for each hand
+        original_hand_joints = self.actions.upper_body_ik.hand_joint_names
+        left_hand_joints = [j for j in original_hand_joints if "left" in j]
+        right_hand_joints = [j for j in original_hand_joints if "right" in j]
+
         self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
         self.xr.fixed_anchor_height = True
         # Ensure XR anchor rotation follows the robot pelvis (yaw only), with smoothing for comfort
@@ -222,14 +226,51 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             devices={
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
-                        G1TriHandUpperBodyRetargeterCfg(
-                            enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
+                            target_offset_rot=(0.7071, 0.0, 0.7071, 0.0),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
-                        G1LowerBodyStandingRetargeterCfg(
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
+                            target_offset_rot=(0.0, 0.7071, 0.0, -0.7071),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        DexBiManualRetargeterCfg(
+                            target_joint_names=original_hand_joints,
+                            sim_device=self.sim.device,
+                            left_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_LEFT,
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=left_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "configs/dex_retargeting/g1_hand_left_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, 0, 1, 1, 0, 0, 0, 1, 0),
+                            ),
+                            right_hand_cfg=DexHandRetargeterCfg(
+                                target=DeviceBase.TrackingTarget.HAND_RIGHT,
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=right_hand_joints,
+                                hand_retargeting_config=os.path.join(
+                                    os.path.dirname(__file__), "configs/dex_retargeting/g1_hand_right_dexpilot.yml"
+                                ),
+                                hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",
+                                handtracking_to_baselink_frame_transform=(0, 0, 1, 1, 0, 0, 0, 1, 0),
+                            ),
+                        ),
+                        LocomotionFixedRootCmdRetargeterCfg(
                             sim_device=self.sim.device,
                         ),
                     ],
@@ -238,12 +279,37 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 ),
                 "motion_controllers": OpenXRDeviceCfg(
                     retargeters=[
-                        G1TriHandUpperBodyMotionControllerRetargeterCfg(
-                            enable_visualization=True,
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.CONTROLLER_LEFT,
+                            # Offset equivalent to (0, -75, 90) Euler (XYZ)
+                            target_offset_rot=(0.5358, -0.4619, 0.5358, 0.4619),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
-                        G1LowerBodyStandingMotionControllerRetargeterCfg(
+                        Se3AbsRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.CONTROLLER_RIGHT,
+                            # Offset equivalent to (0, -75, 90) Euler (XYZ) but mirrored for right hand?
+                            target_offset_rot=(0.5358, -0.4619, 0.5358, 0.4619),
+                            zero_out_xy_rotation=False,
+                            use_wrist_rotation=True,
+                            use_wrist_position=True,
+                            sim_device=self.sim.device,
+                        ),
+                        DexMotionControllerCfg(
+                            target=DeviceBase.TrackingTarget.CONTROLLER_LEFT,
+                            hand_joint_names=left_hand_joints,
+                            sim_device=self.sim.device,
+                            hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",
+                        ),
+                        DexMotionControllerCfg(
+                            target=DeviceBase.TrackingTarget.CONTROLLER_RIGHT,
+                            hand_joint_names=right_hand_joints,
+                            sim_device=self.sim.device,
+                            hand_urdf=f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",
+                        ),
+                        LocomotionRootCmdRetargeterCfg(
                             sim_device=self.sim.device,
                         ),
                     ],

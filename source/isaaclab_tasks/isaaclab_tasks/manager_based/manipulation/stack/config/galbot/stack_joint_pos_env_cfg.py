@@ -8,7 +8,7 @@ from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
+from isaaclab.devices.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
