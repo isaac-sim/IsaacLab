@@ -2,11 +2,13 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
+
+from isaaclab.utils import configclass
 
 from .cloner import physx_replicate
 from .cloner_utils import random
-from isaaclab.utils import configclass
 
 
 @configclass

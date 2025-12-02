@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from pxr import Usd
-import logging
+
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 

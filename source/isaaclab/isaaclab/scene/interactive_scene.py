@@ -32,8 +32,8 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
-from .cloner_cfg import TemplateCloneCfg
 from . import cloner
+from .cloner_cfg import TemplateCloneCfg
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger

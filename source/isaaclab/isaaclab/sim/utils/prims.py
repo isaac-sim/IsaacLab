@@ -9,8 +9,8 @@ import functools
 import inspect
 import logging
 import numpy as np
-import torch
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +22,7 @@ from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
+
 from .semantics import add_labels
 from .stage import add_reference_to_stage, attach_stage_to_usd_context, get_current_stage
 
@@ -1522,6 +1523,7 @@ def clone(func: Callable) -> Callable:
         if len(source_prim_paths) > 1:
             # lazy import to avoid circular import
             from isaaclab.scene.cloner import usd_replicate
+
             formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
             usd_replicate(
                 stage=stage,

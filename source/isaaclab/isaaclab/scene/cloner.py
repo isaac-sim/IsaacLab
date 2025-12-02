@@ -2,12 +2,13 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import itertools
 import math
 import torch
-import itertools
+from typing import TYPE_CHECKING
 
 from omni.physx import get_physx_replicator_interface
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdUtils, Vt
@@ -87,7 +88,24 @@ def make_clone_plan(
     num_clones: int,
     clone_strategy: callable,
     device: str = "cpu",
-):
+) -> dict:
+    """Construct a cloning plan mapping prototype prims to per-environment destinations.
+
+    The plan enumerates all combinations of prototypes, selects a combination per environment using ``clone_strategy``,
+    and builds a boolean mapping matrix indicating which prototype populates each environment slot.
+
+    Args:
+        sources: Prototype prim paths grouped by asset type (e.g., [[robot_a, robot_b], [obj_x]]).
+        destinations: Destination path templates (one per group) with ``"{}"`` placeholder for env id.
+        num_clones: Number of environments to populate.
+        clone_strategy: Function that picks a prototype combo per environment; signature
+            ``clone_strategy(combos: Tensor, num_clones: int, device: str) -> Tensor[num_clones, num_groups]``.
+        device: Torch device for tensors in the plan. Defaults to ``"cpu"``.
+
+    Returns:
+        dict: ``{"src": list[str], "dest": list[str], "mapping": Tensor[num_src, num_clones]}`` where
+            ``mapping[i, j]`` is True when source ``src[i]`` is used for clone ``j``.
+    """
     clone_plan = {"src": [], "dest": [], "mapping": torch.empty((0,), dtype=torch.bool, device=device)}
     # 1) Flatten into clone_plan["src"] and clone_plan["dest"]
     clone_plan["src"] = [p for group in sources for p in group]
