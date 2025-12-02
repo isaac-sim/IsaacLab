@@ -34,7 +34,7 @@ class TemplateCloneCfg:
 
     .. code-block:: python
 
-        from isaaclab.scene.cloner import TemplateCloneCfg, clone_from_template
+        from isaaclab.cloner.cloner import TemplateCloneCfg, clone_from_template
         from isaacsim.core.utils.stage import get_current_stage
 
         stage = get_current_stage()

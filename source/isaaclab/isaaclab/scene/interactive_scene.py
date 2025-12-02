@@ -31,9 +31,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, 
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-
-from . import cloner
-from .cloner_cfg import TemplateCloneCfg
+from isaaclab import cloner
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger
@@ -137,7 +135,7 @@ class InteractiveScene:
         # prepare cloner for environment replication
         self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
 
-        self.cloner_cfg = TemplateCloneCfg(
+        self.cloner_cfg = cloner.TemplateCloneCfg(
             clone_regex=self.env_regex_ns,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
