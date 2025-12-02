@@ -287,9 +287,6 @@ def newton_replicate(
 
     from isaaclab.sim._impl.newton_manager import NewtonManager
 
-    mapping = mapping.to(torch.bool)
-    env_ids = env_ids.to(torch.long)
-
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
