@@ -11,6 +11,7 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -21,7 +22,7 @@ def base_yaw_roll(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # extract euler angles (in world frame)
-    roll, _, yaw = math_utils.euler_xyz_from_quat(wp.to_torch(asset.data.root_quat_w))
+    roll, _, yaw = math_utils.euler_xyz_from_quat(math_utils.convert_quat(wp.to_torch(asset.data.root_quat_w).clone(), to="wxyz"))
     # normalize angle to [-pi, pi]
     roll = torch.atan2(torch.sin(roll), torch.cos(roll))
     yaw = torch.atan2(torch.sin(yaw), torch.cos(yaw))
@@ -35,7 +36,6 @@ def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     asset: Articulation = env.scene[asset_cfg.name]
     # compute base up vector
     base_up_vec = -wp.to_torch(asset.data.projected_gravity_b)
-
     return base_up_vec[:, 2].unsqueeze(-1)
 
 
@@ -45,14 +45,12 @@ def base_heading_proj(
     """Projection of the base forward vector onto the world forward vector."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    forward_vec_b = torch.tensor([asset.data.FORWARD_VEC_B[0], asset.data.FORWARD_VEC_B[1], asset.data.FORWARD_VEC_B[2]], device=env.device)
-    forward_vec_b = forward_vec_b.repeat(env.num_envs, 1)
     # compute desired heading direction
     to_target_pos = torch.tensor(target_pos, device=env.device) - wp.to_torch(asset.data.root_pos_w)[:, :3]
     to_target_pos[:, 2] = 0.0
     to_target_dir = math_utils.normalize(to_target_pos)
     # compute base forward vector
-    heading_vec = math_utils.quat_apply(wp.to_torch(asset.data.root_quat_w), forward_vec_b)
+    heading_vec = math_utils.quat_apply(math_utils.convert_quat(wp.to_torch(asset.data.root_quat_w).clone(), to="wxyz"), asset.data.FORWARD_VEC_B_TORCH)
     # compute dot product between heading and target direction
     heading_proj = torch.bmm(heading_vec.view(env.num_envs, 1, 3), to_target_dir.view(env.num_envs, 3, 1))
 
@@ -69,7 +67,7 @@ def base_angle_to_target(
     to_target_pos = torch.tensor(target_pos, device=env.device) - wp.to_torch(asset.data.root_pos_w)[:, :3]
     walk_target_angle = torch.atan2(to_target_pos[:, 1], to_target_pos[:, 0])
     # compute base forward vector
-    _, _, yaw = math_utils.euler_xyz_from_quat(wp.to_torch(asset.data.root_quat_w))
+    _, _, yaw = math_utils.euler_xyz_from_quat(math_utils.convert_quat(wp.to_torch(asset.data.root_quat_w).clone(), to="wxyz"))
     # normalize angle to target to [-pi, pi]
     angle_to_target = walk_target_angle - yaw
     angle_to_target = torch.atan2(torch.sin(angle_to_target), torch.cos(angle_to_target))

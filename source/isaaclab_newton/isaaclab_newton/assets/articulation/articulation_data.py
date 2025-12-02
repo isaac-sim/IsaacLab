@@ -7,6 +7,7 @@ from __future__ import annotations
 import weakref
 
 import warp as wp
+import torch
 import logging
 import warnings
 
@@ -38,6 +39,7 @@ from isaaclab_newton.kernels import (
     make_joint_pos_limits_from_lower_and_upper_limits,
 )
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 
 logger = logging.getLogger(__name__)
@@ -88,10 +90,12 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp = 0.0
         # obtain global simulation view
         gravity = wp.to_torch(NewtonManager.get_model().gravity)[0]
-        gravity_dir = [float(i) / sum(gravity) for i in gravity]
+        gravity_dir = math_utils.normalize(gravity.unsqueeze(0)).squeeze(0)
         # Initialize constants
         self.GRAVITY_VEC_W = wp.vec3f(gravity_dir[0], gravity_dir[1], gravity_dir[2])
+        self.GRAVITY_VEC_W_TORCH = torch.tensor([gravity_dir[0], gravity_dir[1], gravity_dir[2]], device=device).repeat(self._root_view.count, 1)
         self.FORWARD_VEC_B = wp.vec3f((1.0, 0.0, 0.0))
+        self.FORWARD_VEC_B_TORCH = torch.tensor([1.0, 0.0, 0.0], device=device).repeat(self._root_view.count, 1)
         # Create the simulation bindings and buffers
         self._create_simulation_bindings()
         self._create_buffers()
@@ -903,16 +907,19 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_linear_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_vel_w.is_contiguous:
+            return self.root_link_vel_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_linear_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
@@ -923,16 +930,19 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_angular_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_vel_w.is_contiguous:
+            return self.root_link_vel_w.view(wp.float32)[:, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_angular_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
@@ -943,16 +953,19 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_linear_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_com_vel_b,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_vel_w.is_contiguous:
+            return self.root_com_vel_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_linear_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
@@ -963,16 +976,19 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_angular_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self._sim_bind_root_com_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_vel_w.is_contiguous:
+            return self.root_com_vel_w.view(wp.float32)[:, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_angular_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     ##
     # Sliced properties.
@@ -986,16 +1002,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_transform_array_to_position_array,
-            dim=self._root_view.count,
-            inputs=[
-                self._sim_bind_root_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_pose_w.is_contiguous:
+            return self.root_link_pose_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_transform_array_to_position_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_link_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
@@ -1006,16 +1025,19 @@ class ArticulationData(BaseArticulationData):
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            split_transform_array_to_quaternion_array,
-            dim=self._root_view.count,
-            inputs=[
-                self._sim_bind_root_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_pose_w.is_contiguous:
+            return self.root_link_pose_w.view(wp.float32)[:, 3:].view(wp.quatf)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
+            wp.launch(
+                split_transform_array_to_quaternion_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_link_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
@@ -1025,16 +1047,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_linear_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_vel_w.is_contiguous:
+            return self.root_link_vel_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_linear_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
@@ -1044,16 +1069,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_angular_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_link_vel_w.is_contiguous:
+            return self.root_link_vel_w.view(wp.float32)[:, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_angular_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
@@ -1063,16 +1091,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_transform_array_to_position_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_pose_w.is_contiguous:
+            return self.root_com_pose_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_transform_array_to_position_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_com_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
@@ -1083,16 +1114,19 @@ class ArticulationData(BaseArticulationData):
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the root rigid body's center of mass frame.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            split_transform_array_to_quaternion_array,
-            dim=self._root_view.count,
-            inputs=[
-                self.root_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_pose_w.is_contiguous:
+            return self.root_com_pose_w.view(wp.float32)[:, 3:].view(wp.quatf)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
+            wp.launch(
+                split_transform_array_to_quaternion_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_com_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
@@ -1102,16 +1136,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_linear_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self._sim_bind_root_com_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_vel_w.is_contiguous:
+            return self.root_com_vel_w.view(wp.float32)[:, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_linear_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
@@ -1121,16 +1158,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_array_to_angular_velocity_array,
-            dim=self._root_view.count,
-            inputs=[
-                self._sim_bind_root_com_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.root_com_vel_w.is_contiguous:
+            return self.root_com_vel_w.view(wp.float32)[:, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_array_to_angular_velocity_array,
+                dim=self._root_view.count,
+                inputs=[
+                    self._sim_bind_root_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
@@ -1140,16 +1180,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_transform_batched_array_to_position_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self._sim_bind_body_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_link_pose_w.is_contiguous:
+            return self.body_link_pose_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_transform_batched_array_to_position_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self._sim_bind_body_link_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
@@ -1160,16 +1203,19 @@ class ArticulationData(BaseArticulationData):
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            split_transform_batched_array_to_quaternion_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self._sim_bind_body_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_link_pose_w.is_contiguous:
+            return self.body_link_pose_w.view(wp.float32)[:, :, 3:].view(wp.quatf)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+            wp.launch(
+                split_transform_batched_array_to_quaternion_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self._sim_bind_body_link_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
@@ -1179,16 +1225,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_link_vel_w.is_contiguous:
+            return self.body_link_vel_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
@@ -1198,16 +1247,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_link_vel_w.is_contiguous:
+            return self.body_link_vel_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_link_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
@@ -1217,16 +1269,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_transform_batched_array_to_position_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_pose_w.is_contiguous:
+            return self.body_com_pose_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_transform_batched_array_to_position_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_com_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
@@ -1237,16 +1292,19 @@ class ArticulationData(BaseArticulationData):
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            split_transform_batched_array_to_quaternion_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_pose_w.is_contiguous:
+            return self.body_com_pose_w.view(wp.float32)[:, :, 3:].view(wp.quatf)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+            wp.launch(
+                split_transform_batched_array_to_quaternion_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_com_pose_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
@@ -1256,16 +1314,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self._sim_bind_body_com_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_vel_w.is_contiguous:
+            return self.body_com_vel_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self._sim_bind_body_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
@@ -1275,16 +1336,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self._sim_bind_body_com_vel_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_vel_w.is_contiguous:
+            return self.body_com_vel_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self._sim_bind_body_com_vel_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
@@ -1294,16 +1358,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_com_acc_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_acc_w.is_contiguous:
+            return self.body_com_acc_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_com_acc_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
@@ -1313,16 +1380,19 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
-            dim=(self._root_view.count, self._root_view.link_count),
-            inputs=[
-                self.body_com_acc_w,
-                out,
-            ],
-        )
-        return out
+        if self.body_com_acc_w.is_contiguous:
+            return self.body_com_acc_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
+        else:
+            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+            wp.launch(
+                split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
+                dim=(self._root_view.count, self._root_view.link_count),
+                inputs=[
+                    self.body_com_acc_w,
+                    out,
+                ],
+            )
+            return out
 
     @property
     def body_com_pos_b(self) -> wp.array(dtype=wp.vec3f):
