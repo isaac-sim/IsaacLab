@@ -11,7 +11,7 @@ import torch
 import warp as wp
 from typing import TYPE_CHECKING
 
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdUtils, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
 
@@ -281,7 +281,6 @@ def newton_replicate(
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
     from isaaclab.sim._impl.newton_manager import NewtonManager
     from newton import ModelBuilder
-    import warp as wp
 
     mapping = mapping.to(torch.bool)
     env_ids = env_ids.to(torch.long)
@@ -355,7 +354,7 @@ def filter_collisions(
     Returns:
         None
     """
-
+    from pxr import PhysxSchema
     physx_scene = PhysxSchema.PhysxSceneAPI(stage.GetPrimAtPath(physicsscene_path))
 
     # We invert the collision group filters for more efficient collision filtering across environments
