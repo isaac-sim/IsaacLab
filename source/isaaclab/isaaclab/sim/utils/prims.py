@@ -19,12 +19,12 @@ import omni.kit.commands
 import omni.usd
 import usdrt
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
 
 from .semantics import add_labels
-from .stage import add_reference_to_stage, attach_stage_to_usd_context, get_current_stage
+from .stage import add_reference_to_stage, get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg

@@ -8,9 +8,9 @@ from __future__ import annotations
 import itertools
 import math
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
 
+import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
@@ -240,6 +240,7 @@ def physx_replicate(
         None
     """
     from omni.physx import get_physx_replicator_interface
+
     stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
     current_worlds: list[int] = []
     current_template: str = ""
@@ -282,8 +283,9 @@ def newton_replicate(
     simplify_meshes: bool = True,
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
-    from isaaclab.sim._impl.newton_manager import NewtonManager
     from newton import ModelBuilder
+
+    from isaaclab.sim._impl.newton_manager import NewtonManager
 
     mapping = mapping.to(torch.bool)
     env_ids = env_ids.to(torch.long)
@@ -294,7 +296,7 @@ def newton_replicate(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
-    # load empty stage  
+    # load empty stage
     builder = ModelBuilder(up_axis=up_axis)
     stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources, load_non_physics_prims=False)
 

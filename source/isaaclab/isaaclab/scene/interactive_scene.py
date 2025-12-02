@@ -10,7 +10,6 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-
 from isaacsim.core.prims import XFormPrim
 from pxr import Sdf
 
