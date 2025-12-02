@@ -63,7 +63,7 @@
     <link rel="prev" title="Container Deployment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.3.0" />
+  <meta name="docsearch:version" content="2.3.1" />
     <meta name="docbuild:last-update" content="Dec 02, 2025"/>
   </head>
   
@@ -980,7 +980,7 @@ For example, we provide the docker image for release 2.0.0 and 2.1.0, but not 2.
 In the future, we will provide docker images for every minor release of Isaac Lab.</p>
 </div>
 <p>To pull the minimal Isaac Lab container, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.3.0
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.3.1
 </pre></div>
 </div>
 <p>To run the Isaac Lab container with an interactive bash session, run:</p>
@@ -994,7 +994,7 @@ In the future, we will provide docker images for every minor release of Isaac La
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.0
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.1
 </pre></div>
 </div>
 <p>To enable rendering through X11 forwarding, run:</p>
@@ -1011,7 +1011,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--name<span class="w"> 
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.0
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.1
 </pre></div>
 </div>
 <p>To run an example within the container, run:</p>

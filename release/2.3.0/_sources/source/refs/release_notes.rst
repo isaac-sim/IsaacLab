@@ -4,6 +4,34 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.3.1
+======
+
+What's Changed
+--------------
+
+This is a small patch release with a few critical fixes that impacted user workflows.
+
+Key fixes include:
+* The behavior of termination logging has changed in the manager-based workflow, where ``get_done_term``
+now returns the current step value instead of the last episode value.
+* Additionally, a breaking change in the URDF importer was introduced in Isaac Sim 5.1, where the merge
+joints flag is no longer supported. We have now introduced a patch in the importer to return the behavior.
+Moving forward, we plan to deprecate this flag in favor of preserving asset definitions from URDFs directly
+without performing additional processing during the import process.
+
+Bug Fixes
+---------
+
+* Updates URDF importer to 2.4.31 to continue support for merge-joints by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4000
+* Separates per-step termination and last-episode termination bookkeeping by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3745
+* Uses effort_limit from USD if not specified in actuator cfg by @JuanaDd in https://github.com/isaac-sim/IsaacLab/pull/3522
+* Fixes type name for tendon properties in from_files config by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3941
+* Fixes duplicated text in pip installation docs by @shryt in https://github.com/isaac-sim/IsaacLab/pull/3969
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.3.0...v2.3.1
+
+
 v2.3.0
 ======
 
