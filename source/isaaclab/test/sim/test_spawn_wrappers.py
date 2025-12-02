@@ -36,6 +36,71 @@ def sim():
     sim.clear_instance()
 
 
+def test_spawn_multiple_shapes_with_cloning_disabled(sim):
+    """Ensure regex prefix paths error when enable_clone is False."""
+    cfg = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            sim_utils.ConeCfg(
+                radius=0.3,
+                height=0.6,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),  # this one should get overridden
+            )
+        ],
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    with pytest.raises(ValueError, match="enable_clone is False"):
+        cfg.func("/World/env_.*/Cone/asset_.*", cfg)
+
+
+def test_spawn_multiple_shapes_with_cloning(sim):
+    """Ensure regex prefix paths are allowed and cloned when enable_clone is True."""
+    num_envs = 3
+    num_assets = 3
+    for env_idx in range(num_envs):
+        env_path = f"/World/env_{env_idx}"
+        prim_utils.create_prim(env_path, "Xform", translation=(0, 0, 0))
+        prim_utils.create_prim(f"{env_path}/Cone", "Xform")
+
+    cfg = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            sim_utils.ConeCfg(
+                radius=0.3,
+                height=0.6,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),  # this one should get overridden
+            ),
+            sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+            ),
+            sim_utils.SphereCfg(
+                radius=0.3,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+            ),
+        ],
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=4, solver_velocity_iteration_count=0
+        ),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        enable_clone=True,
+    )
+
+    prim = cfg.func("/World/env_.*/Cone/asset_.*", cfg)
+    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone/asset_0"
+
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone/asset_.*")
+    assert len(prim_paths) == num_assets * num_envs
+
+    for env_idx in range(num_envs):
+        for asset_idx in range(num_assets):
+            path = f"/World/env_{env_idx}/Cone/asset_{asset_idx}"
+            assert path in prim_paths
+            assert prim_utils.get_prim_at_path(path).GetAttribute("physics:mass").Get() == cfg.mass_props.mass
+
+
 def test_spawn_multiple_shapes_with_global_settings(sim):
     """Test spawning of shapes randomly with global rigid body settings."""
     prim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))

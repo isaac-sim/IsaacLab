@@ -31,7 +31,6 @@ from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuato
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.scene import cloner
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -178,14 +177,6 @@ def generate_articulation(
     for i in range(num_articulations):
         prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
-
-    cloner.usd_replicate(
-        stage=prim_utils.get_current_stage(),
-        sources=["/World/Env_0"],
-        destinations=["/World/Env_{}"],
-        env_ids=torch.arange(num_articulations),
-        positions=translations,
-    )
 
     return articulation, translations
 

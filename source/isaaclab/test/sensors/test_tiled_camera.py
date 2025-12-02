@@ -35,30 +35,9 @@ except ModuleNotFoundError:
     from pxr import Semantics
 
 import isaaclab.sim as sim_utils
-from isaaclab.scene import cloner
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
-
-
-def _replicate_cameras_to_all_origins(num_cameras: int, origin_path_fmt: str = "/World/Origin_{}") -> None:
-    """Ensure every origin has a camera by copying the origin_0 subtree to all origins.
-
-    This replicates the entire origin_0 prim (including its CameraSensor child) to
-    origin_1..origin_{N-1}, and preserves per-origin translations.
-    """
-    stage = prim_utils.get_current_stage()
-    get_translate = (
-        lambda prim_path: stage.GetPrimAtPath(prim_path).GetAttribute("xformOp:translate").Get()
-    )  # noqa: E731
-    positions = torch.tensor([get_translate(origin_path_fmt.format(i)) for i in range(num_cameras)])
-    cloner.usd_replicate(
-        stage=stage,
-        sources=[origin_path_fmt.format(0)],
-        destinations=[origin_path_fmt],
-        env_ids=torch.arange(num_cameras),
-        positions=positions,
-    )
 
 
 @pytest.fixture(scope="function")
@@ -280,9 +259,6 @@ def test_multi_camera_init(setup_camera, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-
-    # parse env_origins directly from clone_path
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -340,8 +316,6 @@ def test_rgb_only_camera(setup_camera, device):
     camera_cfg.data_types = ["rgb"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate the first origin (with camera) across all origins so each env has a camera
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -444,8 +418,6 @@ def test_depth_only_camera(setup_camera, device):
     camera_cfg.data_types = ["distance_to_camera"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -500,8 +472,6 @@ def test_rgba_only_camera(setup_camera, device):
     camera_cfg.data_types = ["rgba"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -556,8 +526,6 @@ def test_distance_to_camera_only_camera(setup_camera, device):
     camera_cfg.data_types = ["distance_to_camera"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -612,8 +580,6 @@ def test_distance_to_image_plane_only_camera(setup_camera, device):
     camera_cfg.data_types = ["distance_to_image_plane"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -668,8 +634,6 @@ def test_normals_only_camera(setup_camera, device):
     camera_cfg.data_types = ["normals"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -724,8 +688,6 @@ def test_motion_vectors_only_camera(setup_camera, device):
     camera_cfg.data_types = ["motion_vectors"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -780,8 +742,6 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera, device):
     camera_cfg.data_types = ["semantic_segmentation"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -837,8 +797,6 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera, device):
     camera_cfg.data_types = ["instance_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -894,8 +852,6 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera, device
     camera_cfg.data_types = ["instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -952,8 +908,6 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_semantic_segmentation = False
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1011,8 +965,6 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera, devic
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_instance_segmentation = False
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1068,7 +1020,6 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera, de
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.colorize_instance_id_segmentation = False
     camera = TiledCamera(camera_cfg)
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1137,7 +1088,6 @@ def test_all_annotators_camera(setup_camera, device):
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1240,8 +1190,6 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1342,8 +1290,6 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
-    # Replicate cameras to all origins
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim
@@ -1468,7 +1414,6 @@ def test_all_annotators_instanceable(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera_cfg.offset.pos = (0.0, 0.0, 5.5)
     camera = TiledCamera(camera_cfg)
-    _replicate_cameras_to_all_origins(num_cameras)
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
     # Play sim

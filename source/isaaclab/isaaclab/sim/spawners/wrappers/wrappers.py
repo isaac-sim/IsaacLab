@@ -8,12 +8,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pxr import Usd
-
+import logging
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
+
+logger = logging.getLogger(__name__)
 
 
 def spawn_multi_asset(
@@ -24,11 +26,14 @@ def spawn_multi_asset(
     clone_in_fabric: bool = False,
     replicate_physics: bool = False,
 ) -> Usd.Prim:
-    """Spawn multiple assets based on the provided configurations.
+    """Spawn multiple assets into numbered prim paths derived from the provided configuration.
 
-    This function spawns multiple assets based on the provided configurations. The assets are spawned
-    in the order they are provided in the list. If the :attr:`~MultiAssetSpawnerCfg.random_choice` parameter is
-    set to True, a random asset configuration is selected for each spawn.
+    Assets are created in the order they appear in ``cfg.assets_cfg`` using the base name in ``prim_path``,
+    which must contain ``.*`` (for example, ``/World/Env_0/asset_.*`` spawns ``asset_0``, ``asset_1``, ...).
+    The prefix portion of ``prim_path`` may also include ``.*`` (for example, ``/World/env_.*/asset_.*``);
+    this is only allowed when :attr:`~isaaclab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg.enable_clone`
+    is True, in which case assets are spawned under the first match (``env_0``) and that structure is cloned to
+    other matching environments.
 
     Args:
         prim_path: The prim path to spawn the assets.
@@ -41,7 +46,27 @@ def spawn_multi_asset(
     Returns:
         The created prim at the first prim path.
     """
-    # spawn everything first in a "Dataset" prim
+    split_path = prim_path.split("/")
+    prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
+    if ".*" in prefix_path and not cfg.enable_clone:
+        raise ValueError(
+            f" Found '.*' in prefix path '{prefix_path}' but enable_clone is False. Set enable_clone=True to allow"
+            f" this pattern, which would replicate all {len(cfg.assets_cfg)} assets into every environment that"
+            " matches the prefix. If you want heterogeneous assets across envs, instead of set enable_clone to True"
+            "spawn them under a single template (e.g., /World/Template/Robot) and use the cloner to place"
+            "them at their final paths."
+        )
+    if ".*" not in base_name:
+        raise ValueError(
+            f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
+            " the path each individual multiple-asset to be spawned."
+        )
+    if cfg.random_choice:
+        logger.warning(
+            "`random_choice` parameter in `spawn_multi_asset` is deprecated, and nothing will happen. "
+            "Use `isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead."
+        )
+
     proto_prim_paths = list()
     for index, asset_cfg in enumerate(cfg.assets_cfg):
         # append semantic tags if specified
@@ -56,8 +81,8 @@ def spawn_multi_asset(
             attr_value = getattr(cfg, attr_name)
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
                 setattr(asset_cfg, attr_name, attr_value)
-        # spawn single instance
-        proto_prim_path = prim_path.replace(".*", f"{index}")
+
+        proto_prim_path = f"{prefix_path}/{base_name.replace('.*', str(index))}"
         asset_cfg.func(
             proto_prim_path,
             asset_cfg,
@@ -69,7 +94,7 @@ def spawn_multi_asset(
         # append to proto prim paths
         proto_prim_paths.append(proto_prim_path)
 
-    return prim_utils.get_prim_at_path(proto_prim_paths[0])
+    return prim_utils.find_first_matching_prim(proto_prim_paths[0])
 
 
 def spawn_multi_usd_file(

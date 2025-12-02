@@ -27,7 +27,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
-from isaaclab.scene import cloner
 from isaaclab.sim import build_simulation_context
 
 
@@ -86,13 +85,6 @@ def generate_cubes_scene(
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     cube_object = DeformableObject(cfg=cube_object_cfg)
-    cloner.usd_replicate(
-        stage=prim_utils.get_current_stage(),
-        sources=["/World/Table_0"],
-        destinations=["/World/Table_{}"],
-        env_ids=torch.arange(num_cubes),
-        positions=origins,
-    )
     return cube_object
 
 
