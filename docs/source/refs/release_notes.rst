@@ -13,11 +13,12 @@ What's Changed
 This is a small patch release with a few critical fixes that impacted user workflows.
 
 Key fixes include:
-* The behavior of termination logging has changed in the manager-based workflow, where ``get_done_term`` now returns the
-  current step value instead of the last episode value.
-* Additionally, a breaking change in the URDF importer was introduced in Isaac Sim 5.1, where the merge joints flag is no
-  longer supported. We have now introduced a patch in the importer to return the behavior. Moving forward, we plan to deprecate
-  this flag in favor of preserving asset definitions from URDFs directly without performing additional processing during the import process.
+* The behavior of termination logging has changed in the manager-based workflow, where ``get_done_term``
+now returns the current step value instead of the last episode value.
+* Additionally, a breaking change in the URDF importer was introduced in Isaac Sim 5.1, where the merge
+joints flag is no longer supported. We have now introduced a patch in the importer to return the behavior.
+Moving forward, we plan to deprecate this flag in favor of preserving asset definitions from URDFs directly
+without performing additional processing during the import process.
 
 Bug Fixes
 ---------
