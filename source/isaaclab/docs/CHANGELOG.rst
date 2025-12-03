@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.49.1 (2025-12-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`G1TriHandUpperBodyMotionControllerGripperRetargeter` and :class:`G1TriHandUpperBodyMotionControllerGripperRetargeterCfg` for retargeting the gripper state from motion controllers.
+* Added unit tests for the retargeters.
+
+
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
