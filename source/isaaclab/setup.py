@@ -26,6 +26,9 @@ INSTALL_REQUIRES = [
     "toml",
     "fast_simplification",
     "tqdm",
+    # asset management
+    "boto3",
+    "botocore",
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
