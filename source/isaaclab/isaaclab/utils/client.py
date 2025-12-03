@@ -19,7 +19,7 @@ import posixpath
 from collections.abc import Callable
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -570,14 +570,30 @@ def download_usd_with_references_sync(
     root_url: str,
     download_root: str,
     force_overwrite: bool = True,
-    progress_callback: Callable[[int, int | None, str], None] | None = None,
+    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
 ) -> dict[str, str]:
-    """Synchronous wrapper for :func:`download_usd_with_references`."""
-    loop = asyncio.new_event_loop()
+    """Synchronous wrapper for :func:`download_usd_with_references`. Safe for IsaacLab scripts
+
+    NOT safe to call from inside a running event loop (e.g. Isaac Sim / Kit).
+    In that case, call `await download_usd_with_references(...)` directly.
+    """
+    # If there's a running loop (Kit / Jupyter / etc.), don't try to block it.
     try:
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(
-            download_usd_with_references(root_url, download_root, force_overwrite, progress_callback=progress_callback)
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop → safe to own one; asyncio.run handles creation/cleanup.
+        return asyncio.run(
+            download_usd_with_references(
+                root_url,
+                download_root,
+                force_overwrite=force_overwrite,
+                progress_callback=progress_callback,
+            )
         )
-    finally:
-        loop.close()
+    else:
+        # Already inside an event loop: this wrapper must not be used.
+        raise RuntimeError(
+            "download_usd_with_references_sync() was called while an event loop is running.\n"
+            "Use `await download_usd_with_references(...)` or schedule it with "
+            "`asyncio.create_task` instead of calling the sync wrapper."
+        )
