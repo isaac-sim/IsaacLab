@@ -6,8 +6,8 @@
 import logging
 
 import carb
-import omni.client
-from omni.client import Result
+
+from isaaclab.utils import client
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,8 @@ def check_server(server: str, path: str, timeout: float = 10.0) -> bool:
     """
     logger.info(f"Checking path: {server}{path}")
     # Increase hang detection timeout
-    omni.client.set_hang_detection_time_ms(20000)
-    result, _ = omni.client.stat(f"{server}{path}")
-    if result == Result.OK:
+    result, _ = client.stat(f"{server}{path}")
+    if result == client.Result.OK:
         logger.info(f"Success: {server}{path}")
         return True
     else:

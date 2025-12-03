@@ -41,10 +41,9 @@ import io
 import os
 import torch
 
-import omni
-
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import client
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
@@ -54,7 +53,7 @@ def main():
     """Main function."""
     # load the trained jit policy
     policy_path = os.path.abspath(args_cli.checkpoint)
-    file_content = omni.client.read_file(policy_path)[2]
+    file_content = client.read_file(policy_path)[2]
     file = io.BytesIO(memoryview(file_content).tobytes())
     policy = torch.jit.load(file, map_location=args_cli.device)
 
