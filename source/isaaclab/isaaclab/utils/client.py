@@ -302,21 +302,6 @@ async def read_file_async(path: str) -> tuple[Result, dict[str, Any], memoryview
 # copy
 # ---------------------------------------------------------------------------
 
-
-def _report_progress(
-    bytes_amount: int,
-    src: str,
-    total_size: int | None,
-    cb: Callable[[int, int | None, str], None] | None,
-    *,
-    transferred_ref: list[int],
-) -> None:
-    """Helper to accumulate transferred bytes and forward to a callback."""
-    transferred_ref[0] += bytes_amount
-    if cb:
-        cb(transferred_ref[0], total_size, src)
-
-
 def copy(
     src: str,
     dst: str,
