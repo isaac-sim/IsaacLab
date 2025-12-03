@@ -69,8 +69,8 @@ def clip_effort_dc_motor(
     joint_vel: float,
     effort: float,
 ):
-    max_effort = saturation_effort * (1.0 - joint_vel) / vel_limit
-    min_effort = saturation_effort * (-1.0 - joint_vel) / vel_limit
+    max_effort = saturation_effort * (1.0 - joint_vel / vel_limit)
+    min_effort = saturation_effort * (-1.0 - joint_vel / vel_limit)
     max_effort = wp.clamp(max_effort, 0.0, effort_limit)
     min_effort = wp.clamp(min_effort, -effort_limit, 0.0)
     return wp.clamp(effort, min_effort, max_effort)
@@ -78,7 +78,7 @@ def clip_effort_dc_motor(
 
 @wp.kernel
 def clip_efforts_dc_motor(
-    saturation_effort: wp.array2d(dtype=wp.float32),
+    saturation_effort: float,
     effort_limit: wp.array2d(dtype=wp.float32),
     vel_limit: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
@@ -90,7 +90,7 @@ def clip_efforts_dc_motor(
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
         clipped_joint_array[env_index, joint_index] = clip_effort_dc_motor(
-            saturation_effort[env_index, joint_index],
+            saturation_effort,
             vel_limit[env_index, joint_index],
             effort_limit[env_index, joint_index],
             joint_vel[env_index, joint_index],

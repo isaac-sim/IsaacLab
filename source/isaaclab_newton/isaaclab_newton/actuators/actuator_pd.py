@@ -259,7 +259,7 @@ class DCMotor(IdealPDActuator):
         if self.cfg.saturation_effort is not None:
             self._saturation_effort = self.cfg.saturation_effort
         else:
-            self._saturation_effort = torch.inf
+            self._saturation_effort = wp.inf
         # check that quantities are provided
         if self.cfg.velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")

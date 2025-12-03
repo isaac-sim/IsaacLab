@@ -350,7 +350,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
         recompute_inertia: bool = True,
     ):
-        raise NotImplementedError("Not implemented")
+        pass
 
 def randomize_rigid_body_com(
     env: ManagerBasedEnv,
