@@ -24,6 +24,18 @@ teleoperation in Isaac Lab.
 
    See :ref:`manus-vive-handtracking` for more information on supported hand-tracking peripherals.
 
+.. note::
+
+   **Meta Quest 3 and Pico 4 Ultra Support (Early Access)**
+
+   Meta Quest 3 and Pico 4 Ultra are now supported via the `CloudXR Early Access program`_.
+   Join the program by mentioning isaac use cases. Once approved, you'll receive email to set up NGC,
+   then download `CloudXR.js with Isaac Teleop samples`_ and follow its guide.
+   Pico 4 Ultra must use HTTPS mode (see NGC documentation for details). General availability
+   will be provided in a future version of Isaac Lab.
+
+.. _`CloudXR Early Access program`: https://developer.nvidia.com/cloudxr-sdk-early-access-program/join
+.. _`CloudXR.js with Isaac Teleop samples`: https://catalog.ngc.nvidia.com/orgs/nvidia/resources/cloudxr-js-early-access?version=6.0.0-beta
 
 Overview
 --------
