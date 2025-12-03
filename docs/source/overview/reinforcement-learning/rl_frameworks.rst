@@ -71,18 +71,26 @@ Training Performance
 --------------------
 
 We performed training with each RL library on the same ``Isaac-Humanoid-v0`` environment
-with ``--headless`` on a single RTX PRO 6000 GPU using 4096 environments
-and logged the total training time for 65.5M steps for each RL library.
-
+with ``--headless`` on a single NVIDIA GeForce RTX 4090 and logged the total training time
+for 65.5M steps (4096 environments x 32 rollout steps x 500 iterations).
 
 +--------------------+-----------------+
 | RL Library         | Time in seconds |
 +====================+=================+
-| RL-Games           | 207             |
+| RL-Games           | 201             |
 +--------------------+-----------------+
-| SKRL               | 208             |
+| SKRL               | 201             |
 +--------------------+-----------------+
-| RSL RL             | 199             |
+| RSL RL             | 198             |
 +--------------------+-----------------+
-| Stable-Baselines3  | 322             |
+| Stable-Baselines3  | 287             |
 +--------------------+-----------------+
+
+Training commands (check for the *'Training time: XXX seconds'* line in the terminal output):
+
+.. code:: bash
+
+    python scripts/reinforcement_learning/rl_games/train.py --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    python scripts/reinforcement_learning/skrl/train.py --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    python scripts/reinforcement_learning/sb3/train.py --task Isaac-Humanoid-v0 --max_iterations 500 --headless
