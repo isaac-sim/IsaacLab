@@ -128,6 +128,8 @@ exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store
 
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [
+    "boto3",
+    "botocore",
     "torch",
     "torchvision",
     "numpy",
