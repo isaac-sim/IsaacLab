@@ -10,9 +10,7 @@ from typing import Any
 
 import carb
 from isaacsim.core.prims import XFormPrim
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
@@ -20,6 +18,7 @@ from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -290,7 +289,7 @@ class InteractiveScene:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
-                if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+                if "PhysxSceneAPI" in prim.GetAppliedSchemas():
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break

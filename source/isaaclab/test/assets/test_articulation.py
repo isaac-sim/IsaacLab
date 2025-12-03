@@ -20,7 +20,6 @@ simulation_app = AppLauncher(headless=True).app
 import ctypes
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
 import warp as wp
 from newton.solvers import SolverNotifyFlags
@@ -31,6 +30,7 @@ from newton.solvers import SolverNotifyFlags
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg

@@ -24,15 +24,15 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
-from isaacsim.core.utils.stage import get_current_stage
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.sim.utils import attach_stage_to_usd_context
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
 
@@ -390,10 +390,10 @@ class VisualizationMarkers:
             # check if it is physics body -> if so, remove it
             if child_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 child_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                child_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 child_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                child_prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
             if child_prim.IsA(UsdPhysics.Joint):
                 child_prim.GetAttribute("physics:jointEnabled").Set(False)
             # check if prim is instanced -> if so, make it uninstanceable
