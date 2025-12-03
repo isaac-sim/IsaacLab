@@ -587,12 +587,11 @@ def download_usd_with_references_sync(
     progress_callback: Callable[[int, int | None, str], None] | None = None,
 ) -> dict[str, str]:
     """Synchronous wrapper for :func:`download_usd_with_references`."""
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(
-        download_usd_with_references(
-            root_url,
-            download_root,
-            force_overwrite=force_overwrite,
-            progress_callback=progress_callback,
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(
+            download_usd_with_references(root_url, download_root, force_overwrite, progress_callback=progress_callback)
         )
-    )
+    finally:
+        loop.close()
