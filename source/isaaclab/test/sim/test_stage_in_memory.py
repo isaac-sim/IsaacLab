@@ -77,7 +77,7 @@ def test_stage_in_memory_with_shapes(sim):
                     radius=0.3,
                 ),
             ],
-            random_choice=True,
+            choice_method="random_choice",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 solver_position_iteration_count=4, solver_velocity_iteration_count=0
             ),
@@ -135,7 +135,7 @@ def test_stage_in_memory_with_usds(sim):
 
         cfg = sim_utils.MultiUsdFileCfg(
             usd_path=usd_paths,
-            random_choice=True,
+            choice_method="random_choice",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
                 retain_accelerations=False,
