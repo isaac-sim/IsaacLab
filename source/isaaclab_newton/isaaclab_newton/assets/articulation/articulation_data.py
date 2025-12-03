@@ -1421,226 +1421,418 @@ class ArticulationData(BaseArticulationData):
         return self._root_com_ang_vel_w
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
-    @deprecated("body_link_pose_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a position array. In a graph-based pipeline, consider using the transform array directly instead.")
     def body_link_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        if self.body_link_pose_w.is_contiguous:
-            return self.body_link_pose_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Not a lazy buffer, so we do not need to call it to make sure it is up to date
+        # Initialize the buffer if it is not already initialized
+        if self._body_link_pos_w is None:
+            if self._sim_bind_body_link_pose_w.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=self._sim_bind_body_link_pose_w.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 7),
+                    strides=(*self._sim_bind_body_link_pose_w.strides, 4),
+                )[:, :, :3]
+                self._body_link_pos_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_link_pos_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not self._sim_bind_body_link_pose_w.is_contiguous:
             wp.launch(
                 split_transform_batched_array_to_position_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
                     self._sim_bind_body_link_pose_w,
-                    out,
+                    self._body_link_pos_w,
                 ],
             )
-            return out
+        return self._body_link_pos_w
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
-    @deprecated("body_link_pose_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. In a graph-based pipeline, consider using the transform array directly instead.")
     def body_link_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        if self.body_link_pose_w.is_contiguous:
-            return self.body_link_pose_w.view(wp.float32)[:, :, 3:].view(wp.quatf)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+        # Not a lazy buffer, so we do not need to call it to make sure it is up to date
+        # Initialize the buffer if it is not already initialized
+        if self._body_link_quat_w is None:
+            if self._sim_bind_body_link_pose_w.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=self._sim_bind_body_link_pose_w.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 7),
+                    strides=(*self._sim_bind_body_link_pose_w.strides, 4),
+                )[:, :, 3:]
+                self._body_link_quat_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.quatf,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 4 * 4, 4 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_link_quat_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not self._sim_bind_body_link_pose_w.is_contiguous:
             wp.launch(
                 split_transform_batched_array_to_quaternion_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
                     self._sim_bind_body_link_pose_w,
-                    out,
+                    self._body_link_quat_w,
                 ],
             )
-            return out
+        return self._body_link_quat_w
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_link_vel_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_link_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        if self.body_link_vel_w.is_contiguous:
-            return self.body_link_vel_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_link_vel_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_link_lin_vel_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*data.strides, 4),
+                )[:, :, :3]
+                self._body_link_lin_vel_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_link_lin_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_link_vel_w,
-                    out,
+                    data,
+                    self._body_link_lin_vel_w,
                 ],
             )
-            return out
+        return self._body_link_lin_vel_w
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_link_vel_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_link_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        if self.body_link_vel_w.is_contiguous:
-            return self.body_link_vel_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_link_vel_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_link_ang_vel_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*data.strides, 4),
+                )[:, :, 3:]
+                self._body_link_ang_vel_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_link_ang_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_link_vel_w,
-                    out,
+                    data,
+                    self._body_link_ang_vel_w,
                 ],
             )
-            return out
+        return self._body_link_ang_vel_w
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
-    @deprecated("body_com_pose_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a position array. In a graph-based pipeline, consider using the transform array directly instead.")
     def body_com_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        if self.body_com_pose_w.is_contiguous:
-            return self.body_com_pose_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_com_pose_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_pos_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 7),
+                    strides=(*data.strides, 4),
+                )[:, :, :3]
+                self._body_com_pos_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_pos_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_transform_batched_array_to_position_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_com_pose_w,
-                    out,
+                    data,
+                    self._body_com_pos_w,
                 ],
             )
-            return out
+        return self._body_com_pos_w
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
-    @deprecated("body_com_pose_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. In a graph-based pipeline, consider using the transform array directly instead.")
     def body_com_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         Format is ``(x, y, z, w)``.
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        if self.body_com_pose_w.is_contiguous:
-            return self.body_com_pose_w.view(wp.float32)[:, :, 3:].view(wp.quatf)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_com_pose_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_quat_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 7),
+                    strides=(*data.strides, 4),
+                )[:, :, 3:]
+                self._body_com_quat_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.quatf,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 4 * 4, 4 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_quat_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_transform_batched_array_to_quaternion_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_com_pose_w,
-                    out,
+                    data,
+                    self._body_com_quat_w,
                 ],
             )
-            return out
+        return self._body_com_quat_w
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_com_vel_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_com_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        if self.body_com_vel_w.is_contiguous:
-            return self.body_com_vel_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Not a lazy buffer, so we do not need to call it to make sure it is up to date
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_lin_vel_w is None:
+            if self._sim_bind_body_com_vel_w.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=self._sim_bind_body_com_vel_w.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*self._sim_bind_body_com_vel_w.strides, 4),
+                )[:, :, :3]
+                self._body_com_lin_vel_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_lin_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not self._sim_bind_body_com_vel_w.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    out,
+                    self._body_com_lin_vel_w,
                 ],
             )
-            return out
+        return self._body_com_lin_vel_w
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_com_vel_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_com_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        if self.body_com_vel_w.is_contiguous:
-            return self.body_com_vel_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Not a lazy buffer, so we do not need to call it to make sure it is up to date
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_ang_vel_w is None:
+            if self._sim_bind_body_com_vel_w.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=self._sim_bind_body_com_vel_w.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*self._sim_bind_body_com_vel_w.strides, 4),
+                )[:, :, 3:]
+                self._body_com_ang_vel_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_ang_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not self._sim_bind_body_com_vel_w.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    out,
+                    self._body_com_ang_vel_w,
                 ],
             )
-            return out
+        return self._body_com_ang_vel_w
 
     @property
-    @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_com_acc_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to a linear velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_com_lin_acc_w(self) -> wp.array(dtype=wp.vec3f):
         """Linear acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        if self.body_com_acc_w.is_contiguous:
-            return self.body_com_acc_w.view(wp.float32)[:, :, :3].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_com_acc_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_lin_acc_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*data.strides, 4),
+                )[:, :, :3]
+                self._body_com_lin_acc_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_lin_acc_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_com_acc_w,
-                    out,
+                    data,
+                    self._body_com_lin_acc_w,
                 ],
             )
-            return out
+        return self._body_com_lin_acc_w
 
     @property
-    @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
-    @deprecated("body_com_acc_w", since="3.0.0", remove_in="4.0.0")
+    @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to an angular velocity array. In a graph-based pipeline, consider using the velocity array directly instead.")
     def body_com_ang_acc_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        if self.body_com_acc_w.is_contiguous:
-            return self.body_com_acc_w.view(wp.float32)[:, :, 3:].view(wp.vec3f)
-        else:
-            out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+        # Call the lazy buffer to make sure it is up to date
+        data = self.body_com_acc_w
+
+        # Initialize the buffer if it is not already initialized
+        if self._body_com_ang_acc_w is None:
+            if data.is_contiguous:
+                # Create a memory view of the data
+                to_float32_slice = wp.array(
+                    ptr=data.ptr,
+                    dtype=wp.float32,
+                    shape=(self._root_view.count, self._root_view.link_count, 6),
+                    strides=(*data.strides, 4),
+                )[:, :, 3:]
+                self._body_com_ang_acc_w = wp.array(
+                    ptr=to_float32_slice.ptr,
+                    dtype=wp.vec3f,
+                    shape=(self._root_view.count, self._root_view.link_count),
+                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
+                )
+            else:
+                # Create a new buffer
+                self._body_com_ang_acc_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
+
+        # If the data is not contiguous, we need to launch a kernel to update the buffer
+        if not data.is_contiguous:
             wp.launch(
                 split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
                 dim=(self._root_view.count, self._root_view.link_count),
                 inputs=[
-                    self.body_com_acc_w,
-                    out,
+                    data,
+                    self._body_com_ang_acc_w,
                 ],
             )
-            return out
+        return self._body_com_ang_acc_w
 
     @property
     def body_com_pos_b(self) -> wp.array(dtype=wp.vec3f):
@@ -1653,7 +1845,6 @@ class ArticulationData(BaseArticulationData):
 
     @property
     @warn_overhead_cost("unit_quaternion", "Launches a kernel to split the pose array to a quaternion array. Consider using the pose array directly instead.")
-    @deprecated("unit_quaternion", since="3.0.0", remove_in="4.0.0")
     def body_com_quat_b(self) -> wp.array(dtype=wp.quatf):
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
@@ -2000,6 +2191,16 @@ class ArticulationData(BaseArticulationData):
         self._root_com_quat_w = None
         self._root_com_lin_vel_w = None
         self._root_com_ang_vel_w = None
+        self._body_link_pos_w = None
+        self._body_link_quat_w = None
+        self._body_link_lin_vel_w = None
+        self._body_link_ang_vel_w = None
+        self._body_com_pos_w = None
+        self._body_com_quat_w = None
+        self._body_com_lin_vel_w = None
+        self._body_com_ang_vel_w = None
+        self._body_com_lin_acc_w = None
+        self._body_com_ang_acc_w = None
 
 
     def update(self, dt: float):
