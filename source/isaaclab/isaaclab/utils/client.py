@@ -18,7 +18,7 @@ import posixpath
 from collections.abc import Callable
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
