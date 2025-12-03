@@ -393,7 +393,7 @@ class BaseArticulationData(ABC):
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's actor frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError
 
@@ -413,7 +413,7 @@ class BaseArticulationData(ABC):
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError
 
@@ -481,7 +481,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the articulation links' actor frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError
 
@@ -503,7 +503,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError
 
@@ -568,7 +568,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError
 
@@ -684,7 +684,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_link_quat_w(self) ->  wp.array:
-        """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
@@ -720,7 +720,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_com_quat_w(self) ->  wp.array:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
@@ -756,7 +756,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_link_quat_w(self) ->  wp.array:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """

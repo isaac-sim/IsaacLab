@@ -462,7 +462,7 @@ Sensors.
 #        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 #
 #    Returns:
-#        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).
+#        Orientation in the world frame in (x, y, z, w) quaternion form. Shape is (num_envs, 4).
 #    """
 #    # extract the used quantities (to enable type-hinting)
 #    asset: Imu = env.scene[asset_cfg.name]

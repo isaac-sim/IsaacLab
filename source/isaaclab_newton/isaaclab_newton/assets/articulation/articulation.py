@@ -602,7 +602,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
         Args:

@@ -296,7 +296,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data
@@ -323,7 +323,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root center of mass state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data
@@ -350,7 +350,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root link state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data
@@ -376,7 +376,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
@@ -402,7 +402,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
@@ -428,7 +428,7 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
         ..note:: When ids are provided, then partial data is expected. When masks are provided the whole of the data

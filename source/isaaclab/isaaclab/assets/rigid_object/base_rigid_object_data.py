@@ -95,7 +95,7 @@ class BaseRigidObjectData(ABC):
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the actor frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -115,7 +115,7 @@ class BaseRigidObjectData(ABC):
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -145,7 +145,7 @@ class BaseRigidObjectData(ABC):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
-        world. The orientation is provided in (w, x, y, z) format.
+        world. The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -170,7 +170,7 @@ class BaseRigidObjectData(ABC):
         """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -190,7 +190,7 @@ class BaseRigidObjectData(ABC):
         """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -223,7 +223,7 @@ class BaseRigidObjectData(ABC):
         Shape is (num_instances, 1, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -235,7 +235,7 @@ class BaseRigidObjectData(ABC):
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (w, x, y, z) format.
+        principle inertia. The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -256,7 +256,7 @@ class BaseRigidObjectData(ABC):
         Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         raise NotImplementedError()
 
@@ -351,7 +351,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
@@ -387,7 +387,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def root_com_quat_w(self) -> wp.array:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
@@ -423,7 +423,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_link_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
@@ -459,7 +459,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
@@ -514,7 +514,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_com_quat_b(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
+        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
