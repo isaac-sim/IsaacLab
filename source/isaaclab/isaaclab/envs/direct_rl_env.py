@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import gymnasium as gym
 import inspect
 import logging
@@ -226,7 +227,9 @@ class DirectRLEnv(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            self.close()
 
     """
     Properties.

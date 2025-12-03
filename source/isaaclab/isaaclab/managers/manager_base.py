@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import logging
@@ -178,9 +179,11 @@ class ManagerBase(ABC):
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_terms_handle:
-            self._resolve_terms_handle.unsubscribe()
-            self._resolve_terms_handle = None
+        # Suppress errors during Python shutdown
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            if getattr(self, "_resolve_terms_handle", None):
+                self._resolve_terms_handle.unsubscribe()
+                self._resolve_terms_handle = None
 
     """
     Properties.

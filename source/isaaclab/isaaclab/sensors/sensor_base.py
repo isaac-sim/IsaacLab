@@ -12,6 +12,7 @@ Each sensor class should inherit from this class and implement the abstract meth
 from __future__ import annotations
 
 import builtins
+import contextlib
 import inspect
 import re
 import torch
@@ -102,8 +103,10 @@ class SensorBase(ABC):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear physics events handles
-        self._clear_callbacks()
+        # Suppress errors during Python shutdown
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            # clear physics events handles
+            self._clear_callbacks()
 
     """
     Properties

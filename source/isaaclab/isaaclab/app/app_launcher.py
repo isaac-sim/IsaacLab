@@ -200,6 +200,8 @@ class AppLauncher:
             self._store_settings_standalone()
 
         # Set up signal handlers for graceful shutdown
+        # -- during keyboard interrupt (Ctrl+C)
+        signal.signal(signal.SIGINT, self._interrupt_signal_handle_callback)
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during segfaults
@@ -1105,8 +1107,8 @@ class AppLauncher:
         # close the app (if running in Omniverse mode)
         if self._app is not None:
             self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
+        # exit gracefully without showing a traceback
+        sys.exit(0)
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.

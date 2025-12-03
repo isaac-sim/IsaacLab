@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import builtins
+import contextlib
 import logging
 import torch
 from collections.abc import Sequence
@@ -191,7 +192,9 @@ class ManagerBasedEnv:
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            self.close()
 
     """
     Properties.

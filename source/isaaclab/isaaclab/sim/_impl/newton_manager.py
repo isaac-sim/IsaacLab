@@ -79,7 +79,11 @@ class NewtonManager:
         NewtonManager._on_init_callbacks = []
         NewtonManager._on_start_callbacks = []
         NewtonManager._usdrt_stage = None
-        NewtonManager._cfg = NewtonCfg()
+        # Only create new config if not during Python shutdown
+        try:
+            NewtonManager._cfg = NewtonCfg()
+        except (ImportError, AttributeError, TypeError):
+            NewtonManager._cfg = None
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
 
