@@ -14,18 +14,13 @@ from urllib.parse import urljoin
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim import converters, schemas
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 # Semantics module is no longer needed - using USD core APIs
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import (
-    bind_physics_material,
-    bind_visual_material,
-    clone,
-    select_usd_variants,
-)
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -185,12 +180,9 @@ def spawn_ground_plane(
         if shader_prim.IsValid():
             diffuse_attr = shader_prim.GetAttribute("inputs:diffuse_tint")
             if not diffuse_attr:
-                diffuse_attr = shader_prim.CreateAttribute(
-                    "inputs:diffuse_tint",
-                    Sdf.ValueTypeNames.Color3f
-                )
+                diffuse_attr = shader_prim.CreateAttribute("inputs:diffuse_tint", Sdf.ValueTypeNames.Color3f)
             diffuse_attr.Set(Gf.Vec3f(*cfg.color))
-    
+
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
     stage = get_current_stage()
@@ -208,14 +200,14 @@ def spawn_ground_plane(
             semantic_value_sanitized = semantic_value.replace(" ", "_")
             # create custom attributes for semantic labeling using USD core API
             instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-            
+
             # Create semantic type attribute
             type_attr_name = f"semantic:{instance_name}:semantic:type"
             type_attr = prim.GetAttribute(type_attr_name)
             if not type_attr:
                 type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
             type_attr.Set(semantic_type)
-            
+
             # Create semantic data attribute
             data_attr_name = f"semantic:{instance_name}:semantic:data"
             data_attr = prim.GetAttribute(data_attr_name)
@@ -233,14 +225,14 @@ Helper functions.
 
 def _download_usd_with_dependencies(usd_url: str, base_download_dir: str | None = None) -> str:
     """Download a USD file and attempt to download the entire directory.
-    
+
     Since USD files can have complex nested dependencies, we download the entire
     directory structure where the USD file is located to ensure all references work.
-    
+
     Args:
         usd_url: The URL to the USD file (HTTP, HTTPS, or S3).
         base_download_dir: Optional base directory for downloads. If None, uses default cache.
-        
+
     Returns:
         The local path to the downloaded USD file with all dependencies resolved.
     """
@@ -248,45 +240,44 @@ def _download_usd_with_dependencies(usd_url: str, base_download_dir: str | None 
     logger.info(f"Downloading USD file and dependencies from: {usd_url}")
     local_usd_path = retrieve_file_path(usd_url, download_dir=base_download_dir, force_download=False)
     logger.info(f"  Main file downloaded to: {local_usd_path}")
-    
+
     # For S3 and web URLs, try to download common dependency files
     # Assume the directory structure might contain Props, Materials, etc.
-    base_url = usd_url.rsplit('/', 1)[0] + '/'
+    base_url = usd_url.rsplit("/", 1)[0] + "/"
     local_base_dir = os.path.dirname(local_usd_path)
-    
+
     # Try to download common dependency folders that Isaac assets typically use
-    common_folders = ['Props', 'Materials', 'Textures']
-    
+    common_folders = ["Props", "Materials", "Textures"]
+
     for folder in common_folders:
-        folder_url = urljoin(base_url, folder + '/')
         try:
             # Try to download an index or common files from these folders
             # We'll attempt to download instanceable_meshes.usd which is commonly referenced
             common_files = [
-                f'{folder}/instanceable_meshes.usd',
-                f'{folder}/instanceable_meshes.usda',
+                f"{folder}/instanceable_meshes.usd",
+                f"{folder}/instanceable_meshes.usda",
             ]
-            
+
             for common_file in common_files:
                 file_url = urljoin(base_url, common_file)
                 try:
                     logger.info(f"  Attempting to download: {common_file}")
                     downloaded_path = retrieve_file_path(file_url, download_dir=base_download_dir, force_download=False)
-                    
+
                     # Copy to maintain directory structure
                     local_file_path = os.path.join(local_base_dir, common_file)
                     os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
-                    
+
                     if downloaded_path != local_file_path:
                         shutil.copy2(downloaded_path, local_file_path)
                         logger.info(f"    Copied to: {local_file_path}")
-                except Exception as e:
+                except Exception:
                     # File might not exist, that's okay
                     pass
-        except Exception as e:
+        except Exception:
             # Folder might not exist, that's okay
             pass
-    
+
     return local_usd_path
 
 
@@ -321,15 +312,12 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # get stage handle
-    stage = get_current_stage()
-
     # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
     # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
     file_status = check_file_path(usd_path)
     if file_status == 0:
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
-    
+
     # Download remote files (S3, HTTP, HTTPS) to local cache
     # This also downloads all USD dependencies to maintain references
     if file_status == 2:

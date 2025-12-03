@@ -12,9 +12,6 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
-# import omni.usd
-# from isaacsim.core.prims import XFormPrim
-
 # from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
@@ -22,6 +19,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.sim.prims import XFormPrim
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -32,6 +30,10 @@ from isaaclab.utils.math import (
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
+
+# import omni.usd
+# from isaacsim.core.prims import XFormPrim
+
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -259,6 +261,8 @@ class Camera(SensorBase):
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest
                 #   way to set the property on the right layer.
+                import omni.usd
+
                 omni.usd.set_prop_val(param_attr(), param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)

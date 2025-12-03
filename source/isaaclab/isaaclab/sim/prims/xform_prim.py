@@ -17,7 +17,7 @@ import re
 import torch
 from collections.abc import Sequence
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.sim.utils.stage import get_current_stage
 

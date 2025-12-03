@@ -13,14 +13,7 @@ import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
-# import omni
-# import omni.kit.commands
-# import omni.usd
-# import usdrt
-# from isaacsim.core.cloner import Cloner
-# from isaacsim.core.version import get_version
-# from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils.stage import add_reference_to_stage, get_current_stage
@@ -145,31 +138,25 @@ def create_prim(
         semantic_type_sanitized = semantic_type.replace(" ", "_")
         semantic_label_sanitized = semantic_label.replace(" ", "_")
         instance_name = f"{semantic_type_sanitized}_{semantic_label_sanitized}"
-        
+
         # Create semantic type attribute
         type_attr_name = f"semantic:{instance_name}:semantic:type"
         type_attr = prim.GetAttribute(type_attr_name)
         if not type_attr:
             type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
         type_attr.Set(semantic_type)
-        
+
         # Create semantic data attribute (using label as data)
         data_attr_name = f"semantic:{instance_name}:semantic:data"
         data_attr = prim.GetAttribute(data_attr_name)
         if not data_attr:
             data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
         data_attr.Set(semantic_label)
-    
+
     # Apply the transformations using pure USD implementation
     # XFormPrim handles conversion of position/translation/orientation/scale automatically
     if position is not None or translation is not None or orientation is not None or scale is not None:
-        XFormPrim(
-            prim_path, 
-            positions=position, 
-            translations=translation, 
-            orientations=orientation, 
-            scales=scale
-        )
+        XFormPrim(prim_path, positions=position, translations=translation, orientations=orientation, scales=scale)
 
     return prim
 
@@ -188,10 +175,12 @@ def delete_prim(prim_path: str) -> None:
         >>>
         >>> prims_utils.delete_prim("/World/Cube")
     """
+    from omni.usd.commands import DeletePrimsCommand
+
     DeletePrimsCommand([prim_path]).do()
 
 
-def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | usdrt.Usd._Usd.Prim:
+def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim:
     """Get the USD or Fabric Prim at a given path string
 
     Args:
@@ -387,6 +376,8 @@ def move_prim(path_from: str, path_to: str) -> None:
         >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
         >>> prims_utils.move_prim("/World/Cube", "/Cube")
     """
+    from omni.usd.commands import MovePrimCommand
+
     MovePrimCommand(path_from=path_from, path_to=path_to).do()
 
 
@@ -784,6 +775,8 @@ def is_prim_ancestral(prim_path: str) -> bool:
         >>> prims_utils.is_prim_ancestral("/World/panda/panda_link0")
         True
     """
+    import omni.usd
+
     return omni.usd.check_ancestral(get_prim_at_path(prim_path))
 
 
@@ -1344,6 +1337,8 @@ def export_prim_to_file(
     # set the default prim
     target_layer.defaultPrim = Sdf.Path(target_prim_path).name
     # resolve all paths relative to layer path
+    import omni.usd
+
     omni.usd.resolve_paths(source_layer.identifier, target_layer.identifier)
     # save the stage
     target_layer.Save()
@@ -1453,9 +1448,6 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
-        # get stage handle
-        stage = get_current_stage()
-
         # cast prim_path to str type in case its an Sdf.Path
         prim_path = str(prim_path)
         # check prim path is global
@@ -1498,14 +1490,14 @@ def clone(func: Callable) -> Callable:
                 semantic_value_sanitized = semantic_value.replace(" ", "_")
                 # create custom attributes for semantic labeling using USD core API
                 instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-                
+
                 # Create semantic type attribute
                 type_attr_name = f"semantic:{instance_name}:semantic:type"
                 type_attr = prim.GetAttribute(type_attr_name)
                 if not type_attr:
                     type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
                 type_attr.Set(semantic_type)
-                
+
                 # Create semantic data attribute
                 data_attr_name = f"semantic:{instance_name}:semantic:data"
                 data_attr = prim.GetAttribute(data_attr_name)
@@ -1520,12 +1512,14 @@ def clone(func: Callable) -> Callable:
         # clone asset using cloner API
         if len(prim_paths) > 1:
             # NEW: decide the mapping once, outside the ChangeBlock
-            from isaaclab.scene.cloner import CLONE
             import torch
+
+            from isaaclab.scene.cloner import CLONE
+
             destination_template = f"{root_path.replace('.*', '')}{{}}/{prim_paths[0].split('/')[-1]}"
             # for proto_prim_path in proto_prim_paths:
-            CLONE['source'].append(prim_paths[0])
-            CLONE['destination'].append(destination_template)
+            CLONE["source"].append(prim_paths[0])
+            CLONE["destination"].append(destination_template)
 
             mapping = torch.ones((1, len(prim_paths)), dtype=torch.bool)
             CLONE["mapping"] = torch.cat((CLONE["mapping"].reshape(-1, mapping.size(1)), mapping), dim=0)
@@ -1585,6 +1579,8 @@ def bind_visual_material(
         binding_strength = "weakerThanDescendants"
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
+    import omni.kit.commands
+
     success, _ = omni.kit.commands.execute(
         "BindMaterialCommand",
         prim_path=prim_path,
@@ -1756,10 +1752,10 @@ def create_default_xform_ops(
     precision: str = "Double",
 ) -> bool:
     """Create default xform operations on a prim using USD core API.
-    
+
     This is a replacement for the omni.kit.commands "CreateDefaultXformOnPrimCommand" that uses
     standard USD APIs instead of Omniverse-specific commands.
-    
+
     Args:
         prim_path: The path to the prim to add xform ops to.
         stage: The USD stage. If None, will get the current stage.
@@ -1768,27 +1764,27 @@ def create_default_xform_ops(
             - "Scale, Orient, Translate" - Creates translate, orient (quat), and scale ops (default)
             - "Transform" - Creates a single transform matrix op
         precision: The precision for the xform ops. Options are "Double" or "Float". Defaults to "Double".
-    
+
     Returns:
         True if successful, False if the prim is not xformable or doesn't exist.
     """
     if stage is None:
         stage = get_current_stage()
-    
+
     if isinstance(prim_path, Sdf.Path):
         prim_path = prim_path.pathString
-    
+
     prim = stage.GetPrimAtPath(prim_path)
     if not prim or not prim.IsA(UsdGeom.Xformable):
         logger.warning(f"Prim at path '{prim_path}' does not exist or is not Xformable.")
         return False
-    
+
     with Sdf.ChangeBlock():
         # Determine types based on precision
         vec3_type = Sdf.ValueTypeNames.Double3 if precision == "Double" else Sdf.ValueTypeNames.Float3
         quat_type = Sdf.ValueTypeNames.Quatd if precision == "Double" else Sdf.ValueTypeNames.Quatf
         mat4_type = Sdf.ValueTypeNames.Matrix4d  # Only Matrix4d exists in Sdf.ValueTypeNames
-        
+
         # Default values
         if precision == "Double":
             default_translate = Gf.Vec3d(0.0, 0.0, 0.0)
@@ -1798,7 +1794,7 @@ def create_default_xform_ops(
             default_translate = Gf.Vec3f(0.0, 0.0, 0.0)
             default_scale = Gf.Vec3f(1.0, 1.0, 1.0)
             default_euler = Gf.Vec3f(0.0, 0.0, 0.0)
-        
+
         # Create default orientation quaternion
         rotation = (
             Gf.Rotation(Gf.Vec3d.XAxis(), default_euler[0])
@@ -1807,7 +1803,7 @@ def create_default_xform_ops(
         )
         quat = rotation.GetQuat()
         default_orient = Gf.Quatd(quat) if precision == "Double" else Gf.Quatf(quat)
-        
+
         if xform_op_type == "Scale, Rotate, Translate":
             # Create translate op
             attr_translate = prim.GetAttribute("xformOp:translate")
@@ -1816,7 +1812,7 @@ def create_default_xform_ops(
                 attr_translate.Set(default_translate)
             elif attr_translate.GetTypeName() != vec3_type:
                 attr_translate.SetTypeName(vec3_type)
-            
+
             # Create rotate op (using XYZ rotation order)
             attr_rotate = prim.GetAttribute("xformOp:rotateXYZ")
             if not attr_rotate:
@@ -1824,7 +1820,7 @@ def create_default_xform_ops(
                 attr_rotate.Set(default_euler)
             elif attr_rotate.GetTypeName() != vec3_type:
                 attr_rotate.SetTypeName(vec3_type)
-            
+
             # Create scale op
             attr_scale = prim.GetAttribute("xformOp:scale")
             if not attr_scale:
@@ -1832,13 +1828,13 @@ def create_default_xform_ops(
                 attr_scale.Set(default_scale)
             elif attr_scale.GetTypeName() != vec3_type:
                 attr_scale.SetTypeName(vec3_type)
-            
+
             # Set xform op order
             attr_order = prim.GetAttribute("xformOpOrder")
             if not attr_order:
                 attr_order = prim.CreateAttribute("xformOpOrder", Sdf.ValueTypeNames.TokenArray, False)
             attr_order.Set(["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"])
-        
+
         elif xform_op_type == "Scale, Orient, Translate":
             # Create translate op
             attr_translate = prim.GetAttribute("xformOp:translate")
@@ -1847,7 +1843,7 @@ def create_default_xform_ops(
                 attr_translate.Set(default_translate)
             elif attr_translate.GetTypeName() != vec3_type:
                 attr_translate.SetTypeName(vec3_type)
-            
+
             # Create orient op
             attr_orient = prim.GetAttribute("xformOp:orient")
             if not attr_orient:
@@ -1855,7 +1851,7 @@ def create_default_xform_ops(
                 attr_orient.Set(default_orient)
             elif attr_orient.GetTypeName() != quat_type:
                 attr_orient.SetTypeName(quat_type)
-            
+
             # Create scale op
             attr_scale = prim.GetAttribute("xformOp:scale")
             if not attr_scale:
@@ -1863,13 +1859,13 @@ def create_default_xform_ops(
                 attr_scale.Set(default_scale)
             elif attr_scale.GetTypeName() != vec3_type:
                 attr_scale.SetTypeName(vec3_type)
-            
+
             # Set xform op order
             attr_order = prim.GetAttribute("xformOpOrder")
             if not attr_order:
                 attr_order = prim.CreateAttribute("xformOpOrder", Sdf.ValueTypeNames.TokenArray, False)
             attr_order.Set(["xformOp:translate", "xformOp:orient", "xformOp:scale"])
-        
+
         elif xform_op_type == "Transform":
             # Create transform matrix op
             attr_matrix = prim.GetAttribute("xformOp:transform")
@@ -1882,16 +1878,18 @@ def create_default_xform_ops(
                     * Gf.Matrix4d().SetTranslate(Gf.Vec3d(default_translate))
                 )
                 attr_matrix.Set(transform_matrix)
-            
+
             # Set xform op order
             attr_order = prim.GetAttribute("xformOpOrder")
             if not attr_order:
                 attr_order = prim.CreateAttribute("xformOpOrder", Sdf.ValueTypeNames.TokenArray, False)
             attr_order.Set(["xformOp:transform"])
-        
+
         else:
-            logger.error(f"Unknown xform_op_type: '{xform_op_type}'. Must be one of: "
-                        "'Scale, Rotate, Translate', 'Scale, Orient, Translate', or 'Transform'")
+            logger.error(
+                f"Unknown xform_op_type: '{xform_op_type}'. Must be one of: "
+                "'Scale, Rotate, Translate', 'Scale, Orient, Translate', or 'Transform'"
+            )
             return False
-    
+
     return True

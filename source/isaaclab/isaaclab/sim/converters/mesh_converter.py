@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 
-from pxr import Gf, Sdf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -131,15 +131,12 @@ class MeshConverter(AssetConverterBase):
                     )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
-        
+
         # Apply default Xform ops to xform_prim using utility function
         create_default_xform_ops(
-            prim_path=xform_prim.GetPath(),
-            stage=stage,
-            xform_op_type="Scale, Orient, Translate",
-            precision="Double"
+            prim_path=xform_prim.GetPath(), stage=stage, xform_op_type="Scale, Orient, Translate", precision="Double"
         )
-        
+
         # Apply translation, rotation, and scale to the Xform
         geom_xform = UsdGeom.Xform(geom_prim)
         geom_xform.ClearXformOpOrder()
@@ -215,6 +212,7 @@ class MeshConverter(AssetConverterBase):
             True if the conversion succeeds.
         """
         from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter

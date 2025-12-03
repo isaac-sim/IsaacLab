@@ -6,18 +6,18 @@
 import logging
 import torch
 from collections.abc import Sequence
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
+from isaaclab.scene.cloner import CLONE, filter_collisions, grid_transforms, newton_replicate, usd_replicate
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.scene.cloner import CLONE, newton_replicate, usd_replicate, grid_transforms, filter_collisions
+
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger
@@ -125,7 +125,9 @@ class InteractiveScene:
         target_env_ids = torch.arange(self.cfg.num_envs).unsqueeze(0)
         usd_replicate(self.stage, [f"{self.env_ns}/env_0"], [f"{self.env_ns}/env_{{}}"], target_env_ids)
 
-        self._default_env_origins, self.env_orientations = grid_transforms(self.cfg.num_envs, self.cfg.env_spacing, up_axis="z", device="cuda")
+        self._default_env_origins, self.env_orientations = grid_transforms(
+            self.cfg.num_envs, self.cfg.env_spacing, up_axis="z", device="cuda"
+        )
 
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
@@ -142,13 +144,13 @@ class InteractiveScene:
         if self.cfg.replicate_physics:
             newton_replicate(
                 stage=self.stage,
-                sources=CLONE['source'],
-                destinations=CLONE['destination'],
-                mapping=CLONE['mapping'],
+                sources=CLONE["source"],
+                destinations=CLONE["destination"],
+                mapping=CLONE["mapping"],
                 positions=self._default_env_origins,
                 orientations=self.env_orientations[:, [1, 2, 3, 0]],  # w,x,y,z -> x,y,z,w
             )
-        usd_replicate(self.stage, CLONE['source'], CLONE['destination'], CLONE['mapping'])
+        usd_replicate(self.stage, CLONE["source"], CLONE["destination"], CLONE["mapping"])
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

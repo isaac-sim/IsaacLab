@@ -19,8 +19,8 @@ import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-from isaaclab.utils.timer import Timer
 from isaaclab.sim.utils import get_current_stage
+from isaaclab.utils.timer import Timer
 
 # import logger
 logger = logging.getLogger(__name__)

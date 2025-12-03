@@ -1,9 +1,14 @@
-from pxr import Usd, UsdUtils, Sdf, UsdGeom
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import math
+import torch
 
 import warp as wp
-import torch
-import math
 from newton import AxisType, ModelBuilder
+from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
 CLONE = {
     "source": [],
@@ -49,12 +54,13 @@ def physx_replicate(
         for src, dests in mapping.items():
             if len(dests) > 0:
                 current_dests[:] = dests
-                rep.replicate(_stage_id, src, len(dests), useEnvIds=len(dests) == num_envs, useFabricForReplication=use_fabric)
+                rep.replicate(
+                    _stage_id, src, len(dests), useEnvIds=len(dests) == num_envs, useFabricForReplication=use_fabric
+                )
                 if src not in dests:
                     stage.GetPrimAtPath(src).SetActive(False)
         # unregister only AFTER all replicate() calls completed
         rep.unregister_replicator(_stage_id)
-
 
     get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)
 
@@ -109,7 +115,11 @@ def newton_replicate(
 
 
 def filter_collisions(
-    stage: Usd.Stage, physicsscene_path: str, collision_root_path: str, prim_paths: list[str], global_paths: list[str] = []
+    stage: Usd.Stage,
+    physicsscene_path: str,
+    collision_root_path: str,
+    prim_paths: list[str],
+    global_paths: list[str] = [],
 ):
     """Filters collisions between clones. Clones will not collide with each other, but can collide with objects specified in global_paths.
 
@@ -129,7 +139,7 @@ def filter_collisions(
 
     # Make sure we create the collision_scope in the RootLayer since the edit target may be a live layer in the case of Live Sync.
     with Usd.EditContext(stage, Usd.EditTarget(stage.GetRootLayer())):
-        collision_scope = UsdGeom.Scope.Define(stage, collision_root_path)
+        UsdGeom.Scope.Define(stage, collision_root_path)
 
     with Sdf.ChangeBlock():
         if len(global_paths) > 0:
@@ -142,9 +152,7 @@ def filter_collisions(
                 "PhysicsCollisionGroup",
             )
             # prepend collision API schema
-            global_collision_group.SetInfo(
-                Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"})
-            )
+            global_collision_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
 
             # expansion rule
             expansion_rule = Sdf.AttributeSpec(

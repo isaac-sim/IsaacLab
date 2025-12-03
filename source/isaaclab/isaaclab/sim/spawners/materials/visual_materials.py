@@ -55,6 +55,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         attach_stage_to_usd_context(attaching_early=True)
 
         import omni.kit.commands
+
         omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
@@ -108,6 +109,7 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
         # extract material name from path
         material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
         import omni.kit.commands
+
         omni.kit.commands.execute(
             "CreateMdlMaterialPrim",
             mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),

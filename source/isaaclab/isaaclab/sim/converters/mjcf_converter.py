@@ -52,6 +52,7 @@ class MjcfConverter(AssetConverterBase):
             cfg: The configuration instance for MJCF to USD conversion.
         """
         import omni.kit.commands
+
         import_config = self._get_mjcf_import_config()
         file_basename, _ = os.path.basename(cfg.asset_path).split(".")
         omni.kit.commands.execute(
@@ -62,12 +63,14 @@ class MjcfConverter(AssetConverterBase):
             prim_path=f"/{file_basename}",
         )
 
-    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self):
         """Returns the import configuration for MJCF to USD conversion.
 
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
+
+        import omni.kit.commands
 
         _, import_config = omni.kit.commands.execute("MJCFCreateImportConfig")
 

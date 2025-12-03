@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import math
+import numpy as np
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -15,10 +16,51 @@ import warp as wp
 from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera
+
+
+def reshape_with_pytorch(
+    flat_buffer: torch.Tensor,
+    num_cameras: int,
+    height: int,
+    width: int,
+    num_channels: int,
+    num_tiles_x: int,
+) -> torch.Tensor:
+    """Reshapes a flattened tiled image buffer into a batch of images using PyTorch.
+
+    Args:
+        flat_buffer: The flattened input image buffer.
+        num_cameras: The number of cameras.
+        height: The height of each image.
+        width: The width of each image.
+        num_channels: The number of channels per pixel.
+        num_tiles_x: The number of tiles in x-direction.
+
+    Returns:
+        Batched images with shape (num_cameras, height, width, num_channels).
+    """
+    num_tiles_y = (num_cameras + num_tiles_x - 1) // num_tiles_x
+
+    # Reshape flat buffer to tiled image format: (tiled_height, tiled_width, num_channels)
+    tiled_height = num_tiles_y * height
+    tiled_width = num_tiles_x * width
+    tiled_image = flat_buffer.reshape(tiled_height, tiled_width, num_channels)
+
+    # Split into tiles along height, then width
+    # Result: (num_tiles_y, height, num_tiles_x, width, num_channels)
+    tiled_image = tiled_image.reshape(num_tiles_y, height, num_tiles_x, width, num_channels)
+
+    # Transpose to get (num_tiles_y, num_tiles_x, height, width, num_channels)
+    tiled_image = tiled_image.permute(0, 2, 1, 3, 4)
+
+    # Reshape to (num_tiles_y * num_tiles_x, height, width, num_channels)
+    batched_images = tiled_image.reshape(-1, height, width, num_channels)
+
+    return batched_images[:num_cameras]
+
 
 if TYPE_CHECKING:
     from .tiled_camera_cfg import TiledCameraCfg
@@ -151,6 +193,7 @@ class TiledCamera(Camera):
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
         from isaacsim.core.prims import XFormPrim
+
         self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
@@ -265,15 +308,15 @@ class TiledCamera(Camera):
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
             # Use torch to reshape tiled image buffer to batched image buffer
-           # Use PyTorch implementation for reshape
-            self._data.output[data_type][:self._view.count] = reshape_with_pytorch(
+            # Use PyTorch implementation for reshape
+            self._data.output[data_type][: self._view.count] = reshape_with_pytorch(
                 wp.to_torch(tiled_data_buffer.flatten()),
                 self._view.count,
                 self.cfg.height,
                 self.cfg.width,
                 self._data.output[data_type].shape[-1],
                 self._tiling_grid_shape()[0],
-            )[:self._view.count]
+            )[: self._view.count]
 
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:

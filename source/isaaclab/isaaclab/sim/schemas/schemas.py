@@ -915,6 +915,8 @@ def modify_deformable_body_properties(
     # convert to dict
     cfg = cfg.to_dict()
     # set into deformable body API
+    from omni.physx.scripts import deformableUtils as deformable_utils
+
     attr_kwargs = {
         attr_name: cfg.pop(attr_name)
         for attr_name in [

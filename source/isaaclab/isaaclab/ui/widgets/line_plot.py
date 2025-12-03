@@ -11,6 +11,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 
 import omni
+
 from isaaclab.sim.simulation_context import SimulationContext
 
 with suppress(ImportError):

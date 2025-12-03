@@ -11,9 +11,8 @@ import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.sim.simulation_context import SimulationContext
-
 from isaaclab.managers import ManagerBase
+from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils import configclass
 
 from .image_plot import ImagePlot

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import builtins
+import contextlib
 import inspect
 import re
 import torch
@@ -14,15 +15,16 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-# import omni.kit.app
-# import omni.timeline
-# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
+
+# import omni.kit.app
+# import omni.timeline
+# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -232,10 +234,13 @@ class AssetBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                with contextlib.suppress(ImportError):
+                    import omni.kit.app
+
+                    app_interface = omni.kit.app.get_app_interface()
+                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
@@ -350,13 +355,16 @@ class AssetBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
-        if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+        if getattr(self, "_prim_deletion_callback_id", None):
+            with contextlib.suppress(ImportError, NameError):
+                from isaacsim.core.simulation_manager import SimulationManager
+
+                SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._invalidate_initialize_handle:
+        if getattr(self, "_invalidate_initialize_handle", None):
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None
         # clear debug visualization
-        if self._debug_vis_handle:
+        if getattr(self, "_debug_vis_handle", None):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None

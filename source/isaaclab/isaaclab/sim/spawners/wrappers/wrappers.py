@@ -100,10 +100,11 @@ def spawn_multi_asset(
 
     # NEW: decide the mapping once, outside the ChangeBlock
     from isaaclab.scene.cloner import CLONE
+
     destination_template = f"{root_path.replace('.*', '')}{{}}/{prim_paths[0].split('/')[-1]}"
     for proto_prim_path in proto_prim_paths:
-        CLONE['source'].append(proto_prim_path)
-        CLONE['destination'].append(destination_template)
+        CLONE["source"].append(proto_prim_path)
+        CLONE["destination"].append(destination_template)
 
     mapping = torch.zeros((len(proto_prim_paths), len(prim_paths)), dtype=torch.bool)
     cols = torch.arange(len(prim_paths))

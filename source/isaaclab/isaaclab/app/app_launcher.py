@@ -21,8 +21,6 @@ import signal
 import sys
 from typing import Any, Literal
 
-import flatdict
-
 # Import the settings manager for non-Omniverse mode
 from .settings_manager import get_settings_manager, initialize_carb_settings
 
@@ -34,6 +32,7 @@ _SimulationApp = None
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp as _SimulationApp
+
     _SIMULATION_APP_AVAILABLE = True
 
 # import logger
@@ -140,31 +139,31 @@ class AppLauncher:
         # Determine if SimulationApp (Omniverse) is needed
         # Only launch SimulationApp if:
         # 1. Omniverse visualizer is explicitly requested OR
-        # 2. No specific visualizers are requested but livestreaming is enabled OR  
+        # 2. No specific visualizers are requested but livestreaming is enabled OR
         # 3. No specific visualizers are requested and GUI is needed (not headless)
         self._omniverse_required = self._check_if_omniverse_required()
-        
+
         # Get the global settings manager
         self._settings_manager = get_settings_manager()
-        
+
         if self._omniverse_required:
             if not _SIMULATION_APP_AVAILABLE:
                 raise RuntimeError(
                     "SimulationApp is required for the requested configuration but isaacsim module is not available. "
                     "Please ensure Isaac Sim is properly installed."
                 )
-            
+
             print("[INFO][AppLauncher]: Omniverse mode - Launching SimulationApp...")
-            
+
             # Internal: Override SimulationApp._start_app method to apply patches after app has started.
             self.__patch_simulation_start_app(launcher_args)
 
             # Create SimulationApp, passing the resolved self._config to it for initialization
             self._create_app()
-            
+
             # Initialize carb.settings integration in the settings manager
             initialize_carb_settings()
-            
+
             # Load IsaacSim extensions
             self._load_extensions()
             # Hide the stop button in the toolbar
@@ -192,11 +191,14 @@ class AppLauncher:
                 )
             )
         else:
-            print("[INFO][AppLauncher]: Standalone mode - Running without SimulationApp (Rerun/Newton visualizers only)...")
+            print(
+                "[INFO][AppLauncher]: Standalone mode - Running without SimulationApp (Rerun/Newton visualizers"
+                " only)..."
+            )
             self._app = None
             # Store settings in the standalone settings manager
             self._store_settings_standalone()
-        
+
         # Set up signal handlers for graceful shutdown
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
@@ -211,7 +213,7 @@ class AppLauncher:
     @property
     def app(self) -> Any:
         """The launched SimulationApp (or None if running in standalone mode).
-        
+
         Returns:
             SimulationApp instance if Omniverse mode is active, None if running in standalone mode.
         """
@@ -223,16 +225,6 @@ class AppLauncher:
         else:
             # Standalone mode - no SimulationApp
             return None
-
-    @property
-    def visualizer(self) -> list[str] | None:
-        """The visualizer backend(s) to use.
-
-        Returns:
-            List of visualizer backend names (e.g., ["rerun", "newton"]) or None if no visualizers specified.
-            Empty list means no visualizers should be initialized.
-        """
-        return self._visualizer
 
     @property
     def visualizer(self) -> list[str] | None:
@@ -573,7 +565,7 @@ class AppLauncher:
         """Check if SimulationApp (Omniverse) needs to be launched.
 
         TODO: this will also need to check RTX renderer and kit app renderer in the future.
-        
+
         Returns:
             True if SimulationApp is required, False if can run in standalone mode.
         """
@@ -581,40 +573,40 @@ class AppLauncher:
         # 1. Omniverse visualizer is explicitly requested
         # 2. Livestreaming is enabled (requires Omniverse)
         # 3. Cameras are enabled (requires Omniverse for rendering)
-        
+
         # Omniverse visualizer explicitly requested
         if self._visualizer is not None and "omniverse" in self._visualizer:
             return True
-        
+
         # Livestreaming requires Omniverse
         if self._livestream >= 1:
             return True
-        
+
         # Cameras enabled requires Omniverse for RTX rendering
         if self._enable_cameras:
             return True
-        
+
         # Otherwise, we can run in standalone mode (headless with rerun/newton, or just headless)
         # If no visualizer is specified and not headless, we still assume headless mode (standalone)
         return False
-    
+
     def _store_settings_standalone(self):
         """Store settings in the standalone settings manager (non-Omniverse mode).
-        
+
         This replicates the settings that would normally be stored via carb.settings.
         """
         # Store render settings
         self._settings_manager.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
         self._settings_manager.set_bool("/isaaclab/render/active_viewport", getattr(self, "_render_viewport", False))
         self._settings_manager.set_bool("/isaaclab/render/rtx_sensors", False)
-        
+
         # Store visualizer settings
         if self._visualizer is not None:
             self._settings_manager.set_string("/isaaclab/visualizer", ",".join(self._visualizer))
         else:
             self._settings_manager.set_string("/isaaclab/visualizer", "")
-        
-        print(f"[INFO][AppLauncher]: Standalone settings stored:")
+
+        print("[INFO][AppLauncher]: Standalone settings stored:")
         print(f"  - visualizer: {self._visualizer}")
         print(f"  - offscreen_render: {self._offscreen_render}")
         print(f"  - headless: {self._headless}")
@@ -1013,7 +1005,7 @@ class AppLauncher:
         """Load correct extensions based on AppLauncher's resolved config member variables."""
         # These have to be loaded after SimulationApp is initialized (if in Omniverse mode)
         # In standalone mode, we just store settings
-        
+
         # Store settings using the settings manager (works in both Omniverse and standalone mode)
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
@@ -1146,13 +1138,13 @@ class AppLauncher:
         if launcher_args.get("disable_pinocchio_patch", False):
             return
 
-        original_start_app = SimulationApp._start_app
+        original_start_app = _SimulationApp._start_app
 
         def _start_app_patch(sim_app_instance, *args, **kwargs):
             original_start_app(sim_app_instance, *args, **kwargs)
             self.__patch_pxr_gf_matrix4d(launcher_args)
 
-        SimulationApp._start_app = _start_app_patch
+        _SimulationApp._start_app = _start_app_patch
 
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback

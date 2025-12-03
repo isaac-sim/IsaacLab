@@ -8,18 +8,18 @@ from __future__ import annotations
 import copy
 import inspect
 import logging
-import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
-
-# import omni.timeline
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
+
+# import omni.timeline
+
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -170,6 +170,7 @@ class ManagerBase(ABC):
         #     )
         # else:
         #     self._resolve_terms_handle = None
+        self._resolve_terms_handle = None
 
         # parse config to create terms information
         if self.cfg:

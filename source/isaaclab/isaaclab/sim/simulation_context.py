@@ -11,14 +11,12 @@ import os
 import toml
 import torch
 import traceback
-import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-# Import settings manager for both Omniverse and standalone modes
-from isaaclab.app.settings_manager import SettingsManager
 import flatdict
+
 # import omni.physx
 # import omni.usd
 # from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
@@ -29,6 +27,9 @@ import flatdict
 from pxr import Usd, UsdUtils
 
 import isaaclab.sim.utils.stage as stage_utils
+
+# Import settings manager for both Omniverse and standalone modes
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
@@ -42,7 +43,7 @@ from .utils import bind_physics_material
 logger = logging.getLogger(__name__)
 
 
-class SimulationContext():
+class SimulationContext:
     """A class to control simulation-related events such as physics stepping and rendering.
 
     The simulation context helps control various simulation aspects. This includes:
@@ -56,8 +57,8 @@ class SimulationContext():
     The singleton instance can be accessed using the ``instance()`` class method.
 
     The simulation context is a singleton object. This means that there can only be one instance
-    of the simulation context at any given time. Therefore, it is not possible to create multiple 
-    instances of the simulation context. Instead, the simulation context can be accessed using the 
+    of the simulation context at any given time. Therefore, it is not possible to create multiple
+    instances of the simulation context. Instead, the simulation context can be accessed using the
     ``instance()`` method.
 
     .. attention::
@@ -121,22 +122,22 @@ class SimulationContext():
 
     def __new__(cls, cfg: SimulationCfg | None = None):
         """Enforce singleton pattern by returning existing instance if available.
-        
+
         Args:
             cfg: The configuration of the simulation. Ignored if instance already exists.
-            
+
         Returns:
             The singleton instance of SimulationContext.
         """
         if cls._instance is None:
-            cls._instance = super(SimulationContext, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
     @classmethod
     def instance(cls) -> "SimulationContext | None":
         """Get the singleton instance of the simulation context.
-        
+
         Returns:
             The singleton instance if it exists, None otherwise.
         """
@@ -152,7 +153,7 @@ class SimulationContext():
         # Skip initialization if already initialized (singleton pattern)
         if self._initialized:
             return
-        
+
         # store input
         if cfg is None:
             cfg = SimulationCfg()
@@ -177,12 +178,13 @@ class SimulationContext():
                 # No stage exists, try omni.usd as fallback
                 try:
                     import omni.usd
+
                     self._initial_stage = omni.usd.get_context().get_stage()
                 except (ImportError, AttributeError):
                     # if we need to create a new stage outside of omni.usd, we have to do it in memory with USD core APIs
                     self._initial_stage = create_new_stage_in_memory()
                     # raise RuntimeError("No USD stage is currently open. Please create a stage first.")
-        
+
         # Store stage reference for easy access
         self.stage = self._initial_stage
 
@@ -197,9 +199,7 @@ class SimulationContext():
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
         self._local_gui = (
-            self.settings.get("/app/window/enabled")
-            if self.settings.get("/app/window/enabled") is not None
-            else False
+            self.settings.get("/app/window/enabled") if self.settings.get("/app/window/enabled") is not None else False
         )
         # read flag for whether livestreaming GUI is enabled
         self._livestream_gui = (
@@ -209,9 +209,7 @@ class SimulationContext():
         )
         # read flag for whether XR GUI is enabled
         self._xr_gui = (
-            self.settings.get("/app/xr/enabled")
-            if self.settings.get("/app/xr/enabled") is not None
-            else False
+            self.settings.get("/app/xr/enabled") if self.settings.get("/app/xr/enabled") is not None else False
         )
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
@@ -356,6 +354,8 @@ class SimulationContext():
         NewtonManager.set_solver_settings(newton_params)
         try:
             import omni.physx
+            from omni.physics.stageupdate import get_physics_stage_update_node_interface
+
             physx_sim_interface = omni.physx.get_physx_simulation_interface()
             physx_sim_interface.detach_stage()
             get_physics_stage_update_node_interface().detach_node()
@@ -365,7 +365,7 @@ class SimulationContext():
         NewtonManager._clone_physics_only = (
             self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING or self.render_mode == self.RenderMode.NO_RENDERING
         )
-        
+
         # Mark as initialized (singleton pattern)
         self._initialized = True
 
@@ -405,6 +405,8 @@ class SimulationContext():
                 )
 
             # parse preset file
+            import carb
+
             repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
             preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
@@ -465,26 +467,26 @@ class SimulationContext():
         True if the simulation has a GUI enabled either locally or live-streamed.
         """
         return self._has_gui
-    
+
     def has_omniverse_visualizer(self) -> bool:
         """Returns whether the Omniverse visualizer is enabled.
-        
+
         This checks both the configuration (before initialization) and the active visualizers
         (after initialization) to determine if the Omniverse visualizer will be or is active.
-        
+
         Returns:
             True if the Omniverse visualizer is requested or active, False otherwise.
         """
         # First, check if already initialized visualizers include OVVisualizer
         for visualizer in self._visualizers:
             # Check if visualizer has visualizer_type attribute set to "omniverse"
-            if hasattr(visualizer, 'cfg') and hasattr(visualizer.cfg, 'visualizer_type'):
+            if hasattr(visualizer, "cfg") and hasattr(visualizer.cfg, "visualizer_type"):
                 if visualizer.cfg.visualizer_type == "omniverse":
                     return True
             # Alternative: check the class name
             if type(visualizer).__name__ == "OVVisualizer":
                 return True
-        
+
         # If not initialized yet, check the configuration/settings
         requested_visualizers_str = self.settings.get("/isaaclab/visualizer")
         if requested_visualizers_str:
@@ -492,7 +494,7 @@ class SimulationContext():
             if "omniverse" in requested_visualizers:
                 # Only return True if we have a GUI (omniverse requires GUI)
                 return self._has_gui
-        
+
         return False
 
     def has_rtx_sensors(self) -> bool:
@@ -560,17 +562,17 @@ class SimulationContext():
         """
         # Find the Omniverse visualizer and call its set_camera_view method
         for visualizer in self._visualizers:
-            if hasattr(visualizer, 'cfg') and hasattr(visualizer.cfg, 'visualizer_type'):
+            if hasattr(visualizer, "cfg") and hasattr(visualizer.cfg, "visualizer_type"):
                 if visualizer.cfg.visualizer_type == "omniverse":
-                    if hasattr(visualizer, 'set_camera_view'):
+                    if hasattr(visualizer, "set_camera_view"):
                         visualizer.set_camera_view(eye, target)
                         return
             # Alternative: check the class name
             if type(visualizer).__name__ == "OVVisualizer":
-                if hasattr(visualizer, 'set_camera_view'):
+                if hasattr(visualizer, "set_camera_view"):
                     visualizer.set_camera_view(eye, target)
                     return
-        
+
         logger.debug("No Omniverse visualizer found - set_camera_view has no effect.")
 
     def set_render_mode(self, mode: RenderMode):
@@ -964,6 +966,8 @@ class SimulationContext():
             # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
+            import omni.kit.app
+
             omni.kit.app.get_app().update()
 
         # step the simulation
@@ -980,6 +984,8 @@ class SimulationContext():
             elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:  # noqa: SIM114
                 SimulationContext.render(self)
             else:
+                import omni.kit.app
+
                 omni.kit.app.get_app().update()
         else:
             if self.is_playing():
@@ -1055,6 +1061,8 @@ class SimulationContext():
     async def reset_async(self, soft: bool = False):
         # need to load all "physics" information from the USD file
         if not soft:
+            import omni.physx
+
             omni.physx.acquire_physx_interface().force_load_physics_from_usd()
         # play the simulation
         await super().reset_async(soft=soft)
@@ -1090,13 +1098,16 @@ class SimulationContext():
     @classmethod
     def clear_instance(cls):
         """Clear the singleton instance and clean up resources.
-        
+
         This method should be called when you want to destroy the simulation context
         and create a new one with different settings.
         """
         # clear the callback
         if cls._instance is not None:
-            if hasattr(cls._instance, "_app_control_on_stop_handle") and cls._instance._app_control_on_stop_handle is not None:
+            if (
+                hasattr(cls._instance, "_app_control_on_stop_handle")
+                and cls._instance._app_control_on_stop_handle is not None
+            ):
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
             # close all visualizers

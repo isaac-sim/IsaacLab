@@ -36,28 +36,24 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+##
+# Pre-defined Configuration
+##
+import torch
+
 import isaaclab.sim as sim_utils
-from isaaclab.assets import (
+from isaaclab.assets import (  # RigidObject,; RigidObjectCfg,; RigidObjectCollection,; RigidObjectCollectionCfg,
     Articulation,
     ArticulationCfg,
     AssetBaseCfg,
-    # RigidObject,
-    # RigidObjectCfg,
-    # RigidObjectCollection,
-    # RigidObjectCollectionCfg,
 )
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import Timer, configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-##
-# Pre-defined Configuration
-##
-import torch
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
 
@@ -219,8 +215,10 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
     """Runs the simulation loop."""
     # Extract scene entities
     # note: we only do this here for readability.
-    rigid_object: RigidObject | None = scene["object"] if "object" in scene.keys() else None
-    rigid_object_collection: RigidObjectCollection | None = scene["object_collection"] if "object_collection" in scene.keys() else None
+    rigid_object: Articulation | None = scene["object"] if "object" in scene.keys() else None
+    rigid_object_collection: Articulation | None = (
+        scene["object_collection"] if "object_collection" in scene.keys() else None
+    )
     robot: Articulation | None = scene["robot"] if "robot" in scene.keys() else None
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -241,7 +239,9 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             # object collection
             if rigid_object_collection:
                 object_state = rigid_object_collection.data.default_object_state.clone()
-                object_state[..., :3] += scene.env_origins.unsqueeze(1) + torch.rand_like(root_state[:, :3]) * 0.5 - 0.25
+                object_state[..., :3] += (
+                    scene.env_origins.unsqueeze(1) + torch.rand_like(root_state[:, :3]) * 0.5 - 0.25
+                )
                 rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
                 rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
             # robot

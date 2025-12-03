@@ -6,7 +6,6 @@
 import builtins
 import contextlib
 import logging
-import os
 import threading
 import typing
 from collections.abc import Generator
@@ -66,6 +65,9 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     if not is_current_stage_in_memory():
         return
 
+    import carb
+    import omni.physx
+
     # attach stage to physx
     stage_id = get_current_stage_id()
     physx_sim_interface = omni.physx.get_physx_simulation_interface()
@@ -92,6 +94,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # enable physics fabric
     SimulationContext.instance()._physics_context.enable_fabric(True)
 
+    import omni.usd
+
     # attach stage to usd context
     omni.usd.get_context().attach_stage_with_callback(stage_id)
 
@@ -111,6 +115,8 @@ def is_current_stage_in_memory() -> bool:
 
     # grab current stage id
     stage_id = get_current_stage_id()
+
+    import omni.usd
 
     # grab context stage id
     context_stage = omni.usd.get_context().get_stage()
@@ -198,6 +204,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     if fabric:
         import usdrt
+
         stage_cache = UsdUtils.StageCache.Get()
         stage_id = stage_cache.GetId(stage).ToLongInt()
         if stage_id < 0:
@@ -206,18 +213,19 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     if stage is not None:
         return stage
-    
+
     # Try to get stage from SimulationContext singleton (if initialized)
     try:
         # Import here to avoid circular dependency
         from isaaclab.sim.simulation_context import SimulationContext
+
         sim_context = SimulationContext.instance()
         if sim_context is not None and hasattr(sim_context, "stage") and sim_context.stage is not None:
             return sim_context.stage
     except (ImportError, RuntimeError):
         # SimulationContext may not be initialized yet
         pass
-    
+
     # Fall back to USD StageCache - get the first stage in the cache
     # This is the standard USD way to track open stages
     stage_cache = UsdUtils.StageCache.Get()
@@ -226,7 +234,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
         all_stages = stage_cache.GetAllStages()
         if all_stages:
             return all_stages[0]
-    
+
     raise RuntimeError("No USD stage is currently open. Please create a stage first.")
 
 
@@ -264,6 +272,8 @@ def update_stage() -> None:
         >>>
         >>> stage_utils.update_stage()
     """
+    import omni.kit.app
+
     omni.kit.app.get_app_interface().update()
 
 
@@ -345,6 +355,8 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
             return False
         if prim.GetMetadata("hide_in_stage_window"):
             return False
+        import omni.usd
+
         if omni.usd.check_ancestral(prim):
             return False
         return True
@@ -359,9 +371,13 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
     else:
         prims = get_all_matching_child_prims("/", predicate_from_path)
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    from omni.usd.commands import DeletePrimsCommand
+
     DeletePrimsCommand(prim_paths_to_delete).do()
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        import omni.kit.app
+
         omni.kit.app.get_app_interface().update()
 
 
@@ -402,7 +418,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     Adds a reference to an external USD file at the specified prim path on the current stage.
     If the prim does not exist, it will be created with the specified type.
-    
+
     This function supports both local and remote USD files (HTTP, HTTPS, S3). Remote files
     are automatically downloaded to a local cache before being referenced.
 
@@ -442,14 +458,14 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
     """
     # Store original path for error messages
     original_usd_path = usd_path
-    
+
     # Check if file is remote and download if needed
     # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
     file_status = check_file_path(usd_path)
-    
+
     if file_status == 0:
         raise FileNotFoundError(f"USD file not found at path: {usd_path}")
-    
+
     # Download remote files to local cache
     if file_status == 2:
         logger.info(f"Downloading remote USD file: {original_usd_path}")
@@ -458,26 +474,27 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
             logger.info(f"  Downloaded to: {usd_path}")
         except Exception as e:
             raise FileNotFoundError(f"Failed to download USD file from {original_usd_path}: {e}")
-    
+
     # Verify the local file exists and can be opened
     import os
+
     if not os.path.exists(usd_path):
         raise FileNotFoundError(f"USD file does not exist at local path: {usd_path} (original: {original_usd_path})")
-    
+
     stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-    
+
     # Try to open the USD layer with the local path
     sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
     if not sdf_layer:
         raise FileNotFoundError(f"Could not open USD file at {usd_path} (original: {original_usd_path})")
-    
+
     # Attempt to use omni metrics assembler for unit checking (if available)
     try:
         from omni.metrics.assembler.core import get_metrics_assembler_interface
-        
+
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         ret_val = get_metrics_assembler_interface().check_layers(
             stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
@@ -518,12 +535,14 @@ def create_new_stage() -> Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
+    import omni.usd
+
     return omni.usd.get_context().new_stage()
 
 
 def create_new_stage_in_memory() -> Usd.Stage:
     """Creates a new stage in memory using USD core APIs.
-    
+
     This function creates a stage in memory and adds it to the USD StageCache
     so it can be properly tracked and retrieved by get_current_stage().
 
@@ -543,12 +562,12 @@ def create_new_stage_in_memory() -> Usd.Stage:
     """
     # Create a new stage in memory using USD core API
     stage = Usd.Stage.CreateInMemory()
-    
+
     # Add to StageCache so it can be found by get_current_stage()
     # This ensures the stage is properly tracked and can be retrieved later
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Insert(stage)
-    
+
     return stage
 
 
@@ -573,6 +592,8 @@ def open_stage(usd_path: str) -> bool:
         >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
         True
     """
+    import omni.usd
+
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError("Only USD files can be loaded with this method")
     usd_context = omni.usd.get_context()
@@ -606,6 +627,8 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
     """
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError("Only USD files can be saved with this method")
+
+    import omni.usd
 
     layer = Sdf.Layer.CreateNew(usd_path)
     root_layer = get_current_stage().GetRootLayer()
@@ -653,6 +676,8 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
         callback: (False, 'Stage opening or closing already in progress!!') {}
         False
     """
+    import omni.usd
+
     if callback_fn is None:
         result = omni.usd.get_context().close_stage()
     else:
@@ -707,6 +732,8 @@ def is_stage_loading() -> bool:
         >>> stage_utils.is_stage_loading()
         False
     """
+    import omni.usd
+
     context = omni.usd.get_context()
     if context is None:
         return False
@@ -806,6 +833,8 @@ def get_next_free_path(path: str, parent: str = None) -> str:
         >>> stage_utils.get_next_free_path("/World/Cube")
         /World/Cube_02
     """
+    import omni.usd
+
     if parent is not None:
         # remove trailing slash from parent and leading slash from path
         path = omni.usd.get_stage_next_free_path(

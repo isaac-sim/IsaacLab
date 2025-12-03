@@ -47,6 +47,7 @@ class BaseEnvWindow:
             window_name: The name of the window. Defaults to "IsaacLab".
         """
         import omni.ui
+
         # store inputs
         self.env = env
         # prepare the list of assets that can be followed by the viewport camera
@@ -131,8 +132,9 @@ class BaseEnvWindow:
 
     def _build_sim_frame(self):
         """Builds the sim-related controls frame for the UI."""
-        import omni.ui
         import isaacsim
+        import omni.ui
+
         # create collapsable frame for controls
         self.ui_window_elements["sim_frame"] = omni.ui.CollapsableFrame(
             title="Simulation Settings",
@@ -177,8 +179,9 @@ class BaseEnvWindow:
 
     def _build_viewer_frame(self):
         """Build the viewer-related control frame for the UI."""
-        import omni.ui
         import isaacsim
+        import omni.ui
+
         # create collapsable frame for viewer
         self.ui_window_elements["viewer_frame"] = omni.ui.CollapsableFrame(
             title="Viewer Settings",
@@ -246,8 +249,9 @@ class BaseEnvWindow:
         that has it implemented. If the element does not have a debug visualization implemented,
         a label is created instead.
         """
-        import omni.ui
         import isaacsim
+        import omni.ui
+
         # create collapsable frame for debug visualization
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
             title="Scene Debug Visualization",
@@ -432,8 +436,8 @@ class BaseEnvWindow:
 
     def _create_debug_vis_ui_element(self, name: str, elem: object):
         """Create a checkbox for toggling debug visualization for the given element."""
-        import omni.ui
         import isaacsim
+        import omni.ui
         from omni.kit.window.extensions import SimpleCheckBox
 
         with omni.ui.HStack():
@@ -484,6 +488,7 @@ class BaseEnvWindow:
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""
         import omni.ui
+
         # wait for the window to be created
         for _ in range(5):
             if omni.ui.Workspace.get_window(window_title):

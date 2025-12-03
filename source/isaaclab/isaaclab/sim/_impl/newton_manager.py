@@ -125,6 +125,7 @@ class NewtonManager:
             callback()
         if not NewtonManager._clone_physics_only:
             import usdrt
+
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             for i, prim_path in enumerate(NewtonManager._model.body_key):
                 prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)

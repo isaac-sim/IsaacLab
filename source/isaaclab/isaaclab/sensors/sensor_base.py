@@ -20,14 +20,15 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-# import omni.kit.app
-# import omni.timeline
-# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
+
+# import omni.kit.app
+# import omni.timeline
+# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -182,6 +183,7 @@ class SensorBase(ABC):
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 import omni.kit.app
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
@@ -320,14 +322,19 @@ class SensorBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
-        if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+        import contextlib
+
+        if getattr(self, "_prim_deletion_callback_id", None):
+            with contextlib.suppress(ImportError, NameError):
+                from isaacsim.core.simulation_manager import SimulationManager
+
+                SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._invalidate_initialize_handle:
+        if getattr(self, "_invalidate_initialize_handle", None):
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None
         # clear debug visualization
-        if self._debug_vis_handle:
+        if getattr(self, "_debug_vis_handle", None):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 

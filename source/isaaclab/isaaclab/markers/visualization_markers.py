@@ -408,4 +408,5 @@ class VisualizationMarkers:
 
         # remove any physics on the markers because they are only for visualization!
         import omni.physx.scripts.utils as physx_utils
+
         physx_utils.removeRigidBodySubtree(prim)

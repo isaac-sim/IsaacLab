@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import gymnasium as gym
 import inspect
 import logging
@@ -18,14 +17,10 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-# import omni.physx
-# from isaacsim.core.simulation_manager import SimulationManager
-# from isaacsim.core.version import get_version
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -34,6 +29,11 @@ from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -529,6 +529,7 @@ class DirectRLEnv(gym.Env):
             does not support debug visualization.
         """
         import omni.kit.app
+
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False
