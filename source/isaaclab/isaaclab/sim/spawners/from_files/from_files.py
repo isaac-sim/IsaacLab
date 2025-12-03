@@ -19,9 +19,9 @@ except ModuleNotFoundError:
     from pxr import Semantics
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants,
 from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
-from isaaclab.utils.assets import check_usd_path_with_timeout
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -257,16 +257,16 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # check if usd path exists with periodic logging until timeout
-    if not check_usd_path_with_timeout(usd_path):
-        if "4.5" in usd_path:
-            usd_5_0_path = usd_path.replace("http", "https").replace("/4.5", "/5.0")
-            if not check_usd_path_with_timeout(usd_5_0_path):
-                raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
-            usd_path = usd_5_0_path
-        else:
-            raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
+    # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
+    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
+    # Download remote files (S3, HTTP, HTTPS) to local cache
+    # This also downloads all USD dependencies to maintain references
+    if file_status == 2:
+        usd_path = retrieve_file_path(usd_path)
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
