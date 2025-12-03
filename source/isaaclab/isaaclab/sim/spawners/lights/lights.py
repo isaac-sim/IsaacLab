@@ -11,6 +11,7 @@ from pxr import Usd, UsdLux
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import lights_cfg
@@ -75,8 +76,8 @@ def spawn_light(
             if attr_name == "visible_in_primary_ray":
                 prim_prop_name = attr_name
             else:
-                prim_prop_name = f"inputs:{attr_name}"
+                prim_prop_name = f"inputs:{to_camel_case(attr_name)}"
             # set the attribute
-            safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
+            safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=False)
     # return the prim
     return prim

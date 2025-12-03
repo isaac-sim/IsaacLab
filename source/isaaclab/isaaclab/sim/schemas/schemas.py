@@ -130,9 +130,8 @@ def modify_articulation_root_properties(
 
     # set into physx api
     for attr_name, value in cfg.items():
-        # safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value, camel_case=True)
         safe_set_attribute_on_usd_prim(
-            articulation_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=True
+            articulation_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=False
         )
 
     # fix root link based on input
@@ -187,7 +186,7 @@ def modify_articulation_root_properties(
             # -- physx attributes
             for attr_name, value in cfg.items():
                 safe_set_attribute_on_usd_prim(
-                    parent_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=True
+                    parent_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=False
                 )
 
             # remove api from root
@@ -292,7 +291,7 @@ def modify_rigid_body_properties(
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_prim(
-            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name)}", value, camel_case=True
+            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name)}", value, camel_case=False
         )
     # success
     return True
@@ -394,7 +393,7 @@ def modify_collision_properties(
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_prim(
-            collider_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=True
+            collider_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=False
         )
     # success
     return True
@@ -533,7 +532,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             applied_schemas = child_prim.GetAppliedSchemas()
             if "PhysxRigidBodyAPI" not in applied_schemas:
                 child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
-            safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleep_threshold", 0.0, camel_case=True)
+            safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleep_threshold", 0.0, camel_case=False)
             # add contact report API with threshold of zero
             if "PhysxContactReportAPI" not in applied_schemas:
                 logger.debug(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
@@ -541,7 +540,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             else:
                 logger.debug(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
             # set threshold to zero
-            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=True)
+            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
             # increment number of contact sensors
             num_contact_sensors += 1
         else:
@@ -657,7 +656,7 @@ def modify_joint_drive_properties(
     for attr_name in ["max_velocity"]:
         value = cfg.pop(attr_name, None)
         attr_name = cfg_to_usd_map[attr_name]
-        safe_set_attribute_on_usd_prim(prim, f"physxJoint:{to_camel_case(attr_name)}", value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"physxJoint:{to_camel_case(attr_name)}", value, camel_case=False)
     # set into USD API
     for attr_name, attr_value in cfg.items():
         attr_name = cfg_to_usd_map.get(attr_name, attr_name)
@@ -723,7 +722,7 @@ def modify_fixed_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=True
+                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=False
             )
     # success
     return True
@@ -789,7 +788,7 @@ def modify_spatial_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=True
+                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=False
             )
     # success
     return True
@@ -948,11 +947,11 @@ def modify_deformable_body_properties(
     for attr_name, value in cfg.items():
         if attr_name in ["rest_offset", "contact_offset"]:
             safe_set_attribute_on_usd_prim(
-                deformable_body_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=True
+                deformable_body_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=False
             )
         else:
             safe_set_attribute_on_usd_prim(
-                deformable_body_prim, f"physxDeformable:{to_camel_case(attr_name)}", value, camel_case=True
+                deformable_body_prim, f"physxDeformable:{to_camel_case(attr_name)}", value, camel_case=False
             )
 
     # success
