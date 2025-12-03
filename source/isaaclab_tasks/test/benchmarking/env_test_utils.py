@@ -149,8 +149,8 @@ def output_payloads(payloads):
 
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
-    # first grab all log files
-    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
+    # first grab all log files (go up 4 levels: benchmarking -> test -> isaaclab_tasks -> source -> IsaacLab)
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
     from isaacsim.core.version import get_version
 
     if int(get_version()[2]) < 5:

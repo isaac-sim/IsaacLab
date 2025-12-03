@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
+# import torch here to avoid GLIBCXX_3.4.30 error in conda
+import torch  # noqa: F401
 
 from isaaclab.app import AppLauncher
 
