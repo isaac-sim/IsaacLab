@@ -15,11 +15,10 @@ import asyncio
 import logging
 import os
 import posixpath
-from typing import Optional
 from collections.abc import Callable
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -569,7 +568,7 @@ def download_usd_with_references_sync(
     root_url: str,
     download_root: str,
     force_overwrite: bool = True,
-    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
+    progress_callback: Callable[[int, int | None, str], None] | None = None,
 ) -> dict[str, str]:
     """Synchronous wrapper for :func:`download_usd_with_references`. Safe for IsaacLab scripts
 
