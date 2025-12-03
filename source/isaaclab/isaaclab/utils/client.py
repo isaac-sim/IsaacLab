@@ -16,16 +16,17 @@ import asyncio
 import logging
 import os
 import posixpath
+from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Set
-from enum import IntEnum, Enum
+from typing import Any, NamedTuple
+from collections.abc import Callable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-from pxr import Sdf
 import boto3
 from botocore.exceptions import ClientError
+from pxr import Sdf
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ _s3 = boto3.client("s3")
 # URL helpers
 # ---------------------------------------------------------------------------
 
+
 def _is_s3_url(path: str) -> bool:
     """Return True if the path uses the ``s3://`` scheme."""
     return path.startswith("s3://")
@@ -85,7 +87,7 @@ def _is_local_path(path: str) -> bool:
     return urlparse(path).scheme == ""
 
 
-def _split_s3_url(path: str) -> Tuple[str, str]:
+def _split_s3_url(path: str) -> tuple[str, str]:
     """Split an S3 URL into ``(bucket, key)`` or raise on invalid input."""
     parsed = urlparse(path)
     bucket = parsed.netloc
@@ -144,7 +146,8 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
 # stat / read_file
 # ---------------------------------------------------------------------------
 
-def stat(path: str) -> Tuple[Result, Optional[Dict[str, Any]]]:
+
+def stat(path: str) -> tuple[Result, dict[str, Any] | None]:
     """Check whether a remote or local file exists and return basic metadata.
 
     Args:
@@ -224,13 +227,13 @@ def stat(path: str) -> Tuple[Result, Optional[Dict[str, Any]]]:
     return Result.ERROR_NOT_FOUND, None
 
 
-async def stat_async(path: str) -> Tuple[Result, Optional[Dict[str, Any]]]:
+async def stat_async(path: str) -> tuple[Result, dict[str, Any] | None]:
     """Async wrapper for :func:`stat`."""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, stat, path)
 
 
-def read_file(path: str) -> Tuple[Result, Dict[str, Any], memoryview]:
+def read_file(path: str) -> tuple[Result, dict[str, Any], memoryview]:
     """Read file content from HTTP(S), S3, or local."""
     url = _normalize_url(path)
 
@@ -289,7 +292,7 @@ def read_file(path: str) -> Tuple[Result, Dict[str, Any], memoryview]:
     return Result.ERROR_NOT_FOUND, {}, memoryview(b"")
 
 
-async def read_file_async(path: str) -> Tuple[Result, Dict[str, Any], memoryview]:
+async def read_file_async(path: str) -> tuple[Result, dict[str, Any], memoryview]:
     """Async wrapper for :func:`read_file`."""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, read_file, path)
@@ -299,11 +302,12 @@ async def read_file_async(path: str) -> Tuple[Result, Dict[str, Any], memoryview
 # copy
 # ---------------------------------------------------------------------------
 
+
 def _report_progress(
     bytes_amount: int,
     src: str,
-    total_size: Optional[int],
-    cb: Optional[Callable[[int, Optional[int], str], None]],
+    total_size: int | None,
+    cb: Callable[[int, int | None, str], None] | None,
     *,
     transferred_ref: list[int],
 ) -> None:
@@ -317,7 +321,7 @@ def copy(
     src: str,
     dst: str,
     behavior: CopyBehavior = CopyBehavior.OVERWRITE,
-    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
+    progress_callback: Callable[[int, int | None, str], None] | None = None,
     chunk_size: int = 8 * 1024 * 1024,
 ) -> Result:
     """Copy between local and remote (HTTP/S3) locations.
@@ -439,7 +443,7 @@ async def copy_async(
     src: str,
     dst: str,
     behavior: CopyBehavior = CopyBehavior.OVERWRITE,
-    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
+    progress_callback: Callable[[int, int | None, str], None] | None = None,
     chunk_size: int = 8 * 1024 * 1024,
 ) -> Result:
     """Async wrapper for :func:`copy` with the same arguments."""
@@ -463,9 +467,16 @@ USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
 
 
 _DOWNLOADABLE_EXTS = {
-    ".usd", ".usda", ".usdz",
-    ".png", ".jpg", ".jpeg",
-    ".exr", ".hdr", ".tif", ".tiff",
+    ".usd",
+    ".usda",
+    ".usdz",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".exr",
+    ".hdr",
+    ".tif",
+    ".tiff",
 }
 
 
@@ -489,7 +500,7 @@ def _is_downloadable_asset(path: str) -> bool:
     return True
 
 
-def _find_usd_references(local_usd_path: str) -> Set[str]:
+def _find_usd_references(local_usd_path: str) -> set[str]:
     """Use Sdf API to collect referenced assets from a USD layer."""
     try:
         layer = Sdf.Layer.FindOrOpen(local_usd_path)
@@ -500,7 +511,7 @@ def _find_usd_references(local_usd_path: str) -> Set[str]:
     if layer is None:
         return set()
 
-    refs: Set[str] = set()
+    refs: set[str] = set()
 
     # Sublayers
     for sub_path in getattr(layer, "subLayerPaths", []) or []:
@@ -554,8 +565,8 @@ async def download_usd_with_references(
     root_usd_s3_url: str,
     download_root: str,
     force_overwrite: bool = True,
-    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
-) -> Dict[str, str]:
+    progress_callback: Callable[[int, int | None, str], None] | None = None,
+) -> dict[str, str]:
     """Download a USD and all referenced assets to a local mirror.
 
     Traverses the USD dependency graph, downloading each referenced asset (USD, textures, etc.)
@@ -575,8 +586,8 @@ async def download_usd_with_references(
 
     root_url = _normalize_url(root_usd_s3_url)
     to_visit = [root_url]
-    visited: Set[str] = set()
-    mapping: Dict[str, str] = {}
+    visited: set[str] = set()
+    mapping: dict[str, str] = {}
 
     while to_visit:
         current_url = _normalize_url(to_visit.pop())
@@ -608,8 +619,8 @@ def download_usd_with_references_sync(
     root_url: str,
     download_root: str,
     force_overwrite: bool = True,
-    progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
-) -> Dict[str, str]:
+    progress_callback: Callable[[int, int | None, str], None] | None = None,
+) -> dict[str, str]:
     """Synchronous wrapper for :func:`download_usd_with_references`."""
     loop = asyncio.get_event_loop()
     return loop.run_until_complete(
