@@ -14,9 +14,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.utils import stage as stage_utils
 
 
@@ -28,7 +28,7 @@ def sim():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, device="cuda:0")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     # Wait for spawning
     stage_utils.update_stage()
     yield sim

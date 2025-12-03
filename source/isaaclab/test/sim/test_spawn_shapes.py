@@ -14,9 +14,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.utils import stage as stage_utils
 
 
@@ -25,7 +25,7 @@ def sim():
     """Create a simulation context."""
     stage_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     stage_utils.update_stage()
     yield sim
     sim.stop()

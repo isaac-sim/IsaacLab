@@ -23,9 +23,8 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from isaacsim.core.api.simulation_context import SimulationContext
-
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 def print_cb():
@@ -41,7 +40,7 @@ def quit_cb():
 
 def main():
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01)
+    sim = SimulationContext(SimulationCfg(dt=0.01))
 
     # Create teleoperation interface
     teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
