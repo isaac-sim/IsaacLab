@@ -16,10 +16,10 @@ import asyncio
 import logging
 import os
 import posixpath
+from collections.abc import Callable
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any, NamedTuple
-from collections.abc import Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -329,7 +329,6 @@ def copy(
     Supported directions:
         * HTTP/HTTPS → local
         * S3 → local
-        * Local → S3
 
     Args:
         src: Source path or URL.
@@ -379,32 +378,6 @@ def copy(
             logger.warning("Unexpected error copying %s -> %s: %s", src, dst, exc)
             return Result.ERROR_UNKNOWN
 
-    # Local -> S3
-    if _is_local_path(src) and _is_s3_url(dst):
-        bucket, key = _split_s3_url(dst)
-        try:
-            total_size = os.path.getsize(src)
-            transferred_ref = [0]
-            with open(src, "rb") as f:
-                _s3.upload_fileobj(
-                    f,
-                    Bucket=bucket,
-                    Key=key,
-                    Callback=lambda n: _report_progress(
-                        n,
-                        src,
-                        total_size,
-                        progress_callback,
-                        transferred_ref=transferred_ref,
-                    ),
-                )
-            return Result.OK
-        except FileNotFoundError:
-            return Result.ERROR_NOT_FOUND
-        except ClientError as exc:
-            logger.warning("Error copying local->S3 (%s -> %s): %s", src, dst, exc)
-            return Result.ERROR_UNKNOWN
-
     # S3 -> local
     if _is_s3_url(src) and _is_local_path(dst):
         bucket, key = _split_s3_url(src)
@@ -448,15 +421,7 @@ async def copy_async(
 ) -> Result:
     """Async wrapper for :func:`copy` with the same arguments."""
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None,
-        copy,
-        src,
-        dst,
-        behavior,
-        progress_callback,
-        chunk_size,
-    )
+    return await loop.run_in_executor(None, copy, src, dst, behavior, progress_callback, chunk_size)
 
 
 # ---------------------------------------------------------------------------
