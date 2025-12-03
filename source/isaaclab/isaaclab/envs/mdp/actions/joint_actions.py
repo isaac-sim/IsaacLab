@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -191,7 +192,7 @@ class JointPositionAction(JointAction):
         super().__init__(cfg, env)
         # use default joint positions as offset
         if cfg.use_default_offset:
-            self._offset = self._asset.data.default_joint_pos[:, self._joint_ids].clone()
+            self._offset = wp.to_torch(self._asset.data.default_joint_pos)[:, self._joint_ids].clone()
 
     def apply_actions(self):
         # set position targets
@@ -226,7 +227,7 @@ class RelativeJointPositionAction(JointAction):
 
     def apply_actions(self):
         # add current joint positions to the processed actions
-        current_actions = self.processed_actions + self._asset.data.joint_pos[:, self._joint_ids]
+        current_actions = self.processed_actions + wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         # set position targets
         self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
 
@@ -242,7 +243,7 @@ class JointVelocityAction(JointAction):
         super().__init__(cfg, env)
         # use default joint velocity as offset
         if cfg.use_default_offset:
-            self._offset = self._asset.data.default_joint_vel[:, self._joint_ids].clone()
+            self._offset = wp.to_torch(self._asset.data.default_joint_vel)[:, self._joint_ids].clone()
 
     def apply_actions(self):
         # set joint velocity targets

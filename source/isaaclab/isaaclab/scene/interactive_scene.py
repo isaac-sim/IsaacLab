@@ -413,12 +413,13 @@ class InteractiveScene:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
         """
+        # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(ids = env_ids, mask = mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(ids = env_ids, mask = mask)
+            sensor.reset(env_ids = env_ids, env_mask = mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

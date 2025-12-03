@@ -1052,9 +1052,6 @@ class ArticulationData(BaseArticulationData):
                     shape=(self._root_view.count, 6),
                     strides=(*data.strides, 4),
                 )
-                print(to_float32_slice.shape)
-                print(to_float32_slice.strides)
-                print(to_float32_slice.dtype)
                 to_float32_slice = to_float32_slice[:, 3:]
                 self._root_com_ang_vel_b = wp.array(
                     ptr=to_float32_slice.ptr,

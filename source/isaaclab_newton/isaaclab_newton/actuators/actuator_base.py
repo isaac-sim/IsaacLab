@@ -213,6 +213,10 @@ class ActuatorBase(ABC):
                 print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
                 if isinstance(cfg_value, IntEnum):
                     cfg_value = int(cfg_value.value)
+                if original_value.dtype is wp.float32:
+                    cfg_value = float(cfg_value)
+                elif original_value.dtype is wp.int32:
+                    cfg_value = int(cfg_value)
                 # if int, then use the same value for all joints
                 wp.launch(
                     update_array2D_with_value_masked,

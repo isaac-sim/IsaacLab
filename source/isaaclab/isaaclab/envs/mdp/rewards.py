@@ -95,7 +95,7 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.projected_gravity_b)[:, :2]), dim=1)
 
 
 def base_height_l2(
@@ -246,7 +246,7 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
 
 def action_rate_l2(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Penalize the rate of change of the actions using L2 squared kernel."""
-    return torch.sum(torch.square(env.action_manager.action - wp.to_torch(env.action_manager.prev_action)), dim=1)
+    return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1)
 
 
 def action_l2(env: ManagerBasedRLEnv) -> torch.Tensor:

@@ -354,7 +354,10 @@ class Articulation(BaseArticulation):
                     first_ids = first_ids[:, None]
 
                 # Create a complete data buffer from scratch
-                complete_value = torch.zeros(N, M, dtype=value.dtype, device=self.device)
+                if dtype == wp.vec3f:
+                    complete_value = torch.zeros(N, M, 3, dtype=value.dtype, device=self.device)
+                else:
+                    complete_value = torch.zeros(N, M, dtype=value.dtype, device=self.device)
                 complete_value[first_ids, second_ids] = value
                 value = wp.from_torch(complete_value, dtype=dtype)
             elif second_mask is not None:
@@ -1398,16 +1401,18 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
+        env_mask_ = None
+        body_mask_ = None
         if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor):
             if forces is not None:
-                forces, env_mask, body_mask = self._torch_to_warp_dual_index(forces, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+                forces, env_mask_, body_mask_ = self._torch_to_warp_dual_index(forces, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.vec3f)
             if torques is not None:
-                torques, env_mask, body_mask = self._torch_to_warp_dual_index(torques, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+                torques, env_mask_, body_mask_ = self._torch_to_warp_dual_index(torques, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.vec3f)
         # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        if body_mask is None:
-            body_mask = self._data.ALL_BODY_MASK
+        if env_mask_ is None:
+            env_mask_ = self._data.ALL_ENV_MASK
+        if body_mask_ is None:
+            body_mask_ = self._data.ALL_BODY_MASK
         # set into simulation
         if (forces is not None) or (torques is not None):
             self.has_external_wrench = True
@@ -1418,8 +1423,8 @@ class Articulation(BaseArticulation):
                     inputs=[
                         forces,
                         self._data._sim_bind_body_external_wrench,
-                        env_mask,
-                        body_mask,
+                        env_mask_,
+                        body_mask_,
                     ],
                 )
             if torques is not None:
@@ -1429,8 +1434,8 @@ class Articulation(BaseArticulation):
                     inputs=[
                         torques,
                         self._data._sim_bind_body_external_wrench,
-                        env_mask,
-                        body_mask,
+                        env_mask_,
+                        body_mask_,
                     ],
                 )
 

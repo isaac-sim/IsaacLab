@@ -20,8 +20,8 @@ from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
 from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg
 from isaaclab_experimental.utils.warp.utils import resolve_asset_cfg
-from isaaclab_experimental.utils.warp.math_ops import inplace_add
-from isaaclab_experimental.utils.warp.math_ops import inplace_mul
+from isaaclab.utils.warp.math_ops import inplace_add
+from isaaclab.utils.warp.math_ops import inplace_mul
 
 if TYPE_CHECKING:
     from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
