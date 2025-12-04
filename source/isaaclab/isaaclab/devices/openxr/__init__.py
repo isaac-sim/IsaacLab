@@ -7,4 +7,10 @@
 
 from .manus_vive import ManusVive, ManusViveCfg
 from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
-from .xr_cfg import XrCfg, remove_camera_configs
+from .openxr_device_controller import (
+    MotionControllerDataRowIndex,
+    MotionControllerInputIndex,
+    OpenXRDeviceMotionController,
+    OpenXRDeviceMotionControllerCfg,
+)
+from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs

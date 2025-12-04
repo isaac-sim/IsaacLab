@@ -107,10 +107,21 @@ class OpenXRDevice(DeviceBase):
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
-        xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
+        if self._xr_cfg.anchor_prim_path is not None:
+            anchor_path = self._xr_cfg.anchor_prim_path
+            if anchor_path.endswith("/"):
+                anchor_path = anchor_path[:-1]
+            self._xr_anchor_headset_path = f"{anchor_path}/XRAnchor"
+        else:
+            self._xr_anchor_headset_path = "/World/XRAnchor"
+
+        _ = SingleXFormPrim(
+            self._xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
+        )
+
         carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", xr_anchor.prim_path)
+        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self._xr_anchor_headset_path)
 
     def __del__(self):
         """Clean up resources when the object is destroyed.
@@ -136,6 +147,10 @@ class OpenXRDevice(DeviceBase):
         msg = f"OpenXR Hand Tracking Device: {self.__class__.__name__}\n"
         msg += f"\tAnchor Position: {self._xr_cfg.anchor_pos}\n"
         msg += f"\tAnchor Rotation: {self._xr_cfg.anchor_rot}\n"
+        if self._xr_cfg.anchor_prim_path is not None:
+            msg += f"\tAnchor Prim Path: {self._xr_cfg.anchor_prim_path} (Dynamic Anchoring)\n"
+        else:
+            msg += "\tAnchor Mode: Static (Root Level)\n"
 
         # Add retargeter information
         if self._retargeters:
@@ -303,3 +318,4 @@ class OpenXRDevice(DeviceBase):
         elif "reset" in msg:
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
+            self.reset()
