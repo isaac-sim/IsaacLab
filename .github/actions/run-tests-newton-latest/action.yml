@@ -121,6 +121,9 @@ runs:
               if [ -f uv.lock ]; then
                 echo 'Parsing uv.lock for mjwarp and mujoco versions...'
 
+                # Set PIP_FIND_LINKS for mujoco packages
+                export PIP_FIND_LINKS=https://py.mujoco.org/
+
                 # Extract mujoco version from uv.lock
                 mujoco_version=\$(grep -A5 'name = \"mujoco\"' uv.lock | grep 'version = ' | head -1 | sed 's/.*version = \"\(.*\)\"/\1/')
                 if [ -n \"\$mujoco_version\" ]; then
@@ -142,6 +145,7 @@ runs:
                 fi
               else
                 echo 'uv.lock not found, installing latest versions'
+                export PIP_FIND_LINKS=https://py.mujoco.org/
                 /isaac-sim/python.sh -m pip install mujoco mjwarp
               fi
 
