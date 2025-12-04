@@ -86,6 +86,9 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     ls_parallel: bool = False
     """Whether to use parallel line search."""
 
+    use_mujoco_contacts: bool = True
+    """Whether to use MuJoCo's contact solver."""
+
 
 @configclass
 class XPBOSolverCfg(NewtonSolverCfg):
