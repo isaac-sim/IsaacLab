@@ -21,6 +21,12 @@ Every actuator model inherits from the :class:`isaaclab.actuators.ActuatorBase` 
 which defines the common interface for all actuator models. The actuator models are handled
 and called by the :class:`isaaclab.assets.Articulation` class.
 """
+from enum import IntEnum
+class ControlMode(IntEnum):
+    """Enum for the control mode of the actuator."""
+    NONE = 0
+    POSITION = 1
+    VELOCITY = 2
 
 from .actuator_base import ActuatorBase
 from .actuator_cfg import (

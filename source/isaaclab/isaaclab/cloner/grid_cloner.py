@@ -129,7 +129,6 @@ class GridCloner(Cloner):
 
         return positions, orientations
 
-    @Timer(name="newton_clone", msg="Clone took:", enable=True, format="ms")
     def clone(
         self,
         source_prim_path: str,

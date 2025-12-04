@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
+import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.version import get_version
 
@@ -25,7 +26,6 @@ from .interactive_scene_cfg import InteractiveSceneCfg
 
 # import logger
 logger = logging.getLogger(__name__)
-
 
 class InteractiveScene:
     """A scene that contains entities added to the simulation.
@@ -405,19 +405,20 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
         """
+        # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(ids = env_ids, mask = mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(env_ids = env_ids, env_mask = mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

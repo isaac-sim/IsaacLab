@@ -123,6 +123,15 @@ class RecorderTerm(ManagerTermBase):
         """
         return None, None
 
+    def record_post_physics_decimation_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data after the physics step is executed in the decimation loop.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            Please refer to the `record_pre_reset` function for more details.
+        """
+        return None, None
+
 
 class RecorderManager(ManagerBase):
     """Manager for recording data from recorder terms."""
@@ -362,6 +371,16 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
 
+    def record_post_physics_decimation_step(self) -> None:
+        """Trigger recorder terms for post-physics step functions in the decimation loop."""
+        # Do nothing if no active recorder terms are provided
+        if len(self.active_terms) == 0:
+            return
+
+        for term in self._terms.values():
+            key, value = term.record_post_physics_decimation_step()
+            self.add_to_episodes(key, value)
+
     def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
         """Trigger recorder terms for pre-reset functions.
 
@@ -406,12 +425,33 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_reset(env_ids)
             self.add_to_episodes(key, value, env_ids)
 
-    def export_episodes(self, env_ids: Sequence[int] | None = None) -> None:
+    def get_ep_meta(self) -> dict:
+        """Get the episode metadata."""
+        if not hasattr(self._env.cfg, "get_ep_meta"):
+            # Add basic episode metadata
+            ep_meta = dict()
+            ep_meta["sim_args"] = {
+                "dt": self._env.cfg.sim.dt,
+                "decimation": self._env.cfg.decimation,
+                "render_interval": self._env.cfg.sim.render_interval,
+                "num_envs": self._env.cfg.scene.num_envs,
+            }
+            return ep_meta
+
+        # Add custom episode metadata if available
+        ep_meta = self._env.cfg.get_ep_meta()
+        return ep_meta
+
+    def export_episodes(self, env_ids: Sequence[int] | None = None, demo_ids: Sequence[int] | None = None) -> None:
         """Concludes and exports the episodes for the given environment ids.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            demo_ids: Custom identifiers for the exported episodes.
+                If provided, episodes will be named "demo_{demo_id}" in the dataset.
+                Should have the same length as env_ids if both are provided.
+                If None, uses the default sequential naming scheme. Defaults to None.
         """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
@@ -422,10 +462,31 @@ class RecorderManager(ManagerBase):
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 
+        # Handle demo_ids processing
+        if demo_ids is not None:
+            if isinstance(demo_ids, torch.Tensor):
+                demo_ids = demo_ids.tolist()
+            if len(demo_ids) != len(env_ids):
+                raise ValueError(f"Length of demo_ids ({len(demo_ids)}) must match length of env_ids ({len(env_ids)})")
+            # Check for duplicate demo_ids
+            if len(set(demo_ids)) != len(demo_ids):
+                duplicates = [x for i, x in enumerate(demo_ids) if demo_ids.index(x) != i]
+                raise ValueError(f"demo_ids must be unique. Found duplicates: {list(set(duplicates))}")
+
         # Export episode data through dataset exporter
         need_to_flush = False
-        for env_id in env_ids:
+
+        if any(env_id in self._episodes and not self._episodes[env_id].is_empty() for env_id in env_ids):
+            ep_meta = self.get_ep_meta()
+            if self._dataset_file_handler is not None:
+                self._dataset_file_handler.add_env_args(ep_meta)
+            if self._failed_episode_dataset_file_handler is not None:
+                self._failed_episode_dataset_file_handler.add_env_args(ep_meta)
+
+        for i, env_id in enumerate(env_ids):
             if env_id in self._episodes and not self._episodes[env_id].is_empty():
+                self._episodes[env_id].pre_export()
+
                 episode_succeeded = self._episodes[env_id].success
                 target_dataset_file_handler = None
                 if (self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_ALL) or (
@@ -438,7 +499,9 @@ class RecorderManager(ManagerBase):
                     else:
                         target_dataset_file_handler = self._failed_episode_dataset_file_handler
                 if target_dataset_file_handler is not None:
-                    target_dataset_file_handler.write_episode(self._episodes[env_id])
+                    # Use corresponding demo_id if provided, otherwise None
+                    current_demo_id = demo_ids[i] if demo_ids is not None else None
+                    target_dataset_file_handler.write_episode(self._episodes[env_id], current_demo_id)
                     need_to_flush = True
                 # Update episode count
                 if episode_succeeded:

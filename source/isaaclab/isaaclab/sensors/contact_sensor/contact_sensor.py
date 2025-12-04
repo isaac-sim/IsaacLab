@@ -122,9 +122,9 @@ class ContactSensor(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids)
+        super().reset(env_ids, env_mask)
         # resolve None
         if env_ids is None:
             env_ids = slice(None)
@@ -153,7 +153,9 @@ class ContactSensor(SensorBase):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        indices, names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        mask = wp.array([name in names for name in self.body_names], dtype=wp.bool, device=self._device)
+        return mask, names, indices
 
     def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.

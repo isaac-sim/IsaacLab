@@ -13,7 +13,7 @@ Reference: https://github.com/ros-industrial/universal_robot
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -38,7 +38,7 @@ UR10_CFG = ArticulationCfg(
     ),
     actuators={
         "arm": ImplicitActuatorCfg(
-            control_mode="position",
+            control_mode=ControlMode.POSITION,
             joint_names_expr=[".*"],
             effort_limit_sim=87.0,
             stiffness=800.0,
