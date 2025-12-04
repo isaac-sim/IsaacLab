@@ -589,6 +589,13 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       Depending on how the Apple Vision Pro app was initialized, the hands of the operator might be very far up or far down compared to the hands of the G1 robot. If this is the case, you can click **Stop AR** in the AR tab in Isaac Lab, and move the AR Anchor prim. Adjust it down to bring the hands of the operator lower, and up to bring them higher. Click **Start AR** to resume teleoperation session. Make sure to match the hands of the robot before clicking **Play** in the Apple Vision Pro, otherwise there will be an undesired large force generated initially.
 
+   .. tip::
+
+      Tips to help speed up user learning curve:
+
+      #. The robot base is not fixed to the world. Avoid applying excessive force against the table or other objects, as this will generate a reactive force that can cause the robot to fall over and become unable to recover.
+      #. The robot's three-fingered hand has a thumb centered in the palm, making the human-to-robot hand mapping feel unnatural. Take time during your first teleoperation session to familiarize yourself with how the robot's thumb moves in response to your thumb movements.
+
    You can replay the collected demonstrations by running:
 
    .. code:: bash
