@@ -98,3 +98,12 @@ quiet-level = 0
 ignore-words-list = "haa,slq,collapsable,buss,reacher"
 # todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
 exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"
+
+
+[tool.ruff.lint]
+select = ["TID251"]  # Enables the banned-api rule
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"isaacsim.core.utils".msg = "Do not import from isaacsim.core.utils; use internal framework utilities instead."
+"isaacsim.core.utils.prims".msg = "Do not import from isaacsim.core.utils.prims; use isaaclab.sim.utils.prims instead."
+"isaacsim.core.utils.stage".msg = "Do not import from isaacsim.core.utils.stage; use isaaclab.sim.utils.stage instead."
