@@ -62,8 +62,7 @@ INSTALL_REQUIRES = [
 if platform.system() == "Linux":
     INSTALL_REQUIRES += [
         "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        # kelly: 0.5.0 is required for numpy >= 2, if we need to revert back to numpy < 2, we can go back to dex-retargeting==0.4.6
-        "dex-retargeting==0.5.0",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
 # Installation operation
