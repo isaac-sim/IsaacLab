@@ -274,6 +274,9 @@ class Camera(SensorBase):
                 param_name = to_camel_case(param_name, to="CC")
                 # get attribute from the class
                 param_attr = getattr(sensor_prim, f"Get{param_name}Attr")
+                # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
+                if isinstance(param_value, np.floating):
+                    param_value = float(param_value)
                 # set value
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest

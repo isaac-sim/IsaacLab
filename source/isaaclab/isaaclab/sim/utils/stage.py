@@ -161,24 +161,27 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         >>> # operate on the default stage attached to the USD context
     """
     isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        # check stage
-        assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
-        # store previous context value if it exists
-        previous_stage = getattr(_context, "stage", None)
-        # set new context value
-        try:
-            _context.stage = stage
-            yield
-        # remove context value or restore previous one if it exists
-        finally:
-            if previous_stage is None:
-                delattr(_context, "stage")
-            else:
-                _context.stage = previous_stage
+
+    # check stage
+    assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
+    # store previous context value if it exists
+    previous_stage = getattr(_context, "stage", None)
+    # set new context value
+    try:
+        _context.stage = stage
+        # Import both stage utils modules for Isaac Sim 6.0+
+        if isaac_sim_version >= 6:
+            # Set context in both modules to ensure all Isaac Sim subsystems see the correct stage
+            import isaacsim.core.experimental.utils.stage as experimental_stage_utils
+
+            with experimental_stage_utils.use_stage(stage):
+                yield
+    # remove context value or restore previous one if it exists
+    finally:
+        if previous_stage is None:
+            delattr(_context, "stage")
+        else:
+            _context.stage = previous_stage
 
 
 def get_current_stage(fabric: bool = False) -> Usd.Stage:

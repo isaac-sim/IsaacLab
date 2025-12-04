@@ -18,7 +18,7 @@ from isaacsim.core.prims import XFormPrim
 from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
-from isaaclab.utils.warp.kernels import reshape_tiled_image
+from isaaclab.utils.warp.kernels import reshape_tiled_image, reshape_tiled_image_motion_vectors
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -266,22 +266,33 @@ class TiledCamera(Camera):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
                 )
 
-            # For motion vectors, we only require the first two channels of the tiled buffer
+            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            wp.launch(
-                kernel=reshape_tiled_image,
-                dim=(self._view.count, self.cfg.height, self.cfg.width),
-                inputs=[
-                    tiled_data_buffer.flatten(),
-                    wp.from_torch(self._data.output[data_type]),  # zero-copy alias
-                    *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
-                    self._tiling_grid_shape()[0],  # num_tiles_x
-                ],
-                device=self.device,
-            )
+                wp.launch(
+                    kernel=reshape_tiled_image_motion_vectors,
+                    dim=(self._view.count, self.cfg.height, self.cfg.width),
+                    inputs=[
+                        tiled_data_buffer.flatten(),
+                        wp.from_torch(self._data.output[data_type]),  # zero-copy alias
+                        self.cfg.height,
+                        self.cfg.width,
+                        self._tiling_grid_shape()[0],  # num_tiles_x
+                    ],
+                    device=self.device,
+                )
+            else:
+                wp.launch(
+                    kernel=reshape_tiled_image,
+                    dim=(self._view.count, self.cfg.height, self.cfg.width),
+                    inputs=[
+                        tiled_data_buffer.flatten(),
+                        wp.from_torch(self._data.output[data_type]),  # zero-copy alias
+                        *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
+                        self._tiling_grid_shape()[0],  # num_tiles_x
+                    ],
+                    device=self.device,
+                )
 
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:

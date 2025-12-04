@@ -38,7 +38,7 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     # livestream
-    "starlette==0.45.3",
+    "starlette==0.49.1",
     # testing
     "pytest",
     "pytest-mock",
