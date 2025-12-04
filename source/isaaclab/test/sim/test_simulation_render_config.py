@@ -109,7 +109,7 @@ def test_render_cfg_presets():
         # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
         isaac_sim_version = float(".".join(get_version()[2]))
         if isaac_sim_version < 5:
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
         # grab preset settings
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")

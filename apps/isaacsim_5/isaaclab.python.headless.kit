@@ -15,7 +15,7 @@ keywords = ["experience", "app", "isaaclab", "python", "headless"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.5.0"
+app.version = "5.1.0"
 
 ##################################
 # Omniverse related dependencies #
@@ -28,6 +28,10 @@ app.version = "4.5.0"
 "usdrt.scenegraph" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.loop" = {}
+# this is needed to create physics material through CreatePreviewSurfaceMaterialPrim
+"omni.kit.usd.mdl" = {}
+# this is used for converting assets that have the wrong units
+"omni.usd.metrics.assembler.ui" = {}
 
 [settings]
 app.content.emptyStageOnStart = false
@@ -69,6 +73,12 @@ app.hydraEngine.waitIdle = false
 # app.hydra.aperture.conform = 4 # in 105.1 pixels are square by default
 omni.replicator.asyncRendering = false
 
+### FSD
+# this .kit file is used for headless, no-rendering cases. There won't be a scene delegate
+# created, but setting useFSD to false here is done to not do full fabric population, but
+# instead to minimal population
+app.useFabricSceneDelegate = false
+
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
@@ -81,6 +91,9 @@ app.vulkan = true
 # Set profiler backend to NVTX by default
 app.profilerBackend = "nvtx"
 
+# Disables rate limit in runloop
+app.runLoops.main.rateLimitEnabled=false
+
 # hide NonToggleable Exts
 exts."omni.kit.window.extensions".hideNonToggleableExts = true
 exts."omni.kit.window.extensions".showFeatureOnly = false
@@ -88,11 +101,14 @@ exts."omni.kit.window.extensions".showFeatureOnly = false
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
+
 # Extensions
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
@@ -148,6 +164,8 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Performance improvement
 resourcemonitor.timeBetweenQueries = 100
@@ -166,6 +184,7 @@ folders = [
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
+    "${app}/../source", # needed to find extensions in Isaac Lab
     "${app}/../../source", # needed to find extensions in Isaac Lab
 ]
 
@@ -197,6 +216,6 @@ enabled=true # Enable this for DLSS
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
