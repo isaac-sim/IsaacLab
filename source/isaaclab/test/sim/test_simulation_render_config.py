@@ -25,6 +25,9 @@ from isaacsim.core.version import get_version
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.arm_ci]
+
 
 @pytest.mark.skip(reason="Timeline not stopped")
 @pytest.mark.isaacsim_ci

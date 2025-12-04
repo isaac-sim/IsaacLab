@@ -25,6 +25,9 @@ from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
+
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):

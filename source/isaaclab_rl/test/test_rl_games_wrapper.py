@@ -58,6 +58,8 @@ def registered_tasks():
     return registered_tasks
 
 
+@pytest.mark.windows_ci
+@pytest.mark.arm_ci
 def test_random_actions(registered_tasks):
     """Run random actions and check environments return valid signals."""
     # common parameters

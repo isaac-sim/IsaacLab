@@ -12,7 +12,6 @@ import re
 import yaml
 from datetime import datetime
 
-import carb
 from tensorboard.backend.event_processing import event_accumulator
 
 
@@ -135,6 +134,8 @@ def process_kpi_data(kpi_payloads, tag=""):
 
 def output_payloads(payloads):
     """Output the KPI payloads to a json file."""
+    import carb
+
     # first grab all log files
     repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
     output_path = os.path.join(repo_path, "logs/kpi.json")
@@ -148,6 +149,8 @@ def output_payloads(payloads):
 
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
+    import carb
+
     # first grab all log files
     repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
     from isaacsim.core.version import get_version

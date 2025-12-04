@@ -796,7 +796,12 @@ class AppLauncher:
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
                 value_for_dash_m = sys.argv[idx + 1]
-                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
+                if (
+                    "pytest" in value_for_dash_m
+                    or "isaacsim_ci" in value_for_dash_m
+                    or "windows_ci" in value_for_dash_m
+                    or "arm_ci" in value_for_dash_m
+                ):
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
             if arg == "-c" and "pytest.ini" in sys.argv[idx + 1]:

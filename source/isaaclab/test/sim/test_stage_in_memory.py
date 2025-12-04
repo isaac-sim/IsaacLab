@@ -26,6 +26,9 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.arm_ci]
+
 
 @pytest.fixture
 def sim():
