@@ -9,10 +9,10 @@ import re
 import usdrt
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.examples import create_collision_pipeline
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from newton.examples import create_collision_pipeline
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
@@ -127,7 +127,9 @@ class NewtonManager:
         NewtonManager.forward_kinematics()
         if NewtonManager._needs_collision_pipeline:
             NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
-            NewtonManager._contacts = NewtonManager._model.collide(NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline)
+            NewtonManager._contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
         else:
             NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
@@ -176,7 +178,9 @@ class NewtonManager:
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
             if isinstance(NewtonManager._solver, SolverMuJoCo):
-                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get("use_mujoco_contacts", False)
+                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
+                    "use_mujoco_contacts", False
+                )
             else:
                 NewtonManager._needs_collision_pipeline = True
 
@@ -205,7 +209,9 @@ class NewtonManager:
 
         # MJWarp computes its own collisions.
         if NewtonManager._needs_collision_pipeline:
-            contacts = NewtonManager._model.collide(NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline)
+            contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):
