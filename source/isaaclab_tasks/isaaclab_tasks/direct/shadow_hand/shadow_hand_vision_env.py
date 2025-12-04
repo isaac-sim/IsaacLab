@@ -44,7 +44,122 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
         width=120,
         height=120,
     )
-    feature_extractor = FeatureExtractorCfg()
+    feature_extractor = FeatureExtractorCfg(num_channel=7)
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionRGBEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg(num_channel=3)
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionDiffuseAlbedoEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["diffuse_albedo"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg(num_channel=3)
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionSimpleShadingEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["simple_shading"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg(num_channel=3)
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionDepthEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["depth"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg(num_channel=1)
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionSegmentationEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["semantic_segmentation"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg(num_channel=3)
 
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
