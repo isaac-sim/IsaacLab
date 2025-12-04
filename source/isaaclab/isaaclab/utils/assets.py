@@ -5,12 +5,8 @@
 
 """Sub-module that defines the host-server where assets and resources are stored.
 
-By default, we use the Isaac Sim Nucleus Server for hosting assets and resources. This makes
+By default, we use S3 or other cloud storage for hosting assets and resources. This makes
 distribution of the assets easier and makes the repository smaller in size code-wise.
-
-For more information, please check information on `Omniverse Nucleus`_.
-
-.. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
 import asyncio
@@ -20,15 +16,14 @@ import os
 import tempfile
 import time
 from typing import Literal
+from urllib.parse import urlparse
 
-import carb
-import omni.client
+from . import client
 
-# import logger
 logger = logging.getLogger(__name__)
 
-NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
-"""Path to the root directory on the Nucleus Server."""
+NUCLEUS_ASSET_ROOT_DIR = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+"""Path to the root directory on the cloud storage."""
 
 NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
@@ -40,8 +35,13 @@ ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
 
+def _is_usd_path(path: str) -> bool:
+    ext = os.path.splitext(urlparse(path).path)[1].lower()
+    return ext in client.USD_EXTENSIONS
+
+
 def check_file_path(path: str) -> Literal[0, 1, 2]:
-    """Checks if a file exists on the Nucleus Server or locally.
+    """Checks if a file exists on cloud storage or locally.
 
     Args:
         path: The path to the file.
@@ -51,74 +51,94 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 
         * :obj:`0` if the file does not exist
         * :obj:`1` if the file exists locally
-        * :obj:`2` if the file exists on the Nucleus Server
+        * :obj:`2` if the file exists on cloud storage (S3 or HTTP/HTTPS)
     """
     if os.path.isfile(path):
         return 1
-    # we need to convert backslash to forward slash on Windows for omni.client API
-    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+    # we need to convert backslash to forward slash on Windows for client API
+    elif client.stat(path.replace(os.sep, "/"))[0] == client.Result.OK:
         return 2
     else:
         return 0
 
 
-def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = True) -> str:
-    """Retrieves the path to a file on the Nucleus Server or locally.
+def retrieve_file_path(
+    path: str,
+    download_dir: str | None = None,
+    force_download: bool = True,
+) -> str:
+    """Resolve a path to a local file, downloading from Nucleus/HTTP/S3 if needed.
 
-    If the file exists locally, then the absolute path to the file is returned.
-    If the file exists on the Nucleus Server, then the file is downloaded to the local machine
-    and the absolute path to the file is returned.
+    Behavior:
+        * Local file returns its absolute path.
+        * Remote USD pulls the USD and all referenced assets into ``download_dir`` and returns the
+          absolute path to the local root USD.
+        * Other remote files are copied once into ``download_dir`` and that local path is returned.
 
     Args:
-        path: The path to the file.
-        download_dir: The directory where the file should be downloaded. Defaults to None, in which
-            case the file is downloaded to the system's temporary directory.
-        force_download: Whether to force download the file from the Nucleus Server. This will overwrite
-            the local file if it exists. Defaults to True.
-
-    Returns:
-        The path to the file on the local machine.
+        path: Local path or remote URL.
+        download_dir: Directory to place downloads. Defaults to ``tempfile.gettempdir()``.
+        force_download: If True, re-download even if the target already exists.
 
     Raises:
-        FileNotFoundError: When the file not found locally or on Nucleus Server.
-        RuntimeError: When the file cannot be copied from the Nucleus Server to the local machine. This
-            can happen when the file already exists locally and :attr:`force_download` is set to False.
+        FileNotFoundError: If the path is neither local nor reachable remotely.
+
+    Returns:
+        Absolute path to the resolved local file.
     """
-    # check file status
-    file_status = check_file_path(path)
-    if file_status == 1:
+    status = check_file_path(path)
+
+    # Local file
+    if status == 1:
         return os.path.abspath(path)
-    elif file_status == 2:
-        # resolve download directory
+
+    # Remote file
+    if status == 2:
         if download_dir is None:
             download_dir = tempfile.gettempdir()
-        else:
-            download_dir = os.path.abspath(download_dir)
-        # create download directory if it does not exist
-        if not os.path.exists(download_dir):
-            os.makedirs(download_dir)
-        # download file in temp directory using os
-        file_name = os.path.basename(omni.client.break_url(path.replace(os.sep, "/")).path)
+        download_dir = os.path.abspath(download_dir)
+        os.makedirs(download_dir, exist_ok=True)
+
+        url = path.replace(os.sep, "/")
+
+        # USD → USD + dependencies
+        if _is_usd_path(url):
+            mapping = client.download_usd_with_references_sync(
+                root_url=url,
+                download_root=download_dir,
+                force_overwrite=force_download,
+                progress_callback=lambda done, total, src: logger.debug(
+                    "  [%s] %d / %s bytes", src, done, "?" if total is None else str(total)
+                ),
+            )
+            local_root = mapping.get(client._normalize_url(url))
+            if local_root is None:
+                key = urlparse(url).path.lstrip("/")
+                local_root = os.path.join(download_dir, key)
+            return os.path.abspath(local_root)
+
+        # Non-USD → single file download
+        file_name = os.path.basename(client.break_url(url).path)
         target_path = os.path.join(download_dir, file_name)
-        # check if file already exists locally
+
         if not os.path.isfile(target_path) or force_download:
-            # copy file to local machine
-            result = omni.client.copy(path.replace(os.sep, "/"), target_path, omni.client.CopyBehavior.OVERWRITE)
-            if result != omni.client.Result.OK and force_download:
-                raise RuntimeError(f"Unable to copy file: '{path}'. Is the Nucleus Server running?")
+            result = client.copy(url, target_path, client.CopyBehavior.OVERWRITE)
+            if result != client.Result.OK and force_download:
+                raise RuntimeError(f"Unable to copy file: '{path}' from cloud storage.")
         return os.path.abspath(target_path)
-    else:
-        raise FileNotFoundError(f"Unable to find the file: {path}")
+
+    # Not found anywhere
+    raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
 def read_file(path: str) -> io.BytesIO:
-    """Reads a file from the Nucleus Server or locally.
+    """Reads a file from cloud storage or locally.
 
     Args:
         path: The path to the file.
 
     Raises:
-        FileNotFoundError: When the file not found locally or on Nucleus Server.
+        FileNotFoundError: When the file not found locally or on cloud storage.
 
     Returns:
         The content of the file.
@@ -129,7 +149,7 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
+        file_content = client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
@@ -200,8 +220,8 @@ async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
         Whether the given USD path is available on the server.
     """
     try:
-        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
-        return result == omni.client.Result.OK
+        result, _ = await asyncio.wait_for(client.stat_async(usd_path), timeout=timeout)
+        return result == client.Result.OK
     except asyncio.TimeoutError:
         logger.warning(f"Timed out after {timeout}s while checking for USD: {usd_path}")
         return False

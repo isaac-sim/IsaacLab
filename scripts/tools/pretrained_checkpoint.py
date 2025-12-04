@@ -91,9 +91,6 @@ import os
 import subprocess
 import sys
 
-import omni.client
-from omni.client._omniclient import CopyBehavior
-
 from isaaclab.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOW_PLAYER,
@@ -259,6 +256,8 @@ def publish_pretrained_checkpoint(workflow, task_name, force_publish=False):
         task_name: The task name.
         force_publish: Publish without review.
     """
+    import omni.client
+    from omni.client._omniclient import CopyBehavior
 
     # This workflow task pair hasn't been trained
     if not has_pretrained_checkpoint_job_run(workflow, task_name):

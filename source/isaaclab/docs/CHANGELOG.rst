@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.49.1 (2025-12-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Replaced omni.client with light weight implementation of isaaclab.utils.client.
+
+
+
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

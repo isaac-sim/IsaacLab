@@ -23,6 +23,9 @@ INSTALL_REQUIRES = [
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
+    # asset management
+    "boto3",
+    "botocore",
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
