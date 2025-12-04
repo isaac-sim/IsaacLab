@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import numpy as np
 import torch
+import warnings
 from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
@@ -16,23 +17,23 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-# This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
+# This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
-    from .g1_dex_retargeting_utils import UnitreeG1DexRetargeting
+    from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
 
 
-class UnitreeG1Retargeter(RetargeterBase):
-    """Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.
+class GR1T2Retargeter(RetargeterBase):
+    """Retargets hand tracking data to GR1T2 hand end-effector commands.
 
-    This retargeter maps hand tracking data from OpenXR to joint commands for the GR1T2 robot's hands.
-    It handles both left and right hands, converting poses of the hands in OpenXR format joint angles for the GR1T2 robot's hands.
+    This retargeter maps hand tracking data to joint commands for the GR1T2 robot's hands.
+    It handles both left and right hands, converting poses of the hands in the tracking format to joint angles for the GR1T2 robot's hands.
     """
 
     def __init__(
         self,
-        cfg: UnitreeG1RetargeterCfg,
+        cfg: GR1T2RetargeterCfg,
     ):
-        """Initialize the UnitreeG1 hand retargeter.
+        """Initialize the GR1T2 hand retargeter.
 
         Args:
             enable_visualization: If True, visualize tracked hand joints
@@ -40,10 +41,16 @@ class UnitreeG1Retargeter(RetargeterBase):
             device: PyTorch device for computations
             hand_joint_names: List of robot hand joint names
         """
+        warnings.warn(
+            "The 'GR1T2Retargeter' class is deprecated and will be removed in a future release. "
+            "Please use 'isaaclab.devices.retargeters.DexHandRetargeter' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         super().__init__(cfg)
         self._hand_joint_names = cfg.hand_joint_names
-        self._hands_controller = UnitreeG1DexRetargeting(self._hand_joint_names)
+        self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
@@ -104,12 +111,8 @@ class UnitreeG1Retargeter(RetargeterBase):
         retargeted_hand_joints = left_hand_joints + right_hand_joints
 
         # Convert numpy arrays to tensors and concatenate them
-        left_wrist_tensor = torch.tensor(
-            self._retarget_abs(left_wrist, True), dtype=torch.float32, device=self._sim_device
-        )
-        right_wrist_tensor = torch.tensor(
-            self._retarget_abs(right_wrist, False), dtype=torch.float32, device=self._sim_device
-        )
+        left_wrist_tensor = torch.tensor(left_wrist, dtype=torch.float32, device=self._sim_device)
+        right_wrist_tensor = torch.tensor(self._retarget_abs(right_wrist), dtype=torch.float32, device=self._sim_device)
         hand_joints_tensor = torch.tensor(retargeted_hand_joints, dtype=torch.float32, device=self._sim_device)
 
         # Combine all tensors into a single tensor
@@ -118,44 +121,52 @@ class UnitreeG1Retargeter(RetargeterBase):
     def get_requirements(self) -> list[RetargeterBase.Requirement]:
         return [RetargeterBase.Requirement.HAND_TRACKING]
 
-    def _retarget_abs(self, wrist: np.ndarray, is_left: bool) -> np.ndarray:
+    def _retarget_abs(self, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.
 
         Args:
-            wrist: Wrist pose data from OpenXR.
-            is_left: True for the left hand, False for the right hand.
+            wrist: Wrist pose data
 
         Returns:
-            Retargeted wrist pose in USD control frame.
+            Retargeted wrist pose in USD control frame
         """
-        # Note: This was determined through trial, use the target quat and cloudXR quat,
-        # to estimate a most reasonable transformation matrix
 
+        # Convert wrist data in openxr frame to usd control frame
+
+        # Create pose object for openxr_right_wrist_in_world
+        # Note: The pose utils require torch tensors
         wrist_pos = torch.tensor(wrist[:3], dtype=torch.float32)
         wrist_quat = torch.tensor(wrist[3:], dtype=torch.float32)
+        openxr_right_wrist_in_world = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
 
-        if is_left:
-            # Corresponds to a rotation of (0, 180, 0) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0.7071, 0, 0.7071, 0], dtype=torch.float32)
-        else:
-            # Corresponds to a rotation of (180, 0, 0) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0, 0.7071, 0, -0.7071], dtype=torch.float32)
+        # The usd control frame is 180 degrees rotated around z axis wrt to the openxr frame
+        # This was determined through trial and error
+        zero_pos = torch.zeros(3, dtype=torch.float32)
+        # 180 degree rotation around z axis
+        z_axis_rot_quat = torch.tensor([0, 0, 0, 1], dtype=torch.float32)
+        usd_right_roll_link_in_openxr_right_wrist = PoseUtils.make_pose(
+            zero_pos, PoseUtils.matrix_from_quat(z_axis_rot_quat)
+        )
 
-        openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
-        transform_pose = PoseUtils.make_pose(torch.zeros(3), PoseUtils.matrix_from_quat(combined_quat))
+        # Convert wrist pose in openxr frame to usd control frame
+        usd_right_roll_link_in_world = PoseUtils.pose_in_A_to_pose_in_B(
+            usd_right_roll_link_in_openxr_right_wrist, openxr_right_wrist_in_world
+        )
 
-        result_pose = PoseUtils.pose_in_A_to_pose_in_B(transform_pose, openxr_pose)
-        pos, rot_mat = PoseUtils.unmake_pose(result_pose)
-        quat = PoseUtils.quat_from_matrix(rot_mat)
+        # extract position and rotation
+        usd_right_roll_link_in_world_pos, usd_right_roll_link_in_world_mat = PoseUtils.unmake_pose(
+            usd_right_roll_link_in_world
+        )
+        usd_right_roll_link_in_world_quat = PoseUtils.quat_from_matrix(usd_right_roll_link_in_world_mat)
 
-        return np.concatenate([pos.numpy(), quat.numpy()])
+        return np.concatenate([usd_right_roll_link_in_world_pos, usd_right_roll_link_in_world_quat])
 
 
 @dataclass
-class UnitreeG1RetargeterCfg(RetargeterCfg):
-    """Configuration for the UnitreeG1 retargeter."""
+class GR1T2RetargeterCfg(RetargeterCfg):
+    """Configuration for the GR1T2 retargeter."""
 
     enable_visualization: bool = False
     num_open_xr_hand_joints: int = 100
     hand_joint_names: list[str] | None = None  # List of robot hand joint names
-    retargeter_type: type[RetargeterBase] = UnitreeG1Retargeter
+    retargeter_type: type[RetargeterBase] = GR1T2Retargeter

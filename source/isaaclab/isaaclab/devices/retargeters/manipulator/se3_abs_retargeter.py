@@ -16,7 +16,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 
 
 class Se3AbsRetargeter(RetargeterBase):
-    """Retargets OpenXR hand tracking data to end-effector commands using absolute positioning.
+    """Retargets hand tracking data to end-effector commands using absolute positioning.
 
     This retargeter maps hand joint poses directly to robot end-effector positions and orientations,
     rather than using relative movements. It can either:
@@ -43,15 +43,26 @@ class Se3AbsRetargeter(RetargeterBase):
             device: The device to place the returned tensor on ('cpu' or 'cuda')
         """
         super().__init__(cfg)
-        if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
+        if cfg.bound_hand not in [
+            DeviceBase.TrackingTarget.HAND_LEFT,
+            DeviceBase.TrackingTarget.HAND_RIGHT,
+            DeviceBase.TrackingTarget.CONTROLLER_LEFT,
+            DeviceBase.TrackingTarget.CONTROLLER_RIGHT,
+        ]:
             raise ValueError(
-                "bound_hand must be either DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT"
+                "bound_hand must be one of [HAND_LEFT, HAND_RIGHT, CONTROLLER_LEFT, CONTROLLER_RIGHT], got"
+                f" {cfg.bound_hand}"
             )
         self.bound_hand = cfg.bound_hand
 
         self._zero_out_xy_rotation = cfg.zero_out_xy_rotation
         self._use_wrist_rotation = cfg.use_wrist_rotation
         self._use_wrist_position = cfg.use_wrist_position
+
+        # Store offsets
+        self._target_offset_pos = np.array(cfg.target_offset_pos)
+        # Convert w,x,y,z (Isaac Lab) to x,y,z,w (scipy)
+        self._target_offset_rot = np.array([*cfg.target_offset_rot[1:], cfg.target_offset_rot[0]])
 
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
@@ -68,17 +79,32 @@ class Se3AbsRetargeter(RetargeterBase):
 
         Args:
             data: Dictionary mapping tracking targets to joint data dictionaries.
-                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
+                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES (if using OpenXR)
 
         Returns:
             torch.Tensor: 7D tensor containing position (xyz) and orientation (quaternion)
                 for the robot end-effector
         """
         # Extract key joint poses from the bound hand
-        hand_data = data[self.bound_hand]
-        thumb_tip = hand_data.get("thumb_tip")
-        index_tip = hand_data.get("index_tip")
-        wrist = hand_data.get("wrist")
+        hand_data = data.get(self.bound_hand)
+
+        if hand_data is None:
+            wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+            thumb_tip = None
+            index_tip = None
+        elif isinstance(hand_data, np.ndarray):
+            # Motion Controller Data: [Pose, Inputs]
+            if len(hand_data) > 0:
+                wrist = hand_data[0]
+            else:
+                wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+            thumb_tip = None
+            index_tip = None
+        else:
+            # Hand Tracking Data: Dict
+            thumb_tip = hand_data.get("thumb_tip")
+            index_tip = hand_data.get("index_tip")
+            wrist = hand_data.get("wrist")
 
         ee_command_np = self._retarget_abs(thumb_tip, index_tip, wrist)
 
@@ -88,16 +114,23 @@ class Se3AbsRetargeter(RetargeterBase):
         return ee_command
 
     def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        if self.bound_hand in [
+            DeviceBase.TrackingTarget.CONTROLLER_LEFT,
+            DeviceBase.TrackingTarget.CONTROLLER_RIGHT,
+        ]:
+            return [RetargeterBase.Requirement.MOTION_CONTROLLER]
         return [RetargeterBase.Requirement.HAND_TRACKING]
 
-    def _retarget_abs(self, thumb_tip: np.ndarray, index_tip: np.ndarray, wrist: np.ndarray) -> np.ndarray:
+    def _retarget_abs(
+        self, thumb_tip: np.ndarray | None, index_tip: np.ndarray | None, wrist: np.ndarray
+    ) -> np.ndarray:
         """Handle absolute pose retargeting.
 
         Args:
             thumb_tip: 7D array containing position (xyz) and orientation (quaternion)
-                for the thumb tip
+                for the thumb tip. Can be None.
             index_tip: 7D array containing position (xyz) and orientation (quaternion)
-                for the index tip
+                for the index tip. Can be None.
             wrist: 7D array containing position (xyz) and orientation (quaternion)
                 for the wrist
 
@@ -107,13 +140,13 @@ class Se3AbsRetargeter(RetargeterBase):
         """
 
         # Get position
-        if self._use_wrist_position:
+        if self._use_wrist_position or thumb_tip is None or index_tip is None:
             position = wrist[:3]
         else:
             position = (thumb_tip[:3] + index_tip[:3]) / 2
 
         # Get rotation
-        if self._use_wrist_rotation:
+        if self._use_wrist_rotation or thumb_tip is None or index_tip is None:
             # wrist is w,x,y,z but scipy expects x,y,z,w
             base_rot = Rotation.from_quat([*wrist[4:], wrist[3]])
         else:
@@ -126,8 +159,13 @@ class Se3AbsRetargeter(RetargeterBase):
             slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
             base_rot = slerp([0.5])[0]
 
-        # Apply additional x-axis rotation to align with pinch gesture
-        final_rot = base_rot * Rotation.from_euler("x", 90, degrees=True)
+        # Apply offset rotation
+        # (previously hardcoded as base_rot * Rotation.from_euler("x", 90, degrees=True))
+        offset_rot = Rotation.from_quat(self._target_offset_rot)
+        final_rot = base_rot * offset_rot
+
+        # Apply position offset in the wrist frame (rotated by base_rot)
+        position = position + base_rot.apply(self._target_offset_pos)
 
         if self._zero_out_xy_rotation:
             z, y, x = final_rot.as_euler("ZYX")
@@ -166,6 +204,12 @@ class Se3AbsRetargeterCfg(RetargeterCfg):
     zero_out_xy_rotation: bool = True
     use_wrist_rotation: bool = False
     use_wrist_position: bool = True
+
+    # Default offset corresponds to Rotation.from_euler("x", 90, degrees=True)
+    # quaternion (w, x, y, z) to maintain backward compatibility
+    target_offset_rot: tuple[float, float, float, float] = (0.7071068, 0.7071068, 0.0, 0.0)
+    target_offset_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
     enable_visualization: bool = False
     bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
     retargeter_type: type[RetargeterBase] = Se3AbsRetargeter
