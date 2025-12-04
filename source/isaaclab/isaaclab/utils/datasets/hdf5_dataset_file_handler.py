@@ -37,7 +37,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         self._hdf5_data_group = self._hdf5_file_stream["data"]
         self._demo_count = len(self._hdf5_data_group)
 
-    def create(self, file_path: str, env_name: str = None):
+    def create(self, file_path: str, env_name: str | None = None, env: None = None):
         """Create a new dataset file."""
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
