@@ -51,10 +51,15 @@ if not payload.exists():
     logger.info(f" Downloading omni.client payload from {payload_url} ...")
     urllib.request.urlretrieve(payload_url, payload)
 
-# Extract payload
+# Extract payload only if not already present
 extract_root.mkdir(parents=True, exist_ok=True)
-with py7zr.SevenZipFile(payload, mode="r") as z:
-    z.extractall(path=extract_root)
+already_extracted = (extract_root / "release" / "bindings-python" / "omni" / "client").exists()
+if not already_extracted:
+    logger.info(f" Extracting omni.client payload into {extract_root} ...")
+    with py7zr.SevenZipFile(payload, mode="r") as z:
+        z.extractall(path=extract_root)
+else:
+    logger.info(f" Reusing existing extraction at {extract_root}")
 
 # Locate python package and native libs
 src_py = extract_root / "release" / "bindings-python"
@@ -66,7 +71,11 @@ if not any(src_lib.glob("libomni*.so*")):
     raise RuntimeError(f"Could not locate native libs under {src_lib}")
 
 # Install into site-packages
-site_pkgs = pathlib.Path(site.getsitepackages()[0] if hasattr(site, "getsitepackages") else site.getusersitepackages())
+if hasattr(site, "getsitepackages"):
+    candidates = [pathlib.Path(p) for p in site.getsitepackages() if p.startswith(sys.prefix)]
+    site_pkgs = candidates[0] if candidates else pathlib.Path(site.getusersitepackages())
+else:
+    site_pkgs = pathlib.Path(site.getusersitepackages())
 dest = site_pkgs / "_omni_client"
 dest.mkdir(parents=True, exist_ok=True)
 shutil.copytree(src_py, dest, dirs_exist_ok=True)
