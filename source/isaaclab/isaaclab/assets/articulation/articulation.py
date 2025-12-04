@@ -1394,8 +1394,8 @@ class Articulation(AssetBase):
         ).clone()
 
         # Hack to ensure the limits are not too large.
-        self._root_newton_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(1e4)
-        self._root_newton_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(1e1)
+        self._root_newton_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(0.0)
+        self._root_newton_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(0.0)
 
         self._data.default_joint_damping = wp.to_torch(
             self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
