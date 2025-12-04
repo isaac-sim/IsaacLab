@@ -208,6 +208,10 @@ def _run_environments(task_name, device, num_envs, num_steps, create_stage_in_me
     if "A1" in task_name or "Go1" in task_name or "Go2" in task_name:
         return
 
+    # TODO: this causes crash in CI, but not locally
+    if "Isaac-Reach-UR10" in task_name:
+        return
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
