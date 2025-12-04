@@ -1465,7 +1465,7 @@ def sample_gaussian(
     if isinstance(mean, float):
         if isinstance(size, int):
             size = (size,)
-        return torch.normal(mean=mean, std=std, size=size).to(device=device)
+        return torch.linalg.normal(mean=mean, std=std, size=size).to(device=device)
     else:
         return torch.normal(mean=mean, std=std).to(device=device)
 

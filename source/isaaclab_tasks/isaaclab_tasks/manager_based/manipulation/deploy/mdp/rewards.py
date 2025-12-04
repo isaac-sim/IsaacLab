@@ -95,7 +95,7 @@ def compute_keypoint_distance(
             target_quat, target_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
         )[1]
     # Calculate L2 norm distance between corresponding keypoints
-    keypoint_dist_sep = torch.norm(keypoints_target - keypoints_current, p=2, dim=-1)
+    keypoint_dist_sep = torch.linalg.norm(keypoints_target - keypoints_current, p=2, dim=-1)
 
     return keypoint_dist_sep
 

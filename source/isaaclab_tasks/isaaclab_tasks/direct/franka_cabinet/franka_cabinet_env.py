@@ -413,7 +413,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         joint_positions,
     ):
         # distance from hand to the drawer
-        d = torch.norm(franka_grasp_pos - drawer_grasp_pos, p=2, dim=-1)
+        d = torch.linalg.norm(franka_grasp_pos - drawer_grasp_pos, p=2, dim=-1)
         dist_reward = 1.0 / (1.0 + d**2)
         dist_reward *= dist_reward
         dist_reward = torch.where(d <= 0.02, dist_reward * 2, dist_reward)
