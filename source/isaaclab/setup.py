@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy>=2",
+    "numpy<2",
     "torch>=2.7",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
