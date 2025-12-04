@@ -107,7 +107,7 @@ runs:
               cd /workspace/isaaclab
               mkdir -p tests
 
-              echo '=== Uninstalling existing newton and mjwarp ==='
+              echo '=== Uninstalling existing newton and mujoco-warp ==='
               /isaac-sim/python.sh -m pip uninstall -y newton mujoco-warp mujoco || echo 'Some packages may not have been installed'
 
               echo '=== Cloning latest Newton from main branch ==='
@@ -116,10 +116,10 @@ runs:
               echo '=== Installing Newton with dependencies from uv.lock ==='
               cd /tmp/newton
 
-              # Extract mjwarp and mujoco versions from uv.lock and install them
+              # Extract mujoco-warp and mujoco versions from uv.lock and install them
               # Parse the uv.lock file to get the package versions
               if [ -f uv.lock ]; then
-                echo 'Parsing uv.lock for mjwarp and mujoco versions...'
+                echo 'Parsing uv.lock for mujoco-warp and mujoco versions...'
 
                 # Set PIP_FIND_LINKS for mujoco packages
                 export PIP_FIND_LINKS=https://py.mujoco.org/
@@ -134,19 +134,19 @@ runs:
                   /isaac-sim/python.sh -m pip install mujoco
                 fi
 
-                # Extract mjwarp version from uv.lock
-                mjwarp_version=\$(grep -A5 'name = \"mjwarp\"' uv.lock | grep 'version = ' | head -1 | sed 's/.*version = \"\(.*\)\"/\1/')
-                if [ -n \"\$mjwarp_version\" ]; then
-                  echo \"Installing mjwarp==\$mjwarp_version\"
-                  /isaac-sim/python.sh -m pip install \"mjwarp==\$mjwarp_version\"
+                # Extract mujoco-warp version from uv.lock
+                mujoco-warp_version=\$(grep -A5 'name = \"mujoco-warp\"' uv.lock | grep 'version = ' | head -1 | sed 's/.*version = \"\(.*\)\"/\1/')
+                if [ -n \"\$mujoco-warp_version\" ]; then
+                  echo \"Installing mujoco-warp==\$mujoco-warp_version\"
+                  /isaac-sim/python.sh -m pip install \"mujoco-warp==\$mujoco-warp_version\"
                 else
-                  echo 'mjwarp version not found in uv.lock, installing latest'
-                  /isaac-sim/python.sh -m pip install mjwarp
+                  echo 'mujoco-warp version not found in uv.lock, installing latest'
+                  /isaac-sim/python.sh -m pip install mujoco-warp
                 fi
               else
                 echo 'uv.lock not found, installing latest versions'
                 export PIP_FIND_LINKS=https://py.mujoco.org/
-                /isaac-sim/python.sh -m pip install mujoco mjwarp
+                /isaac-sim/python.sh -m pip install mujoco mujoco-warp
               fi
 
               # Install Newton from the cloned repo
@@ -155,7 +155,7 @@ runs:
 
               echo '=== Verifying installations ==='
               /isaac-sim/python.sh -c \"import newton; print(f'Newton version: {newton.__version__}')\" || echo 'Newton import check'
-              /isaac-sim/python.sh -c \"import mjwarp; print('mjwarp imported successfully')\" || echo 'mjwarp not available'
+              /isaac-sim/python.sh -c \"import mujoco-warp; print('mujoco-warp imported successfully')\" || echo 'mujoco-warp not available'
               /isaac-sim/python.sh -c \"import mujoco; print(f'mujoco version: {mujoco.__version__}')\" || echo 'mujoco not available'
 
               cd /workspace/isaaclab
