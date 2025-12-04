@@ -1392,6 +1392,11 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = wp.to_torch(
             self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
         ).clone()
+
+        # Hack to ensure the limits are not too large.
+        self._root_newton_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(1e4)
+        self._root_newton_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(1e1)
+
         self._data.default_joint_damping = wp.to_torch(
             self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
         ).clone()
@@ -1424,10 +1429,6 @@ class Articulation(AssetBase):
             .reshape(self.num_instances, self.num_bodies, 9)
         )
 
-        # -- joint control mode
-        self._data.joint_control_mode = torch.zeros(
-            self.num_instances, self.num_joints, dtype=torch.int32, device=self.device
-        )
         # -- joint commands (sent to the actuator from the user)
         self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.joint_vel_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)

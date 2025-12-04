@@ -102,8 +102,8 @@ class ActuatorBase(ABC):
     viscous_friction: torch.Tensor
     """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
-    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
-    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
+    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e2
+    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e2.
 
     If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
     actuator, then this value is used.
