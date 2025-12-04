@@ -45,7 +45,7 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_pos_w)[:, 2].unsqueeze(-1)
+    return wp.to_torch(asset.data.root_pos_w)[:, 2].clone().unsqueeze(-1)
 
 
 @generic_io_descriptor(
@@ -55,7 +55,7 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_lin_vel_b)
+    return wp.to_torch(asset.data.root_lin_vel_b).clone()
 
 
 @generic_io_descriptor(
@@ -65,7 +65,7 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_ang_vel_b)
+    return wp.to_torch(asset.data.root_ang_vel_b).clone()
 
 
 @generic_io_descriptor(
@@ -75,7 +75,7 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.projected_gravity_b)
+    return wp.to_torch(asset.data.projected_gravity_b).clone()
 
 
 @generic_io_descriptor(
@@ -103,7 +103,7 @@ def root_quat_w(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    quat = wp.to_torch(asset.data.root_quat_w)
+    quat = wp.to_torch(asset.data.root_quat_w).clone()
     # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
@@ -115,7 +115,7 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_lin_vel_w
+    return wp.to_torch(asset.data.root_lin_vel_w).clone()
 
 
 @generic_io_descriptor(
@@ -125,7 +125,7 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_ang_vel_w
+    return wp.to_torch(asset.data.root_ang_vel_w).clone()
 
 
 """
@@ -154,7 +154,7 @@ def body_pose_w(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # access the body poses in world frame
-    pose = wp.to_torch(asset.data.body_pose_w)[:, asset_cfg.body_ids, :7]
+    pose = wp.to_torch(asset.data.body_pose_w)[:, asset_cfg.body_ids, :7].clone()
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     pose[..., 3:7] = pose[..., 3:7]
     return pose.reshape(env.num_envs, -1)
@@ -183,7 +183,7 @@ def body_projected_gravity_b(
     #body_quat = convert_quat(wp.to_torch(asset.data.body_quat_w)[:, asset_cfg.body_ids], to="wxyz")
     #gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
     #return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
-    return asset.data.projected_gravity_b[:, asset_cfg.body_ids].view(env.num_envs, -1)
+    return wp.to_torch(asset.data.projected_gravity_b)[:, asset_cfg.body_ids].clone().view(env.num_envs, -1)
 
 
 """
