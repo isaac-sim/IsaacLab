@@ -23,6 +23,9 @@ class ContactSensorCfg(SensorBaseCfg):
     track_contact_points: bool = False
     """Whether to track the contact point locations. Defaults to False."""
 
+    track_friction_forces: bool = False
+    """Whether to track the friction forces at the contact points. Defaults to False."""
+
     max_contact_data_count_per_prim: int = 4
     """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.
 
