@@ -77,13 +77,6 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     If None, the MJCF model is not saved.
     """
 
-    contact_stiffness_time_const: float = 0.02
-    """Time constant for contact stiffness in MuJoCo's solver reference model.
-
-    Can be set to match the simulation timestep for tighter coupling.
-    If 0, the contact stiffness is not time-dependent.
-    """
-
     impratio: float = 1.0
     """Frictional-to-normal constraint impedance ratio."""
 
