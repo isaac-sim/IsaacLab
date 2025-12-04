@@ -196,6 +196,9 @@ class RslRlBaseRunnerCfg:
     ``{time-stamp}_{run_name}``.
     """
 
+    run_id: str | None = None
+    """The run ID (e.g. for Weights & Biases). This is the unique identifier for the run as set by the logger."""
+
     logger: Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
     """The logger to use. Default is tensorboard."""
 
