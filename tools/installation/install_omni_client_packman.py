@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """
 Install omni.client from a prebuilt 7z payload into the current Python environment.
 
@@ -11,6 +16,7 @@ Install omni.client from a prebuilt 7z payload into the current Python environme
 # TODO: Once pip has been shipped, remove this script and use pip install omniverseclient==<version> instead.
 """
 
+import logging
 import os
 import pathlib
 import shutil
@@ -19,7 +25,6 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
-import logging
 
 # Ensure py7zr is available
 try:
@@ -88,14 +93,12 @@ dist_name = "omni-client"
 dist_info = site_pkgs / f"{dist_name.replace('-', '_')}-{pkg_ver}.dist-info"
 dist_info.mkdir(parents=True, exist_ok=True)
 (dist_info / "INSTALLER").write_text("manual\n", encoding="utf-8")
-metadata = "\n".join(
-    [
-        f"Name: {dist_name}",
-        f"Version: {pkg_ver}",
-        "Summary: Offline omni.client bundle",
-        "",
-    ]
-)
+metadata = "\n".join([
+    f"Name: {dist_name}",
+    f"Version: {pkg_ver}",
+    "Summary: Offline omni.client bundle",
+    "",
+])
 (dist_info / "METADATA").write_text(metadata, encoding="utf-8")
 
 records = []
