@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import logging
 import torch
 from collections.abc import Sequence
 from typing import Any
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
-from isaaclab.scene.cloner import CLONE, filter_collisions, grid_transforms, newton_replicate, usd_replicate
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.prims import XFormPrim
-from isaaclab.sim.utils import get_current_stage_id
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -120,37 +120,62 @@ class InteractiveScene:
         self._physics_scene_path = None
         # prepare cloner for environment replication
         self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
+
+        self.cloner_cfg = cloner.TemplateCloneCfg(
+            clone_regex=self.env_regex_ns,
+            clone_in_fabric=self.cfg.clone_in_fabric,
+            device=self.device,
+        )
+
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        target_env_ids = torch.arange(self.cfg.num_envs).unsqueeze(0)
-        usd_replicate(self.stage, [f"{self.env_ns}/env_0"], [f"{self.env_ns}/env_{{}}"], target_env_ids)
-
-        self._default_env_origins, self.env_orientations = grid_transforms(
-            self.cfg.num_envs, self.cfg.env_spacing, up_axis="z", device="cuda"
+        self.stage.DefinePrim(self.cloner_cfg.template_root, "Xform")
+        self.env_fmt = self.env_regex_ns.replace(".*", "{}")
+        # allocate env indices
+        self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
+        self._default_env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
+        # copy empty prim of env_0 to env_1, env_2, ..., env_{num_envs-1} with correct location.
+        cloner.usd_replicate(
+            self.stage, [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, positions=self._default_env_origins
         )
 
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
-            # add entities from config
+            self._global_template_prim_paths = list()  # store paths that are in global collision filter from templates
             self._add_entities_from_cfg()
-            self.clone_environments(copy_from_source=False)
+            for prim_path in self._global_template_prim_paths:
+                filter_regex = prim_path.replace(self.cloner_cfg.template_root, self.env_regex_ns)
+                self._global_prim_paths.extend(sim_utils.find_matching_prim_paths(filter_regex))
 
-            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
+            self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
+            if self.cfg.filter_collisions:
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
-        """Creates clones of the environment from clone instructions."""
-        # clone environments on a global scope if environment is homogeneous
-        if self.cfg.replicate_physics:
-            newton_replicate(
-                stage=self.stage,
-                sources=CLONE["source"],
-                destinations=CLONE["destination"],
-                mapping=CLONE["mapping"],
-                positions=self._default_env_origins,
-                orientations=self.env_orientations[:, [1, 2, 3, 0]],  # w,x,y,z -> x,y,z,w
-            )
-        usd_replicate(self.stage, CLONE["source"], CLONE["destination"], CLONE["mapping"])
+        """Creates clones of the environment ``/World/envs/env_0``.
+
+        Args:
+            copy_from_source: (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.
+            If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
+            may increase). Defaults to False.
+        """
+        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
+        # this triggers per-object level cloning in the spawner.
+        # if self.cfg.replicate_physics:
+        #     prim = self.stage.GetPrimAtPath("/physicsScene")
+        #     prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+
+        if self._is_scene_setup_from_cfg():
+            self.cloner_cfg.clone_physics = not copy_from_source
+            cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
+        else:
+            mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
+            replicate_args = [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, mapping
+
+            if not copy_from_source:
+                # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
+                cloner.newton_replicate(self.stage, *replicate_args)
+            cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -178,8 +203,12 @@ class InteractiveScene:
             self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
-        filter_collisions(
-            self.stage, self.physics_scene_path, "/World/collisions", self.env_prim_paths, self._global_prim_paths
+        cloner.filter_collisions(
+            self.stage,
+            self.physics_scene_path,
+            "/World/collisions",
+            self.env_prim_paths,
+            global_paths=self._global_prim_paths,
         )
 
     def __str__(self) -> str:
@@ -187,7 +216,7 @@ class InteractiveScene:
         msg = f"<class {self.__class__.__name__}>\n"
         msg += f"\tNumber of environments: {self.cfg.num_envs}\n"
         msg += f"\tEnvironment spacing   : {self.cfg.env_spacing}\n"
-        msg += f"\tSource prim name      : {self.env_ns}/env_0\n"
+        msg += f"\tSource prim name      : {self.env_prim_paths[0]}\n"
         msg += f"\tGlobal prim paths     : {self._global_prim_paths}\n"
         msg += f"\tReplicate physics     : {self.cfg.replicate_physics}"
         return msg
@@ -521,8 +550,6 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):
         """Add scene entities from the config."""
-        # store paths that are in global collision filter
-        self._global_prim_paths = list()
         # parse the entire scene config and resolve regex
         for asset_name, asset_cfg in self.cfg.__dict__.items():
             # skip keywords
@@ -530,8 +557,19 @@ class InteractiveScene:
             if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
                 continue
             # resolve regex
+            require_clone = False
             if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                # In order to compose cloner behavior more flexibly, we ask each spawner to spawn prototypes in
+                # prepared /World/template path, once all template is ready, cloner can determine what rules to follow
+                # to combine, and distribute the templates to cloned environments.
+                asset_cfg.prim_path = asset_cfg.prim_path.replace(self.env_regex_ns, "{ENV_REGEX_NS}")
+                destinations_regex_ns = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                if self.env_regex_ns[:-2] in destinations_regex_ns:
+                    require_clone = True
+                    prototype_root = asset_cfg.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.template_root)
+                    asset_cfg.prim_path = f"{prototype_root}/{self.cloner_cfg.template_prototype_identifier}_.*"
+                else:
+                    asset_cfg.prim_path = destinations_regex_ns
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -580,4 +618,18 @@ class InteractiveScene:
             # store global collision paths
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
-                self._global_prim_paths += asset_paths
+                if require_clone:
+                    # we are going to clone this template path to actual cloned path, but we don't know which cloned
+                    # paths it will end up, so add to temp self._global_template_prim_paths until final path resolved
+                    self._global_template_prim_paths += asset_paths
+                else:
+                    # we are not going to clone this path so directly add to s_global_prim_paths
+                    self._global_prim_paths += asset_paths
+
+            if hasattr(asset_cfg, "prim_path") and require_clone:
+                # this allows on_prim_deletion is tied to the cloned path not template path
+                asset = self.__getitem__(asset_name)
+                if hasattr(asset, "cfg"):
+                    asset.cfg.prim_path = destinations_regex_ns
+                if isinstance(asset, XFormPrim):
+                    asset._regex_prim_paths = [destinations_regex_ns]

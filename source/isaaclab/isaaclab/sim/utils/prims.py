@@ -10,6 +10,7 @@ import inspect
 import logging
 import numpy as np
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -1448,6 +1449,9 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
+        # get stage handle
+        stage = get_current_stage()
+
         # cast prim_path to str type in case its an Sdf.Path
         prim_path = str(prim_path)
         # check prim path is global
@@ -1471,10 +1475,10 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # resolve prim paths for spawning
+        prim_spawn_path = prim_path.replace(".*", "0")
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -1482,7 +1486,7 @@ def clone(func: Callable) -> Callable:
                 imageable.MakeVisible()
             else:
                 imageable.MakeInvisible()
-        # set the semantic annotations using USD core API
+        # set the semantic annotations
         if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
             for semantic_type, semantic_value in cfg.semantic_tags:
                 # deal with spaces by replacing them with underscores
@@ -1508,21 +1512,19 @@ def clone(func: Callable) -> Callable:
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
 
-            _schemas.activate_contact_sensors(prim_paths[0])
+            _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
-        if len(prim_paths) > 1:
-            # NEW: decide the mapping once, outside the ChangeBlock
-            import torch
+        if len(source_prim_paths) > 1:
+            # lazy import to avoid circular import
+            from isaaclab.cloner import usd_replicate
 
-            from isaaclab.scene.cloner import CLONE
-
-            destination_template = f"{root_path.replace('.*', '')}{{}}/{prim_paths[0].split('/')[-1]}"
-            # for proto_prim_path in proto_prim_paths:
-            CLONE["source"].append(prim_paths[0])
-            CLONE["destination"].append(destination_template)
-
-            mapping = torch.ones((1, len(prim_paths)), dtype=torch.bool)
-            CLONE["mapping"] = torch.cat((CLONE["mapping"].reshape(-1, mapping.size(1)), mapping), dim=0)
+            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
+            usd_replicate(
+                stage=stage,
+                sources=[formattable_path.format(0)],
+                destinations=[formattable_path],
+                env_ids=torch.arange(len(source_prim_paths)),
+            )
         # return the source prim
         return prim
 
