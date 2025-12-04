@@ -914,18 +914,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :3]
-                self._root_link_lin_vel_b = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_link_lin_vel_b = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_link_lin_vel_b = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -958,18 +947,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )[:, 3:]
-                self._root_link_ang_vel_b = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_link_ang_vel_b = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_link_ang_vel_b = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1002,18 +980,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :3]
-                self._root_com_lin_vel_b = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_com_lin_vel_b = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_com_lin_vel_b = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1046,19 +1013,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )
-                to_float32_slice = to_float32_slice[:, 3:]
-                self._root_com_ang_vel_b = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_com_ang_vel_b = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_com_ang_vel_b = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1092,18 +1047,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_pos_w is None:
             if self._sim_bind_root_link_pose_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_root_link_pose_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 7),
-                    strides=(*self._sim_bind_root_link_pose_w.strides, 4),
-                )[:, :3]
-                self._root_link_pos_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_link_pos_w = wp.array(ptr=self._sim_bind_root_link_pose_w.ptr, dtype=wp.vec3f, shape=self._sim_bind_root_link_pose_w.shape, strides=self._sim_bind_root_link_pose_w.strides)
             else:
                 # Create a new buffer
                 self._root_link_pos_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1134,18 +1078,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_quat_w is None:
             if self._sim_bind_root_link_pose_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_root_link_pose_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 7),
-                    strides=(*self._sim_bind_root_link_pose_w.strides, 4),
-                )[:, 3:]
-                self._root_link_quat_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.quatf,
-                    shape=(self._root_view.count),
-                    strides=(4*4,),
-                )
+                self._root_link_quat_w = wp.array(ptr=self._sim_bind_root_link_pose_w.ptr + 3 * 4, dtype=wp.quatf, shape=self._sim_bind_root_link_pose_w.shape, strides=self._sim_bind_root_link_pose_w.strides)
             else:
                 # Create a new buffer
                 self._root_link_quat_w = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
@@ -1177,18 +1110,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :3]
-                self._root_link_lin_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_link_lin_vel_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_link_lin_vel_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1220,18 +1142,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*data.strides, 4),
-                )[:, 3:]
-                self._root_link_ang_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_link_ang_vel_w = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_link_ang_vel_w = wp.zeros((self._root_view.count), dtype=wp.vec3f, device=self.device)
@@ -1263,18 +1174,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_pos_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 7),
-                    strides=(*data.strides, 4),
-                )[:, :3]
-                self._root_com_pos_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_com_pos_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_com_pos_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1307,18 +1207,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_quat_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 7),
-                    strides=(*data.strides, 4),
-                )[:, 3:]
-                self._root_com_quat_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.quatf,
-                    shape=(self._root_view.count),
-                    strides=(4*4,),
-                )
+                self._root_com_quat_w = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.quatf, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._root_com_quat_w = wp.zeros((self._root_view.count,), dtype=wp.quatf, device=self.device)
@@ -1348,18 +1237,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_w is None:
             if self._sim_bind_root_com_vel_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_root_com_vel_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*self._sim_bind_root_com_vel_w.strides, 4),
-                )[:, :3]
-                self._root_com_lin_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_com_lin_vel_w = wp.array(ptr=self._sim_bind_root_com_vel_w.ptr, dtype=wp.vec3f, shape=self._sim_bind_root_com_vel_w.shape, strides=self._sim_bind_root_com_vel_w.strides)
             else:
                 # Create a new buffer
                 self._root_com_lin_vel_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1389,18 +1267,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_w is None:
             if self.root_com_vel_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_root_com_vel_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, 6),
-                    strides=(*self._sim_bind_root_com_vel_w.strides, 4),
-                )[:, 3:]
-                self._root_com_ang_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count),
-                    strides=(3*4,),
-                )
+                self._root_com_ang_vel_w = wp.array(ptr=self._sim_bind_root_com_vel_w.ptr + 3 * 4, dtype=wp.vec3f, shape=self._sim_bind_root_com_vel_w.shape, strides=self._sim_bind_root_com_vel_w.strides)
             else:
                 # Create a new buffer
                 self._root_com_ang_vel_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1429,18 +1296,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_pos_w is None:
             if self._sim_bind_body_link_pose_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_body_link_pose_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 7),
-                    strides=(*self._sim_bind_body_link_pose_w.strides, 4),
-                )[:, :, :3]
-                self._body_link_pos_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_link_pos_w = wp.array(ptr=self._sim_bind_body_link_pose_w.ptr, dtype=wp.vec3f, shape=self._sim_bind_body_link_pose_w.shape, strides=self._sim_bind_body_link_pose_w.strides)
             else:
                 # Create a new buffer
                 self._body_link_pos_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1470,18 +1326,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_quat_w is None:
             if self._sim_bind_body_link_pose_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_body_link_pose_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 7),
-                    strides=(*self._sim_bind_body_link_pose_w.strides, 4),
-                )[:, :, 3:]
-                self._body_link_quat_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.quatf,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 4 * 4, 4 * 4),
-                )
+                self._body_link_quat_w = wp.array(ptr=self._sim_bind_body_link_pose_w.ptr + 3 * 4, dtype=wp.quatf, shape=self._sim_bind_body_link_pose_w.shape, strides=self._sim_bind_body_link_pose_w.strides)
             else:
                 # Create a new buffer
                 self._body_link_quat_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
@@ -1512,18 +1357,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_lin_vel_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :, :3]
-                self._body_link_lin_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_link_lin_vel_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_link_lin_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1554,18 +1388,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_ang_vel_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :, 3:]
-                self._body_link_ang_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_link_ang_vel_w = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_link_ang_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1596,18 +1419,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pos_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 7),
-                    strides=(*data.strides, 4),
-                )[:, :, :3]
-                self._body_com_pos_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_com_pos_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_com_pos_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1639,18 +1451,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_quat_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 7),
-                    strides=(*data.strides, 4),
-                )[:, :, 3:]
-                self._body_com_quat_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.quatf,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 4 * 4, 4 * 4),
-                )
+                self._body_com_quat_w = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.quatf, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_com_quat_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
@@ -1679,18 +1480,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_lin_vel_w is None:
             if self._sim_bind_body_com_vel_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_body_com_vel_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*self._sim_bind_body_com_vel_w.strides, 4),
-                )[:, :, :3]
-                self._body_com_lin_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_com_lin_vel_w = wp.array(ptr=self._sim_bind_body_com_vel_w.ptr, dtype=wp.vec3f, shape=self._sim_bind_body_com_vel_w.shape, strides=self._sim_bind_body_com_vel_w.strides)
             else:
                 # Create a new buffer
                 self._body_com_lin_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1719,18 +1509,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_ang_vel_w is None:
             if self._sim_bind_body_com_vel_w.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=self._sim_bind_body_com_vel_w.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*self._sim_bind_body_com_vel_w.strides, 4),
-                )[:, :, 3:]
-                self._body_com_ang_vel_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_com_ang_vel_w = wp.array(ptr=self._sim_bind_body_com_vel_w.ptr + 3 * 4, dtype=wp.vec3f, shape=self._sim_bind_body_com_vel_w.shape, strides=self._sim_bind_body_com_vel_w.strides)
             else:
                 # Create a new buffer
                 self._body_com_ang_vel_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1761,18 +1540,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_lin_acc_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :, :3]
-                self._body_com_lin_acc_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_com_lin_acc_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_com_lin_acc_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
@@ -1803,18 +1571,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_ang_acc_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                to_float32_slice = wp.array(
-                    ptr=data.ptr,
-                    dtype=wp.float32,
-                    shape=(self._root_view.count, self._root_view.link_count, 6),
-                    strides=(*data.strides, 4),
-                )[:, :, 3:]
-                self._body_com_ang_acc_w = wp.array(
-                    ptr=to_float32_slice.ptr,
-                    dtype=wp.vec3f,
-                    shape=(self._root_view.count, self._root_view.link_count),
-                    strides=(self._root_view.link_count * 3 * 4, 3 * 4),
-                )
+                self._body_com_ang_acc_w = wp.array(ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides)
             else:
                 # Create a new buffer
                 self._body_com_ang_acc_w = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.vec3f, device=self.device)
