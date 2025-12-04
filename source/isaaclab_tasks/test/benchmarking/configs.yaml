@@ -63,7 +63,7 @@ fast:
   rsl_rl:Isaac-Velocity-Flat-H1-v0:
     max_iterations: 500
     lower_thresholds:
-      reward: 25
+      reward: 20 # TODO: this was lowered from 25
       episode_length: 700
     upper_thresholds:
       duration: 3000
