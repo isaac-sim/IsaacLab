@@ -55,8 +55,7 @@ INSTALL_REQUIRES = [
     "PyOpenGL-accelerate==3.1.10",
     # Note, this older version of rerun causes the view to flash dark & light
     # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
-    # kelly: seems like we can run with numpy >= 2 so far, if issues arise, we can revert back to 0.23
-    "rerun-sdk==0.27",
+    "rerun-sdk==0.23",
 ]
 
 # Additional dependencies that are only available on Linux platforms
