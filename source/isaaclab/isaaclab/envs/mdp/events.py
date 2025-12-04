@@ -524,7 +524,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     )
             # Randomize damping
             if damping_distribution_params is not None:
-                damping = self.asset.data.actuator_damping[env_ids].clone()
+                damping = wp.to_torch(self.asset.data.actuator_damping)[env_ids].clone()
                 damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
                 randomize(damping, damping_distribution_params)
                 actuator.damping[env_ids] = damping
@@ -815,7 +815,7 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = wp.to_torch(asset.data.root_vel_w)[env_ids]
+    vel_w = wp.to_torch(asset.data.root_vel_w)[env_ids].clone()
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
