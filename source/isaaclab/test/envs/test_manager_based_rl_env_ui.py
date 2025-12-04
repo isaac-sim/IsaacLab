@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import carb
 import omni.usd
+import pytest
 from isaacsim.core.utils.extensions import enable_extension
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
@@ -26,6 +27,9 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 enable_extension("isaacsim.gui.components")
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
 
 @configclass

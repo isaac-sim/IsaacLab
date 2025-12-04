@@ -150,8 +150,369 @@ jobs:
           exit 1
         fi
 
+  test-general-windows:
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Setup Isaac Sim and Isaac Lab Environment
+      shell: powershell
+      run: |
+        Write-Host "Setting up Isaac Sim and Isaac Lab environment for Windows..."
+
+        # Check if virtual environment exists, create if not
+        if (-not (Test-Path "env_isaaclab")) {
+          Write-Host "Creating Python 3.11 virtual environment..."
+
+          # Use the pre-installed Python 3.11 on the self-hosted runner
+          $python311Path = "C:\Python311\python.exe"
+
+          if (Test-Path $python311Path) {
+            Write-Host "Using Python 3.11 from: $python311Path"
+            & $python311Path -m venv env_isaaclab
+          } elseif (Get-Command py -ErrorAction SilentlyContinue) {
+            Write-Host "Using Python launcher (py -3.11) to create virtual environment..."
+            py -3.11 -m venv env_isaaclab
+          } else {
+            Write-Host "WARNING: Python 3.11 not found at expected location. Using default python..."
+            python -m venv env_isaaclab
+          }
+        } else {
+          Write-Host "Virtual environment already exists"
+        }
+
+        # Activate virtual environment
+        Write-Host "Activating virtual environment..."
+        & "env_isaaclab\Scripts\Activate.ps1"
+
+        # Upgrade pip
+        Write-Host "Upgrading pip..."
+        python -m pip install --upgrade pip
+
+        # Check if Isaac Sim is installed
+        Write-Host "Checking if Isaac Sim is already installed..."
+        $isaacsimCheck = python -c "try:`n    import isaacsim`n    print('installed')`nexcept:`n    print('not_installed')" 2>&1
+
+        if ($isaacsimCheck -match "installed") {
+          Write-Host "Isaac Sim already installed"
+        } else {
+          Write-Host "Installing Isaac Sim from NVIDIA PyPI..."
+          pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+        }
+
+        python -m pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+
+        # Install/update PyTorch with CUDA support
+        Write-Host "Installing PyTorch with CUDA 12.8..."
+        python -m pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+        # Accept Isaac Sim pip EULA
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
+
+        # Install Isaac Lab dependencies
+        Write-Host "Installing Isaac Lab..."
+        & ".\isaaclab.bat" -i
+
+        # Verify pytest is available
+        Write-Host "Verifying pytest installation..."
+        python -m pip show pytest
+
+    - name: Run General Tests on Windows
+      id: run-general-tests-windows
+      shell: powershell
+      continue-on-error: true
+      run: |
+        Write-Host "Running general tests on Windows..."
+
+        # Activate virtual environment
+        & "env_isaaclab\Scripts\Activate.ps1"
+
+        # Create reports directory
+        New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+        # Get Isaac Sim installation path from pip (without importing isaacsim which would bootstrap Kit)
+        Write-Host "=== Detecting Isaac Sim Installation Path ==="
+
+        # Get the isaacsim-kernel package location which contains the actual Isaac Sim files
+        $pipShowOutput = python -m pip show isaacsim-kernel 2>&1 | Out-String
+        Write-Host "pip show isaacsim-kernel output:"
+        Write-Host $pipShowOutput
+
+        $locationLine = $pipShowOutput -split "`n" | Where-Object { $_ -match "^Location:" }
+
+        if (-not $locationLine) {
+          Write-Host "ERROR: Failed to detect Isaac Sim installation path from pip"
+          Write-Host "Trying alternate method..."
+
+          # Try getting it from isaacsim package
+          $pipShowOutput = python -m pip show isaacsim 2>&1 | Out-String
+          Write-Host "pip show isaacsim output:"
+          Write-Host $pipShowOutput
+          $locationLine = $pipShowOutput -split "`n" | Where-Object { $_ -match "^Location:" }
+        }
+
+        if (-not $locationLine) {
+          Write-Host "ERROR: Could not find Isaac Sim installation"
+          exit 1
+        }
+
+        # Extract the location path (format: "Location: C:\path\to\site-packages")
+        $sitePackagesPath = ($locationLine -split "Location: ", 2)[1].Trim()
+        Write-Host "Site-packages path: $sitePackagesPath"
+
+        # Look for Isaac Sim directory structure
+        # When installed via pip, Isaac Sim might be in site-packages/isaacsim-* or directly in a isaacsim folder
+        $possiblePaths = @(
+          (Get-ChildItem -Path $sitePackagesPath -Directory -Filter "isaacsim-*" -ErrorAction SilentlyContinue | Select-Object -First 1),
+          (Join-Path $sitePackagesPath "isaacsim"),
+          (Join-Path $sitePackagesPath "isaacsim_kernel")
+        )
+
+        $isaacsimPath = $null
+        foreach ($path in $possiblePaths) {
+          if ($path -and (Test-Path $path)) {
+            Write-Host "Checking path: $path"
+            # Check if this looks like the Isaac Sim root (has kit or apps directory)
+            if ((Test-Path (Join-Path $path "kit")) -or (Test-Path (Join-Path $path "apps"))) {
+              $isaacsimPath = if ($path -is [System.IO.FileSystemInfo]) { $path.FullName } else { $path }
+              Write-Host "Found Isaac Sim root at: $isaacsimPath"
+              break
+            }
+          }
+        }
+
+        if (-not $isaacsimPath) {
+          Write-Host "ERROR: Could not find Isaac Sim installation with kit/apps directories"
+          Write-Host "Searched locations:"
+          foreach ($path in $possiblePaths) {
+            if ($path) {
+              $pathStr = if ($path -is [System.IO.FileSystemInfo]) { $path.FullName } else { $path }
+              Write-Host "  - $pathStr (exists: $(Test-Path $pathStr))"
+            }
+          }
+          Write-Host "`nDirectory contents of site-packages:"
+          Get-ChildItem $sitePackagesPath -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+          exit 1
+        }
+
+        Write-Host "Isaac Sim installation at: $isaacsimPath"
+
+        # Verify critical directories exist
+        $expPath = Join-Path $isaacsimPath "apps"
+        $carbPath = Join-Path $isaacsimPath "kit"
+
+        if (-not (Test-Path $expPath)) {
+          Write-Host "WARNING: EXP_PATH directory not found: $expPath"
+        }
+        if (-not (Test-Path $carbPath)) {
+          Write-Host "WARNING: CARB_APP_PATH directory not found: $carbPath"
+        }
+
+        # Set required Isaac Sim environment variables (same as isaaclab.bat does)
+        $env:ISAAC_PATH = $isaacsimPath
+        $env:CARB_APP_PATH = $carbPath
+        $env:RESOURCE_NAME = "IsaacSim"
+
+        # IMPORTANT: EXP_PATH should point to IsaacLab's apps directory, not Isaac Sim's
+        # IsaacLab has its own .kit files in the workspace apps/ directory
+        $workspaceAppsPath = Join-Path $PWD "apps"
+        if (Test-Path $workspaceAppsPath) {
+          $env:EXP_PATH = $workspaceAppsPath
+          Write-Host "Using IsaacLab apps directory: $env:EXP_PATH"
+        } else {
+          # Fallback to Isaac Sim apps if IsaacLab apps not found
+          $env:EXP_PATH = $expPath
+          Write-Host "WARNING: IsaacLab apps directory not found, using Isaac Sim apps: $env:EXP_PATH"
+        }
+
+        Write-Host "Environment variables set:"
+        Write-Host "  ISAAC_PATH=$env:ISAAC_PATH"
+        Write-Host "  CARB_APP_PATH=$env:CARB_APP_PATH"
+        Write-Host "  EXP_PATH=$env:EXP_PATH"
+
+        # Set environment variables for headless mode
+        $env:OMNI_KIT_ACCEPT_EULA = "yes"
+        $env:ACCEPT_EULA = "Y"
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
+        $env:HEADLESS = "1"
+        $env:ISAAC_SIM_HEADLESS = "1"
+        $env:ISAAC_SIM_LOW_MEMORY = "1"
+        $env:PYTHONUNBUFFERED = "1"
+        $env:PYTHONIOENCODING = "utf-8"
+        $env:WINDOWS_PLATFORM = "true"
+
+        # Windows GPU/Rendering configuration for headless mode
+        $env:OMNI_KIT_RENDERER = "rtx"
+        $env:OMNI_KIT_ALLOW_ROOT = "1"
+
+        # Additional Windows-specific environment variables for headless Isaac Sim
+        # These help with DLL loading and GPU access on Windows
+        $env:OMNI_KIT_DISABLE_WATCHDOG = "1"
+        $env:OMNI_KIT_TELEMETRY = "0"
+        $env:OMNI_KIT_NO_WINDOW = "1"
+        $env:CARB_LOGGING_SEVERITY = "error"
+
+        # Windows-specific: Ensure the kit/plugins directory is in PATH for DLL discovery
+        $kitPluginsPath = Join-Path $env:CARB_APP_PATH "plugins"
+        if (Test-Path $kitPluginsPath) {
+          $env:PATH = "$kitPluginsPath;$env:PATH"
+          Write-Host "Added kit plugins to PATH: $kitPluginsPath"
+        }
+
+        # Add Isaac Sim bin directories to PATH for DLL discovery
+        $isaacBinPath = Join-Path $env:ISAAC_PATH "bin"
+        if (Test-Path $isaacBinPath) {
+          $env:PATH = "$isaacBinPath;$env:PATH"
+          Write-Host "Added Isaac Sim bin to PATH: $isaacBinPath"
+        }
+
+        Write-Host "=== Checking GPU Availability ==="
+        # Check if NVIDIA GPU is available
+        $gpuCheck = nvidia-smi 2>&1
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "NVIDIA GPU detected:"
+          Write-Host $gpuCheck
+        } else {
+          Write-Host "WARNING: No NVIDIA GPU detected or nvidia-smi not available"
+          Write-Host "Isaac Sim may fail to initialize without GPU"
+        }
+
+        Write-Host "=== Isaac Sim Installation Info ==="
+        python -m pip show isaacsim
+
+        Write-Host "`n=== Verifying Environment Configuration ==="
+
+        Write-Host "Environment variables:"
+        Write-Host "  ISAAC_PATH: $env:ISAAC_PATH"
+        Write-Host "  CARB_APP_PATH: $env:CARB_APP_PATH"
+        Write-Host "  EXP_PATH: $env:EXP_PATH"
+        Write-Host "  HEADLESS: $env:HEADLESS"
+
+        # Verify critical paths exist
+        Write-Host "`nPath verification:"
+        $pathsToCheck = @{
+          "ISAAC_PATH" = $env:ISAAC_PATH
+          "CARB_APP_PATH" = $env:CARB_APP_PATH
+          "EXP_PATH" = $env:EXP_PATH
+        }
+
+        foreach ($pathName in $pathsToCheck.Keys) {
+          $pathValue = $pathsToCheck[$pathName]
+          $exists = Test-Path $pathValue
+          Write-Host "  $pathName exists: $exists"
+          if (-not $exists) {
+            Write-Host "    ERROR: $pathValue not found!"
+          }
+        }
+
+        # Verify EXP_PATH exists and contains app files
+        if (Test-Path $env:EXP_PATH) {
+          Write-Host "`nContents of EXP_PATH ($env:EXP_PATH):"
+          $appFiles = Get-ChildItem $env:EXP_PATH -ErrorAction SilentlyContinue
+          if ($appFiles) {
+            $appFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
+          } else {
+            Write-Host "  WARNING: EXP_PATH directory is empty!"
+          }
+        } else {
+          Write-Host "ERROR: EXP_PATH does not exist: $env:EXP_PATH"
+        }
+
+        # Check for required .kit files
+        Write-Host "`nSearching for .kit files in EXP_PATH:"
+        $kitFiles = Get-ChildItem -Path $env:EXP_PATH -Filter "*.kit" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5
+        if ($kitFiles) {
+          $kitFiles | ForEach-Object { Write-Host "  Found: $($_.FullName)" }
+        } else {
+          Write-Host "  WARNING: No .kit files found! Isaac Sim may not initialize properly."
+        }
+
+        Write-Host "`n=== Environment configuration complete ==="
+        Write-Host "All environment variables:"
+        Get-ChildItem Env: | Where-Object { $_.Name -match "ISAAC|OMNI|CARB|HEADLESS|EXP_PATH" } | Format-Table -AutoSize
+
+        # Set environment variables for test filtering
+        $env:TEST_RESULT_FILE = "general-tests-windows-report.xml"
+        $env:TEST_EXCLUDE_PATTERN = "isaaclab_tasks"
+
+        Write-Host "`n=== Starting Test Execution ==="
+        Write-Host "Running pytest with conftest.py custom test runner..."
+
+        # Run tests using conftest.py which handles Windows-specific execution
+        & python -m pytest tools `
+          -v `
+          --tb=long `
+          -s
+
+        $testExitCode = $LASTEXITCODE
+        Write-Host "Tests completed with exit code: $testExitCode"
+
+        # Decode common Windows error codes
+        if ($testExitCode -eq 3221225477) {
+          Write-Host "ERROR: Exit code 0xC0000005 (STATUS_ACCESS_VIOLATION) - Isaac Sim crashed during initialization"
+          Write-Host "This typically indicates:"
+          Write-Host "  - GPU/Graphics driver issue"
+          Write-Host "  - Missing or incompatible DLLs"
+          Write-Host "  - Headless mode not properly configured"
+        } elseif ($testExitCode -eq -1073741819) {
+          Write-Host "ERROR: Exit code 0xC0000005 (alternative representation) - Access violation"
+        }
+
+        # Check if report was generated
+        $reportPath = "tests\$env:TEST_RESULT_FILE"
+        if (Test-Path $reportPath) {
+          Write-Host "Test report generated successfully at: $reportPath"
+          # Copy to reports directory
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+          Copy-Item $reportPath "reports\" -Force
+        } else {
+          Write-Host "Warning: Test report not found at $reportPath"
+          Write-Host "Creating reports directory and fallback report..."
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+          # Create a fallback report with more detailed error info
+          $errorMessage = "Tests crashed with exit code $testExitCode"
+          if ($testExitCode -eq 3221225477) {
+            $errorMessage = "Tests crashed with ACCESS_VIOLATION (0xC0000005). Isaac Sim failed to initialize on Windows. This may be due to GPU/driver issues or headless configuration problems."
+          }
+
+          $fallbackReport = "<?xml version=`"1.0`" encoding=`"utf-8`"?><testsuite name=`"windows-general-tests`" tests=`"0`" failures=`"0`" errors=`"1`" time=`"0`"><testcase classname=`"setup`" name=`"test_execution_failed`"><error message=`"Test execution failed`">$errorMessage</error></testcase></testsuite>"
+          Set-Content -Path "reports\general-tests-windows-report.xml" -Value $fallbackReport
+        }
+
+    - name: Upload Windows General Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-test-results-windows
+        path: reports/general-tests-windows-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      shell: powershell
+      run: |
+        if (Test-Path "reports/general-tests-windows-report.xml") {
+          # Read the XML and check for failures
+          $xmlContent = Get-Content "reports/general-tests-windows-report.xml" -Raw
+          if ($xmlContent -match 'failures="[1-9]' -or $xmlContent -match 'errors="[1-9]') {
+            Write-Host "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          }
+        } else {
+          Write-Host "No test results file found. This might indicate test execution failed."
+          exit 1
+        }
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-general, test-general-windows]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -178,6 +539,14 @@ jobs:
       with:
         name: general-test-results
         path: reports/
+      continue-on-error: true
+
+    - name: Download Windows General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: general-test-results-windows
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results

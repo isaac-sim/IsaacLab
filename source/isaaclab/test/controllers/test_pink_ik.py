@@ -8,6 +8,11 @@
 # pinocchio is required by the Pink IK controller
 import sys
 
+import pytest
+
+# Skip all tests in this module on Windows - MUST be before any other imports
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
+
 if sys.platform != "win32":
     import pinocchio  # noqa: F401
 
@@ -28,15 +33,18 @@ from pathlib import Path
 
 import omni.usd
 import pytest
-from pink.configuration import Configuration
-from pink.tasks import FrameTask
 
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+if sys.platform != "win32":
+    from pink.configuration import Configuration
+    from pink.tasks import FrameTask
+
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 
 def load_test_config(env_name):
