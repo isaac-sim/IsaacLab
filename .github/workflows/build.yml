@@ -151,8 +151,82 @@ jobs:
           exit 1
         fi
 
+  test-newton-latest:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run Tests with Latest Newton (IsaacLab Tasks)
+      uses: ./.github/actions/run-tests-newton-latest
+      with:
+        test-path: "tools"
+        result-file: "newton-latest-tasks-report.xml"
+        container-name: "isaac-lab-newton-latest-tasks-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+
+    - name: Run Tests with Latest Newton (General)
+      uses: ./.github/actions/run-tests-newton-latest
+      with:
+        test-path: "tools"
+        result-file: "newton-latest-general-report.xml"
+        container-name: "isaac-lab-newton-latest-general-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "not isaaclab_tasks"
+
+    - name: Upload Newton Latest Test Results (Tasks)
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: newton-latest-tasks-test-results
+        path: reports/newton-latest-tasks-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Upload Newton Latest Test Results (General)
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: newton-latest-general-test-results
+        path: reports/newton-latest-general-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        failed=0
+        for report in reports/newton-latest-*.xml; do
+          if [ -f "$report" ]; then
+            if grep -q 'failures="[1-9]' "$report" || grep -q 'errors="[1-9]' "$report"; then
+              echo "Tests failed in $report"
+              failed=1
+            fi
+          fi
+        done
+        if [ $failed -eq 1 ]; then
+          echo "Some Newton latest tests failed for PR from fork. Failing the job."
+          exit 1
+        fi
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-general, test-newton-latest]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -179,6 +253,21 @@ jobs:
       with:
         name: general-test-results
         path: reports/
+      continue-on-error: true
+
+    - name: Download Newton Latest Tasks Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: newton-latest-tasks-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download Newton Latest General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: newton-latest-general-test-results
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results
