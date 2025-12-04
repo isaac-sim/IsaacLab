@@ -313,7 +313,7 @@ def newton_replicate(
             builder.add_world(
                 protos[sources[row]],
                 xform=wp.transform(positions[col], quaternions[col]),
-                #world=int(env_id),
+                # world=int(env_id),
             )
 
     # per-source, per-world renaming (strict prefix swap), compact style preserved

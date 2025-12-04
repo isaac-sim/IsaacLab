@@ -12,7 +12,7 @@ import logging
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
@@ -232,8 +232,12 @@ class Articulation(AssetBase):
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
             # Sets the position or velocity target for the implicit actuators depending on the actuator type.
-            self._root_newton_view.set_attribute("joint_target_pos", NewtonManager.get_control(), self._joint_pos_target_sim)
-            self._root_newton_view.set_attribute("joint_target_vel", NewtonManager.get_control(), self._joint_vel_target_sim)
+            self._root_newton_view.set_attribute(
+                "joint_target_pos", NewtonManager.get_control(), self._joint_pos_target_sim
+            )
+            self._root_newton_view.set_attribute(
+                "joint_target_vel", NewtonManager.get_control(), self._joint_vel_target_sim
+            )
 
     def update(self, dt: float):
         self._data.update(dt)
