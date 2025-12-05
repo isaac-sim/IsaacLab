@@ -26,12 +26,25 @@ jobs:
 
     - name: Clean up disk space
       run: |
+        # Remove pre-installed tools
         rm -rf /opt/hostedtoolcache
         rm -rf /usr/share/dotnet
         rm -rf /opt/ghc
+        rm -rf /usr/local/lib/android
+        rm -rf /usr/share/swift
+        rm -rf /usr/local/share/boost
+        rm -rf /usr/local/.ghcup
+        sudo rm -rf /usr/local/lib/node_modules
+        sudo rm -rf /usr/local/share/chromium
+        sudo rm -rf /usr/local/share/powershell
+        # Clean apt cache
+        sudo apt-get clean
+        sudo rm -rf /var/lib/apt/lists/*
+        # Docker cleanup
         docker container prune -f
         docker image prune -af
-        docker volume prune -f || true
+        docker volume prune -f
+        docker system prune -af
 
 
     - name: Set up Python
@@ -51,14 +64,16 @@ jobs:
         chmod +x ./isaaclab.sh  # Make sure the script is executable
         # Install torch
         pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+        # clean up pip cache
+        pip cache purge
         # install all lab dependencies
         ./isaaclab.sh -i
 
     - name: Install pip-licenses
       run: |
-        pip install pip-licenses
-        pip install -r tools/template/requirements.txt
-        pip install -r docs/requirements.txt
+        pip install --no-cache-dir pip-licenses
+        pip install --no-cache-dir -r tools/template/requirements.txt
+        pip install --no-cache-dir -r docs/requirements.txt
 
     # Optional: Print the license report for visibility
     - name: Print License Report
@@ -67,6 +82,8 @@ jobs:
     # Print pipdeptree
     - name: Print pipdeptree
       run: |
+        # clean up pip cache
+        pip cache purge
         pip install pipdeptree
         pipdeptree
 
