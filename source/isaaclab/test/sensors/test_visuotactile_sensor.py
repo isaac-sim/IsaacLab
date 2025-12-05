@@ -306,6 +306,8 @@ def test_sensor_cam_set_wrong_prim(setup_tactile_cam):
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
+        robot.update(dt)
+        sensor.update(dt)
     assert "Could not find prim with path" in str(excinfo.value)
 
 
@@ -325,12 +327,14 @@ def test_sensor_cam_new_spawn(setup_tactile_cam):
         sim.step()
         sensor.update(dt)
         robot.update(dt)
-        ## test lazy sensor update
+        # test lazy sensor update
         data = sensor.data
+        assert data is not None
+        assert data.tactile_depth_image.shape == (1, 320, 240, 1)
+        assert data.tactile_rgb_image.shape == (1, 320, 240, 3)
+        assert data.tactile_points_pos_w is None
+
     assert sensor.is_initialized
-    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
-    assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
-    assert sensor.data.tactile_points_pos_w is None
 
 
 @pytest.mark.isaacsim_ci
@@ -401,6 +405,8 @@ def test_sensor_force_field_contact_object_not_found(setup_nut_rgb_ff):
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
+        robot.update(dt)
+        sensor.update(dt)
     assert "No contact object prim found matching pattern" in str(excinfo.value)
 
 
@@ -415,6 +421,9 @@ def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
     cube = RigidObject(cfg=cube_cfg)
     with pytest.raises(RuntimeError) as excinfo:
         sim.reset()
+        robot.update(dt)
+        sensor.update(dt)
+        cube.update(dt)
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
 
 
