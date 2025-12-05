@@ -20,7 +20,7 @@ import pytest
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 
 from isaaclab.assets import Articulation
-from isaaclab.cloner import grid_transforms, usd_replicate
+from isaaclab.cloner import grid_transforms, newton_replicate
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.utils.prims import create_prim
 from isaaclab.utils.timer import Timer
@@ -44,10 +44,17 @@ def test_robot_load_performance_physics_clone(test_config, device):
         create_prim(env_fmt.format(0))
         env_indices = torch.arange(num_articulations, dtype=torch.long, device=device)
         _default_env_origins, _ = grid_transforms(num_articulations, 1.5, device=device)
-        usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_indices, positions=_default_env_origins)
 
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
             robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_.*/Robot"))  # noqa: F841
+            newton_replicate(
+                sim.stage,
+                sources=[env_fmt.format(0)],
+                destinations=[env_fmt],
+                env_ids=env_indices,
+                mapping=torch.ones((1, num_articulations), dtype=torch.bool),
+                positions=_default_env_origins,
+            )
             sim.reset()
             elapsed_time = timer.time_elapsed
         assert elapsed_time <= test_config["expected_load_time"]
