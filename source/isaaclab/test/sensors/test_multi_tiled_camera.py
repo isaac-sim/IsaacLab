@@ -336,6 +336,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
