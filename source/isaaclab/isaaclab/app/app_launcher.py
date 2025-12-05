@@ -702,8 +702,8 @@ class AppLauncher:
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
-        if self.is_isaac_sim_version_4_5():
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+        if self.is_isaac_sim_version_5():
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
         if self._sim_experience_file == "":
             # check if the headless flag is set
@@ -758,10 +758,6 @@ class AppLauncher:
         if recording_enabled:
             if self._headless:
                 raise ValueError("Animation recording is not supported in headless mode.")
-            if self.is_isaac_sim_version_4_5():
-                raise RuntimeError(
-                    "Animation recording is not supported in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
-                )
             sys.argv += ["--enable", "omni.physx.pvd"]
 
     def _resolve_kit_args(self, launcher_args: dict):
@@ -929,15 +925,15 @@ class AppLauncher:
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
 
-    def is_isaac_sim_version_4_5(self) -> bool:
-        if not hasattr(self, "_is_sim_ver_4_5"):
+    def is_isaac_sim_version_5(self) -> bool:
+        if not hasattr(self, "_is_sim_ver_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
             version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
             if os.path.isfile(version_path):
                 with open(version_path) as f:
                     ver = f.readline().strip()
-                    if ver.startswith("4.5"):
-                        self._is_sim_ver_4_5 = True
+                    if ver.startswith("5"):
+                        self._is_sim_ver_5 = True
                         return True
 
             # 2) Fall back to metadata (for pip installs)
@@ -945,13 +941,13 @@ class AppLauncher:
 
             try:
                 ver = pkg_version("isaacsim")
-                if ver.startswith("4.5"):
-                    self._is_sim_ver_4_5 = True
+                if ver.startswith("5"):
+                    self._is_sim_ver_5 = True
                 else:
-                    self._is_sim_ver_4_5 = False
+                    self._is_sim_ver_5 = False
             except Exception:
-                self._is_sim_ver_4_5 = False
-        return self._is_sim_ver_4_5
+                self._is_sim_ver_5 = False
+        return self._is_sim_ver_5
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.
