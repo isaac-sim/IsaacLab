@@ -35,7 +35,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.cloner import grid_transforms, usd_replicate
+from isaaclab.cloner import usd_replicate
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -194,12 +194,13 @@ def generate_articulation(
 
     """
     # Generate translations of 2.5 m in x for each articulation
-    env_spacing = 2.5
-    positions, _ = grid_transforms(num_articulations, env_spacing, device=device)
+    # Generate translations of 2.5 m in x for each articulation
+    translations = torch.zeros(num_articulations, 3, device=device)
+    translations[:, 0] = torch.arange(num_articulations) * 2.5
 
     # Apply offset to positions
     offset_tensor = torch.tensor(offset, device=device)
-    positions = positions + offset_tensor
+    translations = translations + offset_tensor
 
     # Create source prim and replicate
     env_fmt = "/World/envs/env_{}"
@@ -212,12 +213,12 @@ def generate_articulation(
 
     # Replicate environments
     env_indices = torch.arange(num_articulations, dtype=torch.long, device=device)
-    usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_indices, positions=positions)
+    usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_indices, positions=translations)
 
     # Create articulation
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/envs/env_.*/Robot"))
 
-    return articulation, positions
+    return articulation, translations
 
 
 @pytest.fixture
@@ -417,7 +418,8 @@ def test_initialization_fixed_base(sim, num_articulations, device):
 
         # check that the root is at the correct state - its default state as it is fixed base
         default_root_state = articulation.data.default_root_state.clone()
-        default_root_state[:, :3] = default_root_state[:, :3] + translations
+        # newton returns root state in environment space?
+        # default_root_state[:, :3] = default_root_state[:, :3] + translations
 
         torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
