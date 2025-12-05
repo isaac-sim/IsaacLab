@@ -51,6 +51,7 @@ class Camera(SensorBase):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image. Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: The same as ``"distance_to_image_plane"``.
@@ -121,6 +122,15 @@ class Camera(SensorBase):
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+
+        # Set RTX flag to enable fast path if only depth or albedo is requested
+        supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+        if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+            carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+
+        # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+        if sim_utils.SimulationContext.instance().has_gui():
+            carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -481,8 +491,15 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "albedo":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+
                 # Map special cases to their corresponding annotator names
-                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane", "albedo": "DiffuseAlbedoSD"}
                 # Get the annotator name, falling back to the original name if not a special case
                 annotator_name = special_cases.get(name, name)
                 # Create the annotator node

@@ -157,6 +157,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -224,6 +225,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
                     "rgba",
+                    "albedo",
                     "semantic_segmentation",
                     "instance_segmentation_fast",
                     "instance_id_segmentation_fast",
@@ -246,6 +248,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         info = camera.data.info
         assert output["rgb"].dtype == torch.uint8
         assert output["rgba"].dtype == torch.uint8
+        assert output["albedo"].dtype == torch.uint8
         assert output["depth"].dtype == torch.float
         assert output["distance_to_camera"].dtype == torch.float
         assert output["distance_to_image_plane"].dtype == torch.float
