@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from isaacsim.core.prims import XFormPrim
@@ -23,6 +22,7 @@ from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -274,6 +274,9 @@ class Camera(SensorBase):
                 param_name = to_camel_case(param_name, to="CC")
                 # get attribute from the class
                 param_attr = getattr(sensor_prim, f"Get{param_name}Attr")
+                # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
+                if isinstance(param_value, np.floating):
+                    param_value = float(param_value)
                 # set value
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest

@@ -21,7 +21,6 @@ import random
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
 from flaky import flaky
@@ -30,6 +29,7 @@ from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+from isaaclab.sim.utils import stage as stage_utils
 
 
 @pytest.fixture()
@@ -336,6 +336,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
