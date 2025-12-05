@@ -984,9 +984,7 @@ def extract_mesh_collision_api_and_attrs(cfg):
     # We use the number of user set attributes outside of the API function
     # to determine which API to use in ambiguous cases, so collect them here
     custom_attrs = {
-        key: value
-        for key, value in cfg.to_dict().items()
-        if value is not None and key not in ["usd_api", "physx_api"]
+        key: value for key, value in cfg.to_dict().items() if value is not None and key not in ["usd_api", "physx_api"]
     }
 
     use_usd_api = False

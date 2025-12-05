@@ -6,8 +6,6 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from pxr import UsdPhysics
-
 from isaaclab.utils import configclass
 
 
