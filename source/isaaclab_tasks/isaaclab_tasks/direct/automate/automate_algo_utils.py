@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-import re
-import subprocess
 import sys
 import torch
 import trimesh
@@ -23,6 +21,7 @@ from isaaclab.utils.assets import retrieve_file_path
 """
 Util Functions
 """
+
 
 def get_gripper_open_width(obj_filepath):
 

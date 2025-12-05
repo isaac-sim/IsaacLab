@@ -277,7 +277,7 @@ We provide environments for both disassembly and assembly.
   .. code-block:: bash
 
       wget https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run
-      sudo sh cuda_13.0.2_580.95.05_linux.run --toolkit 
+      sudo sh cuda_13.0.2_580.95.05_linux.run --toolkit
       pip install numba-cuda[cu13] coverage==7.6.1
 
 
