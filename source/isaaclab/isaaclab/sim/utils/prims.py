@@ -10,6 +10,7 @@ import inspect
 import logging
 import numpy as np
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -17,8 +18,6 @@ import omni
 import omni.kit.commands
 import omni.usd
 import usdrt
-from isaacsim.core.cloner import Cloner
-from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -1481,10 +1480,10 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # resolve prim paths for spawning
+        prim_spawn_path = prim_path.replace(".*", "0")
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -1511,28 +1510,19 @@ def clone(func: Callable) -> Callable:
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
 
-            _schemas.activate_contact_sensors(prim_paths[0])
+            _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
-        if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+        if len(source_prim_paths) > 1:
+            # lazy import to avoid circular import
+            from isaaclab.cloner import usd_replicate
+
+            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
+            usd_replicate(
+                stage=stage,
+                sources=[formattable_path.format(0)],
+                destinations=[formattable_path],
+                env_ids=torch.arange(len(source_prim_paths)),
+            )
         # return the source prim
         return prim
 
