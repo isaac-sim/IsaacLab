@@ -35,7 +35,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.cloner.grid_cloner import GridCloner
+from isaaclab.cloner import grid_transforms, usd_replicate
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -194,20 +194,28 @@ def generate_articulation(
 
     """
     # Generate translations of 2.5 m in x for each articulation
-    cloner = GridCloner(spacing=2.5)
-    cloner.define_base_env("/World/envs")
+    env_spacing = 2.5
+    positions, _ = grid_transforms(num_articulations, env_spacing, device=device)
 
-    prim_utils.define_prim(prim_path="/World/envs/env_0", prim_type="Xform")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_articulations)
+    # Apply offset to positions
+    offset_tensor = torch.tensor(offset, device=device)
+    positions = positions + offset_tensor
+
+    # Create source prim and replicate
+    env_fmt = "/World/envs/env_{}"
+    prim_utils.define_prim(prim_path=env_fmt.format(0), prim_type="Xform")
+
+    # Get the simulation stage
+    import omni.usd
+
+    stage = omni.usd.get_context().get_stage()
+
+    # Replicate environments
+    env_indices = torch.arange(num_articulations, dtype=torch.long, device=device)
+    usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_indices, positions=positions)
+
+    # Create articulation
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/envs/env_.*/Robot"))
-    positions = cloner.clone(
-        source_prim_path="/World/envs/env_0",
-        prim_paths=envs_prim_paths,
-        replicate_physics=True,
-        spawn_offset=offset,
-    )
-
-    positions = torch.tensor(positions, device=device)
 
     return articulation, positions
 
