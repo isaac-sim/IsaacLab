@@ -123,14 +123,22 @@ class Camera(SensorBase):
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
 
-        # Set RTX flag to enable fast path if only depth or albedo is requested
-        supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
-        if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-            carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+        # This is only introduced in isaac sim 6.0
+        isaac_sim_version = get_version()
+        if int(isaac_sim_version[2]) >= 6:
+            # Set RTX flag to enable fast path if only depth or albedo is requested
+            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
 
-        # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-        if sim_utils.SimulationContext.instance().has_gui():
-            carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+            if sim_utils.SimulationContext.instance().has_gui():
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in self.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -158,7 +166,6 @@ class Camera(SensorBase):
         self._data = CameraData()
 
         # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        isaac_sim_version = get_version()
         # checks for Isaac Sim v4.5 as this issue exists there
         if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
