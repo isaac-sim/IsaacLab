@@ -54,7 +54,6 @@ INSTALL_REQUIRES = [
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     # Note, this older version of rerun causes the view to flash dark & light
-    # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
     "rerun-sdk==0.23",
 ]
 

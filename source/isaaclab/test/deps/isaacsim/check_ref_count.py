@@ -38,11 +38,6 @@ import gc
 import logging
 import torch  # noqa: F401
 
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
-
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 
@@ -50,6 +45,7 @@ from isaacsim.core.prims import Articulation
 logger = logging.getLogger(__name__)
 
 
+import isaaclab.sim.utils.nucleus as nucleus_utils
 import isaaclab.sim.utils.prims as prim_utils
 
 # check nucleus connection
