@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>=2",
     "torch>=2.7",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
@@ -54,14 +54,16 @@ INSTALL_REQUIRES = [
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     # Note, this older version of rerun causes the view to flash dark & light
-    "rerun-sdk==0.23",
+    # for numpy < 2, use 0.23
+    "rerun-sdk==0.27",
 ]
 
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":
     INSTALL_REQUIRES += [
         "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+        # for numpy < 2, use 0.4.6
+        "dex-retargeting==0.5.0",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
 # Installation operation
