@@ -73,6 +73,9 @@ class CameraCfg(SensorBaseCfg):
     height: int = MISSING
     """Height of the image in pixels."""
 
+    renderer_type: str = MISSING
+    """Type of the renderer to use for rendering the camera. Defaults to MISSING."""
+
     update_latest_camera_pose: bool = False
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
