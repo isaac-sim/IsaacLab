@@ -22,12 +22,11 @@ class ArticulationActions:
     If the actions are not provided, the values are set to None.
     """
 
-    joint_targets: torch.Tensor | None = None
-    """The joint targets of the articulation. Defaults to None.
+    joint_positions: torch.Tensor | None = None
+    """The joint positions of the articulation. Defaults to None."""
 
-    Depending on the control mode of the articulation, the joint targets can be either joint positions or joint\
-    velocities.
-    """
+    joint_velocities: torch.Tensor | None = None
+    """The joint velocities of the articulation. Defaults to None."""
 
     joint_efforts: torch.Tensor | None = None
     """The joint efforts of the articulation. Defaults to None."""

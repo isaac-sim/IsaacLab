@@ -79,10 +79,6 @@ class TerrainImporter:
         # private variables
         self._terrain_flat_patches = dict()
 
-        # TODO: remove this when all terrains are supported
-        if self.cfg.terrain_type != "plane":
-            raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
-
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
             # check config is provided
@@ -93,8 +89,11 @@ class TerrainImporter:
                 cfg=self.cfg.terrain_generator, device=self.device
             )
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
-            # configure the terrain origins based on the terrain generator
-            self.configure_env_origins(terrain_generator.terrain_origins)
+            if self.cfg.use_terrain_origins:
+                # configure the terrain origins based on the terrain generator
+                self.configure_env_origins(terrain_generator.terrain_origins)
+            else:
+                self.configure_env_origins()
             # refer to the flat patches
             self._terrain_flat_patches = terrain_generator.flat_patches
         elif self.cfg.terrain_type == "usd":

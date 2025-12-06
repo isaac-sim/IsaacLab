@@ -31,7 +31,6 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-    control_mode="position",
     saturation_effort=120.0,
     effort_limit=80.0,
     effort_limit_sim=80.0,

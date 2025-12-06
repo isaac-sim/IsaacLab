@@ -38,7 +38,6 @@ UR10_CFG = ArticulationCfg(
     ),
     actuators={
         "arm": ImplicitActuatorCfg(
-            control_mode="position",
             joint_names_expr=[".*"],
             effort_limit_sim=87.0,
             stiffness=800.0,

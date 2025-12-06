@@ -283,7 +283,7 @@ def newton_replicate(
     simplify_meshes: bool = True,
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
-    from newton import ModelBuilder
+    from newton import ModelBuilder, solvers
 
     from isaaclab.sim._impl.newton_manager import NewtonManager
 
@@ -295,13 +295,14 @@ def newton_replicate(
 
     # load empty stage
     builder = ModelBuilder(up_axis=up_axis)
-    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources, load_non_physics_prims=False)
+    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
     # build a prototype for each source
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
-        p.add_usd(stage, root_path=src_path, load_non_physics_prims=False)
+        solvers.SolverMuJoCo.register_custom_attributes(p)
+        p.add_usd(stage, root_path=src_path, load_visual_shapes=False)
         if simplify_meshes:
             p.approximate_meshes("convex_hull")
         protos[src_path] = p
@@ -309,10 +310,10 @@ def newton_replicate(
     # add by world, then by active sources in that world (column-wise)
     for col, env_id in enumerate(env_ids.tolist()):
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            builder.add_builder(
+            builder.add_world(
                 protos[sources[row]],
                 xform=wp.transform(positions[col], quaternions[col]),
-                world=int(env_id),
+                # world=int(env_id),
             )
 
     # per-source, per-world renaming (strict prefix swap), compact style preserved
