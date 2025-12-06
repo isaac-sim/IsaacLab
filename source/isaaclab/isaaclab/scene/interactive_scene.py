@@ -177,7 +177,7 @@ class InteractiveScene:
 
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
-                cloner.newton_replicate(self.stage, *replicate_args)
+                cloner.newton_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
             cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
