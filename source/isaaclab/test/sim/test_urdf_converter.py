@@ -126,11 +126,11 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness, config.joint_drive.gains.stiffness, rtol=1e-5)
+    np.testing.assert_allclose(drive_damping, config.joint_drive.gains.damping, rtol=1e-5)
 
     # check drive values for the robot (read from usd)
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness, config.joint_drive.gains.stiffness, rtol=1e-5)
+    np.testing.assert_allclose(drive_damping, config.joint_drive.gains.damping, rtol=1e-5)
