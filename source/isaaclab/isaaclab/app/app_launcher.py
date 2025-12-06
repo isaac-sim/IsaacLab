@@ -782,12 +782,13 @@ class AppLauncher:
         # Convert empty list to None for consistency
         self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
 
-        # Check if both headless and visualizer are specified
+        # --headless takes precedence over --visualizer: disable all visualizers in headless mode
         if self._headless and self._visualizer is not None:
             print(
-                f"[WARN][AppLauncher]: Both headless mode and visualizer(s) {self._visualizer} were specified."
-                " Headless mode is enabled, so no visualizers will be initialized."
+                f"[INFO][AppLauncher]: --headless flag takes precedence over --visualizer {self._visualizer}."
+                " No visualizers will be initialized."
             )
+            self._visualizer = None
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -1107,8 +1108,9 @@ class AppLauncher:
         # close the app (if running in Omniverse mode)
         if self._app is not None:
             self._app.close()
-        # exit gracefully without showing a traceback
-        sys.exit(0)
+        # exit immediately without raising SystemExit exception
+        # using os._exit() avoids tracebacks from other cleanup handlers (e.g., PyTorch compile workers)
+        os._exit(0)
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.
