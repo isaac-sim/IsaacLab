@@ -33,6 +33,7 @@ PER_TEST_TIMEOUTS = {
     "test_solver_convergence.py": 5000,  # This test checks environments for solver convergence
     "test_valid_configs.py": 500,
     "test_schemas.py": 500,
+    "test_mesh_converter.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

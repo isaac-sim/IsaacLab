@@ -3,10 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils import configclass
+
+
+@configclass
+class MeshCollisionPropertiesCfg:
+    """Properties to apply to a mesh in regards to collision.
+    See :meth:`set_mesh_collision_properties` for more information.
+
+    .. note::
+        If the values are MISSING, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    usd_api: str | None = None
+
+    physx_api: str | None = None
 
 
 @configclass
@@ -154,6 +168,8 @@ class CollisionPropertiesCfg:
 
     min_torsional_patch_radius: float | None = None
     """Minimum radius of the contact patch for applying torsional friction (in m)."""
+
+    mesh_collision_property: MeshCollisionPropertiesCfg | None = None
 
 
 @configclass
@@ -427,21 +443,6 @@ class DeformableBodyPropertiesCfg:
 
     max_depenetration_velocity: float | None = None
     """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
-
-
-@configclass
-class MeshCollisionPropertiesCfg:
-    """Properties to apply to a mesh in regards to collision.
-    See :meth:`set_mesh_collision_properties` for more information.
-
-    .. note::
-        If the values are MISSING, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
-    """
-
-    usd_api: str | None = MISSING
-
-    physx_api: str | None = MISSING
 
 
 @configclass
