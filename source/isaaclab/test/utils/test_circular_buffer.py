@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
-
 import pytest
 
 """Launch Isaac Sim Simulator first."""
@@ -15,6 +13,8 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows from here."""
+
+import torch
 
 from isaaclab.utils import CircularBuffer
 

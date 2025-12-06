@@ -19,9 +19,9 @@ n_epochs: 5
 gae_lambda: 0.95
 max_grad_norm: 1.0
 vf_coef: 0.5
-policy_kwargs: "dict(
-  activation_fn=nn.ELU,
-  net_arch=[400, 200, 100],
-  optimizer_kwargs=dict(eps=1e-8),
-  ortho_init=False,
-  )"
+policy_kwargs:
+  activation_fn: 'nn.ELU'
+  net_arch: [400, 200, 100]
+  optimizer_kwargs:
+    eps: !!float 1e-8
+  ortho_init: False
