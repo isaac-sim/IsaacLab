@@ -8,11 +8,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import omni.kit.commands
 from pxr import Sdf, Usd
 
 import isaaclab.sim.utils.prims as prim_utils
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+from isaaclab.sim.utils import clone
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -91,17 +90,13 @@ def spawn_camera(
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
-        # early attach stage to usd context if stage is in memory
-        # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-        attach_stage_to_usd_context(attaching_early=True)
-
-        omni.kit.commands.execute(
-            "ChangePropertyCommand",
-            prop_path=Sdf.Path(f"{prim_path}.omni:kit:cameraLock"),
-            value=True,
-            prev=None,
-            type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-        )
+        # Set camera lock attribute using USD core API
+        prim = prim_utils.get_prim_at_path(prim_path)
+        if prim.IsValid():
+            lock_attr = prim.GetAttribute("omni:kit:cameraLock")
+            if not lock_attr:
+                lock_attr = prim.CreateAttribute("omni:kit:cameraLock", Sdf.ValueTypeNames.Bool)
+            lock_attr.Set(True)
     # decide the custom attributes to add
     if cfg.projection_type == "pinhole":
         attribute_types = CUSTOM_PINHOLE_CAMERA_ATTRIBUTES

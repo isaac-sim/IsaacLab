@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import builtins
+import contextlib
 import inspect
 import re
 import torch
@@ -13,10 +14,6 @@ import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
-
-import omni.kit.app
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -101,7 +98,7 @@ class AssetBase(ABC):
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
         obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
         # register timeline PLAY event callback (lower priority with order=10)
@@ -112,17 +109,17 @@ class AssetBase(ABC):
         #    order=10,
         # )
 
-        # register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            order=10,
-        )
-        # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
-        )
+        # # register timeline STOP event callback (lower priority with order=10)
+        # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #     int(omni.timeline.TimelineEventType.STOP),
+        #     lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
+        #     order=10,
+        # )
+        # # register prim deletion callback
+        # self._prim_deletion_callback_id = SimulationManager.register_callback(
+        #     lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+        #     event=IsaacEvents.PRIM_DELETION,
+        # )
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -131,8 +128,10 @@ class AssetBase(ABC):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear events handles
-        self._clear_callbacks()
+        # Suppress errors during Python shutdown
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            # clear events handles
+            self._clear_callbacks()
 
     """
     Properties
@@ -226,10 +225,13 @@ class AssetBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                with contextlib.suppress(ImportError):
+                    import omni.kit.app
+
+                    app_interface = omni.kit.app.get_app_interface()
+                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
@@ -302,8 +304,9 @@ class AssetBase(ABC):
         """
         if not self._is_initialized:
             # obtain simulation related information
-            self._backend = SimulationManager.get_backend()
-            self._device = SimulationManager.get_physics_sim_device()
+            # self._backend = SimulationManager.get_backend()
+            # self._device = SimulationManager.get_physics_sim_device()
+            self._device = SimulationContext.instance().device
             # initialize the asset
             try:
                 self._initialize_impl()
@@ -343,13 +346,16 @@ class AssetBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
-        if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+        if getattr(self, "_prim_deletion_callback_id", None):
+            with contextlib.suppress(ImportError, NameError):
+                from isaacsim.core.simulation_manager import SimulationManager
+
+                SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._invalidate_initialize_handle:
+        if getattr(self, "_invalidate_initialize_handle", None):
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None
         # clear debug visualization
-        if self._debug_vis_handle:
+        if getattr(self, "_debug_vis_handle", None):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None

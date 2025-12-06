@@ -15,7 +15,6 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Literal
 
 import warp as wp
-from isaacsim.core.simulation_manager import SimulationManager
 from newton import JointMode, JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
 from newton.solvers import SolverMuJoCo
@@ -1326,8 +1325,6 @@ class Articulation(AssetBase):
     """
 
     def _initialize_impl(self):
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         if self.cfg.articulation_root_prim_path is not None:
             # The articulation root prim path is specified explicitly, so we can just use this.

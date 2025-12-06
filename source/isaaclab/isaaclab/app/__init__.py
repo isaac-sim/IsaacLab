@@ -9,7 +9,9 @@ These include:
 
 * Ability to launch the simulation app with different configurations
 * Run tests with the simulation app
+* Settings manager for storing configuration in both Omniverse and standalone modes
 
 """
 
 from .app_launcher import AppLauncher  # noqa: F401, F403
+from .settings_manager import SettingsManager, get_settings_manager, initialize_carb_settings  # noqa: F401, F403

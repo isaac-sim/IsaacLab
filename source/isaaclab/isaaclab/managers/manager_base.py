@@ -5,21 +5,22 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import logging
-import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
-
-import omni.timeline
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
+
+# import omni.timeline
+
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -157,19 +158,20 @@ class ManagerBase(ABC):
         # simulation, but before the simulation is playing.
         # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
         #   callback and resolve the scene entities directly inside `_prepare_terms`.
-        if not self._env.sim.is_playing():
-            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
-            # is called
-            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
-            # are resolved. Those have the order 10.
-            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-            self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.PLAY),
-                lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
-                order=20,
-            )
-        else:
-            self._resolve_terms_handle = None
+        # if not self._env.sim.is_playing():
+        #     # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
+        #     # is called
+        #     # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
+        #     # are resolved. Those have the order 10.
+        #     timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        #     self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #         int(omni.timeline.TimelineEventType.PLAY),
+        #         lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
+        #         order=20,
+        #     )
+        # else:
+        #     self._resolve_terms_handle = None
+        self._resolve_terms_handle = None
 
         # parse config to create terms information
         if self.cfg:
@@ -177,9 +179,11 @@ class ManagerBase(ABC):
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_terms_handle:
-            self._resolve_terms_handle.unsubscribe()
-            self._resolve_terms_handle = None
+        # Suppress errors during Python shutdown
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            if getattr(self, "_resolve_terms_handle", None):
+                self._resolve_terms_handle.unsubscribe()
+                self._resolve_terms_handle = None
 
     """
     Properties.

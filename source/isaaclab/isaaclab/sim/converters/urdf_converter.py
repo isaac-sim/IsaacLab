@@ -8,12 +8,6 @@ from __future__ import annotations
 import math
 import re
 
-import isaacsim
-import omni.kit.app
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
-
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 
@@ -46,6 +40,11 @@ class UrdfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for URDF to USD conversion.
         """
+        import omni.kit.app
+        import omni.kit.commands  # noqa: F401
+        import omni.usd  # noqa: F401
+        from isaacsim.core.utils.extensions import enable_extension
+
         manager = omni.kit.app.get_app().get_extension_manager()
         if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
             enable_extension("isaacsim.asset.importer.urdf")
@@ -65,6 +64,8 @@ class UrdfConverter(AssetConverterBase):
             cfg: The URDF conversion configuration.
         """
 
+        import omni.kit.commands
+
         import_config = self._get_urdf_import_config()
         # parse URDF file
         result, self._robot_model = omni.kit.commands.execute(
@@ -81,6 +82,8 @@ class UrdfConverter(AssetConverterBase):
                 self._robot_model.root_link = cfg.root_link_name
 
             # convert the model to USD
+            import omni.kit.commands
+
             omni.kit.commands.execute(
                 "URDFImportRobot",
                 urdf_path=cfg.asset_path,
@@ -95,12 +98,14 @@ class UrdfConverter(AssetConverterBase):
     Helper methods.
     """
 
-    def _get_urdf_import_config(self) -> isaacsim.asset.importer.urdf.ImportConfig:
+    def _get_urdf_import_config(self):
         """Create and fill URDF ImportConfig with desired settings
 
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
+        import omni.kit.commands
+
         # create a new import config
         _, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
 

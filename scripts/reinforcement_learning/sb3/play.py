@@ -186,4 +186,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app:
+        simulation_app.close()
