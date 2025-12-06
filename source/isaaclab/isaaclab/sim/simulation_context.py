@@ -975,7 +975,7 @@ class SimulationContext:
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
             import omni.kit.app
-
+            self.settings.set_bool("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
 
         # step the simulation
@@ -993,7 +993,7 @@ class SimulationContext:
                 SimulationContext.render(self)
             else:
                 import omni.kit.app
-
+                self.settings.set_bool("/app/player/playSimulations", False)
                 omni.kit.app.get_app().update()
         else:
             if self.is_playing():
