@@ -24,7 +24,7 @@ import flatdict
 # from isaacsim.core.utils.viewports import set_camera_view
 # from isaacsim.core.version import get_version
 # from omni.physics.stageupdate import get_physics_stage_update_node_interface
-from pxr import Usd, UsdUtils
+from pxr import Usd, UsdUtils, Sdf, UsdPhysics
 
 import isaaclab.sim.utils.stage as stage_utils
 
@@ -345,6 +345,14 @@ class SimulationContext:
         self.backend = "torch"
         self.physics_prim_path = self.cfg.physics_prim_path
         self.device = self.cfg.device
+
+        # initialize physics scene
+        self.physics_scene = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
+        if not self.physics_scene:
+            self.physics_scene = UsdPhysics.Scene.Define(self.stage, self.cfg.physics_prim_path)
+        prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
+        prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set((int(1.0 / self.cfg.dt)))
+        # TODO: set gravity
 
         self._is_playing = False
         self.physics_sim_view = None

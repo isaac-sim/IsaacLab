@@ -17,6 +17,7 @@ from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
+from isaaclab.sim.prims import XFormPrim
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -230,7 +231,8 @@ class InteractiveScene:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
-                if "PhysxSceneAPI" in prim.GetAppliedSchemas():
+                # check if prim has attribute starting with "physxScene:"
+                if any(attr.GetName().startswith("physxScene:") for attr in prim.GetAttributes()):
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
