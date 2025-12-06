@@ -50,6 +50,9 @@ def setup_environment():
     # acquire all Isaac environments names
     registered_tasks = list()
     for task_spec in gym.registry.values():
+        # skip camera environments for now due to replicator issues with numpy > 2
+        if "RGB" in task_spec.id or "Depth" in task_spec.id or "Vision" in task_spec.id:
+            continue
         # TODO: Factory environments causes test to fail if run together with other envs
         if "Isaac" in task_spec.id and not task_spec.id.endswith("Play-v0") and "Factory" not in task_spec.id:
             registered_tasks.append(task_spec.id)
