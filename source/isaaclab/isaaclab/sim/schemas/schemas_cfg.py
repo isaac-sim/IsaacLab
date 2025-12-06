@@ -23,7 +23,6 @@ class MeshCollisionPropertiesCfg:
     physx_api: str | None = None
 
 
-
 @configclass
 class ArticulationRootPropertiesCfg:
     """Properties to apply to the root of an articulation.
@@ -444,6 +443,7 @@ class DeformableBodyPropertiesCfg:
 
     max_depenetration_velocity: float | None = None
     """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
+
 
 @configclass
 class BoundingCubePropertiesCfg(MeshCollisionPropertiesCfg):
