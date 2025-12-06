@@ -36,7 +36,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang>=1.9.0.dev20250825",
+    "warp-lang>=1.11.0.dev20251123",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
     # livestream
@@ -48,14 +48,13 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco>=3.3.8.dev821851540",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@bbd757cace561de47512b560517ee728c8416de5",
-    "newton @ git+https://github.com/newton-physics/newton.git@15b9955bafa61f8fcb40c17dc00f0b552d3c65ca",
+    "mujoco>=3.3.8.dev832233427",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@57153866a9018b53cf01b800354b83bc18c4ac97",
+    "newton @ git+https://github.com/newton-physics/newton.git@9612c746c15ea15f4761f3738567f6382b3efbfb",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     # Note, this older version of rerun causes the view to flash dark & light
     # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
-    # kelly: seems like we can run with numpy >= 2 so far, if issues arise, we can revert back to 0.23
     "rerun-sdk==0.27",
 ]
 
@@ -63,7 +62,6 @@ INSTALL_REQUIRES = [
 if platform.system() == "Linux":
     INSTALL_REQUIRES += [
         "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        # kelly: 0.5.0 is required for numpy >= 2, if we need to revert back to numpy < 2, we can go back to dex-retargeting==0.4.6
         "dex-retargeting==0.5.0",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
