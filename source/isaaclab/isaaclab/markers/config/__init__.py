@@ -47,6 +47,15 @@ DEFORMABLE_TARGET_MARKER_CFG = VisualizationMarkersCfg(
 )
 """Configuration for the deformable object's kinematic target marker."""
 
+VISUO_TACTILE_SENSOR_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "tacsl_pts": sim_utils.SphereCfg(
+            radius=0.0002,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
+    },
+)
+"""Configuration for the visuo-tactile sensor marker."""
 
 ##
 # Frames.

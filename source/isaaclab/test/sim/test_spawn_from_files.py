@@ -96,3 +96,66 @@ def test_spawn_ground_plane(sim):
     assert prim.IsValid()
     assert prim_utils.is_prim_path_valid("/World/ground_plane")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_usd_with_physics_material_on_prim(sim):
+    """Test loading prim from USD file with physics material applied to specific prim."""
+    # Spawn gelsight finger with physics material on specific prim
+    usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
+
+    # Create spawn configuration
+    spawn_cfg = sim_utils.UsdFileWithPhysicsMaterialOnPrimsCfg(
+        usd_path=usd_file_path,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        compliant_contact_stiffness=1000.0,
+        compliant_contact_damping=100.0,
+        apply_physics_material_prim_path="elastomer",
+    )
+
+    # Spawn the prim
+    prim = spawn_cfg.func("/World/Robot", spawn_cfg)
+
+    # Check validity
+    assert prim.IsValid()
+    assert prim_utils.is_prim_path_valid("/World/Robot")
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    material_prim_path = "/World/Robot/elastomer/compliant_material"
+    # Check that the physics material was applied to the specified prim
+    assert prim_utils.is_prim_path_valid(material_prim_path)
+
+    # Check properties
+    material_prim = prim_utils.get_prim_at_path(material_prim_path)
+    assert material_prim.IsValid()
+    assert material_prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == 1000.0
+    assert material_prim.GetAttribute("physxMaterial:compliantContactDamping").Get() == 100.0
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_usd_with_physics_material_no_prim_path(sim):
+    """Test loading prim from USD file with physics material but no prim path specified."""
+    # Spawn gelsight finger without specifying prim path for physics material
+    usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
+
+    # Create spawn configuration without physics material prim path
+    spawn_cfg = sim_utils.UsdFileWithPhysicsMaterialOnPrimsCfg(
+        usd_path=usd_file_path,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        compliant_contact_stiffness=1000.0,
+        compliant_contact_damping=100.0,
+        apply_physics_material_prim_path=None,
+    )
+
+    # Spawn the prim
+    prim = spawn_cfg.func("/World/Robot", spawn_cfg)
+
+    # Check validity - should still spawn successfully but without physics material
+    assert prim.IsValid()
+    assert prim_utils.is_prim_path_valid("/World/Robot")
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    material_prim_path = "/World/Robot/elastomer/compliant_material"
+    material_prim = prim_utils.get_prim_at_path(material_prim_path)
+    assert material_prim is not None
+    assert not material_prim.IsValid()
