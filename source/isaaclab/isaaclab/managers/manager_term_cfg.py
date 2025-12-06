@@ -23,7 +23,7 @@ from .scene_entity_cfg import SceneEntityCfg
 class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable | "ManagerTermBase" = MISSING
+    func: Callable | ManagerTermBase = MISSING  # noqa: F821
     """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
@@ -55,7 +55,7 @@ class ManagerTermBaseCfg:
 class RecorderTermCfg:
     """Configuration for an recorder term."""
 
-    class_type: type["RecorderTerm"] = MISSING
+    class_type: type[RecorderTerm] = MISSING  # noqa: F821
     """The associated recorder term class.
 
     The class should inherit from :class:`isaaclab.managers.action_manager.RecorderTerm`.
@@ -71,7 +71,7 @@ class RecorderTermCfg:
 class ActionTermCfg:
     """Configuration for an action term."""
 
-    class_type: type["ActionTerm"] = MISSING
+    class_type: type[ActionTerm] = MISSING  # noqa: F821
     """The associated action term class.
 
     The class should inherit from :class:`isaaclab.managers.action_manager.ActionTerm`.
@@ -100,7 +100,7 @@ class ActionTermCfg:
 class CommandTermCfg:
     """Configuration for a command generator term."""
 
-    class_type: type["CommandTerm"] = MISSING
+    class_type: type[CommandTerm] = MISSING  # noqa: F821
     """The associated command term class to use.
 
     The class should inherit from :class:`isaaclab.managers.command_manager.CommandTerm`.
