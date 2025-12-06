@@ -25,11 +25,28 @@ from ..utils import (
 )
 from . import schemas_cfg
 
+# import logger
+logger = logging.getLogger(__name__)
+
 """
 Articulation root properties.
 """
 
-logger = logging.getLogger(__name__)
+PHYSX_MESH_COLLISION_CFGS = [
+    schemas_cfg.ConvexDecompositionPropertiesCfg,
+    schemas_cfg.ConvexHullPropertiesCfg,
+    schemas_cfg.TriangleMeshPropertiesCfg,
+    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+    schemas_cfg.SDFMeshPropertiesCfg,
+]
+
+USD_MESH_COLLISION_CFGS = [
+    schemas_cfg.BoundingCubePropertiesCfg,
+    schemas_cfg.BoundingSpherePropertiesCfg,
+    schemas_cfg.ConvexDecompositionPropertiesCfg,
+    schemas_cfg.ConvexHullPropertiesCfg,
+    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+]
 
 
 def define_articulation_root_properties(
@@ -130,9 +147,8 @@ def modify_articulation_root_properties(
 
     # set into physx api
     for attr_name, value in cfg.items():
-        # safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value, camel_case=True)
         safe_set_attribute_on_usd_prim(
-            articulation_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=True
+            articulation_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=False
         )
 
     # fix root link based on input
@@ -188,7 +204,7 @@ def modify_articulation_root_properties(
             # -- physx attributes
             for attr_name, value in cfg.items():
                 safe_set_attribute_on_usd_prim(
-                    parent_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=True
+                    parent_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=False
                 )
 
             # remove api from root
@@ -293,7 +309,7 @@ def modify_rigid_body_properties(
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_prim(
-            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name)}", value, camel_case=True
+            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name)}", value, camel_case=False
         )
     # success
     return True
@@ -395,7 +411,7 @@ def modify_collision_properties(
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_prim(
-            collider_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=True
+            collider_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=False
         )
     # success
     return True
@@ -534,7 +550,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             applied_schemas = child_prim.GetAppliedSchemas()
             if "PhysxRigidBodyAPI" not in applied_schemas:
                 child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
-            safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleep_threshold", 0.0, camel_case=True)
+            safe_set_attribute_on_usd_prim(child_prim, "PhysxRigidBodyAPI:sleep_threshold", 0.0, camel_case=False)
             # add contact report API with threshold of zero
             if "PhysxContactReportAPI" not in applied_schemas:
                 logger.debug(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
@@ -542,7 +558,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             else:
                 logger.debug(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
             # set threshold to zero
-            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=True)
+            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
             # increment number of contact sensors
             num_contact_sensors += 1
         else:
@@ -658,7 +674,7 @@ def modify_joint_drive_properties(
     for attr_name in ["max_velocity"]:
         value = cfg.pop(attr_name, None)
         attr_name = cfg_to_usd_map[attr_name]
-        safe_set_attribute_on_usd_prim(prim, f"physxJoint:{to_camel_case(attr_name)}", value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"physxJoint:{to_camel_case(attr_name)}", value, camel_case=False)
     # set into USD API
     for attr_name, attr_value in cfg.items():
         attr_name = cfg_to_usd_map.get(attr_name, attr_name)
@@ -724,7 +740,7 @@ def modify_fixed_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=True
+                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=False
             )
     # success
     return True
@@ -790,7 +806,7 @@ def modify_spatial_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=True
+                tendon_prim, f"{schema_name}:{to_camel_case(attr_name)}", value, camel_case=False
             )
     # success
     return True
@@ -951,12 +967,167 @@ def modify_deformable_body_properties(
     for attr_name, value in cfg.items():
         if attr_name in ["rest_offset", "contact_offset"]:
             safe_set_attribute_on_usd_prim(
-                deformable_body_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=True
+                deformable_body_prim, f"physxCollision:{to_camel_case(attr_name)}", value, camel_case=False
             )
         else:
             safe_set_attribute_on_usd_prim(
-                deformable_body_prim, f"physxDeformable:{to_camel_case(attr_name)}", value, camel_case=True
+                deformable_body_prim, f"physxDeformable:{to_camel_case(attr_name)}", value, camel_case=False
             )
+
+    # success
+    return True
+
+
+"""
+Collision mesh properties.
+"""
+
+
+def extract_mesh_collision_api_and_attrs(cfg):
+    # We use the number of user set attributes outside of the API function
+    # to determine which API to use in ambiguous cases, so collect them here
+    custom_attrs = {
+        key: value for key, value in cfg.to_dict().items() if value is not None and key not in ["usd_api", "physx_api"]
+    }
+
+    use_usd_api = False
+    use_physx_api = False
+
+    # We have some custom attributes and allow them
+    if len(custom_attrs) > 0 and type(cfg) in PHYSX_MESH_COLLISION_CFGS:
+        use_physx_api = True
+    # We have no custom attributes
+    elif len(custom_attrs) == 0:
+        if type(cfg) in USD_MESH_COLLISION_CFGS:
+            # Use the USD API
+            use_usd_api = True
+        else:
+            # Use the PhysX API
+            use_physx_api = True
+
+    elif len(custom_attrs) > 0 and type(cfg) in USD_MESH_COLLISION_CFGS:
+        raise ValueError("Args are specified but the USD Mesh API doesn't support them!")
+
+    mesh_collision_appx_type = type(cfg).__name__.partition("PropertiesCfg")[0]
+
+    if use_usd_api:
+        # Add approximation to the attributes as this is how USD collision mesh API is configured
+        api_info = ("usd", cfg.usd_api)
+        # Approximation needs to be formatted with camelCase
+        custom_attrs["Approximation"] = mesh_collision_appx_type[0].lower() + mesh_collision_appx_type[1:]
+    elif use_physx_api:
+        api_info = ("physx", cfg.physx_api)
+    else:
+        raise ValueError("Either USD or PhysX API should be used for mesh collision approximation!")
+
+    return api_info, custom_attrs
+
+
+def _get_physx_collision_namespace(schema_name: str) -> str:
+    """Convert PhysX schema name to attribute namespace used on the prim."""
+    if schema_name is None or len(schema_name) == 0:
+        raise ValueError("PhysX schema name must be provided for mesh collision properties.")
+    # Strip the API suffix and lowercase the first character to match attribute namespace
+    schema_name = schema_name.removesuffix("API")
+    return schema_name[0].lower() + schema_name[1:]
+
+
+def _get_usd_mesh_collision_api(api_name: str):
+    """Resolve the USD mesh collision API from a string name."""
+    if api_name is None or len(api_name) == 0:
+        raise ValueError("USD schema name must be provided for mesh collision properties.")
+    usd_api = getattr(UsdPhysics, api_name, None)
+    if usd_api is None:
+        raise ValueError(f"USD schema '{api_name}' not found in UsdPhysics.")
+    return usd_api
+
+
+def define_mesh_collision_properties(
+    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the mesh collision schema on the input prim and set its properties.
+    See :func:`modify_collision_mesh_properties` for more details on how the properties are set.
+    Args:
+        prim_path : The prim path where to apply the mesh collision schema.
+        cfg : The configuration for the mesh collision properties.
+        stage : The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+    Raises:
+        ValueError: When the prim path is not valid.
+    """
+    # obtain stage
+    if stage is None:
+        stage = get_current_stage()
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    api_info, _ = extract_mesh_collision_api_and_attrs(cfg=cfg)
+    api_type, api_value = api_info
+
+    # Only enable if not already enabled
+    if api_type == "usd":
+        usd_api = _get_usd_mesh_collision_api(api_value)
+        if not usd_api(prim):
+            usd_api.Apply(prim)
+    else:
+        applied_schemas = prim.GetAppliedSchemas()
+        if api_value not in applied_schemas:
+            prim.AddAppliedSchema(api_value)
+
+    modify_mesh_collision_properties(prim_path=prim_path, cfg=cfg, stage=stage)
+
+
+@apply_nested
+def modify_mesh_collision_properties(
+    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Set properties for the mesh collision of a prim.
+    These properties are based on either the PhysX mesh collision schemas or the `UsdPhysics.MeshCollisionAPI` schema.
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+    .. UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+    Args:
+        prim_path : The prim path of the rigid body. This prim should be a Mesh prim.
+        cfg : The configuration for the mesh collision properties.
+        stage : The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+    """
+    # obtain stage
+    if stage is None:
+        stage = get_current_stage()
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+
+    api_info, custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
+    api_type, api_value = api_info
+
+    if api_type == "usd":
+        # retrieve the mesh collision API
+        usd_api = _get_usd_mesh_collision_api(api_value)
+        mesh_collision_api = usd_api(prim)
+        if not mesh_collision_api:
+            return False
+
+        # set custom attributes into mesh collision API
+        for attr_name, value in custom_attrs.items():
+            # Only "Attribute" attr should be in format "boundingSphere", so set camel_case to be False
+            camel_case = attr_name != "Attribute"
+            safe_set_attribute_on_usd_schema(mesh_collision_api, attr_name, value, camel_case=camel_case)
+    else:
+        # PhysX mesh collision schemas are applied using string tokens, so rely on the applied schema list
+        applied_schemas = prim.GetAppliedSchemas()
+        if api_value not in applied_schemas:
+            return False
+
+        attr_namespace = _get_physx_collision_namespace(api_value)
+
+        for attr_name, value in custom_attrs.items():
+            attr_token = attr_name if attr_name == "Attribute" else to_camel_case(attr_name)
+            safe_set_attribute_on_usd_prim(prim, f"{attr_namespace}:{attr_token}", value, camel_case=False)
 
     # success
     return True

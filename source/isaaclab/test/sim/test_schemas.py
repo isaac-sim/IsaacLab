@@ -19,6 +19,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim.schemas as schemas
+import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.utils import find_global_fixed_joint_prim
@@ -36,7 +37,7 @@ def setup_simulation():
     # Load kit helper
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Set some default values for test
-    arti_cfg = schemas.ArticulationRootPropertiesCfg(
+    arti_cfg = schemas_cfg.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
         articulation_enabled=True,
         solver_position_iteration_count=4,
@@ -45,7 +46,7 @@ def setup_simulation():
         stabilization_threshold=5.0,
         fix_root_link=False,
     )
-    rigid_cfg = schemas.RigidBodyPropertiesCfg(
+    rigid_cfg = schemas_cfg.RigidBodyPropertiesCfg(
         rigid_body_enabled=True,
         kinematic_enabled=False,
         disable_gravity=False,
@@ -62,15 +63,15 @@ def setup_simulation():
         sleep_threshold=1.0,
         stabilization_threshold=6.0,
     )
-    collision_cfg = schemas.CollisionPropertiesCfg(
+    collision_cfg = schemas_cfg.CollisionPropertiesCfg(
         collision_enabled=True,
         contact_offset=0.05,
         rest_offset=0.001,
         min_torsional_patch_radius=0.1,
         torsional_patch_radius=1.0,
     )
-    mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
-    joint_cfg = schemas.JointDrivePropertiesCfg(
+    mass_cfg = schemas_cfg.MassPropertiesCfg(mass=1.0, density=100.0)
+    joint_cfg = schemas_cfg.JointDrivePropertiesCfg(
         drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg

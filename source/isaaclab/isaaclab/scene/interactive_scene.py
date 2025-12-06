@@ -10,6 +10,8 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
+from pxr import Sdf
+
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
@@ -162,9 +164,9 @@ class InteractiveScene:
         """
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
-        # if self.cfg.replicate_physics:
-        #     prim = self.stage.GetPrimAtPath("/physicsScene")
-        #     prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+        if self.cfg.replicate_physics:
+            prim = self.stage.GetPrimAtPath("/physicsScene")
+            prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
         if self._is_scene_setup_from_cfg():
             self.cloner_cfg.clone_physics = not copy_from_source
@@ -399,7 +401,7 @@ class InteractiveScene:
         """
         # resolve env_ids
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         # articulations
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
