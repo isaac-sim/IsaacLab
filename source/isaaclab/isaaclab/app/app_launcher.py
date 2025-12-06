@@ -720,6 +720,10 @@ class AppLauncher:
         visualizers_requested = visualizers is not None and len(visualizers) > 0
         omniverse_visualizer_requested = visualizers_requested and "omniverse" in visualizers
 
+        # Track if headless was explicitly requested (via --headless flag or HEADLESS=1 env var)
+        # This is used to determine if visualizers should be disabled
+        self._headless_explicit = headless_arg is True or headless_env == 1
+
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -782,10 +786,11 @@ class AppLauncher:
         # Convert empty list to None for consistency
         self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
 
-        # --headless takes precedence over --visualizer: disable all visualizers in headless mode
-        if self._headless and self._visualizer is not None:
+        # Explicit --headless flag (or HEADLESS=1 env var) takes precedence over --visualizer
+        # This only applies when user explicitly requested headless, not when auto-enabled for non-GUI visualizers
+        if self._headless_explicit and self._visualizer is not None:
             print(
-                f"[INFO][AppLauncher]: --headless flag takes precedence over --visualizer {self._visualizer}."
+                f"[INFO][AppLauncher]: Explicit headless mode takes precedence over --visualizer {self._visualizer}."
                 " No visualizers will be initialized."
             )
             self._visualizer = None
