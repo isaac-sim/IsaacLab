@@ -30,8 +30,9 @@ PER_TEST_TIMEOUTS = {
     "test_rsl_rl_wrapper.py": 500,
     "test_skrl_wrapper.py": 500,
     "test_sb3_wrapper.py": 500,
-    "test_solver_convergence.py": 5000,  # This test checks environments for solver congence
+    "test_solver_convergence.py": 5000,  # This test checks environments for solver convergence
     "test_valid_configs.py": 500,
+    "test_schemas.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 
