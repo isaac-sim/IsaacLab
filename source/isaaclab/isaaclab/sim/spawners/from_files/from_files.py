@@ -6,10 +6,7 @@
 from __future__ import annotations
 
 import logging
-import os
-import shutil
 from typing import TYPE_CHECKING
-from urllib.parse import urljoin
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
