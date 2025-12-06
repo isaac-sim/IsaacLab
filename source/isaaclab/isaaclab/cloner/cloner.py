@@ -12,16 +12,19 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
+import logging
 import numpy as np
 import torch
 
 import carb
 import carb.settings
-import omni.log
 import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.utils.timer import Timer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class Cloner:
