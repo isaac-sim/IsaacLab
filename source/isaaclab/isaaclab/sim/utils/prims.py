@@ -133,26 +133,27 @@ def create_prim(
     # add reference to USD file
     if usd_path is not None:
         add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
-    # add semantic label to prim using USD core API
-    if semantic_label is not None:
-        # Create custom attributes for semantic labeling
-        semantic_type_sanitized = semantic_type.replace(" ", "_")
-        semantic_label_sanitized = semantic_label.replace(" ", "_")
-        instance_name = f"{semantic_type_sanitized}_{semantic_label_sanitized}"
+    # # add semantic label to prim using USD core API
+    # TODO: need to verify this implementation
+    # if semantic_label is not None:
+    #     # Create custom attributes for semantic labeling
+    #     semantic_type_sanitized = semantic_type.replace(" ", "_")
+    #     semantic_label_sanitized = semantic_label.replace(" ", "_")
+    #     instance_name = f"{semantic_type_sanitized}_{semantic_label_sanitized}"
 
-        # Create semantic type attribute
-        type_attr_name = f"semantic:{instance_name}:semantic:type"
-        type_attr = prim.GetAttribute(type_attr_name)
-        if not type_attr:
-            type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
-        type_attr.Set(semantic_type)
+    #     # Create semantic type attribute
+    #     type_attr_name = f"semantic:{instance_name}:semantic:type"
+    #     type_attr = prim.GetAttribute(type_attr_name)
+    #     if not type_attr:
+    #         type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
+    #     type_attr.Set(semantic_type)
 
-        # Create semantic data attribute (using label as data)
-        data_attr_name = f"semantic:{instance_name}:semantic:data"
-        data_attr = prim.GetAttribute(data_attr_name)
-        if not data_attr:
-            data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
-        data_attr.Set(semantic_label)
+    #     # Create semantic data attribute (using label as data)
+    #     data_attr_name = f"semantic:{instance_name}:semantic:data"
+    #     data_attr = prim.GetAttribute(data_attr_name)
+    #     if not data_attr:
+    #         data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
+    #     data_attr.Set(semantic_label)
 
     # Apply the transformations using pure USD implementation
     # XFormPrim handles conversion of position/translation/orientation/scale automatically

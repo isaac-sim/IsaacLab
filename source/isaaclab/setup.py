@@ -57,9 +57,6 @@ INSTALL_REQUIRES = [
     # newer versions of rerun, like 0.27, don't have this issue, but require numpy >=2
     # kelly: seems like we can run with numpy >= 2 so far, if issues arise, we can revert back to 0.23
     "rerun-sdk==0.27",
-    # replacements of omni.client and nucleus
-    "boto3",
-    "requests",
 ]
 
 # Additional dependencies that are only available on Linux platforms
