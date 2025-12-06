@@ -77,13 +77,13 @@ class SensorBase(ABC):
                 # Object has been deleted; ignore.
                 pass
 
-        # # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # # add callbacks for stage play/stop
-        # obj_ref = weakref.proxy(self)
+        # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
+        # add callbacks for stage play/stop
+        obj_ref = weakref.proxy(self)
         # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
         # # register timeline STOP event callback (lower priority with order=10)
         # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
         #     int(omni.timeline.TimelineEventType.STOP),

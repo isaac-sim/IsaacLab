@@ -1064,6 +1064,14 @@ class SimulationContext:
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
+    def get_physics_dt(self) -> float:
+        """Returns the physics time step.
+
+        Returns:
+            The physics time step.
+        """
+        return self.cfg.dt
+
     """
     Operations - Override (extension)
     """

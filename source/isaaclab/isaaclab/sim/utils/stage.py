@@ -845,16 +845,25 @@ def get_next_free_path(path: str, parent: str = None) -> str:
         >>> stage_utils.get_next_free_path("/World/Cube")
         /World/Cube_02
     """
-    import omni.usd
+    stage = get_current_stage()
 
+    # Build the full path if parent is provided
     if parent is not None:
-        # remove trailing slash from parent and leading slash from path
-        path = omni.usd.get_stage_next_free_path(
-            get_current_stage(), parent.rstrip("/") + "/" + path.lstrip("/"), False
-        )
+        full_path = parent.rstrip("/") + "/" + path.lstrip("/")
     else:
-        path = omni.usd.get_stage_next_free_path(get_current_stage(), path, True)
-    return path
+        full_path = path
+
+    # Check if the original path is free
+    if not stage.GetPrimAtPath(full_path).IsValid():
+        return full_path
+
+    # Find the next available path with a numeric suffix
+    counter = 1
+    while True:
+        candidate_path = f"{full_path}_{counter:02d}"
+        if not stage.GetPrimAtPath(candidate_path).IsValid():
+            return candidate_path
+        counter += 1
 
 
 def remove_deleted_references():

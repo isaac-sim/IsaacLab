@@ -53,11 +53,14 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     if not prim_utils.is_prim_path_valid(prim_path):
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "CreatePreviewSurfaceMaterialPrim" kit command
-        attach_stage_to_usd_context(attaching_early=True)
+        # attach_stage_to_usd_context(attaching_early=True)
 
-        import omni.kit.commands
+        try:
+            import omni.kit.commands
 
-        omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
+            omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
+        except Exception as e:
+            logger.error(f"Error creating preview surface material: {e}")
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 

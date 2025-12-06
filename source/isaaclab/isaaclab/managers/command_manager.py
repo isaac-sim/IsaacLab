@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import omni.kit.app
+# import omni.kit.app
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
@@ -103,8 +103,14 @@ class CommandTerm(ManagerTermBase):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
+            # only enable debug_vis if omniverse is available
+            from isaaclab.sim.simulation_context import SimulationContext
+            sim_context = SimulationContext.instance()
+            if not sim_context.has_omniverse_visualizer():
+                return False
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
