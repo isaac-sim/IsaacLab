@@ -27,7 +27,7 @@ import omni.client
 logger = logging.getLogger(__name__)
 from pxr import Sdf
 
-NUCLEUS_ASSET_ROOT_DIR = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+NUCLEUS_ASSET_ROOT_DIR = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
 """Path to the root directory on the cloud storage."""
 
 NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
@@ -225,6 +225,13 @@ def _find_usd_references(local_usd_path: str) -> set[str]:
                 for ap in default:
                     if ap.path and _is_downloadable_asset(ap.path):
                         refs.add(ap.path)
+
+        # Variants - each variant set can have multiple variants with their own prim content
+        for variant_set_spec in prim_spec.variantSets.values():
+            for variant_spec in variant_set_spec.variants.values():
+                variant_prim_spec = variant_spec.primSpec
+                if variant_prim_spec is not None:
+                    _walk_prim(variant_prim_spec)
 
         for child in prim_spec.nameChildren.values():
             _walk_prim(child)

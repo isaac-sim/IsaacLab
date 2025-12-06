@@ -39,6 +39,33 @@ if not exist "%isaac_path%" (
 )
 goto :eof
 
+rem --- Ensure CUDA PyTorch helper ------------------------------------------
+:ensure_cuda_torch
+rem expects: !python_exe! set by :extract_python_exe
+setlocal EnableExtensions EnableDelayedExpansion
+set "TORCH_VER=2.7.0"
+set "TV_VER=0.22.0"
+set "CUDA_TAG=cu128"
+set "PYTORCH_INDEX=https://download.pytorch.org/whl/%CUDA_TAG%"
+
+rem Do we already have torch?
+call "!python_exe!" -m pip show torch >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] Installing PyTorch !TORCH_VER! with CUDA !CUDA_TAG!...
+    call "!python_exe!" -m pip install "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
+) else (
+    for /f "tokens=2" %%V in ('"!python_exe!" -m pip show torch ^| findstr /B /C:"Version:"') do set "TORCH_CUR=%%V"
+    echo [INFO] Found PyTorch version !TORCH_CUR!.
+    if /I not "!TORCH_CUR!"=="!TORCH_VER!+!CUDA_TAG!" (
+        echo [INFO] Replacing PyTorch !TORCH_CUR! -> !TORCH_VER!+!CUDA_TAG!...
+        call "!python_exe!" -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
+        call "!python_exe!" -m pip install "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
+    ) else (
+        echo [INFO] PyTorch !TORCH_VER!+!CUDA_TAG! already installed.
+    )
+)
+endlocal & exit /b 0
+
 rem -----------------------------------------------------------------------
 rem Returns success (exit code 0) if Isaac Sim's version starts with "4.5"
 rem -----------------------------------------------------------------------
@@ -335,23 +362,7 @@ if "%arg%"=="-i" (
     call :extract_python_exe
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
-    call !python_exe! -m pip list | findstr /C:"torch" >nul
-    if %errorlevel% equ 0 (
-        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
-            set torch_version=%%i
-        )
-        if not "!torch_version!"=="2.7.0+cu128" (
-            echo [INFO] Uninstalling PyTorch version !torch_version!...
-            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
-            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
-            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-        ) else (
-            echo [INFO] PyTorch 2.7.0 is already installed.
-        )
-    ) else (
-        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
-        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-    )
+    call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
@@ -373,38 +384,21 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
-
-    rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
+    rem installed again
+    call :ensure_cuda_torch
     rem update the vscode settings
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
-
+    shift
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
-
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
-    call !python_exe! -m pip list | findstr /C:"torch" >nul
-    if %errorlevel% equ 0 (
-        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
-            set torch_version=%%i
-        )
-        if not "!torch_version!"=="2.7.0+cu128" (
-            echo [INFO] Uninstalling PyTorch version !torch_version!...
-            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
-            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
-            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-        ) else (
-            echo [INFO] PyTorch 2.7.0 is already installed.
-        )
-    ) else (
-        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
-        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-    )
+    call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
@@ -426,10 +420,12 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
+    rem installed again
+    call :ensure_cuda_torch
     rem update the vscode settings
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
-
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided
@@ -516,32 +512,20 @@ if "%arg%"=="-i" (
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "allArgs=%%b"
     )
-    !python_exe! !allArgs!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="--python" (
     rem run the python provided by Isaac Sim
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "allArgs=%%b"
     )
-    !python_exe! !allArgs!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
@@ -556,7 +540,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="--sim" (
     rem run the simulator exe provided by Isaac Sim
@@ -571,7 +555,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="-n" (
     rem run the template generator script
@@ -586,11 +570,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! tools\template\cli.py !allArgs!
+    call !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="--new" (
     rem run the template generator script
@@ -605,11 +589,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! tools\template\cli.py !allArgs!
+    call !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="-t" (
     rem run the python provided by Isaac Sim
@@ -623,7 +607,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! -m pytest tools !allArgs!
+    call !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -637,7 +621,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! -m pytest tools !allArgs!
+    call !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings

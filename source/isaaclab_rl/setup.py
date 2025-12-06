@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>=2",
     "torch>=2.7",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
@@ -33,9 +33,8 @@ INSTALL_REQUIRES = [
     "moviepy",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
+    "packaging<24",
 ]
-
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
@@ -68,7 +67,6 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_rl"],
     classifiers=[
@@ -76,7 +74,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
-        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

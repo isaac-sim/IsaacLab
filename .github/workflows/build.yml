@@ -10,6 +10,8 @@ on:
     branches:
       - devel
       - main
+      - 'release/**'
+      - '*/newton'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -20,11 +22,12 @@ permissions:
   contents: read
   pull-requests: write
   checks: write
+  issues: read
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '4.5.0' }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
@@ -32,25 +35,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    env:
-        CUDA_VISIBLE_DEVICES: all
-        NVIDIA_VISIBLE_DEVICES: all
-        NVIDIA_DRIVER_CAPABILITIES: all
-        CUDA_HOME: /usr/local/cuda
-        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --gpus all --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
@@ -74,11 +60,11 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
 
-    - name: Copy All Test Results from IsaacLab Tasks Container
+    - name: Copy Test Results from IsaacLab Tasks Container
       run: |
         CONTAINER_NAME="isaac-lab-tasks-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying all test results from IsaacLab Tasks container..."
+          echo "Copying test results from IsaacLab Tasks container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
         fi
 
@@ -91,28 +77,25 @@ jobs:
         retention-days: 1
         compression-level: 9
 
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/isaaclab-tasks-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   test-general:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    env:
-        CUDA_VISIBLE_DEVICES: all
-        NVIDIA_VISIBLE_DEVICES: all
-        NVIDIA_DRIVER_CAPABILITIES: all
-        CUDA_HOME: /usr/local/cuda
-        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --gpus all --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
@@ -127,6 +110,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
     - name: Run General Tests
+      id: run-general-tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -136,11 +120,11 @@ jobs:
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
 
-    - name: Copy All Test Results from General Tests Container
+    - name: Copy Test Results from General Tests Container
       run: |
         CONTAINER_NAME="isaac-lab-general-test-$$"
         if docker ps -a | grep -q $CONTAINER_NAME; then
-          echo "Copying all test results from General Tests container..."
+          echo "Copying test results from General Tests container..."
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
         fi
 
@@ -153,43 +137,35 @@ jobs:
         retention-days: 1
         compression-level: 9
 
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/general-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/general-tests-report.xml || grep -q 'errors="[1-9]' reports/general-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   combine-results:
     needs: [test-isaaclab-tasks, test-general]
     runs-on: [self-hosted, gpu]
     if: always()
-    env:
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
         lfs: false
 
-    - name: Configure Git Safe Directory
-      run: |
-        git config --global --add safe.directory ${{ github.workspace }}
-        git config --global --add safe.directory /workspace/isaaclab
-        git config --global --add safe.directory .
-
     - name: Create Reports Directory
       run: |
         mkdir -p reports
-        chmod 777 reports
-        ls -la reports/
-        echo "Current user: $(whoami)"
-        echo "Current directory: $(pwd)"
 
     - name: Download Test Results
       uses: actions/download-artifact@v4
@@ -219,20 +195,29 @@ jobs:
         retention-days: 7
         compression-level: 9
 
-    - name: Report Test Results
-      uses: dorny/test-reporter@v1
-      if: always()
+    - name: Comment on Test Results
+      id: test-reporter
+      if: github.event.pull_request.head.repo.full_name == github.repository
+      uses: EnricoMi/publish-unit-test-result-action@v2
       with:
-        name: IsaacLab Tests
+        files: "reports/combined-results.xml"
+        check_name: "Tests Summary"
+        comment_mode: changes
+        comment_title: "Test Results Summary"
+        report_individual_runs: false
+        deduplicate_classes_by_file_name: true
+        compare_to_earlier_commit: true
+        fail_on: errors
+        action_fail_on_inconclusive: true
+
+    - name: Report Test Results
+      if: github.event.pull_request.head.repo.full_name == github.repository
+      uses: dorny/test-reporter@v1
+      with:
+        name: IsaacLab Build and Test Results
         path: reports/combined-results.xml
         reporter: java-junit
-        fail-on-error: false
-
-    - name: Process Combined Test Results
-      uses: ./.github/actions/process-results
-      with:
-        results-file: "reports/combined-results.xml"
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        issue-number: ${{ github.event.pull_request.number }}
-        repo-owner: ${{ github.repository_owner }}
-        repo-name: ${{ github.event.repository.name }}
+        fail-on-error: true
+        only-summary: false
+        max-annotations: '50'
+        report-title: "IsaacLab Test Results - ${{ github.workflow }}"

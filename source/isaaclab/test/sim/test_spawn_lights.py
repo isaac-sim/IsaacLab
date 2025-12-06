@@ -71,7 +71,8 @@ def _validate_properties_on_prim(prim_path: str, cfg: sim_utils.LightCfg):
         else:
             # convert attribute name in prim to cfg name
             if attr_name == "visible_in_primary_ray":
-                prim_prop_name = f"{to_camel_case(attr_name, to='cC')}"
+                # This attribute is set with snake_case in lights.py
+                prim_prop_name = attr_name
             else:
                 prim_prop_name = f"inputs:{to_camel_case(attr_name, to='cC')}"
             # configured value

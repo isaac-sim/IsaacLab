@@ -16,6 +16,7 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
+from tensordict import TensorDict
 
 import carb
 import omni.usd
@@ -25,6 +26,8 @@ from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+# from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 
 @pytest.fixture(scope="module")
@@ -67,6 +70,9 @@ def test_random_actions(registered_tasks):
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
             # create environment
             env = gym.make(task_name, cfg=env_cfg)
+            # convert to single-agent instance if required by the RL algorithm
+            # if isinstance(env.unwrapped, DirectMARLEnv):
+            #     env = multi_agent_to_single_agent(env)
             # wrap environment
             env = RslRlVecEnvWrapper(env)
         except Exception as e:
@@ -156,6 +162,8 @@ def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
     """
     if isinstance(data, torch.Tensor):
         return not torch.any(torch.isnan(data))
+    elif isinstance(data, TensorDict):
+        return not data.isnan().any()
     elif isinstance(data, dict):
         valid_tensor = True
         for value in data.values():
