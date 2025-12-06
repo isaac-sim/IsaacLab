@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any
 
 import carb
 import warp as wp
-from isaacsim.core.prims import XFormPrim
+# from isaacsim.core.prims import XFormPrim
+from isaaclab.sim.utils.prims import XFormPrim
 from pxr import UsdGeom
 
 from isaaclab.utils.warp.kernels import reshape_tiled_image
