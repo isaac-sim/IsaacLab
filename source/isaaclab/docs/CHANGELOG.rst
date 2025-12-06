@@ -6,6 +6,7 @@ Changelog
 * Updated the required PyTorch version to 2.9.0+cu128 and torchvision to 0.24.0 for Isaac Lab installation.
 * Updated numpy to 2.3.1 following version in Kit 109.0.
 * Updated dex-retargeting to 0.5.0 with numpy 2.0+ dependency.
+* Added albedo annotator for faster diffuse albedo rendering. This path will be the most performant when GUI is not required and only albedo and/or depth annotations are requested.
 
 
 0.49.0 (2025-11-10)

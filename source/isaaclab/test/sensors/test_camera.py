@@ -543,6 +543,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -577,6 +578,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -590,6 +592,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -607,6 +610,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -640,6 +644,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -653,6 +658,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -670,6 +676,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -706,6 +713,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -719,6 +727,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -781,6 +790,33 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
     assert output["rgba"].shape == hw_4c_shape
     # access image data and compare dtype
     assert output["rgba"].dtype == torch.uint8
+
+
+def test_camera_resolution_albedo_only(setup_sim_camera):
+    """Test camera resolution is correctly set for albedo only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = ["albedo"]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["albedo"].shape == hw_4c_shape
+    # access image data and compare dtype
+    assert output["albedo"].dtype == torch.uint8
 
 
 def test_camera_resolution_depth_only(setup_sim_camera):

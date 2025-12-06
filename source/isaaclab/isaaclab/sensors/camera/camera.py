@@ -51,6 +51,7 @@ class Camera(SensorBase):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image. Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: The same as ``"distance_to_image_plane"``.
@@ -122,6 +123,23 @@ class Camera(SensorBase):
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
 
+        # This is only introduced in isaac sim 6.0
+        isaac_sim_version = get_version()
+        if int(isaac_sim_version[2]) >= 6:
+            # Set RTX flag to enable fast path if only depth or albedo is requested
+            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+
+            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+            if sim_utils.SimulationContext.instance().has_gui():
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in self.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
+
         # spawn the asset
         if self.cfg.spawn is not None:
             # compute the rotation offset
@@ -148,7 +166,6 @@ class Camera(SensorBase):
         self._data = CameraData()
 
         # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        isaac_sim_version = get_version()
         # checks for Isaac Sim v4.5 as this issue exists there
         if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
@@ -481,8 +498,15 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "albedo":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+
                 # Map special cases to their corresponding annotator names
-                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane", "albedo": "DiffuseAlbedoSD"}
                 # Get the annotator name, falling back to the original name if not a special case
                 annotator_name = special_cases.get(name, name)
                 # Create the annotator node

@@ -39,6 +39,7 @@ class TiledCamera(Camera):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image. Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: Alias for ``"distance_to_image_plane"``.
@@ -195,6 +196,16 @@ class TiledCamera(Camera):
             if annotator_type == "rgba" or annotator_type == "rgb":
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
                 self._annotators["rgba"] = annotator
+            elif annotator_type == "albedo":
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                rep.AnnotatorRegistry.register_annotator_from_aov(
+                    aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                )
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                )
+                self._annotators["albedo"] = annotator
             elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
                 # keep depth for backwards compatibility
                 annotator = rep.AnnotatorRegistry.get_annotator(
@@ -358,6 +369,10 @@ class TiledCamera(Camera):
         if "rgb" in self.cfg.data_types:
             # RGB is the first 3 channels of RGBA
             data_dict["rgb"] = data_dict["rgba"][..., :3]
+        if "albedo" in self.cfg.data_types:
+            data_dict["albedo"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
+            ).contiguous()
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
