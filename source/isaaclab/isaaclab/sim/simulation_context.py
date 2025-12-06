@@ -24,14 +24,14 @@ import flatdict
 # from isaacsim.core.utils.viewports import set_camera_view
 # from isaacsim.core.version import get_version
 # from omni.physics.stageupdate import get_physics_stage_update_node_interface
-from pxr import Usd, UsdUtils, Sdf, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim.utils.stage as stage_utils
 
 # Import settings manager for both Omniverse and standalone modes
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
+from isaaclab.sim.utils import create_new_stage_in_memory
 from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_provider import SceneDataProvider
@@ -351,7 +351,7 @@ class SimulationContext:
         if not self.physics_scene:
             self.physics_scene = UsdPhysics.Scene.Define(self.stage, self.cfg.physics_prim_path)
         prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
-        prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set((int(1.0 / self.cfg.dt)))
+        prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(1.0 / self.cfg.dt))
         # TODO: set gravity
 
         self._is_playing = False
@@ -975,6 +975,7 @@ class SimulationContext:
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
             import omni.kit.app
+
             self.settings.set_bool("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
 
@@ -993,6 +994,7 @@ class SimulationContext:
                 SimulationContext.render(self)
             else:
                 import omni.kit.app
+
                 self.settings.set_bool("/app/player/playSimulations", False)
                 omni.kit.app.get_app().update()
         else:
@@ -1066,42 +1068,42 @@ class SimulationContext:
     Operations - Override (extension)
     """
 
-    async def reset_async(self, soft: bool = False):
-        # need to load all "physics" information from the USD file
-        if not soft:
-            import omni.physx
+    # async def reset_async(self, soft: bool = False):
+    #     # need to load all "physics" information from the USD file
+    #     if not soft:
+    #         import omni.physx
 
-            omni.physx.acquire_physx_interface().force_load_physics_from_usd()
-        # play the simulation
-        await super().reset_async(soft=soft)
+    #         omni.physx.acquire_physx_interface().force_load_physics_from_usd()
+    #     # play the simulation
+    #     await super().reset_async(soft=soft)
 
     """
     Initialization/Destruction - Override.
     """
 
-    def _init_stage(self, *args, **kwargs) -> Usd.Stage:
-        _ = super()._init_stage(*args, **kwargs)
-        with use_stage(self.get_initial_stage()):
-            # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
-            # when in headless mode
-            self.settings.set_bool("/app/player/playSimulations", False)
-            self._app.update()
-            self.settings.set_bool("/app/player/playSimulations", True)
-            # set additional physx parameters and bind material
-            self._set_additional_physics_params()
-            # load flatcache/fabric interface
-            # self._load_fabric_interface()
-            # return the stage
-            return self.stage
+    # def _init_stage(self, *args, **kwargs) -> Usd.Stage:
+    #     # _ = super()._init_stage(*args, **kwargs)
+    #     with use_stage(self.get_initial_stage()):
+    #         # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+    #         # when in headless mode
+    #         self.settings.set_bool("/app/player/playSimulations", False)
+    #         self._app.update()
+    #         self.settings.set_bool("/app/player/playSimulations", True)
+    #         # set additional physx parameters and bind material
+    #         self._set_additional_physics_params()
+    #         # load flatcache/fabric interface
+    #         # self._load_fabric_interface()
+    #         # return the stage
+    #         return self.stage
 
-    async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
-        await super()._initialize_stage_async(*args, **kwargs)
-        # set additional physx parameters and bind material
-        self._set_additional_physics_params()
-        # load flatcache/fabric interface
-        # self._load_fabric_interface()
-        # return the stage
-        return self.stage
+    # async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
+    #     await super()._initialize_stage_async(*args, **kwargs)
+    #     # set additional physx parameters and bind material
+    #     self._set_additional_physics_params()
+    #     # load flatcache/fabric interface
+    #     # self._load_fabric_interface()
+    #     # return the stage
+    #     return self.stage
 
     @classmethod
     def clear_instance(cls):

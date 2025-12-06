@@ -21,7 +21,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
 
-
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
 

@@ -202,6 +202,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     # Try to get stage from thread-local context first
     # stage = getattr(_context, "stage", None)
     from isaaclab.sim.simulation_context import SimulationContext
+
     stage = SimulationContext.instance().stage
 
     if fabric:
@@ -548,6 +549,9 @@ def create_new_stage_in_memory() -> Usd.Stage:
     This function creates a stage in memory and adds it to the USD StageCache
     so it can be properly tracked and retrieved by get_current_stage().
 
+    The stage is configured with Z-up axis and meters as the unit, matching
+    Isaac Sim's default configuration.
+
     Returns:
         The new stage in memory.
 
@@ -564,6 +568,12 @@ def create_new_stage_in_memory() -> Usd.Stage:
     """
     # Create a new stage in memory using USD core API
     stage = Usd.Stage.CreateInMemory()
+
+    # Configure stage to match Isaac Sim defaults:
+    # - Z-up axis (USD defaults to Y-up)
+    # - Meters as the unit (USD defaults to centimeters)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
 
     # Add to StageCache so it can be found by get_current_stage()
     # This ensures the stage is properly tracked and can be retrieved later
