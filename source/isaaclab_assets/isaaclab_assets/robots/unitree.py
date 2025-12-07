@@ -238,7 +238,7 @@ G1_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
             collision_enabled=True,
         ),
     ),
@@ -352,7 +352,7 @@ G1_29_DOF_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
         ),
     ),
     soft_joint_pos_limit_factor=0.9,

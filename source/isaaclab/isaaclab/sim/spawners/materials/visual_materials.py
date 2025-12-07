@@ -14,6 +14,7 @@ from pxr import Usd
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
@@ -65,7 +66,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     cfg = cfg.to_dict()
     del cfg["func"]
     for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"inputs:{to_camel_case(attr_name)}", attr_value, camel_case=False)
 
     return prim
 

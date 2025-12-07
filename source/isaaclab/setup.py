@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "usd-core==25.05.0",
     "mujoco>=3.3.8.dev832233427",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@57153866a9018b53cf01b800354b83bc18c4ac97",
-    "newton @ git+https://github.com/newton-physics/newton.git@9612c746c15ea15f4761f3738567f6382b3efbfb",
+    "newton @ git+https://github.com/newton-physics/newton.git@5047e6307d3a4702b2e6711151588260151a3e02",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     # Note, this older version of rerun causes the view to flash dark & light
@@ -65,8 +65,6 @@ if platform.system() == "Linux":
         "dex-retargeting==0.5.0",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
-
 # Installation operation
 setup(
     name="isaaclab",
@@ -80,13 +78,12 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )
