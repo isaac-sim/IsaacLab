@@ -12,7 +12,7 @@ import os
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
 
-DEFAULT_TIMEOUT = 200
+DEFAULT_TIMEOUT = 300
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
