@@ -572,9 +572,16 @@ class AppLauncher:
             True if SimulationApp is required, False if can run in standalone mode.
         """
         # Omniverse is required if:
-        # 1. Omniverse visualizer is explicitly requested
-        # 2. Livestreaming is enabled (requires Omniverse)
-        # 3. Cameras are enabled (requires Omniverse for rendering)
+        # 1. LAUNCH_OV_APP environment variable is set (e.g., for testing)
+        # 2. Omniverse visualizer is explicitly requested
+        # 3. Livestreaming is enabled (requires Omniverse)
+        # 4. Cameras are enabled (requires Omniverse for rendering)
+
+        # Check LAUNCH_OV_APP environment variable (useful for tests that need Omniverse)
+        launch_app_env = int(os.environ.get("LAUNCH_OV_APP", 0))
+        if launch_app_env == 1:
+            print("[INFO][AppLauncher]: LAUNCH_OV_APP environment variable set, forcing Omniverse mode.")
+            return True
 
         # Omniverse visualizer explicitly requested
         if self._visualizer is not None and "omniverse" in self._visualizer:
