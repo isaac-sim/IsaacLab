@@ -16,8 +16,11 @@ import torch
 
 import pytest
 
+from isaaclab_assets import CARTPOLE_CFG
+
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.assets import Articulation
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -35,6 +38,8 @@ def sim():
     sim_context = SimulationContext(sim_cfg)
     # Clear the stage to ensure a clean state for each test
     stage_utils.clear_stage()
+    # Add an articulation with joints to enable Newton (Newton requires at least one articulation with joints)
+    Articulation(CARTPOLE_CFG.replace(prim_path="/World/Cartpole"))
     yield sim_context
     # Cleanup
     sim_context.stop()

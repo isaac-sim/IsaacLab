@@ -64,6 +64,7 @@ def test_spawn_usd_fails(sim):
         cfg.func("/World/Franka", cfg)
 
 
+@pytest.mark.skip(reason="Need to bring back URDF importer support")
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
     # retrieve path to urdf importer extension

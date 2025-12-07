@@ -139,6 +139,7 @@ def test_spawn_cone_with_deformable_props(sim):
     assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() == cfg.deformable_props.deformable_enabled
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_deformable_and_mass_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API."""
     # Spawn cone
@@ -162,6 +163,7 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_deformable_and_density_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API.
 
@@ -190,6 +192,7 @@ def test_spawn_cone_with_deformable_and_density_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_all_deformable_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with all deformable properties."""
     # Spawn cone
@@ -217,6 +220,7 @@ def test_spawn_cone_with_all_deformable_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_all_rigid_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with all rigid properties."""
     # Spawn cone

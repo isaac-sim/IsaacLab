@@ -203,7 +203,8 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     # stage = getattr(_context, "stage", None)
     from isaaclab.sim.simulation_context import SimulationContext
 
-    stage = SimulationContext.instance().stage
+    sim_context = SimulationContext.instance()
+    stage = sim_context.stage if sim_context is not None else None
 
     if fabric:
         import usdrt
@@ -217,26 +218,15 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     if stage is not None:
         return stage
 
-    # # Try to get stage from SimulationContext singleton (if initialized)
-    # try:
-    #     # Import here to avoid circular dependency
-    #     from isaaclab.sim.simulation_context import SimulationContext
+    # Fall back to omni.usd when SimulationContext is not available
+    try:
+        import omni.usd
 
-    #     sim_context = SimulationContext.instance()
-    #     if sim_context is not None and hasattr(sim_context, "stage") and sim_context.stage is not None:
-    #         return sim_context.stage
-    # except (ImportError, RuntimeError):
-    #     # SimulationContext may not be initialized yet
-    #     pass
-
-    # # Fall back to USD StageCache - get the first stage in the cache
-    # # This is the standard USD way to track open stages
-    # stage_cache = UsdUtils.StageCache.Get()
-    # if stage_cache.Size() > 0:
-    #     # Get all stages and return the first one (most recently accessed)
-    #     all_stages = stage_cache.GetAllStages()
-    #     if all_stages:
-    #         return all_stages[0]
+        stage = omni.usd.get_context().get_stage()
+        if stage is not None:
+            return stage
+    except (ImportError, AttributeError):
+        pass
 
     raise RuntimeError("No USD stage is currently open. Please create a stage first.")
 

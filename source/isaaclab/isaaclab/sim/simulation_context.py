@@ -513,6 +513,12 @@ class SimulationContext:
         Returns:
             True if the Omniverse visualizer is requested or active, False otherwise.
         """
+
+        # Check LAUNCH_OV_APP environment variable (useful for tests that need Omniverse)
+        launch_app_env = int(os.environ.get("LAUNCH_OV_APP") or 0)
+        if launch_app_env == 1:
+            return True
+
         # First, check if already initialized visualizers include OVVisualizer
         for visualizer in self._visualizers:
             # Check if visualizer has visualizer_type attribute set to "omniverse"
@@ -1044,6 +1050,19 @@ class SimulationContext:
         """
         return self._is_playing
 
+    def play(self):
+        """Starts the simulation."""
+
+        if self.has_omniverse_visualizer():
+            import omni.kit.app
+            import omni.timeline
+
+            omni.timeline.get_timeline_interface().play()
+            omni.timeline.get_timeline_interface().commit()
+            self.settings.set_bool("/app/player/playSimulations", False)
+            omni.kit.app.get_app().update()
+        self._is_playing = True
+
     def stop(self):
         """Stops the simulation."""
 
@@ -1055,8 +1074,7 @@ class SimulationContext:
             omni.timeline.get_timeline_interface().stop()
             self.settings.set_bool("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
-        else:
-            self._is_playing = False
+        self._is_playing = False
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
@@ -1139,10 +1157,10 @@ class SimulationContext:
 
         # Helper function to get dt from frequency
         def _get_dt_from_frequency():
-            frequency = self.settings.get_float("/app/runLoops/main/rateLimitFrequency")
+            frequency = self.settings.get("/app/runLoops/main/rateLimitFrequency")
             return 1.0 / frequency if frequency else 0
 
-        if self.settings.get_bool("/app/runLoops/main/rateLimitEnabled"):
+        if self.settings.get("/app/runLoops/main/rateLimitEnabled"):
             return _get_dt_from_frequency()
 
         try:

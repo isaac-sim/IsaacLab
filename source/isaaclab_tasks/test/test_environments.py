@@ -141,31 +141,34 @@ def _check_random_actions(
     # disable control on stop
     env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-    # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        for i in range(env.unwrapped.single_action_space.shape[0]):
-            if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                env.unwrapped.single_action_space.low[i] = -1.0
-            if env.unwrapped.single_action_space.high[i] == float("inf"):
-                env.unwrapped.single_action_space.low[i] = 1.0
+    try:
+        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
+        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
 
-    # reset environment
-    obs, _ = env.reset()
-    # check signal
-    assert _check_valid_tensor(obs)
-    # simulate environment for num_steps steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            actions = sample_space(env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
-            # apply actions
-            transition = env.step(actions)
-            # check signals
-            for data in transition[:-1]:  # exclude info
-                assert _check_valid_tensor(data), f"Invalid data: {data}"
-
-    # close the environment
-    env.close()
+        # reset environment
+        obs, _ = env.reset()
+        # check signal
+        assert _check_valid_tensor(obs)
+        # simulate environment for num_steps steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
+                actions = sample_space(
+                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                )
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition[:-1]:  # exclude info
+                    assert _check_valid_tensor(data), f"Invalid data: {data}"
+    finally:
+        # close the environment
+        env.close()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

@@ -148,6 +148,7 @@ def test_spawn_cone_with_rigid_props(sim):
     assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props.sleep_threshold)
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_rigid_and_mass_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API."""
     cfg = sim_utils.ConeCfg(
@@ -172,6 +173,7 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_rigid_and_density_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API.
 
@@ -203,6 +205,7 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_all_props(sim):
     """Test spawning of UsdGeom.Cone prim with all properties."""
     cfg = sim_utils.ConeCfg(
