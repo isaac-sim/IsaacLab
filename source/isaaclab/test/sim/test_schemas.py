@@ -18,10 +18,10 @@ import pytest
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg, SimulationContext
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.utils import find_global_fixed_joint_prim
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case

@@ -18,9 +18,9 @@ import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
-from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.math import random_orientation
 from isaaclab.utils.timer import Timer
 

@@ -75,7 +75,7 @@ def test_sim_version():
     """Test obtaining the version from isaacsim.core.version."""
     from isaacsim.core.version import get_version
 
-    sim = SimulationContext()
+    _ = SimulationContext()
     version = get_version()
     assert len(version) > 0
     assert int(version[2]) >= 4  # Major version is at index 2
@@ -133,7 +133,7 @@ def test_zero_gravity():
     """Test that gravity can be properly disabled."""
     cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))
 
-    sim = SimulationContext(cfg)
+    _ = SimulationContext(cfg)
 
     gravity = np.array(NewtonManager._gravity_vector)
     np.testing.assert_almost_equal(gravity, cfg.gravity)
