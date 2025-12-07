@@ -397,12 +397,12 @@ class SimulationContext:
             self.settings.set_bool("/physics/suppressReadback", True)
             self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("GPU")
             self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-        elif "cpu" == self.device.lower():
+        elif self.device.lower() == "cpu":
             self.settings.set_bool("/physics/suppressReadback", False)
             self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("MBP")
             self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(False)
         else:
-            raise Exception("Device {} is not supported.".format(self.device))
+            raise Exception(f"Device {self.device} is not supported.")
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
