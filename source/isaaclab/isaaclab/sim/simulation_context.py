@@ -350,9 +350,13 @@ class SimulationContext:
         self.physics_scene = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
         if not self.physics_scene:
             self.physics_scene = UsdPhysics.Scene.Define(self.stage, self.cfg.physics_prim_path)
+            self.physics_scene = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
         prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
         prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(1.0 / self.cfg.dt))
         # TODO: set gravity
+
+        # process device
+        self._set_physics_sim_device()
 
         self._is_playing = False
         self.physics_sim_view = None
@@ -376,6 +380,29 @@ class SimulationContext:
 
         # Mark as initialized (singleton pattern)
         self._initialized = True
+
+    def _set_physics_sim_device(self) -> None:
+        """Sets the physics simulation device."""
+        if "cuda" in self.device:
+            parsed_device = self.device.split(":")
+            if len(parsed_device) == 1:
+                device_id = self.settings.get("/physics/cudaDevice", 0)
+                if device_id < 0:
+                    self.settings.set_int("/physics/cudaDevice", 0)
+                    device_id = 0
+                # resolve "cuda" to "cuda:N" for torch.cuda.set_device compatibility
+                self.device = f"cuda:{device_id}"
+            else:
+                self.settings.set_int("/physics/cudaDevice", int(parsed_device[1]))
+            self.settings.set_bool("/physics/suppressReadback", True)
+            self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("GPU")
+            self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+        elif "cpu" == self.device.lower():
+            self.settings.set_bool("/physics/suppressReadback", False)
+            self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("MBP")
+            self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(False)
+        else:
+            raise Exception("Device {} is not supported.".format(self.device))
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""

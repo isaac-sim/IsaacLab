@@ -8,6 +8,7 @@ import re
 
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.examples import create_collision_pipeline
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
@@ -47,6 +48,8 @@ class NewtonManager:
     _on_init_callbacks: list = []
     _on_start_callbacks: list = []
     _contacts: Contacts = None
+    _needs_collision_pipeline: bool = False
+    _collision_pipeline = None
     _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
     _report_contacts: bool = False
     _graph = None
@@ -71,6 +74,8 @@ class NewtonManager:
         NewtonManager._state_temp = None
         NewtonManager._control = None
         NewtonManager._contacts = None
+        NewtonManager._needs_collision_pipeline = False
+        NewtonManager._collision_pipeline = None
         NewtonManager._newton_contact_sensor = None
         NewtonManager._report_contacts = False
         NewtonManager._graph = None
@@ -122,8 +127,14 @@ class NewtonManager:
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        NewtonManager._contacts = Contacts(0, 0)
         NewtonManager.forward_kinematics()
+        if NewtonManager._needs_collision_pipeline:
+            NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
+            NewtonManager._contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
+        else:
+            NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
         for callback in NewtonManager._on_start_callbacks:
             callback()
@@ -170,6 +181,12 @@ class NewtonManager:
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
+            if isinstance(NewtonManager._solver, SolverMuJoCo):
+                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
+                    "use_mujoco_contacts", False
+                )
+            else:
+                NewtonManager._needs_collision_pipeline = True
 
         # Ensure we are using a CUDA enabled device
         assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
@@ -195,8 +212,10 @@ class NewtonManager:
         contacts = None
 
         # MJWarp computes its own collisions.
-        if NewtonManager._solver_type != "mujoco_warp":
-            contacts = NewtonManager._model.collide(NewtonManager._state_0)
+        if NewtonManager._needs_collision_pipeline:
+            contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):
@@ -260,7 +279,7 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            # print(f"solver niter: {convergence_data}")
+            print(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 
