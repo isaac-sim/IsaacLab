@@ -156,7 +156,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "-m",
             "pytest",
             "-v",
-            "-s",  # Disable pytest output capture (required for Isaac Sim)
             "--no-header",
             "-c",
             f"{workspace_root}/pytest.ini",

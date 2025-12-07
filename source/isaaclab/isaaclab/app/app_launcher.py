@@ -877,12 +877,15 @@ class AppLauncher:
 
         # disable sys stdout and stderr to avoid printing the warning messages
         # this is mainly done to purge the print statements from the simulation app
+        # Note: We save the current stdout (not sys.__stdout__) to properly restore it
+        # when running under pytest or other tools that capture output
+        original_stdout = sys.stdout
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
         # launch simulation app
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
-        # enable sys stdout and stderr
-        sys.stdout = sys.__stdout__
+        # restore the original stdout
+        sys.stdout = original_stdout
 
         # add Isaac Lab modules back to sys.modules
         for key, value in hacked_modules.items():
