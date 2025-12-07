@@ -171,11 +171,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Add the test file path last
         cmd.append(str(test_file))
 
-        # Suppress verbose Carb/Kit logging during tests (only show errors)
-        # Can be overridden by setting ISAACLAB_TEST_LOG_LEVEL environment variable
-        log_level = os.environ.get("ISAACLAB_TEST_LOG_LEVEL", "Error")
-        cmd.append(f"--/log/outputStreamLevel={log_level}")
-
         # Run test with timeout and capture output
         returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
 
