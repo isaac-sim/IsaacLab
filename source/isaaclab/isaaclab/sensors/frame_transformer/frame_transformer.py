@@ -201,10 +201,12 @@ class FrameTransformer(SensorBase):
                         " rigid body. The class only supports transformations between rigid bodies."
                     )
 
-                # Get the name of the body
-                body_name = matching_prim_path.rsplit("/", 1)[-1]
-                # Use body name if frame isn't specified by user
-                frame_name = frame if frame is not None else body_name
+                # Get relative prim path as unique body identifier (e.g., "Robot/left_hand" instead of just "left_hand")
+                # This allows tracking bodies with the same name at different hierarchy levels
+                env_match = re.search(r"env_\d+/(.*)", matching_prim_path)
+                body_name = env_match.group(1) if env_match else matching_prim_path.rsplit("/", 1)[-1]
+                # Use leaf name if frame isn't specified by user
+                frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
                 # Keep track of which frames are associated with which bodies
                 if body_name in body_names_to_frames:
@@ -291,11 +293,22 @@ class FrameTransformer(SensorBase):
             self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
             sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
 
-        # -- target frames
-        self._target_frame_body_names = [prim_path.split("/")[-1] for prim_path in sorted_prim_paths]
+        # -- target frames: use relative prim path for unique identification
+        def _get_rel_path(p):
+            m = re.search(r"env_\d+/(.*)", p)
+            return m.group(1) if m else p.rsplit("/", 1)[-1]
 
-        # -- source frame
-        self._source_frame_body_name = self.cfg.prim_path.split("/")[-1]
+        self._target_frame_body_names = [_get_rel_path(prim_path) for prim_path in sorted_prim_paths]
+
+        # -- source frame: extract relative path from config pattern
+        # Handle patterns like "{ENV_REGEX_NS}/Robot/torso" or "/World/envs/env_.*/Robot/torso" -> "Robot/torso"
+        source_path = self.cfg.prim_path
+        # Try to match {PATTERN}/, env_.*/, or env_X/
+        pattern_match = re.search(r"(?:\{[^}]+\}|env_[^/]+)/(.*)", source_path)
+        if pattern_match:
+            self._source_frame_body_name = pattern_match.group(1)
+        else:
+            self._source_frame_body_name = _get_rel_path(source_path)
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
