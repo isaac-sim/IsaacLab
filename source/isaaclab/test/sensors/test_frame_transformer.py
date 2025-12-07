@@ -589,3 +589,138 @@ def test_sensor_print(sim):
     sim.reset()
     # print info
     print(scene.sensors["frame_transformer"])
+
+
+@pytest.mark.isaacsim_ci
+def test_frame_transformer_duplicate_body_names(sim):
+    """Test that bodies with same name but different paths are tracked separately.
+
+    This test verifies the fix for body name collision when multiple bodies
+    share the same name but exist at different hierarchy levels.
+    """
+
+    # Create a custom scene config with two robots
+    @configclass
+    class MultiRobotSceneCfg(InteractiveSceneCfg):
+        """Scene with two robots having bodies with same names."""
+
+        terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+
+        # First robot
+        robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        # Second robot (same type, different prim path)
+        robot_1 = ANYMAL_C_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot_1",
+            init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+        )
+
+        # Frame transformer tracking same-named bodies from both robots
+        frame_transformer: FrameTransformerCfg = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[
+                # Robot's LF_FOOT
+                FrameTransformerCfg.FrameCfg(
+                    name="LF_FOOT",
+                    prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK",
+                    offset=OffsetCfg(
+                        pos=euler_rpy_apply(rpy=(0, 0, -math.pi / 2), xyz=(0.08795, 0.01305, -0.33797)),
+                        rot=quat_from_euler_rpy(0, 0, -math.pi / 2),
+                    ),
+                ),
+                # Robot_1's LF_FOOT (same body name, different robot)
+                FrameTransformerCfg.FrameCfg(
+                    name="LF_FOOT_1",
+                    prim_path="{ENV_REGEX_NS}/Robot_1/LF_SHANK",
+                    offset=OffsetCfg(
+                        pos=euler_rpy_apply(rpy=(0, 0, -math.pi / 2), xyz=(0.08795, 0.01305, -0.33797)),
+                        rot=quat_from_euler_rpy(0, 0, -math.pi / 2),
+                    ),
+                ),
+            ],
+        )
+
+    # Spawn things into stage
+    scene_cfg = MultiRobotSceneCfg(num_envs=2, env_spacing=10.0, lazy_sensor_update=False)
+    scene = InteractiveScene(scene_cfg)
+
+    # Play the simulator
+    sim.reset()
+
+    # Get target frame names
+    target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
+    assert "LF_FOOT" in target_frame_names, "LF_FOOT should be in target frames"
+    assert "LF_FOOT_1" in target_frame_names, "LF_FOOT_1 should be in target frames"
+
+    lf_foot_idx = target_frame_names.index("LF_FOOT")
+    lf_foot_1_idx = target_frame_names.index("LF_FOOT_1")
+
+    # Acquire ground truth body indices
+    robot_lf_shank_idx = scene.articulations["robot"].find_bodies("LF_SHANK")[0][0]
+    robot_1_lf_shank_idx = scene.articulations["robot_1"].find_bodies("LF_SHANK")[0][0]
+
+    # Define simulation stepping
+    sim_dt = sim.get_physics_dt()
+
+    # Simulate physics
+    for count in range(50):
+        # Reset periodically
+        if count % 25 == 0:
+            # Reset robot
+            root_state = scene.articulations["robot"].data.default_root_state.clone()
+            root_state[:, :3] += scene.env_origins
+            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
+            scene.articulations["robot"].write_joint_state_to_sim(
+                scene.articulations["robot"].data.default_joint_pos,
+                scene.articulations["robot"].data.default_joint_vel,
+            )
+            # Reset robot_1
+            root_state_1 = scene.articulations["robot_1"].data.default_root_state.clone()
+            root_state_1[:, :3] += scene.env_origins
+            scene.articulations["robot_1"].write_root_pose_to_sim(root_state_1[:, :7])
+            scene.articulations["robot_1"].write_root_velocity_to_sim(root_state_1[:, 7:])
+            scene.articulations["robot_1"].write_joint_state_to_sim(
+                scene.articulations["robot_1"].data.default_joint_pos,
+                scene.articulations["robot_1"].data.default_joint_vel,
+            )
+            scene.reset()
+
+        # Write data to sim
+        scene.write_data_to_sim()
+        # Perform step
+        sim.step()
+        # Read data from sim
+        scene.update(sim_dt)
+
+        # Get frame transformer data
+        target_pos_w = scene.sensors["frame_transformer"].data.target_pos_w
+
+        # Get ground truth positions
+        robot_lf_pos_w = scene.articulations["robot"].data.body_pos_w[:, robot_lf_shank_idx]
+        robot_1_lf_pos_w = scene.articulations["robot_1"].data.body_pos_w[:, robot_1_lf_shank_idx]
+
+        # The two positions should be DIFFERENT (robots are at different locations)
+        # If the bug exists, both would return the same position
+        pos_difference = torch.norm(target_pos_w[:, lf_foot_idx] - target_pos_w[:, lf_foot_1_idx], dim=-1)
+
+        # The robots are 2m apart, so the feet should also be roughly 2m apart
+        assert torch.all(pos_difference > 1.0), (
+            f"LF_FOOT and LF_FOOT_1 should have different positions (got diff={pos_difference}). "
+            "This indicates body name collision bug."
+        )
+
+        # Verify each frame transformer output matches the correct robot's body
+        # (with some tolerance for the offset transformation)
+        torch.testing.assert_close(
+            target_pos_w[:, lf_foot_idx],
+            robot_lf_pos_w,
+            atol=0.5,  # Allow tolerance for offset
+            rtol=0.1,
+        )
+        torch.testing.assert_close(
+            target_pos_w[:, lf_foot_1_idx],
+            robot_1_lf_pos_w,
+            atol=0.5,  # Allow tolerance for offset
+            rtol=0.1,
+        )
