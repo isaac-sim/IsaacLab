@@ -15,23 +15,23 @@ simulation_app = AppLauncher(headless=True).app
 import os
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     """Setup and teardown for each test."""
-    # Setup: Create a new stage
-    stage_utils.create_new_stage()
-
     # Setup: Create simulation context
     dt = 0.01
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim_cfg = SimulationCfg(dt=dt, device="cpu")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")
@@ -48,9 +48,9 @@ def test_setup_teardown():
 
     # Teardown: Cleanup simulation
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 def test_no_change(test_setup_teardown):

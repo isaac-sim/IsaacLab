@@ -16,20 +16,18 @@ import numpy as np
 import os
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 
 # Create a fixture for setup and teardown
 @pytest.fixture
 def sim_config():
-    # Create a new stage
-    stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
     enable_extension("isaacsim.asset.importer.urdf")
     extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
@@ -44,13 +42,16 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
+    sim_cfg = SimulationCfg(dt=dt, device="cpu")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     yield sim, config
     # Teardown
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 def test_no_change(sim_config):

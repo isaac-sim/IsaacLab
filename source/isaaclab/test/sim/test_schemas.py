@@ -15,10 +15,10 @@ simulation_app = AppLauncher(headless=True).app
 import math
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -30,12 +30,13 @@ from isaaclab.utils.string import to_camel_case
 @pytest.fixture
 def setup_simulation():
     """Fixture to set up and tear down the simulation context."""
-    # Create a new stage
-    stage_utils.create_new_stage()
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim_cfg = SimulationCfg(dt=dt, device="cpu")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     # Set some default values for test
     arti_cfg = schemas_cfg.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
@@ -77,9 +78,9 @@ def setup_simulation():
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 @pytest.mark.skip(reason="TODO: failing test.")

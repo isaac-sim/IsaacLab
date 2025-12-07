@@ -19,11 +19,11 @@ import tempfile
 
 import omni
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -61,19 +61,20 @@ def assets():
 @pytest.fixture(autouse=True)
 def sim():
     """Create a blank new stage for each test."""
-    # Create a new stage
-    stage_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim_cfg = SimulationCfg(dt=dt, device="cpu")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     yield sim
     # stop simulation
     sim.stop()
     # cleanup stage and context
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 def check_mesh_conversion(mesh_converter: MeshConverter):

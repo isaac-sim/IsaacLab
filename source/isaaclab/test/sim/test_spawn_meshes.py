@@ -13,30 +13,31 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 @pytest.fixture
 def sim():
     """Create a simulation context for testing."""
-    # Create a new stage
-    stage_utils.create_new_stage()
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, device="cuda:0")
+    sim_cfg = SimulationCfg(dt=dt, device="cuda:0")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     # Wait for spawning
     stage_utils.update_stage()
     yield sim
     # Cleanup
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 """

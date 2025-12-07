@@ -15,10 +15,10 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.utils.math import random_orientation
@@ -30,15 +30,17 @@ def sim():
     """Create a blank new stage for each test."""
     # Simulation time-step
     dt = 0.01
-    # Open a new stage
-    stage_utils.create_new_stage()
     # Load kit helper
-    sim_context = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="torch", device="cuda:0")
+    sim_cfg = SimulationCfg(dt=dt, device="cuda:0")
+    sim_context = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     yield sim_context
     # Cleanup
     sim_context.stop()
-    sim_context.clear_instance()
-    stage_utils.close_stage()
+    stage_utils.clear_stage()
+    sim_context.clear_all_callbacks()
+    SimulationContext.clear_instance()
 
 
 def test_instantiation(sim):

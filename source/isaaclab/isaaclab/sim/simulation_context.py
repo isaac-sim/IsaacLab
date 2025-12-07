@@ -5,6 +5,7 @@
 
 import builtins
 import enum
+import gc
 import logging
 import numpy as np
 import os
@@ -1043,6 +1044,20 @@ class SimulationContext:
         """
         return self._is_playing
 
+    def stop(self):
+        """Stops the simulation."""
+
+        # this only applies for omniverse mode
+        if self.has_omniverse_visualizer():
+            import omni.kit.app
+            import omni.timeline
+
+            omni.timeline.get_timeline_interface().stop()
+            self.settings.set_bool("/app/player/playSimulations", False)
+            omni.kit.app.get_app().update()
+        else:
+            self._is_playing = False
+
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
 
@@ -1099,6 +1114,48 @@ class SimulationContext:
         """
         return self.cfg.dt
 
+    def get_rendering_dt(self) -> float:
+        """Get the current rendering dt
+
+        Raises:
+            Exception: if there is no stage currently opened
+
+        Returns:
+            float: current rendering dt
+
+        Example:
+
+        .. code-block:: python
+
+            >>> simulation_context.get_rendering_dt()
+            0.016666666666666666
+        """
+
+        if not self.has_omniverse_visualizer():
+            return self.cfg.dt
+
+        if self.stage is None:
+            raise Exception("There is no stage currently opened")
+
+        # Helper function to get dt from frequency
+        def _get_dt_from_frequency():
+            frequency = self.settings.get_float("/app/runLoops/main/rateLimitFrequency")
+            return 1.0 / frequency if frequency else 0
+
+        if self.settings.get_bool("/app/runLoops/main/rateLimitEnabled"):
+            return _get_dt_from_frequency()
+
+        try:
+            import omni.kit.loop._loop as omni_loop
+
+            _loop_runner = omni_loop.acquire_loop_interface()
+            if _loop_runner.get_manual_mode():
+                return _loop_runner.get_manual_step_size()
+            else:
+                return _get_dt_from_frequency()
+        except Exception:
+            return _get_dt_from_frequency()
+
     """
     Operations - Override (extension)
     """
@@ -1139,6 +1196,23 @@ class SimulationContext:
     #     # self._load_fabric_interface()
     #     # return the stage
     #     return self.stage
+
+    def clear_all_callbacks(self) -> None:
+        """Clear all callbacks which were added using any ``add_*_callback`` method
+
+        Example:
+
+        .. code-block:: python
+
+            >>> simulation_context.clear_render_callbacks()
+        """
+        # self._physics_callback_functions = dict()
+        # self._physics_functions = dict()
+        # self._stage_callback_functions = dict()
+        # self._timeline_callback_functions = dict()
+        # self._render_callback_functions = dict()
+        gc.collect()
+        return
 
     @classmethod
     def clear_instance(cls):

@@ -524,6 +524,13 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 def create_new_stage() -> Usd.Stage:
     """Create a new stage attached to the USD context.
 
+    If omni.usd is not available (e.g., running without Isaac Sim), this function
+    falls back to creating a stage in memory using USD core APIs.
+
+    Note:
+        When using omni.usd, this function calls app.update() to ensure the async
+        stage creation completes before returning.
+
     Returns:
         Usd.Stage: The created USD stage.
 
@@ -538,9 +545,17 @@ def create_new_stage() -> Usd.Stage:
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
     """
-    import omni.usd
+    try:
+        import omni.kit.app
+        import omni.usd
 
-    return omni.usd.get_context().new_stage()
+        result = omni.usd.get_context().new_stage()
+        # new_stage() is an async operation - need to update app to complete it
+        omni.kit.app.get_app().update()
+        return result
+    except (ImportError, AttributeError):
+        # Fall back to in-memory stage when omni.usd is not available
+        return create_new_stage_in_memory()
 
 
 def create_new_stage_in_memory() -> Usd.Stage:

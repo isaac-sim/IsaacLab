@@ -578,7 +578,7 @@ class AppLauncher:
         # 4. Cameras are enabled (requires Omniverse for rendering)
 
         # Check LAUNCH_OV_APP environment variable (useful for tests that need Omniverse)
-        launch_app_env = int(os.environ.get("LAUNCH_OV_APP", 0))
+        launch_app_env = int(os.environ.get("LAUNCH_OV_APP") or 0)
         if launch_app_env == 1:
             print("[INFO][AppLauncher]: LAUNCH_OV_APP environment variable set, forcing Omniverse mode.")
             return True
