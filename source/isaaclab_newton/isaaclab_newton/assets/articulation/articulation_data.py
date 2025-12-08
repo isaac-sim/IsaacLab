@@ -161,17 +161,12 @@ class ArticulationData(BaseArticulationData):
     ###
 
     @property
-    def joint_target(self) -> wp.array(dtype=wp.float32):
-        """Joint target. Shape is (num_instances, num_joints)."""
-        return self._sim_bind_joint_target
-
-    @property
     def joint_pos_target(self) -> wp.array(dtype=wp.float32):
-        return self._actuator_target
+        return self._sim_bind_joint_position_target
 
     @property
     def joint_vel_target(self) -> wp.array(dtype=wp.float32):
-        return self._actuator_target
+        return self._sim_bind_joint_velocity_target
 
     @property
     def joint_effort(self) -> wp.array(dtype=wp.float32):
@@ -212,19 +207,28 @@ class ArticulationData(BaseArticulationData):
         return self._actuator_damping
 
     @property
-    def actuator_control_mode(self) -> wp.array(dtype=wp.float32):
-        """Actuator control mode. Shape is (num_instances, num_joints)."""
-        return self._actuator_control_mode
-
-    @property
-    def actuator_target(self) -> wp.array(dtype=wp.float32):
-        """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+    def actuator_position_target(self) -> wp.array(dtype=wp.float32):
+        """Actuator position targets commanded by the user. Shape is (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
         For an explicit actuator model, the targets are used to compute the joint efforts (see :attr:`applied_torque`),
         which are then set into the simulation.
+
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
         """
-        return  self._actuator_target
+        return  self._actuator_position_target
+
+    @property
+    def actuator_velocity_target(self) -> wp.array(dtype=wp.float32):
+        """Actuator velocity targets commanded by the user. Shape is (num_instances, num_joints).
+        
+        For an implicit actuator model, the targets are directly set into the simulation.
+        For an explicit actuator model, the targets are used to compute the joint efforts (see :attr:`applied_torque`),
+        which are then set into the simulation.
+
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
+        """
+        return self._actuator_velocity_target
 
     @property
     def actuator_effort_target(self) -> wp.array(dtype=wp.float32):
@@ -233,6 +237,8 @@ class ArticulationData(BaseArticulationData):
         For an implicit actuator model, the targets are directly set into the simulation.
         For an explicit actuator model, the targets are used to compute the joint efforts (see :attr:`applied_torque`),
         which are then set into the simulation.
+
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
         """
         return self._actuator_effort_target
 
@@ -1853,16 +1859,16 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute(
             "joint_effort_limit", NewtonManager.get_model()
         )
-        self._sim_bind_joint_control_mode_sim = self._root_view.get_attribute(
-            "joint_dof_mode", NewtonManager.get_model()
-        )
         # -- joint states
         self._sim_bind_joint_pos = self._root_view.get_dof_positions(NewtonManager.get_state_0())
         self._sim_bind_joint_vel = self._root_view.get_dof_velocities(NewtonManager.get_state_0())
         # -- joint commands (sent to the simulation)
         self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", NewtonManager.get_control())
-        self._sim_bind_joint_target = self._root_view.get_attribute(
-            "joint_target", NewtonManager.get_control()
+        self._sim_bind_joint_position_target = self._root_view.get_attribute(
+            "joint_target_pos", NewtonManager.get_control()
+        )
+        self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
+            "joint_target_vel", NewtonManager.get_control()
         )
 
     def _create_buffers(self) -> None:
@@ -1894,7 +1900,8 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_pos = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
         self._default_joint_vel = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
         # -- joint commands (sent to the actuator from the user)
-        self._actuator_target = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
+        self._actuator_position_target = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
+        self._actuator_velocity_target = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
         self._actuator_effort_target = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
         # -- computed joint efforts from the actuator models
         self._computed_effort = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
@@ -1902,7 +1909,6 @@ class ArticulationData(BaseArticulationData):
         # -- joint properties for the actuator models
         self._actuator_stiffness = wp.clone(self._sim_bind_joint_stiffness_sim)
         self._actuator_damping = wp.clone(self._sim_bind_joint_damping_sim)
-        self._actuator_control_mode = wp.clone(self._sim_bind_joint_control_mode_sim)
         # -- other data that are filled based on explicit actuator models
         self._joint_dynamic_friction = wp.zeros((n, nd), dtype=wp.float32, device=self.device)
         self._joint_viscous_friction = wp.zeros((n, nd), dtype=wp.float32, device=self.device)

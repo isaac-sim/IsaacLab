@@ -192,6 +192,33 @@ class BaseArticulationData(ABC):
         actuator model.
         """
         raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def actuator_position_target(self) ->  wp.array:
+        """Actuator position targets commanded by the user. Shape is (num_instances, num_joints).
+        
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
+        """
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def actuator_velocity_target(self) ->  wp.array:
+        """Actuator velocity targets commanded by the user. Shape is (num_instances, num_joints).
+        
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
+        """
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def actuator_effort_target(self) ->  wp.array:
+        """Actuator effort targets commanded by the user. Shape is (num_instances, num_joints).
+        
+        Note: This is the value requested by the user. This is not the value binded to the simulation.
+        """
+        raise NotImplementedError
 
     @property
     @abstractmethod

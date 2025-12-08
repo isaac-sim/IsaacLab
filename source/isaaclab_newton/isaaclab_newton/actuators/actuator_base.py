@@ -117,7 +117,6 @@ class ActuatorBase(ABC):
             ("friction", self.data._sim_bind_joint_friction_coeff),
             ("dynamic_friction", self.data._joint_dynamic_friction),
             ("viscous_friction", self.data._joint_viscous_friction),
-            ("control_mode", self.data._actuator_control_mode),
         ]
         for param_name, newton_val in to_check:
             cfg_val = getattr(self.cfg, param_name)

@@ -257,6 +257,15 @@ class Articulation(BaseArticulation):
         # Wrenches are automatically applied by set_external_force_and_torque.
         # apply actuator models
         self._apply_actuator_model()
+        # Write the actuator targets into the simulation
+        self._root_view.set_attribute("joint_f", NewtonManager.get_control(), self.data.actuator_effort_target)
+        if self._has_implicit_actuators:
+            self._root_view.set_attribute(
+                    "joint_target_pos", NewtonManager.get_control(), self.data.actuator_position_target
+                )
+            self._root_view.set_attribute(
+                "joint_target_vel", NewtonManager.get_control(), self.data.actuator_velocity_target
+            )
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -1473,7 +1482,7 @@ class Articulation(BaseArticulation):
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 target,
-                self._data.joint_target,
+                self._data.actuator_position_target,
                 env_mask,
                 joint_mask,
             ],
@@ -1510,7 +1519,7 @@ class Articulation(BaseArticulation):
         # set into the actuator target buffer
         self._update_batched_array_with_batched_array_masked(
             target,
-            self._data.joint_target,
+            self._data.actuator_velocity_target,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -1547,7 +1556,7 @@ class Articulation(BaseArticulation):
         # set into the actuator effort target buffer
         self._update_batched_array_with_batched_array_masked(
             target,
-            self._data._actuator_effort_target,
+            self._data.actuator_effort_target,
             env_mask,
             joint_mask,
             (self.num_instances, self.num_joints)
@@ -2000,6 +2009,10 @@ class Articulation(BaseArticulation):
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
 
+        # Hack to ensure the limits are not too large.
+        self._root_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(2500.0)
+        self._root_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(100.0)
+
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers
@@ -2049,18 +2062,10 @@ class Articulation(BaseArticulation):
                     actuator._joint_mask,
                     (self.num_instances, self.num_joints)
                 )
-                # Sets the control mode for the implicit actuators
-                self._update_batched_array_with_batched_array_masked(
-                    self._data.actuator_control_mode,
-                    self._data.joint_control_mode,
-                    self._data.ALL_ENV_MASK,
-                    actuator._joint_mask,
-                    (self.num_instances, self.num_joints)
-                )
                 # When using implicit actuators, we bind the commands sent from the user to the simulation.
                 # We only run the actuator model to compute the estimated joint efforts.
-                self.data._actuator_target = self.data.joint_target
-                self.data._actuator_effort_target = self.data.joint_effort
+                #self.data._actuator_target = self.data.joint_target
+                #self.data._actuator_effort_target = self.data.joint_effort
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference

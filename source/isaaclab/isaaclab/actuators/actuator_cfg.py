@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import sys
-import warnings
-
+from isaaclab.utils import configclass
+from dataclasses import MISSING
+from typing import Literal, Iterable
 from . import actuator_net, actuator_pd
-from . import ControlMode
 
 
 @configclass
@@ -158,16 +157,6 @@ class ActuatorBaseCfg:
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
-    """
-
-    control_mode: ControlMode = ControlMode.POSITION
-    """The control mode of the actuator. Defaults to :obj:`ControlMode.POSITION`.
-
-    The control mode can be one of the following:
-
-    * ``"position"``: position control
-    * ``"velocity"``: velocity control
-    * ``"effort"``: effort control
     """
 
 
