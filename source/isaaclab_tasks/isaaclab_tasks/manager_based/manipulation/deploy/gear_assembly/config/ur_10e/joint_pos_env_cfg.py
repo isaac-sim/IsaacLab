@@ -411,8 +411,6 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
-                # TODO: @ashwinvk: Revert to default USD after https://jirasw.nvidia.com/browse/ISIM-4733 is resolved
-                usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_default_2f85.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
