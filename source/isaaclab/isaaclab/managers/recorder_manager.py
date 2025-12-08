@@ -541,6 +541,7 @@ class RecorderManager(ManagerBase):
                 "dataset_export_dir_path",
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
+                "export_in_close",
             ]:
                 continue
             # check if term config is None
