@@ -721,11 +721,11 @@ Here's an example of setting up hand tracking:
 
    # Create retargeters
    position_retargeter = Se3AbsRetargeter(
-       bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+       bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
        zero_out_xy_rotation=True,
        use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
    )
-   gripper_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
+   gripper_retargeter = GripperRetargeter(bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT)
 
    # Create OpenXR device with hand tracking and both retargeters
    device = OpenXRDevice(
@@ -919,7 +919,7 @@ The retargeting system is designed to be extensible. You can create custom retar
                Any: The transformed control commands for the robot.
            """
            # Access hand tracking data using TrackingTarget enum
-           right_hand_data = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+           right_hand_data = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
            # Extract specific joint positions and orientations
            wrist_pose = right_hand_data.get("wrist")
@@ -927,7 +927,7 @@ The retargeting system is designed to be extensible. You can create custom retar
            index_tip_pose = right_hand_data.get("index_tip")
 
            # Access head tracking data
-           head_pose = data[OpenXRDevice.TrackingTarget.HEAD]
+           head_pose = data[DeviceBase.TrackingTarget.HEAD]
 
            # Process the tracking data and apply your custom logic
            # ...

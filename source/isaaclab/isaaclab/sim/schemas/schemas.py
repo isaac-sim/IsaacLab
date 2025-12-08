@@ -10,9 +10,10 @@ import logging
 import math
 
 import omni.physx.scripts.utils as physx_utils
-from isaacsim.core.utils.stage import get_current_stage
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
+
+from isaaclab.sim.utils.stage import get_current_stage
 
 from ..utils import (
     apply_nested,
