@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.50.0 (2025-12-8)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Implemented ability to attach an imu sensor to xform primitives in a usd file. This PR is based on work by '@GiulioRomualdi'
+  here: #3094 Addressing issue #3088.
+
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
