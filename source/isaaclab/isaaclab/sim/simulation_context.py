@@ -356,8 +356,10 @@ class SimulationContext:
             self._physics_scene = UsdPhysics.Scene(physics_scene_prim)
 
         # Set physics dt (time steps per second) using string attribute name
-        self._set_physx_scene_attr(physics_scene_prim, "physxScene:timeStepsPerSecond", int(1.0 / self.cfg.dt), Sdf.ValueTypeNames.Int)
-        self.stage.SetTimeCodesPerSecond(1/self.cfg.dt)
+        self._set_physx_scene_attr(
+            physics_scene_prim, "physxScene:timeStepsPerSecond", int(1.0 / self.cfg.dt), Sdf.ValueTypeNames.Int
+        )
+        self.stage.SetTimeCodesPerSecond(1 / self.cfg.dt)
 
         # Set gravity on the physics scene
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
@@ -439,12 +441,16 @@ class SimulationContext:
             self.settings.set_bool("/physics/suppressReadback", True)
             # Set GPU physics settings using string attribute names
             self._set_physx_scene_attr(self.physics_scene, "physxScene:broadphaseType", "GPU", Sdf.ValueTypeNames.Token)
-            self._set_physx_scene_attr(self.physics_scene, "physxScene:enableGPUDynamics", True, Sdf.ValueTypeNames.Bool)
+            self._set_physx_scene_attr(
+                self.physics_scene, "physxScene:enableGPUDynamics", True, Sdf.ValueTypeNames.Bool
+            )
         elif self.device.lower() == "cpu":
             self.settings.set_bool("/physics/suppressReadback", False)
             # Set CPU physics settings using string attribute names
             self._set_physx_scene_attr(self.physics_scene, "physxScene:broadphaseType", "MBP", Sdf.ValueTypeNames.Token)
-            self._set_physx_scene_attr(self.physics_scene, "physxScene:enableGPUDynamics", False, Sdf.ValueTypeNames.Bool)
+            self._set_physx_scene_attr(
+                self.physics_scene, "physxScene:enableGPUDynamics", False, Sdf.ValueTypeNames.Bool
+            )
         else:
             raise Exception(f"Device {self.device} is not supported.")
 
