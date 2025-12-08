@@ -12,7 +12,6 @@ import re
 import yaml
 from datetime import datetime
 
-import carb
 from tensorboard.backend.event_processing import event_accumulator
 
 
@@ -51,7 +50,7 @@ def get_env_config(env_configs, mode, workflow, task):
     return None
 
 
-def evaluate_job(workflow, task, env_config, duration):
+def evaluate_job(workflow, task, env_config, duration, disable_duration_check=False):
     """Evaluate the job."""
     log_data = _retrieve_logs(workflow, task)
 
@@ -64,6 +63,8 @@ def evaluate_job(workflow, task, env_config, duration):
         return kpi_payload
 
     thresholds = {**env_config.get("lower_thresholds", {}), **env_config.get("upper_thresholds", {})}
+    if disable_duration_check:
+        thresholds.pop("duration", None)
 
     # evaluate all thresholds from the config
     for threshold_name, threshold_val in thresholds.items():
@@ -136,7 +137,7 @@ def process_kpi_data(kpi_payloads, tag=""):
 def output_payloads(payloads):
     """Output the KPI payloads to a json file."""
     # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
     output_path = os.path.join(repo_path, "logs/kpi.json")
     # create directory if it doesn't exist
     if not os.path.exists(os.path.dirname(output_path)):
@@ -148,8 +149,8 @@ def output_payloads(payloads):
 
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
-    # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    # first grab all log files (go up 4 levels: benchmarking -> test -> isaaclab_tasks -> source -> IsaacLab)
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
     from isaacsim.core.version import get_version
 
     if int(get_version()[2]) < 5:

@@ -34,6 +34,9 @@ def registered_tasks():
     for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id:
             cfg_entry_point = gym.spec(task_spec.id).kwargs.get("skrl_cfg_entry_point")
+            # skip camera environments for now due to replicator issues with numpy > 2
+            if "RGB" in task_spec.id or "Depth" in task_spec.id or "Vision" in task_spec.id:
+                continue
             if cfg_entry_point is not None:
                 registered_tasks.append(task_spec.id)
     # sort environments by name

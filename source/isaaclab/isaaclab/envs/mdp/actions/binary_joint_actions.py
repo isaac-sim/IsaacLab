@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
@@ -19,6 +18,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class BinaryJointAction(ActionTerm):
@@ -53,7 +55,7 @@ class BinaryJointAction(ActionTerm):
         self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )

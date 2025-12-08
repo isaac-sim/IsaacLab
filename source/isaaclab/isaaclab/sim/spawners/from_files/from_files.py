@@ -5,20 +5,19 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
-import omni.log
 from pxr import Gf, Sdf, Usd
+
+import isaaclab.sim.utils.prims as prim_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
     import Semantics
 except ModuleNotFoundError:
     from pxr import Semantics
-
-from isaacsim.core.utils.stage import get_current_stage
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import (
@@ -28,9 +27,13 @@ from isaaclab.sim.utils import (
     is_current_stage_in_memory,
     select_usd_variants,
 )
+from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
+
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -182,7 +185,7 @@ def spawn_ground_plane(
         # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
         # is not supported in stage in memory
         if is_current_stage_in_memory():
-            omni.log.warn(
+            logger.warning(
                 "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
             )
 
@@ -256,20 +259,16 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # get stage handle
-    stage = get_current_stage()
+    # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
+    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
-    # check file path exists
-    if not stage.ResolveIdentifierToEditTarget(usd_path):
-        if "4.5" in usd_path:
-            usd_5_0_path = (
-                usd_path.replace("http", "https").replace("-production.", "-staging.").replace("/4.5", "/5.0")
-            )
-            if not stage.ResolveIdentifierToEditTarget(usd_5_0_path):
-                raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
-            usd_path = usd_5_0_path
-        else:
-            raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
+    # Download remote files (S3, HTTP, HTTPS) to local cache
+    # This also downloads all USD dependencies to maintain references
+    if file_status == 2:
+        usd_path = retrieve_file_path(usd_path)
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
@@ -281,7 +280,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:

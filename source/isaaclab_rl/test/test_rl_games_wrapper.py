@@ -41,6 +41,9 @@ def registered_tasks():
                 # skip automate environments as they require cuda installation
                 if "assembly" in task_spec.id.lower():
                     continue
+                # skip camera environments for now due to replicator issues with numpy > 2
+                if "RGB" in task_spec.id or "Depth" in task_spec.id or "Vision" in task_spec.id:
+                    continue
                 registered_tasks.append(task_spec.id)
     # sort environments by name
     registered_tasks.sort()

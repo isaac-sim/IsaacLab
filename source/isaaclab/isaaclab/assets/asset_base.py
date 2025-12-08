@@ -14,15 +14,15 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -75,14 +75,8 @@ class AssetBase(ABC):
         # get stage handle
         self.stage = get_current_stage()
 
-        # check if base asset path is valid
-        # note: currently the spawner does not work if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Robot_[1,2]" since the spawner will not
-        #   know which prim to spawn. This is a limitation of the spawner and not the asset.
-        asset_path = self.cfg.prim_path.split("/")[-1]
-        asset_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", asset_path) is None
         # spawn the asset
-        if self.cfg.spawn is not None and not asset_path_is_regex:
+        if self.cfg.spawn is not None:
             self.cfg.spawn.func(
                 self.cfg.prim_path,
                 self.cfg.spawn,

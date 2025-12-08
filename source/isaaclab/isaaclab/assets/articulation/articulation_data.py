@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import torch
 import weakref
 
-import omni.log
 import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedBuffer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ArticulationData:
@@ -50,9 +53,7 @@ class ArticulationData:
         self._sim_timestamp = 0.0
 
         # obtain global simulation view
-        gravity = NewtonManager.get_model().gravity
-        # Convert to direction vector
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        gravity_dir = wp.to_torch(NewtonManager.get_model().gravity)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
@@ -270,21 +271,16 @@ class ArticulationData:
     # Joint commands -- Set into simulation.
     ##
 
-    joint_control_mode: torch.Tensor = None
-    """Joint control mode. Shape is (num_instances, num_joints).
+    joint_pos_target: torch.Tensor = None
+    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
 
-    When using implicit actuator models Newton needs to know how the joints are controlled.
-    The control mode can be one of the following:
-
-    * None: 0
-    * Position control: 1
-    * Velocity control: 2
-
-    This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
     """
 
-    joint_target: torch.Tensor = None
-    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+    joint_vel_target: torch.Tensor = None
+    """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
 
     For an implicit actuator model, the targets are directly set into the simulation.
     For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
@@ -1077,7 +1073,7 @@ class ArticulationData:
     @property
     def joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.joint_pos_limits
@@ -1085,7 +1081,7 @@ class ArticulationData:
     @property
     def default_joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_limits` property will be deprecated in a future release. Please use"
             " `default_joint_pos_limits` instead."
         )
@@ -1094,7 +1090,7 @@ class ArticulationData:
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
             " `joint_vel_limits` instead."
         )
@@ -1103,7 +1099,7 @@ class ArticulationData:
     @property
     def joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
         )
@@ -1112,7 +1108,7 @@ class ArticulationData:
     @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
             " `default_joint_friction_coeff` instead."
         )
@@ -1121,7 +1117,7 @@ class ArticulationData:
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `fixed_tendon_pos_limits` instead."
         )
@@ -1130,7 +1126,7 @@ class ArticulationData:
     @property
     def default_fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
+        logger.warning(
             "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `default_fixed_tendon_pos_limits` instead."
         )

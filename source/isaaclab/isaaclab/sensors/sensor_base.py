@@ -23,11 +23,11 @@ from typing import TYPE_CHECKING, Any
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg

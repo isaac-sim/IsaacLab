@@ -168,7 +168,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
         self.sim.newton_cfg.solver_cfg.njmax = 38
-        self.sim.newton_cfg.solver_cfg.ncon_per_env = 15
+        self.sim.newton_cfg.solver_cfg.nconmax = 15
         self.sim.newton_cfg.solver_cfg.ls_iterations = 10
         self.sim.newton_cfg.solver_cfg.ls_parallel = True
         self.sim.newton_cfg.solver_cfg.cone = "pyramidal"

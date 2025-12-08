@@ -15,13 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import os
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 
@@ -126,11 +126,11 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness, config.joint_drive.gains.stiffness, rtol=1e-5)
+    np.testing.assert_allclose(drive_damping, config.joint_drive.gains.damping, rtol=1e-5)
 
     # check drive values for the robot (read from usd)
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness, config.joint_drive.gains.stiffness, rtol=1e-5)
+    np.testing.assert_allclose(drive_damping, config.joint_drive.gains.damping, rtol=1e-5)
