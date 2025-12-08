@@ -13,7 +13,7 @@ Reference: https://github.com/UMich-BipedLab/Cassie_Model/blob/master/urdf/cassi
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -50,7 +50,6 @@ CASSIE_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=["hip_.*", "thigh_.*", "ankle_.*"],
-            control_mode=ControlMode.POSITION,
             effort_limit_sim=200.0,
             stiffness={
                 "hip_abduction.*": 100.0,
@@ -71,7 +70,6 @@ CASSIE_CFG = ArticulationCfg(
         ),
         "toes": ImplicitActuatorCfg(
             joint_names_expr=["toe_.*"],
-            control_mode=ControlMode.POSITION,
             effort_limit_sim=20.0,
             stiffness={
                 "toe_joint.*": 20.0,

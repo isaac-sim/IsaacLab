@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg
+    from .actuator_base_cfg import ActuatorBaseCfg
 
 
 class ActuatorBase(ABC):
@@ -44,8 +44,8 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
-    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
+    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e2
+    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e2.
 
     If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
     actuator, then this value is used.
@@ -61,8 +61,11 @@ class ActuatorBase(ABC):
         are not specified in the configuration, then their values provided in the constructor are used.
 
         .. note::
-            The values in the constructor are typically obtained through the USD schemas corresponding
-            to the joints in the actuator model.
+            The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+            corresponding to the joints in the actuator model; these values serve as default values if the parameters
+            are not specified in the cfg.
+
+
 
         Args:
             cfg: The configuration of the actuator model.

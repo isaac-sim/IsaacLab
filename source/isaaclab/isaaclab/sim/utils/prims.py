@@ -10,6 +10,7 @@ import inspect
 import logging
 import numpy as np
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -17,15 +18,13 @@ import omni
 import omni.kit.commands
 import omni.usd
 import usdrt
-from isaacsim.core.cloner import Cloner
-from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
 
 from .semantics import add_labels
-from .stage import add_reference_to_stage, attach_stage_to_usd_context, get_current_stage
+from .stage import add_reference_to_stage, get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -1261,6 +1260,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         sdf_type = Sdf.ValueTypeNames.Int
     elif isinstance(value, float):
         sdf_type = Sdf.ValueTypeNames.Float
+    elif isinstance(value, str):
+        sdf_type = Sdf.ValueTypeNames.Token
     elif isinstance(value, (tuple, list)) and len(value) == 3 and any(isinstance(v, float) for v in value):
         sdf_type = Sdf.ValueTypeNames.Float3
     elif isinstance(value, (tuple, list)) and len(value) == 2 and any(isinstance(v, float) for v in value):
@@ -1269,20 +1270,10 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         raise NotImplementedError(
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
-
-    # early attach stage to usd context if stage is in memory
-    # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-    attach_stage_to_usd_context(attaching_early=True)
-
-    # change property
-    omni.kit.commands.execute(
-        "ChangePropertyCommand",
-        prop_path=Sdf.Path(f"{prim.GetPath()}.{attr_name}"),
-        value=value,
-        prev=None,
-        type_to_create_if_not_exist=sdf_type,
-        usd_context_name=prim.GetStage(),
-    )
+    attr = prim.GetAttribute(attr_name)
+    if not attr:
+        attr = prim.CreateAttribute(attr_name, sdf_type)
+    attr.Set(value)
 
 
 """
@@ -1489,10 +1480,10 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # resolve prim paths for spawning
+        prim_spawn_path = prim_path.replace(".*", "0")
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -1519,28 +1510,19 @@ def clone(func: Callable) -> Callable:
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
 
-            _schemas.activate_contact_sensors(prim_paths[0])
+            _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
-        if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+        if len(source_prim_paths) > 1:
+            # lazy import to avoid circular import
+            from isaaclab.cloner import usd_replicate
+
+            formattable_path = f"{root_path.replace('.*', '{}')}/{asset_path}"
+            usd_replicate(
+                stage=stage,
+                sources=[formattable_path.format(0)],
+                destinations=[formattable_path],
+                env_ids=torch.arange(len(source_prim_paths)),
+            )
         # return the source prim
         return prim
 
@@ -1650,10 +1632,11 @@ def bind_physics_material(
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    applied_schemas = prim.GetAppliedSchemas()
+    has_physics_scene_api = "PhysxSceneAPI" in applied_schemas
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
-    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    has_deformable_body = "PhysxDeformableBodyAPI" in applied_schemas
+    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"

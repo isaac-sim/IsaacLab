@@ -18,7 +18,6 @@ Reference:
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
-from isaaclab.actuators import ControlMode
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -40,7 +39,6 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     ),
     actuators={
         "fingers": ImplicitActuatorCfg(
-            control_mode=ControlMode.POSITION,
             joint_names_expr=[".*"],
             effort_limit_sim=0.5,
             stiffness=1.0,

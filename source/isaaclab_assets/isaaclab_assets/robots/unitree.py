@@ -19,7 +19,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg, ControlMode
+from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
@@ -173,7 +173,6 @@ H1_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
-            control_mode=ControlMode.POSITION,
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -194,7 +193,6 @@ H1_CFG = ArticulationCfg(
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle"],
-            control_mode=ControlMode.POSITION,
             effort_limit=100,
             velocity_limit=100.0,
             stiffness={".*_ankle": 20.0},
@@ -203,7 +201,6 @@ H1_CFG = ArticulationCfg(
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
-            control_mode=ControlMode.POSITION,
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -241,7 +238,7 @@ G1_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
             collision_enabled=True,
         ),
     ),
@@ -273,7 +270,6 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint",
                 "torso_joint",
             ],
-            control_mode=ControlMode.POSITION,
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -298,7 +294,6 @@ G1_CFG = ArticulationCfg(
             friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
-            control_mode=ControlMode.POSITION,
             effort_limit=20,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
@@ -321,7 +316,6 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint",
                 ".*_two_joint",
             ],
-            control_mode=ControlMode.POSITION,
             effort_limit=300,
             velocity_limit=100.0,
             stiffness=40.0,
@@ -358,7 +352,7 @@ G1_29_DOF_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
         ),
     ),
     soft_joint_pos_limit_factor=0.9,

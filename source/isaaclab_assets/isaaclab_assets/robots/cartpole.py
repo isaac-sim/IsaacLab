@@ -7,7 +7,7 @@
 
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -28,7 +28,6 @@ CARTPOLE_CFG = ArticulationCfg(
     actuators={
         "cart_actuator": ImplicitActuatorCfg(
             joint_names_expr=["slider_to_cart"],
-            control_mode=ControlMode.POSITION,
             effort_limit=400.0,
             velocity_limit=100.0,
             stiffness=0.0,
@@ -36,7 +35,6 @@ CARTPOLE_CFG = ArticulationCfg(
         ),
         "pole_actuator": ImplicitActuatorCfg(
             joint_names_expr=["cart_to_pole"],
-            control_mode=ControlMode.NONE,
             effort_limit=400.0,
             velocity_limit=100.0,
             stiffness=0.0,
