@@ -310,10 +310,11 @@ def _spawn_from_usd_file(
             material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
             material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(prim_path, material_path)
+        # create material (returns None if omni.kit is not available)
+        visual_material_prim = cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material only if it was successfully created
+        if visual_material_prim is not None:
+            bind_visual_material(prim_path, material_path)
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)

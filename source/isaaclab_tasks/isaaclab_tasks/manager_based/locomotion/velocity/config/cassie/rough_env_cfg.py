@@ -63,7 +63,8 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # events
         self.events.push_robot = None
-        self.events.add_base_mass = None
+        # TODO: TEMPORARILY DISABLED - adding this causes NaNs in the simulation
+        # self.events.add_base_mass = None
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
         self.events.reset_base.params = {

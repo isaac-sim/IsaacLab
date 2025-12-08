@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
+# import builtins
 import contextlib
 import logging
 import torch
@@ -103,8 +103,8 @@ class ManagerBasedEnv:
         else:
             # simulation context should only be created before the environment
             # when in extension mode
-            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            # if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+            #     raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
         # make sure torch is running on the correct device
