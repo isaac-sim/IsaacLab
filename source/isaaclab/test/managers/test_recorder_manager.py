@@ -150,6 +150,7 @@ def get_file_contents(file_name: str, num_steps: int) -> dict[str, np.ndarray]:
         f.visititems(get_data)
     return data
 
+
 @configclass
 class DummyEnvCfg:
     """Dummy environment configuration."""
