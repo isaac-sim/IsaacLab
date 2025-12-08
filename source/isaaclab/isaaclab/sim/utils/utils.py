@@ -903,7 +903,7 @@ def check_prim_implements_apis(
 ) -> bool:
     """Return true if prim implements all apis, False otherwise."""
 
-    if type(apis) is not list:
+    if not isinstance(apis, list):
         return prim.HasAPI(apis)
     else:
         return all(prim.HasAPI(api) for api in apis)
@@ -923,7 +923,12 @@ def resolve_pose_relative_to_physx_parent(
     /body frame). If the first primitive in the prim_path already implements the necessary APIs, return identity.
 
         Args:
-            prim_path_regex (str): A str refelcting a primitive path pattern (e.g. from a cfg)
+            prim_path_regex (str): A str refelcting a primitive path pattern (e.g. from a cfg).
+
+            .. Note::
+                Only simple wild card expressions are supported (e.g. .*). More complicated expressions (e.g. [0-9]+) are not
+                supported at this time.
+
             implements_apis (list[ Usd.APISchemaBase] | Usd.APISchemaBase): APIs ancestor must implement.
 
         Returns:
@@ -946,7 +951,7 @@ def resolve_pose_relative_to_physx_parent(
             break
         ancestor = ancestor.GetParent()
     if not ancestor or not ancestor.IsValid():
-        raise RuntimeError(f"Path '{target_prim.GetPath()}' has no ancestor which implements all required APIs.")
+        raise RuntimeError(f"Path '{target_prim.GetPath()}' has no primitive in tree which implements required APIs.")
     # Compute fixed transform ancestor->target at default time
     xcache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
@@ -969,6 +974,7 @@ def resolve_pose_relative_to_physx_parent(
     rel = child_path.MakeRelativePath(ancestor_path).pathString
 
     if rel and prim_path_regex.endswith(rel):
+        # Note: This string trimming logic is not robust to all wild card replacements, e.g. [0-9]+ or (a|b).
         # Remove "/<rel>" or "<rel>" at end
         cut_len = len(rel)
         trimmed = prim_path_regex

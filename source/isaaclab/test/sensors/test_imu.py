@@ -716,7 +716,7 @@ def test_attachment_validity(setup_sim):
     with pytest.raises(RuntimeError) as exc_info:
         imu_world = Imu(imu_world_cfg)
         imu_world._initialize_impl()
-    assert exc_info.type is RuntimeError
+    assert exc_info.type is RuntimeError and "no primitive in tree" in str(exc_info.value)
 
 
 @pytest.mark.isaacsim_ci
