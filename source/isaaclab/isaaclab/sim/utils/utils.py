@@ -898,8 +898,14 @@ def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = Non
 def check_prim_implements_apis(
     prim: Usd.Prim, apis: list[Usd.APISchemaBase] | Usd.APISchemaBase = UsdPhysics.RigidBodyAPI
 ) -> bool:
-    """Return true if prim implements all apis, False otherwise."""
+    """Check if provided primitive implements all required APIs.
 
+    Args:
+        prim (Usd.Prim): The primitive to check.
+        apis (list[Usd.APISchemaBase] | Usd.APISchemaBase): The apis required.
+    Returns:
+        bool: Return true if prim implements all apis. Return false otherwise.
+    """
     if not isinstance(apis, list):
         return prim.HasAPI(apis)
     else:
