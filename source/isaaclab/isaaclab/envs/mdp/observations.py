@@ -246,7 +246,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.joint_vel).clone()[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -281,7 +281,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.applied_torque).clone()[:, asset_cfg.joint_ids]
 
 
 """

@@ -1958,35 +1958,37 @@ class Articulation(BaseArticulation):
             self.num_instances
         )
         # -- joint pos
-        # joint pos
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_pos, self.joint_names
-        )
-        # Compute the mask once and use it for all joint operations
-        wp.launch(
-            update_array2D_with_array1D_indexed,
-            dim=(self.num_instances, len(indices_list)),
-            inputs=[
-                wp.array(values_list, dtype=wp.float32, device=self.device),
-                self._data.default_joint_pos,
-                None,
-                wp.array(indices_list, dtype=wp.int32, device=self.device),
-            ],
-        )
-        # joint vel
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_vel, self.joint_names
-        )
-        wp.launch(
-            update_array2D_with_array1D_indexed,
-            dim=(self.num_instances, len(indices_list)),
-            inputs=[
-                wp.array(values_list, dtype=wp.float32, device=self.device),
-                self._data.default_joint_vel,
-                None,
-                wp.array(indices_list, dtype=wp.int32, device=self.device),
-            ],
-        )
+
+        if self.num_joints > 0:
+            # joint pos
+            indices_list, _, values_list = string_utils.resolve_matching_names_values(
+                self.cfg.init_state.joint_pos, self.joint_names
+            )
+            # Compute the mask once and use it for all joint operations
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_instances, len(indices_list)),
+                inputs=[
+                    wp.array(values_list, dtype=wp.float32, device=self.device),
+                    self._data.default_joint_pos,
+                    None,
+                    wp.array(indices_list, dtype=wp.int32, device=self.device),
+                ],
+            )
+            # joint vel
+            indices_list, _, values_list = string_utils.resolve_matching_names_values(
+                self.cfg.init_state.joint_vel, self.joint_names
+            )
+            wp.launch(
+                update_array2D_with_array1D_indexed,
+                dim=(self.num_instances, len(indices_list)),
+                inputs=[
+                    wp.array(values_list, dtype=wp.float32, device=self.device),
+                    self._data.default_joint_vel,
+                    None,
+                    wp.array(indices_list, dtype=wp.int32, device=self.device),
+                ],
+            )
 
     """
     Internal simulation callbacks.
