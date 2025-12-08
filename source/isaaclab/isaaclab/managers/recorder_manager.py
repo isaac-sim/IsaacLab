@@ -134,7 +134,7 @@ class RecorderTerm(ManagerTermBase):
             Please refer to the `record_pre_reset` function for more details.
         """
         return None, None
-      
+
     def close(self, file_path: str):
         """Finalize and "clean up" the recorder term.
 
