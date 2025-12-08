@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
+import warp as wp
 
 from isaaclab.utils import configclass
 
@@ -298,7 +299,7 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservatio
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_pos_offsets = asset.data.default_joint_pos[:, ids][0]
+    descriptor.joint_pos_offsets = wp.to_torch(asset.data.default_joint_pos).clone()[:, ids][0]
 
 
 def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):

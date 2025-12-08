@@ -201,7 +201,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.joint_pos).clone()[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -230,7 +230,7 @@ def joint_pos_limit_normalized(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
-        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids],
+        wp.to_torch(asset.data.joint_pos).clone()[:, asset_cfg.joint_ids],
         wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0],
         wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1],
     )
