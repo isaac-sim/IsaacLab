@@ -33,6 +33,14 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--validate_success_rate",
+    action="store_true",
+    default=False,
+    help=(
+        "Validate the replay success rate using the task environment termination criteria"
+    ),
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -143,6 +151,17 @@ def main():
 
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
 
+    # extract success checking function to invoke in the main loop
+    success_term = None
+    if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
+        env_cfg.terminations.success = None
+    else:
+        print(
+            "No success termination term was found in the environment."
+            " Will not be able to mark recorded demos as successful."
+        )
+		
     # Disable all recorders and terminations
     env_cfg.recorders = {}
     env_cfg.terminations = {}
@@ -175,11 +194,19 @@ def main():
     # simulate environment -- run everything in inference mode
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count = 0
+    recorded_episode_count = 0
+    
+    # Track current episode indices for each environment
+    current_episode_indices = [None] * num_envs
+    
+    # Track failed demo IDs
+    failed_demo_ids = []
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running() and not simulation_app.is_exiting():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True
+            episode_ended = [False] * num_envs
             while has_next_action:
                 # initialize actions with idle action so those without next action will not move
                 actions = idle_action
@@ -191,11 +218,32 @@ def main():
                         while episode_indices_to_replay:
                             next_episode_index = episode_indices_to_replay.pop(0)
                             if next_episode_index < episode_count:
+                                episode_ended[env_id] = False
                                 break
                             next_episode_index = None
 
+                        # check if the episode is successful after the whole episode_data is evaluated
+                        if success_term is not None and current_episode_indices[env_id] is not None:
+                            if (
+                                bool(success_term.func(env, **success_term.params)[env_id])
+                                and not episode_ended[env_id]
+                            ):
+                                recorded_episode_count += 1
+                                plural_trailing_s = "s" if recorded_episode_count > 1 else ""
+                                episode_ended[env_id] = True
+
+                                print(
+                                    f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
+                                    f" of {replayed_episode_count} demos."
+                                )
+                            else:
+                                # if not successful, add to failed demo IDs list
+                                if current_episode_indices[env_id] is not None:
+                                    failed_demo_ids.append(current_episode_indices[env_id])
+									
                         if next_episode_index is not None:
                             replayed_episode_count += 1
+                            current_episode_indices[env_id] = next_episode_index
                             print(f"{replayed_episode_count :4}: Loading #{next_episode_index} episode to env_{env_id}")
                             episode_data = dataset_file_handler.load_episode(
                                 episode_names[next_episode_index], env.device
@@ -238,6 +286,13 @@ def main():
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")
+    print(f"Successfully replayed: {recorded_episode_count}/{replayed_episode_count}")
+    
+    # Print failed demo IDs if any
+    if failed_demo_ids:
+        print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
+        print(f"  {failed_demo_ids}")
+
     env.close()
 
 
