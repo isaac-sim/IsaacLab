@@ -26,6 +26,8 @@ from .camera import Camera
 if TYPE_CHECKING:
     from .tiled_camera_cfg import TiledCameraCfg
 
+from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
+
 
 class TiledCamera(Camera):
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
@@ -126,6 +128,8 @@ class TiledCamera(Camera):
         # reset the frame count
         self._frame[env_ids] = 0
 
+        self._renderer.reset()
+
     """
     Implementation.
     """
@@ -162,6 +166,26 @@ class TiledCamera(Camera):
                 f"Number of camera prims in the view ({self._view.count}) does not match"
                 f" the number of environments ({self._num_envs})."
             )
+        
+        if self.cfg.renderer_type == "newton_warp":
+            
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+
+            renderer_cfg = NewtonWarpRendererCfg(
+                width=self.cfg.width,
+                height=self.cfg.height,
+                num_cameras=self._view.count,
+                num_envs=self._num_envs
+            )
+            # Lazy-load the renderer class
+            renderer_cls = get_renderer_class("newton_warp")
+            if renderer_cls is None:
+                raise RuntimeError(f"Failed to load renderer class for type '{self.cfg.renderer_type}'.")
+            self._renderer = renderer_cls(renderer_cfg)
+            self._renderer.initialize()
+
+        else:
+            raise ValueError(f"Renderer type '{self.cfg.renderer_type}' is not supported.")
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
@@ -231,6 +255,16 @@ class TiledCamera(Camera):
         # update latest camera pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+        
+        # call render function of the renderer to update the output buffers
+        self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
+
+        for data_type, output_buffer in self._renderer.get_output().items():
+            if data_type == "rgb":
+                output_color_buffer = output_buffer[100].numpy().squeeze().reshape(100, 100, -1).view(np.uint8)
+                print("unique colors: ", np.unique(output_color_buffer.reshape(-1, 4), axis=0))
+            elif data_type == "depth":
+                pass
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():

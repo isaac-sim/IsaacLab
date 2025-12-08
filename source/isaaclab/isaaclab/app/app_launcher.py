@@ -29,6 +29,19 @@ from .settings_manager import get_settings_manager, initialize_carb_settings
 _SIMULATION_APP_AVAILABLE = False
 _SimulationApp = None
 
+# Force pip-installed warp-lang to take precedence over omni.warp.core extension
+# This needs to happen before SimulationApp loads any extensions
+_warp_pip_path = None
+for path in sys.path:
+    if "site-packages" in path and os.path.exists(os.path.join(path, "warp")):
+        _warp_pip_path = path
+        break
+
+if _warp_pip_path and _warp_pip_path in sys.path:
+    # Move pip warp to the front of sys.path
+    sys.path.remove(_warp_pip_path)
+    sys.path.insert(0, _warp_pip_path)
+
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp as _SimulationApp

@@ -9,6 +9,7 @@ from isaaclab.utils import configclass
 
 from .renderer_cfg import RendererCfg
 
+from newton import Model
 
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):

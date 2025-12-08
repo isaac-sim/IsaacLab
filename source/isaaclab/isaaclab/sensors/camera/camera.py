@@ -38,8 +38,7 @@ from .camera_data import CameraData
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-from isaaclab.renderer import NewtonWarpRenderer
-from isaaclab.renderer_cfg import NewtonWarpRendererCfg
+from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
 
 
 class Camera(SensorBase):
@@ -416,7 +415,11 @@ class Camera(SensorBase):
                 num_cameras=self._num_cameras,
                 num_envs=self._num_envs,
             )
-            self._renderer = NewtonWarpRenderer(renderer_cfg)
+            # Lazy-load the renderer class
+            renderer_cls = get_renderer_class("newton_warp")
+            if renderer_cls is None:
+                raise RuntimeError(f"Failed to load renderer class for type '{self.cfg.renderer_type}'.")
+            self._renderer = renderer_cls(renderer_cfg)
         else:
             raise ValueError(f"Renderer type '{self.cfg.renderer_type}' is not supported.")
 

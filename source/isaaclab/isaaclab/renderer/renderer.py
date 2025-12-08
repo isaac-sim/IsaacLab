@@ -4,10 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from abc import ABC
+from .renderer_cfg import RendererCfg
 from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .renderer_cfg import RendererCfg
 
 
 class RendererBase(ABC):
@@ -20,11 +18,15 @@ class RendererBase(ABC):
         self.cfg = cfg
         self._height = cfg.height
         self._width = cfg.width
+        self._num_envs = cfg.num_envs
         # List of data types to use for rendering, e.g. ["rgb", "depth", "semantic_segmentation"]
         self._data_types = []
 
         # output buffer format is a ditc, where the keys is the data type and the value is a list of buffers for each camera
+        # TODO: Document the standard format of the output data buffers. Need discussion.
         self._output_data_buffers = dict()
+
+        # TODO: share the same renderer for different cameras/rendering jobs.
 
     def initialize(self):
         """Initialize the renderer."""
@@ -35,8 +37,12 @@ class RendererBase(ABC):
     def step(self):
         """Step the renderer."""
         raise NotImplementedError("step() is not implemented.")
+    
+    def reset(self):
+        """Reset the renderer."""
+        raise NotImplementedError("reset() is not implemented.")
 
-    def initialize_output(self):
+    def _initialize_output(self):
         """Initialize the output of the renderer."""
         raise NotImplementedError("initialize_output() is not implemented.")
 
@@ -46,3 +52,7 @@ class RendererBase(ABC):
     def close(self):
         """Close the renderer."""
         raise NotImplementedError("close() is not implemented.")
+    
+    def clone(self, cameras):
+        """TODO: Clone the camera in renderer."""
+        raise NotImplementedError("clone() is not implemented.")
