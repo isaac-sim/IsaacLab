@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+
+1.0.16 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add body end effector to Mimic data generation to enable loco-manipulation data generation when a navigation p-controller is provided.
+
+
 1.0.15 (2025-09-25)
 
 Fixed
