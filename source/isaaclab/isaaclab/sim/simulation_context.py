@@ -6,9 +6,12 @@
 import builtins
 import enum
 import glob
+import logging
 import numpy as np
 import os
 import re
+import sys
+import tempfile
 import time
 import toml
 import torch
@@ -21,21 +24,19 @@ from typing import Any
 
 import carb
 import flatdict
-import isaacsim.core.utils.stage as stage_utils
-import omni.log
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
-from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
+from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
-from pxr import Gf, PhysxSchema, Usd, UsdPhysics
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
+from isaaclab.sim.utils import stage as stage_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .utils import bind_physics_material
+from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
 
 
 class SimulationContext(_SimulationContext):
@@ -131,9 +132,12 @@ class SimulationContext(_SimulationContext):
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
+        # setup logger
+        self.logger = self._setup_logger()
+
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = create_new_stage_in_memory()
+            self._initial_stage = stage_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
 
@@ -253,11 +257,24 @@ class SimulationContext(_SimulationContext):
 
         # add warning about enabling stabilization for large step sizes
         if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
-            omni.log.warn(
+            self.logger.warning(
                 "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
                 " Consider setting the `enable_stabilization` flag to True in the PhysxCfg, or reducing the"
                 " simulation step size if you run into physics issues."
             )
+
+        # set simulation device
+        # note: Although Isaac Sim sets the physics device in the init function,
+        #   it does a render call which gets the wrong device.
+        SimulationManager.set_physics_sim_device(self.cfg.device)
+
+        # obtain the parsed device
+        # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
+        # as "cuda" and not "cuda:X", then it fetches the current device from SimulationManager.
+        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
+        #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
+        #   This reduces the overhead of calling the function.
+        self._physics_device = SimulationManager.get_physics_sim_device()
 
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:
@@ -283,126 +300,19 @@ class SimulationContext(_SimulationContext):
                 stage=self._initial_stage,
             )
 
-    def _apply_physics_settings(self):
-        """Sets various carb physics settings."""
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
-                "The `disable_contact_processing` attribute is deprecated and always set to True"
-                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
-                " a contact sensor is created, so manual configuration is no longer required."
-            )
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
-        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
+    """
+    Properties - Override.
+    """
 
-    def _apply_render_settings_from_cfg(self):
-        """Sets rtx settings specified in the RenderCfg."""
+    @property
+    def device(self) -> str:
+        """Device used by the simulation.
 
-        # define mapping of user-friendly RenderCfg names to native carb names
-        rendering_setting_name_mapping = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-        }
-
-        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
-
-        # grab the rendering mode using the following priority:
-        # 1. command line argument --rendering_mode, if provided
-        # 2. rendering_mode from Render Config, if set
-        # 3. lastly, default to "balanced" mode, if neither is specified
-        rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = self.cfg.render.rendering_mode
-        if not rendering_mode:
-            rendering_mode = "balanced"
-
-        # set preset settings (same behavior as the CLI arg --rendering_mode)
-        if rendering_mode is not None:
-            # check if preset is supported
-            supported_rendering_modes = ["performance", "balanced", "quality"]
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
-                )
-
-            # grab isaac lab apps path
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if float(".".join(self._isaacsim_version[2])) < 5:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
-
-            # grab preset settings
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            with open(preset_filename) as file:
-                preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-            # set presets
-            for key, value in preset_dict.items():
-                key = "/" + key.replace(".", "/")  # convert to carb setting format
-                set_carb_setting(self.carb_settings, key, value)
-
-        # set user-friendly named settings
-        for key, value in vars(self.cfg.render).items():
-            if value is None or key in not_carb_settings:
-                # skip unset settings and non-carb settings
-                continue
-            if key not in rendering_setting_name_mapping:
-                raise ValueError(
-                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
-                    " need to be updated."
-                )
-            key = rendering_setting_name_mapping[key]
-            set_carb_setting(self.carb_settings, key, value)
-
-        # set general carb settings
-        carb_settings = self.cfg.render.carb_settings
-        if carb_settings is not None:
-            for key, value in carb_settings.items():
-                if "_" in key:
-                    key = "/" + key.replace("_", "/")  # convert from python variable style string
-                elif "." in key:
-                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if get_carb_setting(self.carb_settings, key) is None:
-                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                set_carb_setting(self.carb_settings, key, value)
-
-        # set denoiser mode
-        if self.cfg.render.antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-            except Exception:
-                pass
-
-        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
-        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
-            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
+        Note:
+            In Omniverse, it is possible to configure multiple GPUs for rendering, while physics engine
+            operates on a single GPU. This function returns the device that is used for physics simulation.
+        """
+        return self._physics_device
 
     """
     Operations - New.
@@ -501,7 +411,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            omni.log.warn(
+            self.logger.warning(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -543,7 +453,19 @@ class SimulationContext(_SimulationContext):
             name: The name of the setting.
             value: The value of the setting.
         """
-        self._settings.set(name, value)
+        # Route through typed setters for correctness and consistency for common scalar types.
+        if isinstance(value, bool):
+            self.carb_settings.set_bool(name, value)
+        elif isinstance(value, int):
+            self.carb_settings.set_int(name, value)
+        elif isinstance(value, float):
+            self.carb_settings.set_float(name, value)
+        elif isinstance(value, str):
+            self.carb_settings.set_string(name, value)
+        elif isinstance(value, (list, tuple)):
+            self.carb_settings.set(name, value)
+        else:
+            raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get_setting(self, name: str) -> Any:
         """Read the simulation setting using the Carbonite SDK.
@@ -554,7 +476,7 @@ class SimulationContext(_SimulationContext):
         Returns:
             The value of the setting.
         """
-        return self._settings.get(name)
+        return self.carb_settings.get(name)
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
@@ -706,7 +628,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with use_stage(self.get_initial_stage()):
+        with stage_utils.use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
@@ -742,6 +664,128 @@ class SimulationContext(_SimulationContext):
     Helper Functions
     """
 
+    def _apply_physics_settings(self):
+        """Sets various carb physics settings."""
+        # enable hydra scene-graph instancing
+        # note: this allows rendering of instanceable assets on the GUI
+        self.carb_settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
+        # note: dispatcher handles how threads are launched for multi-threaded physics
+        self.carb_settings.set_bool("/physics/physxDispatcher", True)
+        # disable contact processing in omni.physx
+        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
+        #   The physics flag gets enabled when a contact sensor is created.
+        if hasattr(self.cfg, "disable_contact_processing"):
+            self.logger.warning(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
+            )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
+        self.carb_settings.set_bool("/physics/disableContactProcessing", True)
+        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
+        self.carb_settings.set_bool("/physics/collisionConeCustomGeometry", False)
+        self.carb_settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
+        # hide the Simulation Settings window
+        self.carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+
+    def _apply_render_settings_from_cfg(self):  # noqa: C901
+        """Sets rtx settings specified in the RenderCfg."""
+
+        # define mapping of user-friendly RenderCfg names to native carb names
+        rendering_setting_name_mapping = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+        }
+
+        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
+
+        # grab the rendering mode using the following priority:
+        # 1. command line argument --rendering_mode, if provided
+        # 2. rendering_mode from Render Config, if set
+        # 3. lastly, default to "balanced" mode, if neither is specified
+        rendering_mode = self.carb_settings.get("/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = self.cfg.render.rendering_mode
+        if not rendering_mode:
+            rendering_mode = "balanced"
+
+        # set preset settings (same behavior as the CLI arg --rendering_mode)
+        if rendering_mode is not None:
+            # check if preset is supported
+            supported_rendering_modes = ["performance", "balanced", "quality"]
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
+                )
+
+            # grab isaac lab apps path
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
+            if float(".".join(self._isaacsim_version[2])) < 5:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
+            # grab preset settings
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+            with open(preset_filename) as file:
+                preset_dict = toml.load(file)
+            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+            # set presets
+            for key, value in preset_dict.items():
+                key = "/" + key.replace(".", "/")  # convert to carb setting format
+                self.set_setting(key, value)
+
+        # set user-friendly named settings
+        for key, value in vars(self.cfg.render).items():
+            if value is None or key in not_carb_settings:
+                # skip unset settings and non-carb settings
+                continue
+            if key not in rendering_setting_name_mapping:
+                raise ValueError(
+                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
+                    " need to be updated."
+                )
+            key = rendering_setting_name_mapping[key]
+            self.set_setting(key, value)
+
+        # set general carb settings
+        carb_settings = self.cfg.render.carb_settings
+        if carb_settings is not None:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")  # convert from python variable style string
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
+                if self.get_setting(key) is None:
+                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
+                self.set_setting(key, value)
+
+        # set denoiser mode
+        if self.cfg.render.antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+            except Exception:
+                pass
+
+        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
+        if self.carb_settings.get("/rtx/rendermode").lower() == "raytracedlighting":
+            self.carb_settings.set_string("/rtx/rendermode", "RaytracedLighting")
+
     def _set_additional_physx_params(self):
         """Sets additional PhysX parameters that are not directly supported by the parent class."""
         # obtain the physics scene api
@@ -758,6 +802,11 @@ class SimulationContext(_SimulationContext):
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
         # -- Improved determinism by PhysX
         physx_scene_api.CreateEnableEnhancedDeterminismAttr(self.cfg.physx.enable_enhanced_determinism)
+        # -- Set solve_articulation_contact_last by add attribute to the PhysxScene prim, and add attribute there.
+        physx_prim = physx_scene_api.GetPrim()
+        physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
+            self.cfg.physx.solve_articulation_contact_last
+        )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
@@ -783,7 +832,7 @@ class SimulationContext(_SimulationContext):
 
         # create the default physics material
         # this material is used when no material is specified for a primitive
-        # check: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
+        # check: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.physics_material
         material_path = f"{self.cfg.physics_prim_path}/defaultMaterial"
         self.cfg.physics_material.func(material_path, self.cfg.physics_material)
         # bind the physics material to the scene
@@ -847,10 +896,10 @@ class SimulationContext(_SimulationContext):
         self._physxPvdInterface = _physxPvd.acquire_physx_pvd_interface()
 
         # Set carb settings for the output path and enabling pvd recording
-        set_carb_setting(
-            self.carb_settings, "/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir
+        self.carb_settings.set_string(
+            "/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir
         )
-        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", True)
+        self.carb_settings.set_bool("/physics/omniPvdOutputEnabled", True)
 
     def _update_usda_start_time(self, file_path, start_time):
         """Updates the start time of the USDA baked anim recordingfile."""
@@ -915,7 +964,7 @@ class SimulationContext(_SimulationContext):
         )
 
         # Disable recording
-        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", False)
+        self.carb_settings.set_bool("/physics/omniPvdOutputEnabled", False)
 
         return result
 
@@ -944,6 +993,46 @@ class SimulationContext(_SimulationContext):
             while not omni.timeline.get_timeline_interface().is_playing():
                 self.render()
         return
+
+    """
+    Logger.
+    """
+
+    def _setup_logger(self):
+        """Sets up the logger."""
+        root_logger = logging.getLogger()
+        root_logger.setLevel(self.cfg.logging_level)
+
+        # remove existing handlers
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers:
+                root_logger.removeHandler(handler)
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(self.cfg.logging_level)
+
+        formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+        handler.setFormatter(formatter)
+        handler.addFilter(RateLimitFilter(interval_seconds=5))
+        root_logger.addHandler(handler)
+
+        # --- File handler (optional) ---
+        if self.cfg.save_logs_to_file:
+            temp_dir = tempfile.gettempdir()
+            log_file_path = os.path.join(temp_dir, f"isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+            file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter(
+                fmt="%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            file_handler.setFormatter(file_formatter)
+            root_logger.addHandler(file_handler)
+
+            # Print the log file path once at startup
+            print(f"[INFO] IsaacLab logging to file: {log_file_path}")
+
+        return root_logger
 
 
 @contextmanager
@@ -1032,7 +1121,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        omni.log.error(traceback.format_exc())
+        sim.logger.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():

@@ -11,6 +11,7 @@ Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 """
 import enum
 
+from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 from isaaclab.utils import configclass
 
 
@@ -73,6 +74,12 @@ class DataGenConfig:
     generation_interpolate_from_last_target_pose: bool = True
     """Whether to interpolate from last target pose."""
 
+    use_skillgen: bool = False
+    """Whether to use skillgen to generate motion trajectories."""
+
+    use_navigation_controller: bool = False
+    """Whether to use a navigation controller to generate loco-manipulation trajectories."""
+
 
 @configclass
 class SubTaskConfig:
@@ -114,6 +121,12 @@ class SubTaskConfig:
 
     first_subtask_start_offset_range: tuple = (0, 0)
     """Range for start offset of the first subtask."""
+
+    subtask_start_offset_range: tuple = (0, 0)
+    """Range for start offset of the subtask (only used if use_skillgen is True)
+
+    Note: This value overrides the first_subtask_start_offset_range when skillgen is enabled
+    """
 
     subtask_term_offset_range: tuple = (0, 0)
     """Range for offsetting subtask termination."""
@@ -299,3 +312,6 @@ class MimicEnvCfg:
 
     # List of configurations for subtask constraints
     task_constraint_configs: list[SubTaskConstraintConfig] = []
+
+    # Optional recorder configuration
+    mimic_recorder_config: RecorderManagerBaseCfg | None = None

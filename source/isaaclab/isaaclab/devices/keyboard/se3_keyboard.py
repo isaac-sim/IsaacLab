@@ -5,6 +5,8 @@
 
 """Keyboard controller for SE(3) control."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
 import weakref
@@ -16,16 +18,6 @@ import carb
 import omni
 
 from ..device_base import DeviceBase, DeviceCfg
-
-
-@dataclass
-class Se3KeyboardCfg(DeviceCfg):
-    """Configuration for SE3 keyboard devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
 
 
 class Se3Keyboard(DeviceBase):
@@ -90,7 +82,7 @@ class Se3Keyboard(DeviceBase):
 
     def __del__(self):
         """Release the keyboard interface."""
-        self._input.unsubscribe_from_keyboard_events(self._keyboard, self._keyboard_sub)
+        self._input.unsubscribe_to_keyboard_events(self._keyboard, self._keyboard_sub)
         self._keyboard_sub = None
 
     def __str__(self) -> str:
@@ -206,3 +198,14 @@ class Se3Keyboard(DeviceBase):
             "C": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
             "V": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
         }
+
+
+@dataclass
+class Se3KeyboardCfg(DeviceCfg):
+    """Configuration for SE3 keyboard devices."""
+
+    gripper_term: bool = True
+    pos_sensitivity: float = 0.4
+    rot_sensitivity: float = 0.8
+    retargeters: None = None
+    class_type: type[DeviceBase] = Se3Keyboard

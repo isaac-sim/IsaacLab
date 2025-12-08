@@ -3,16 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import Any
 
 import carb
-import omni.log
-import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
-from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
@@ -32,10 +30,13 @@ from isaaclab.assets import (
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class InteractiveScene:
@@ -222,7 +223,7 @@ class InteractiveScene:
         carb_settings_iface = carb.settings.get_settings()
         has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
         if has_multi_assets and self.cfg.replicate_physics:
-            omni.log.warn(
+            logger.warning(
                 "Varying assets might have been spawned under different environments."
                 " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
@@ -260,7 +261,7 @@ class InteractiveScene:
         if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
             # if scene is specified through cfg, this is already taken care of
             if not self._is_scene_setup_from_cfg():
-                omni.log.warn(
+                logger.warning(
                     "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
                     " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
                     " environments."
@@ -324,7 +325,7 @@ class InteractiveScene:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
                     self._physics_scene_path = prim.GetPrimPath().pathString
-                    omni.log.info(f"Physics scene prim path: {self._physics_scene_path}")
+                    logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
             if self._physics_scene_path is None:
                 raise RuntimeError("No physics scene found! Please make sure one exists.")
@@ -421,7 +422,7 @@ class InteractiveScene:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
 
-        .. _XFormPrim: https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.core/docs/index.html#isaacsim.core.prims.XFormPrim
+        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
 
         """
         return self._extras
@@ -554,9 +555,9 @@ class InteractiveScene:
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         # surface grippers
-        for asset_name, gripper in self._surface_grippers.items():
+        for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
-            gripper.write_gripper_state_to_sim(asset_state, env_ids=env_ids)
+            surface_gripper.set_grippers_command(asset_state)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -643,6 +644,10 @@ class InteractiveScene:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
             state["rigid_object"][asset_name] = asset_state
+        # surface grippers
+        state["gripper"] = dict()
+        for asset_name, gripper in self._surface_grippers.items():
+            state["gripper"][asset_name] = gripper.state.clone()
         return state
 
     """
@@ -749,7 +754,8 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                pass
+                # add surface grippers to scene
+                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

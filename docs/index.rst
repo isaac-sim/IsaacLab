@@ -36,8 +36,8 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
 
-For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
-:cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
+For more information about the framework, please refer to the `technical report <https://arxiv.org/abs/2511.04831>`_
+:cite:`mittal2025isaaclab`. For clarifications on NVIDIA Isaac ecosystem, please check out the
 :ref:`isaac-lab-ecosystem` section.
 
 .. figure:: source/_static/tasks.jpg
@@ -51,35 +51,40 @@ License
 The Isaac Lab framework is open-sourced under the BSD-3-Clause license,
 with certain parts under Apache-2.0 license. Please refer to :ref:`license` for more details.
 
-Acknowledgement
-===============
-Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework.
-We would appreciate if you would cite it in academic publications as well:
+Citation
+========
+
+If you use Isaac Lab in your research, please cite our technical report:
 
 .. code:: bibtex
 
-   @article{mittal2023orbit,
-      author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
-      journal={IEEE Robotics and Automation Letters},
-      title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
-      year={2023},
-      volume={8},
-      number={6},
-      pages={3740-3747},
-      doi={10.1109/LRA.2023.3270034}
+   @article{mittal2025isaaclab,
+      title={Isaac Lab: A GPU-Accelerated Simulation Framework for Multi-Modal Robot Learning},
+      author={Mayank Mittal and Pascal Roth and James Tigue and Antoine Richard and Octi Zhang and Peter Du and Antonio Serrano-Muñoz and Xinjie Yao and René Zurbrügg and Nikita Rudin and Lukasz Wawrzyniak and Milad Rakhsha and Alain Denzler and Eric Heiden and Ales Borovicka and Ossama Ahmed and Iretiayo Akinola and Abrar Anwar and Mark T. Carlson and Ji Yuan Feng and Animesh Garg and Renato Gasoto and Lionel Gulich and Yijie Guo and M. Gussert and Alex Hansen and Mihir Kulkarni and Chenran Li and Wei Liu and Viktor Makoviychuk and Grzegorz Malczyk and Hammad Mazhar and Masoud Moghani and Adithyavairavan Murali and Michael Noseworthy and Alexander Poddubny and Nathan Ratliff and Welf Rehberg and Clemens Schwarke and Ritvik Singh and James Latham Smith and Bingjie Tang and Ruchik Thaker and Matthew Trepte and Karl Van Wyk and Fangzhou Yu and Alex Millane and Vikram Ramasamy and Remo Steiner and Sangeeta Subramanian and Clemens Volk and CY Chen and Neel Jawale and Ashwin Varghese Kuruttukulam and Michael A. Lin and Ajay Mandlekar and Karsten Patzwaldt and John Welsh and Huihua Zhao and Fatima Anes and Jean-Francois Lafleche and Nicolas Moënne-Loccoz and Soowan Park and Rob Stepinski and Dirk Van Gelder and Chris Amevor and Jan Carius and Jumyung Chang and Anka He Chen and Pablo de Heras Ciechomski and Gilles Daviet and Mohammad Mohajerani and Julia von Muralt and Viktor Reutskyy and Michael Sauter and Simon Schirm and Eric L. Shi and Pierre Terdiman and Kenny Vilella and Tobias Widmer and Gordon Yeoman and Tiffany Chen and Sergey Grizan and Cathy Li and Lotus Li and Connor Smith and Rafael Wiltz and Kostas Alexis and Yan Chang and David Chu and Linxi "Jim" Fan and Farbod Farshidian and Ankur Handa and Spencer Huang and Marco Hutter and Yashraj Narang and Soha Pouya and Shiwei Sheng and Yuke Zhu and Miles Macklin and Adam Moravanszky and Philipp Reist and Yunrong Guo and David Hoeller and Gavriel State},
+      journal={arXiv preprint arXiv:2511.04831},
+      year={2025},
+      url={https://arxiv.org/abs/2511.04831}
    }
+
+
+Acknowledgement
+===============
+
+Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework.
+We gratefully acknowledge the authors of Orbit for their foundational contributions.
 
 
 Table of Contents
 =================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Isaac Lab
 
    source/setup/ecosystem
    source/setup/installation/index
    source/deployment/index
+   source/setup/installation/cloud_installation
    source/refs/reference_architecture/index
 
 
@@ -116,6 +121,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
+   source/features/population_based_training
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility

@@ -114,7 +114,7 @@ def generate_surface_gripper(
     for i in range(num_surface_grippers):
         prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_expr="/World/Env_.*/Robot/Gripper/SurfaceGripper")
+    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_.*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations
