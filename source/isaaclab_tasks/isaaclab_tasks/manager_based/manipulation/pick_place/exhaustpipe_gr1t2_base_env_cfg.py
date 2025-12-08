@@ -323,9 +323,9 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 100
         self.sim.render_interval = 2
 
-        # # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        # Set settings for camera rendering
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]

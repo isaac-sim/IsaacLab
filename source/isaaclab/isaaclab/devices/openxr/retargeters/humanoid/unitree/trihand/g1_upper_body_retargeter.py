@@ -21,15 +21,6 @@ with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import G1TriHandDexRetargeting
 
 
-@dataclass
-class G1TriHandUpperBodyRetargeterCfg(RetargeterCfg):
-    """Configuration for the G1UpperBody retargeter."""
-
-    enable_visualization: bool = False
-    num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
-
-
 class G1TriHandUpperBodyRetargeter(RetargeterBase):
     """Retargets OpenXR data to G1 upper body commands.
 
@@ -164,3 +155,13 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         quat = PoseUtils.quat_from_matrix(rot_mat)
 
         return np.concatenate([pos.numpy(), quat.numpy()])
+
+
+@dataclass
+class G1TriHandUpperBodyRetargeterCfg(RetargeterCfg):
+    """Configuration for the G1UpperBody retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    retargeter_type: type[RetargeterBase] = G1TriHandUpperBodyRetargeter

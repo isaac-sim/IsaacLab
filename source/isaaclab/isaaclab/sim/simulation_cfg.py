@@ -410,3 +410,9 @@ class SimulationCfg:
 
     Creating the stage in memory can reduce start-up time.
     """
+
+    logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
+    """The logging level. Default is "WARNING"."""
+
+    save_logs_to_file: bool = True
+    """Save logs to a file. Default is True."""
