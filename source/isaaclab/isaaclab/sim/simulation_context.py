@@ -25,7 +25,7 @@ import flatdict
 # from isaacsim.core.utils.viewports import set_camera_view
 # from isaacsim.core.version import get_version
 # from omni.physics.stageupdate import get_physics_stage_update_node_interface
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim.utils.stage as stage_utils
 
@@ -348,13 +348,32 @@ class SimulationContext:
         self.device = self.cfg.device
 
         # initialize physics scene
-        self.physics_scene = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
-        if not self.physics_scene:
-            self.physics_scene = UsdPhysics.Scene.Define(self.stage, self.cfg.physics_prim_path)
-            self.physics_scene = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
-        prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
-        prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(1.0 / self.cfg.dt))
-        # TODO: set gravity
+        physics_scene_prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
+        if not physics_scene_prim.IsValid():
+            self._physics_scene = UsdPhysics.Scene.Define(self.stage, self.cfg.physics_prim_path)
+            physics_scene_prim = self.stage.GetPrimAtPath(self.cfg.physics_prim_path)
+        else:
+            self._physics_scene = UsdPhysics.Scene(physics_scene_prim)
+
+        # Set physics dt (time steps per second) using string attribute name
+        self._set_physx_scene_attr(physics_scene_prim, "physxScene:timeStepsPerSecond", int(1.0 / self.cfg.dt), Sdf.ValueTypeNames.Int)
+        self.stage.SetTimeCodesPerSecond(1/self.cfg.dt)
+
+        # Set gravity on the physics scene
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
+        gravity_magnitude = abs(self.cfg.gravity[2])  # Get magnitude from z-component
+        if up_axis == "Z":
+            gravity_dir = Gf.Vec3f(0.0, 0.0, -1.0 if self.cfg.gravity[2] < 0 else 1.0)
+        elif up_axis == "Y":
+            gravity_dir = Gf.Vec3f(0.0, -1.0 if self.cfg.gravity[1] < 0 else 1.0, 0.0)
+        else:
+            gravity_dir = Gf.Vec3f(-1.0 if self.cfg.gravity[0] < 0 else 1.0, 0.0, 0.0)
+
+        self._physics_scene.CreateGravityDirectionAttr().Set(gravity_dir)
+        self._physics_scene.CreateGravityMagnitudeAttr().Set(gravity_magnitude)
+
+        # Store physics scene prim reference
+        self.physics_scene = physics_scene_prim
 
         # process device
         self._set_physics_sim_device()
@@ -364,7 +383,15 @@ class SimulationContext:
 
         self.settings.set_bool("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
+        NewtonManager._gravity_vector = self.cfg.gravity
         NewtonManager.set_solver_settings(newton_params)
+
+        # create the default physics material
+        # this material is used when no material is specified for a primitive
+        material_path = f"{self.cfg.physics_prim_path}/defaultMaterial"
+        self.cfg.physics_material.func(material_path, self.cfg.physics_material)
+        # bind the physics material to the scene
+        bind_physics_material(self.cfg.physics_prim_path, material_path)
         try:
             import omni.physx
             from omni.physics.stageupdate import get_physics_stage_update_node_interface
@@ -382,6 +409,20 @@ class SimulationContext:
         # Mark as initialized (singleton pattern)
         self._initialized = True
 
+    def _set_physx_scene_attr(self, prim: Usd.Prim, attr_name: str, value, value_type) -> None:
+        """Helper to set a PhysX scene attribute using string-based attribute names.
+
+        Args:
+            prim: The physics scene prim.
+            attr_name: The full attribute name (e.g., "physxScene:timeStepsPerSecond").
+            value: The value to set.
+            value_type: The Sdf.ValueTypeNames type for the attribute.
+        """
+        attr = prim.GetAttribute(attr_name)
+        if not attr.IsValid():
+            attr = prim.CreateAttribute(attr_name, value_type)
+        attr.Set(value)
+
     def _set_physics_sim_device(self) -> None:
         """Sets the physics simulation device."""
         if "cuda" in self.device:
@@ -396,12 +437,14 @@ class SimulationContext:
             else:
                 self.settings.set_int("/physics/cudaDevice", int(parsed_device[1]))
             self.settings.set_bool("/physics/suppressReadback", True)
-            self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("GPU")
-            self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+            # Set GPU physics settings using string attribute names
+            self._set_physx_scene_attr(self.physics_scene, "physxScene:broadphaseType", "GPU", Sdf.ValueTypeNames.Token)
+            self._set_physx_scene_attr(self.physics_scene, "physxScene:enableGPUDynamics", True, Sdf.ValueTypeNames.Bool)
         elif self.device.lower() == "cpu":
             self.settings.set_bool("/physics/suppressReadback", False)
-            self.physics_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("MBP")
-            self.physics_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(False)
+            # Set CPU physics settings using string attribute names
+            self._set_physx_scene_attr(self.physics_scene, "physxScene:broadphaseType", "MBP", Sdf.ValueTypeNames.Token)
+            self._set_physx_scene_attr(self.physics_scene, "physxScene:enableGPUDynamics", False, Sdf.ValueTypeNames.Bool)
         else:
             raise Exception(f"Device {self.device} is not supported.")
 

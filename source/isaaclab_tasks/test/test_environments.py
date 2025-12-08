@@ -152,6 +152,7 @@ def _check_random_actions(
 
         # reset environment
         obs, _ = env.reset()
+
         # check signal
         assert _check_valid_tensor(obs)
         # simulate environment for num_steps steps
