@@ -25,6 +25,6 @@ class ActuatorNetLSTM(FactoryBase):
 class ActuatorNetMLP(FactoryBase):
     """Factory for creating MLP-based actuator models."""
 
-    def __new__(cls, backend: str, *args, **kwargs) -> ActuatorBase:
+    def __new__(cls, *args, **kwargs) -> ActuatorBase:
         """Create a new instance of an MLP-based actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
