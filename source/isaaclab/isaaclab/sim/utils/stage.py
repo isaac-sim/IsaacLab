@@ -274,10 +274,7 @@ def get_current_stage_id() -> int:
 
         context_stage = omni.usd.get_context().get_stage()
         # Compare by root layer identifier to verify it's the same stage
-        if (
-            context_stage is not None
-            and stage.GetRootLayer().identifier == context_stage.GetRootLayer().identifier
-        ):
+        if context_stage is not None and stage.GetRootLayer().identifier == context_stage.GetRootLayer().identifier:
             return omni.usd.get_context().get_stage_id()
     except (ImportError, AttributeError):
         pass
