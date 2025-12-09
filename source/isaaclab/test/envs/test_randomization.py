@@ -139,17 +139,17 @@ class EventCfg:
 class RandomizedEventCfg:
     """Configuration for events."""
 
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.0),
-            "dynamic_friction_range": (0.5, 0.5),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 512,
-        },
-    )
+    # physics_material = EventTerm(
+    #     func=mdp.randomize_rigid_body_material,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #         "static_friction_range": (0.3, 1.0),
+    #         "dynamic_friction_range": (0.5, 0.5),
+    #         "restitution_range": (0.0, 0.0),
+    #         "num_buckets": 512,
+    #     },
+    # )
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",

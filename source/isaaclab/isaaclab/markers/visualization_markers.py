@@ -24,14 +24,11 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.kit.commands
-import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
@@ -79,6 +76,11 @@ class VisualizationMarkers:
     in the :attr:`VisualizationMarkersCfg.markers` dictionary. For example, if the dictionary has two markers,
     "marker1" and "marker2", then their prototype indices are 0 and 1 respectively. The prototype indices
     can be passed as a list or array of integers.
+
+    .. note::
+        Visualization markers are only created when the Omniverse visualizer is enabled. If no Omniverse
+        visualizer is active, the class will be a no-op and all methods will return early without doing
+        any work.
 
     Usage:
         The following snippet shows how to create 24 sphere markers with a radius of 1.0 at random translations
@@ -142,12 +144,33 @@ class VisualizationMarkers:
             If a prim already exists at the given path, the function will find the next free path
             and create the :class:`UsdGeom.PointInstancer` prim there.
 
+        .. note::
+            Markers are only created if the Omniverse visualizer is enabled. Otherwise, this class
+            becomes a no-op.
+
         Args:
             cfg: The configuration for the markers.
 
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
+        # store inputs
+        self.cfg = cfg
+        self._count = 0
+
+        # Check if Omniverse visualizer is enabled - skip marker creation if not
+        from isaaclab.sim.simulation_context import SimulationContext
+
+        sim_context = SimulationContext.instance()
+        self._is_enabled = sim_context is not None and sim_context.has_omniverse_visualizer()
+
+        if not self._is_enabled:
+            # Set placeholder values for disabled state
+            self.stage = None
+            self._instancer_manager = None
+            self.prim_path = cfg.prim_path
+            return
+
         # get next free path for the prim
         prim_path = stage_utils.get_next_free_path(cfg.prim_path)
         # create a new prim
@@ -155,7 +178,6 @@ class VisualizationMarkers:
         self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
         # store inputs
         self.prim_path = prim_path
-        self.cfg = cfg
         # check if any markers is provided
         if len(self.cfg.markers) == 0:
             raise ValueError(f"The `cfg.markers` cannot be empty. Received: {self.cfg.markers}")
@@ -170,7 +192,10 @@ class VisualizationMarkers:
 
     def __str__(self) -> str:
         """Return: A string representation of the class."""
-        msg = f"VisualizationMarkers(prim_path={self.prim_path})"
+        msg = f"VisualizationMarkers(prim_path={self.prim_path}, enabled={self._is_enabled})"
+        if not self._is_enabled:
+            msg += "\n\t(Disabled - no Omniverse visualizer active)"
+            return msg
         msg += f"\n\tCount: {self.count}"
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
         msg += "\n\tMarkers Prototypes:"
@@ -185,6 +210,8 @@ class VisualizationMarkers:
     @property
     def num_prototypes(self) -> int:
         """The number of marker prototypes available."""
+        if not self._is_enabled:
+            return 0
         return len(self.cfg.markers)
 
     @property
@@ -206,6 +233,8 @@ class VisualizationMarkers:
         Args:
             visible: flag to set the visibility.
         """
+        if not self._is_enabled:
+            return
         imageable = UsdGeom.Imageable(self._instancer_manager)
         if visible:
             imageable.MakeVisible()
@@ -218,6 +247,8 @@ class VisualizationMarkers:
         Returns:
             True if the markers are visible, False otherwise.
         """
+        if not self._is_enabled:
+            return False
         return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
 
     def visualize(
@@ -274,6 +305,9 @@ class VisualizationMarkers:
             ValueError: When input arrays do not follow the expected shapes.
             ValueError: When the function is called with all None arguments.
         """
+        # skip if markers are disabled (no Omniverse visualizer)
+        if not self._is_enabled:
+            return
         # check if it is visible (if not then let's not waste time)
         if not self.is_visible():
             return
@@ -401,20 +435,15 @@ class VisualizationMarkers:
                 child_prim.SetInstanceable(False)
             # check if prim is a mesh -> if so, make it invisible to secondary rays
             if child_prim.IsA(UsdGeom.Gprim):
-                # early attach stage to usd context if stage is in memory
-                # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                attach_stage_to_usd_context(attaching_early=True)
-
-                # invisible to secondary rays such as depth images
-                omni.kit.commands.execute(
-                    "ChangePropertyCommand",
-                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
-                    value=True,
-                    prev=None,
-                    type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-                )
+                # invisible to secondary rays such as depth images using USD core API
+                attr = child_prim.GetAttribute("primvars:invisibleToSecondaryRays")
+                if not attr:
+                    attr = child_prim.CreateAttribute("primvars:invisibleToSecondaryRays", Sdf.ValueTypeNames.Bool)
+                attr.Set(True)
             # add children to list
             all_prims += child_prim.GetChildren()
 
         # remove any physics on the markers because they are only for visualization!
+        import omni.physx.scripts.utils as physx_utils
+
         physx_utils.removeRigidBodySubtree(prim)

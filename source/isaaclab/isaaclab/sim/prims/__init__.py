@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .logger import *  # noqa: F401, F403
-from .prims import *  # noqa: F401, F403
-from .stage import *  # noqa: F401, F403
+"""Sub-module for USD prim wrappers using pure USD core APIs."""
+
+from .xform_prim import XFormPrim
+
+__all__ = ["XFormPrim"]
