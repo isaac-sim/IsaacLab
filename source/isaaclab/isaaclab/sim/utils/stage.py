@@ -212,7 +212,20 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
         stage_cache = UsdUtils.StageCache.Get()
         stage_id = stage_cache.GetId(stage).ToLongInt()
         if stage_id < 0:
-            stage_id = stage_cache.Insert(stage).ToLongInt()
+            # Try to get from omni.usd if it's the context stage
+            try:
+                import omni.usd
+
+                context_stage = omni.usd.get_context().get_stage()
+                if (
+                    context_stage is not None
+                    and stage.GetRootLayer().identifier == context_stage.GetRootLayer().identifier
+                ):
+                    stage_id = omni.usd.get_context().get_stage_id()
+                else:
+                    stage_id = stage_cache.Insert(stage).ToLongInt()
+            except (ImportError, AttributeError):
+                stage_id = stage_cache.Insert(stage).ToLongInt()
         return usdrt.Usd.Stage.Attach(stage_id)
 
     if stage is not None:
@@ -249,8 +262,28 @@ def get_current_stage_id() -> int:
     stage = get_current_stage()
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
+
+    # If stage is already in the cache, return its ID
+    if stage_id >= 0:
+        return stage_id
+
+    # Stage not in cache - try to get from omni.usd if it's the context stage
+    # This handles stages managed by omni.usd that may have a different Python wrapper type
+    try:
+        import omni.usd
+
+        context_stage = omni.usd.get_context().get_stage()
+        # Compare by root layer identifier to verify it's the same stage
+        if (
+            context_stage is not None
+            and stage.GetRootLayer().identifier == context_stage.GetRootLayer().identifier
+        ):
+            return omni.usd.get_context().get_stage_id()
+    except (ImportError, AttributeError):
+        pass
+
+    # Fall back to inserting into StageCache (works for in-memory stages we created)
+    stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
 
 
