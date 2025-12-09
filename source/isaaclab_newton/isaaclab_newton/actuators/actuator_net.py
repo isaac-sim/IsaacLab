@@ -15,16 +15,16 @@ Currently, the following models are supported:
 from __future__ import annotations
 
 import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaaclab.utils.assets import read_file
-from isaaclab.utils.types import ArticulationActions
 
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from isaaclab.actuators.actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):
@@ -75,29 +75,19 @@ class ActuatorNetLSTM(DCMotor):
             self.sea_hidden_state_per_env[:, env_ids] = 0.0
             self.sea_cell_state_per_env[:, env_ids] = 0.0
 
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
+    def compute(self):
         # compute network inputs
-        self.sea_input[:, 0, 0] = (control_action.joint_targets - joint_pos).flatten()
-        self.sea_input[:, 0, 1] = joint_vel.flatten()
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
+        self.sea_input[:, 0, 0] = wp.to_torch(self.data._actuator_position_target - self.data._sim_bind_joint_pos).flatten()
+        self.sea_input[:, 0, 1] = wp.to_torch(self.data._sim_bind_joint_vel).flatten()
 
         # run network inference
         with torch.inference_mode():
             torques, (self.sea_hidden_state[:], self.sea_cell_state[:]) = self.network(
                 self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
             )
-        self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
-
+        self.data._computed_effort = wp.from_torch(torques.reshape(self._num_envs, self.num_joints))
         # clip the computed effort based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
-
-        # return torques
-        control_action.joint_efforts = self.applied_effort
-        control_action.joint_targets = None
-        return control_action
+        self._clip_effort(self.data._computed_effort, self.data._applied_effort)
 
 
 class ActuatorNetMLP(DCMotor):
@@ -125,7 +115,7 @@ class ActuatorNetMLP(DCMotor):
     def __init__(self, cfg: ActuatorNetMLPCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
 
-        assert self.cfg.control_mode == "position", "ActuatorNetLSTM only supports position control"
+        assert self.cfg.control_mode == "position", "ActuatorNetMLP only supports position control"
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
@@ -147,18 +137,16 @@ class ActuatorNetMLP(DCMotor):
         self._joint_pos_error_history[env_ids] = 0.0
         self._joint_vel_history[env_ids] = 0.0
 
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
+    def compute(self):
         # move history queue by 1 and update top of history
         # -- positions
         self._joint_pos_error_history = self._joint_pos_error_history.roll(1, 1)
-        self._joint_pos_error_history[:, 0] = control_action.joint_targets - joint_pos
+        self._joint_pos_error_history[:, 0] = wp.to_torch(
+            self.data._actuator_position_target - self.data._sim_bind_joint_pos
+        )
         # -- velocity
         self._joint_vel_history = self._joint_vel_history.roll(1, 1)
-        self._joint_vel_history[:, 0] = joint_vel
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
+        self._joint_vel_history[:, 0] = wp.to_torch(self.data._sim_bind_joint_vel)
 
         # compute network inputs
         # -- positions
@@ -180,12 +168,8 @@ class ActuatorNetMLP(DCMotor):
         # run network inference
         with torch.inference_mode():
             torques = self.network(network_input).view(self._num_envs, self.num_joints)
-        self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
+        computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
-
-        # return torques
-        control_action.joint_efforts = self.applied_effort
-        control_action.joint_targets = None
-        return control_action
+        self.data._computed_effort = wp.from_torch(computed_effort)
+        self._clip_effort(self.data._computed_effort, self.data._applied_effort)

@@ -187,6 +187,8 @@ class IdealPDActuatorCfg(ActuatorBaseCfg):
 
     class_type: type = actuator_pd.IdealPDActuator
 
+    control_mode = "position"  # THIS IS HACK
+
 
 @configclass
 class DCMotorCfg(IdealPDActuatorCfg):
