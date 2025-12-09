@@ -312,7 +312,7 @@ def newton_replicate(
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             builder.add_world(
                 protos[sources[row]],
-                xform=wp.transform(positions[col], quaternions[col]),
+                xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
                 # world=int(env_id),
             )
 
