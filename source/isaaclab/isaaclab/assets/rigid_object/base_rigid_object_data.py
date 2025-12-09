@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warp as wp
 from abc import ABC, abstractmethod
+
+import warp as wp
+
 
 class BaseRigidObjectData(ABC):
     """Data container for a rigid object.
@@ -65,7 +67,7 @@ class BaseRigidObjectData(ABC):
         The position and quaternion are of the rigid body's actor frame.
         """
         raise NotImplementedError()
-        
+
     @property
     @abstractmethod
     def default_root_vel(self) -> wp.array:
@@ -263,15 +265,13 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_mass(self) -> wp.array:
-        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1).
-        """
+        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def body_inertia(self) -> wp.array:
-        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3).
-        """
+        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
         raise NotImplementedError()
 
     ##

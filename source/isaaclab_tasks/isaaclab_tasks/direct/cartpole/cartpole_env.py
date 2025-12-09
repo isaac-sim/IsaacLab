@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import math
 import torch
-import warp as wp
 from collections.abc import Sequence
+
+import warp as wp
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -80,7 +81,7 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        _, _, self._cart_dof_idx= self.cartpole.find_joints(self.cfg.cart_dof_name)
+        _, _, self._cart_dof_idx = self.cartpole.find_joints(self.cfg.cart_dof_name)
         _, _, self._pole_dof_idx = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 

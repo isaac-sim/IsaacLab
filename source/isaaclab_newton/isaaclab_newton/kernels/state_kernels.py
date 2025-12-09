@@ -27,12 +27,12 @@ def split_transform_array_to_position_array(
     index = wp.tid()
     position[index] = wp.transform_get_translation(transform[index])
 
+
 @wp.kernel
 def split_transform_array_to_quaternion_array(
     transform: wp.array(dtype=wp.transformf),
     quaternion: wp.array(dtype=wp.quatf),
 ):
-
     """
     Split a transform array to a quaternion array.
 
@@ -42,6 +42,7 @@ def split_transform_array_to_quaternion_array(
     """
     index = wp.tid()
     quaternion[index] = wp.transform_get_rotation(transform[index])
+
 
 @wp.kernel
 def split_transform_batched_array_to_position_batched_array(
@@ -54,6 +55,7 @@ def split_transform_batched_array_to_position_batched_array(
     index, body_index = wp.tid()
     position[index, body_index] = wp.transform_get_translation(transform[index, body_index])
 
+
 @wp.kernel
 def split_transform_batched_array_to_quaternion_batched_array(
     transform: wp.array2d(dtype=wp.transformf),
@@ -64,6 +66,7 @@ def split_transform_batched_array_to_quaternion_batched_array(
     """
     index, body_index = wp.tid()
     quaternion[index, body_index] = wp.transform_get_rotation(transform[index, body_index])
+
 
 @wp.kernel
 def generate_pose_from_position_with_unit_quaternion(
@@ -79,6 +82,7 @@ def generate_pose_from_position_with_unit_quaternion(
     """
     index = wp.tid()
     pose[index] = wp.transformf(position[index], wp.quatf(0.0, 0.0, 0.0, 1.0))
+
 
 @wp.kernel
 def generate_pose_from_position_with_unit_quaternion_batched(
@@ -129,6 +133,7 @@ def split_state_to_velocity(
 
     """
     return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
+
 
 @wp.func
 def combine_state(
@@ -310,6 +315,7 @@ def combine_frame_transforms_partial(
         wp.quatf(0.0, 0.0, 0.0, 1.0),
     )
 
+
 @wp.kernel
 def combine_frame_transforms_partial_root(
     pose_1: wp.array(dtype=wp.transformf),
@@ -331,6 +337,7 @@ def combine_frame_transforms_partial_root(
         position_2[index][0],
         wp.quatf(0.0, 0.0, 0.0, 1.0),
     )
+
 
 @wp.kernel
 def combine_frame_transforms_partial_batch(
@@ -465,7 +472,9 @@ def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
 
 
 @wp.kernel
-def compute_heading(forward_vec_b: wp.vec3f, pose_w: wp.array(dtype=wp.transformf), heading: wp.array(dtype=wp.float32)):
+def compute_heading(
+    forward_vec_b: wp.vec3f, pose_w: wp.array(dtype=wp.transformf), heading: wp.array(dtype=wp.float32)
+):
     index = wp.tid()
     heading[index] = heading_vec_b(wp.transform_get_rotation(pose_w[index]), forward_vec_b)
 
@@ -582,6 +591,7 @@ def transform_CoM_pose_to_link_frame_masked(
             wp.transform_get_translation(com_pose_link_frame[index]),
             wp.quatf(0.0, 0.0, 0.0, 1.0),
         )
+
 
 @wp.kernel
 def transform_CoM_pose_to_link_frame_masked_root(

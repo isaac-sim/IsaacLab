@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import logging
 import torch
-import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -272,7 +273,9 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             env_ids = env_ids[:, None]
         super().reset(env_ids)
         # reset history to current joint positions
-        self._prev_applied_actions[env_ids, :] = wp.to_torch(self._asset.data.joint_pos).clone()[env_ids, self._joint_ids]
+        self._prev_applied_actions[env_ids, :] = wp.to_torch(self._asset.data.joint_pos).clone()[
+            env_ids, self._joint_ids
+        ]
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations

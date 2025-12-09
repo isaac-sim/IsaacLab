@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
+from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-from abc import abstractmethod
+
+import warp as wp
 
 from ..asset_base import AssetBase
 
@@ -75,7 +76,7 @@ class BaseRigidObject(AssetBase):
         This is always 1 since each object is a single rigid body.
         """
         raise NotImplementedError()
-    
+
     @property
     @abstractmethod
     def num_shapes_per_body(self) -> list[int]:
@@ -92,7 +93,7 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def root_view(self):
         """Root view for the asset.
-        
+
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
@@ -126,9 +127,7 @@ class BaseRigidObject(AssetBase):
 
     @abstractmethod
     def find_bodies(
-        self,
-        name_keys: str | Sequence[str],
-        preserve_order: bool = False
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
     ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the rigid body based on the name keys.
 
@@ -164,7 +163,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -191,7 +190,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -218,7 +217,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -244,7 +243,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -270,7 +269,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -297,7 +296,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -325,7 +324,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -338,7 +337,8 @@ class BaseRigidObject(AssetBase):
 
     @abstractmethod
     def write_root_com_velocity_to_sim(
-        self, root_velocity: torch.Tensor | wp.array,
+        self,
+        root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
         env_mask: torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -351,7 +351,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -378,7 +378,7 @@ class BaseRigidObject(AssetBase):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -403,7 +403,7 @@ class BaseRigidObject(AssetBase):
         env_mask: wp.array | None = None,
     ):
         """Set masses of all bodies in the simulation world frame.
-        
+
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).

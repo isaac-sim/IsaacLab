@@ -8,12 +8,12 @@ from __future__ import annotations
 import math
 
 import warp as wp
+from isaaclab_experimental.envs import DirectRLEnvWarp
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg

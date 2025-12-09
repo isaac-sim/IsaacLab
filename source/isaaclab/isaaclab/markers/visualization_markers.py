@@ -297,8 +297,6 @@ class VisualizationMarkers:
             # check that shape is correct
             if orientations.shape[1] != 4 or len(orientations.shape) != 2:
                 raise ValueError(f"Expected `orientations` to have shape (M, 4). Received: {orientations.shape}.")
-            # internally USD expects (x, y, z, w)
-            orientations = orientations
             # apply orientations
             self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations))
             # update number of markers

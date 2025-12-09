@@ -9,10 +9,10 @@ import warp as wp
 Casters from spatial velocity to linear and angular velocity
 """
 
+
 @wp.kernel
 def split_spatial_vectory_array_to_linear_velocity_array(
-    velocity: wp.array(dtype=wp.spatial_vectorf),
-    linear_velocity: wp.array(dtype=wp.vec3f)
+    velocity: wp.array(dtype=wp.spatial_vectorf), linear_velocity: wp.array(dtype=wp.vec3f)
 ):
     """
     Split a spatial velocity array to a linear velocity array.
@@ -29,8 +29,7 @@ def split_spatial_vectory_array_to_linear_velocity_array(
 
 @wp.kernel
 def split_spatial_vectory_array_to_angular_velocity_array(
-    velocity: wp.array(dtype=wp.spatial_vectorf),
-    angular_velocity: wp.array(dtype=wp.vec3f)
+    velocity: wp.array(dtype=wp.spatial_vectorf), angular_velocity: wp.array(dtype=wp.vec3f)
 ):
     """
     Split a spatial velocity array to an angular velocity array.
@@ -44,10 +43,10 @@ def split_spatial_vectory_array_to_angular_velocity_array(
     index = wp.tid()
     angular_velocity[index] = wp.spatial_bottom(velocity[index])
 
+
 @wp.kernel
 def split_spatial_vectory_batched_array_to_linear_velocity_batched_array(
-    velocity: wp.array2d(dtype=wp.spatial_vectorf),
-    linear_velocity: wp.array2d(dtype=wp.vec3f)
+    velocity: wp.array2d(dtype=wp.spatial_vectorf), linear_velocity: wp.array2d(dtype=wp.vec3f)
 ):
     """
     Split a spatial velocity batched array to a linear velocity batched array.
@@ -55,10 +54,10 @@ def split_spatial_vectory_batched_array_to_linear_velocity_batched_array(
     index, body_index = wp.tid()
     linear_velocity[index, body_index] = wp.spatial_top(velocity[index, body_index])
 
+
 @wp.kernel
 def split_spatial_vectory_batched_array_to_angular_velocity_batched_array(
-    velocity: wp.array2d(dtype=wp.spatial_vectorf),
-    angular_velocity: wp.array2d(dtype=wp.vec3f)
+    velocity: wp.array2d(dtype=wp.spatial_vectorf), angular_velocity: wp.array2d(dtype=wp.vec3f)
 ):
     """
     Split a spatial velocity batched array to an angular velocity batched array.
@@ -66,6 +65,7 @@ def split_spatial_vectory_batched_array_to_angular_velocity_batched_array(
 
     index, body_index = wp.tid()
     angular_velocity[index, body_index] = wp.spatial_bottom(velocity[index, body_index])
+
 
 """
 Projectors from com frame to link frame and vice versa
@@ -102,7 +102,7 @@ def velocity_projector(
         wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
     )
     return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
-    #return wp.spatial_vector(u, w) --> Do it like that.
+    # return wp.spatial_vector(u, w) --> Do it like that.
 
 
 @wp.func
@@ -269,6 +269,7 @@ def project_com_velocity_to_link_frame_batch_masked(
             com_position[env_idx, body_idx],
         )
 
+
 @wp.kernel
 def project_com_velocity_to_link_frame_root(
     com_velocity: wp.array(dtype=wp.spatial_vectorf),
@@ -294,6 +295,7 @@ def project_com_velocity_to_link_frame_root(
     """
     index = wp.tid()
     link_velocity[index] = velocity_projector(com_velocity[index], link_pose[index], com_position[index][0])
+
 
 @wp.kernel
 def project_link_velocity_to_com_frame(
@@ -354,6 +356,7 @@ def project_link_velocity_to_com_frame_masked(
             link_pose[index],
             com_position[index],
         )
+
 
 @wp.kernel
 def project_link_velocity_to_com_frame_masked_root(
@@ -458,6 +461,7 @@ def project_link_velocity_to_com_frame_batch_masked(
 Kernels to update spatial vector arrays
 """
 
+
 @wp.kernel
 def update_spatial_vector_array_masked(
     new_velocity: wp.array(dtype=wp.spatial_vectorf),
@@ -509,6 +513,7 @@ def update_spatial_vector_array_batch_masked(
 """
 Kernels to derive body acceleration from velocity.
 """
+
 
 @wp.kernel
 def derive_body_acceleration_from_velocity(

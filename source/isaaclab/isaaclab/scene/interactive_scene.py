@@ -27,6 +27,7 @@ from .interactive_scene_cfg import InteractiveSceneCfg
 # import logger
 logger = logging.getLogger(__name__)
 
+
 class InteractiveScene:
     """A scene that contains entities added to the simulation.
 
@@ -359,10 +360,10 @@ class InteractiveScene:
         # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(ids = env_ids, mask = mask)
+            articulation.reset(ids=env_ids, mask=mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids = env_ids, env_mask = mask)
+            sensor.reset(env_ids=env_ids, env_mask=mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

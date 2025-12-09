@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
+
 import warp as wp
 
 from isaaclab.utils import configclass

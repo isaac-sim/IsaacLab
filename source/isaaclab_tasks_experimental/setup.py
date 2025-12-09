@@ -18,9 +18,9 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>2",
     "torch>=2.7",
-    "warp-lang>=1.9.0.dev20250825",
+    "warp-lang>=1.9.0.dev20250825",  # TODO: update to 1.11.0
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
     # basic logger

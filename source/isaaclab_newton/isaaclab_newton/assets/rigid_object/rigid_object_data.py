@@ -4,43 +4,44 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+import logging
+import warnings
 import weakref
 
 import warp as wp
-import logging
-import warnings
-
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from newton.selection import ArticulationView as NewtonArticulationView
-from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab_newton.kernels import (
-    vec13f,
+    combine_frame_transforms_partial_batch,
+    combine_frame_transforms_partial_root,
     combine_pose_and_velocity_to_state,
     combine_pose_and_velocity_to_state_batched,
-    split_transform_array_to_position_array,
-    split_transform_array_to_quaternion_array,
-    split_spatial_vectory_array_to_linear_velocity_array,
-    split_spatial_vectory_array_to_angular_velocity_array,
-    split_transform_batched_array_to_position_batched_array,
-    split_transform_batched_array_to_quaternion_batched_array,
-    split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
-    split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
-    combine_frame_transforms_partial_batch,
+    compute_heading,
     derive_body_acceleration_from_velocity_batched,
     generate_pose_from_position_with_unit_quaternion_batched,
     project_com_velocity_to_link_frame_batch,
-    combine_frame_transforms_partial_root,
-    compute_heading,
     project_com_velocity_to_link_frame_root,
     project_vec_from_pose_single,
     project_velocities_to_frame,
+    split_spatial_vectory_array_to_angular_velocity_array,
+    split_spatial_vectory_array_to_linear_velocity_array,
+    split_spatial_vectory_batched_array_to_angular_velocity_batched_array,
+    split_spatial_vectory_batched_array_to_linear_velocity_batched_array,
+    split_transform_array_to_position_array,
+    split_transform_array_to_quaternion_array,
+    split_transform_batched_array_to_position_batched_array,
+    split_transform_batched_array_to_quaternion_batched_array,
+    vec13f,
 )
-from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from newton.selection import ArticulationView as NewtonArticulationView
+
+from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
+from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 
 logger = logging.getLogger(__name__)
 warnings.simplefilter("once", UserWarning)
 logging.captureWarnings(True)
+
 
 class RigidObjectData(BaseRigidObjectData):
     """Data container for a rigid object.
@@ -187,7 +188,11 @@ class RigidObjectData(BaseRigidObjectData):
         return self._sim_bind_root_com_vel_w
 
     @property
-    @warn_overhead_cost("root_link_pose_w or root_com_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w or root_com_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("root_link_pose_w or root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_state_w(self) -> wp.array(dtype=vec13f):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
@@ -209,7 +214,11 @@ class RigidObjectData(BaseRigidObjectData):
         return state
 
     @property
-    @warn_overhead_cost("root_link_pose_w or root_link_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w or root_link_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("root_link_pose_w or root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_state_w(self) -> wp.array(dtype=vec13f):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
@@ -231,7 +240,11 @@ class RigidObjectData(BaseRigidObjectData):
         return state
 
     @property
-    @warn_overhead_cost("root_com_pose_w or root_com_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "root_com_pose_w or root_com_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("root_com_pose_w or root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_state_w(self) -> wp.array(dtype=vec13f):
         """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
@@ -338,7 +351,11 @@ class RigidObjectData(BaseRigidObjectData):
         return self._body_com_pose_w.data
 
     @property
-    @warn_overhead_cost("body_link_pose_w or body_com_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w or body_com_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("body_link_pose_w or body_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_state_w(self) -> wp.array(dtype=vec13f):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
@@ -361,7 +378,11 @@ class RigidObjectData(BaseRigidObjectData):
         return state
 
     @property
-    @warn_overhead_cost("body_link_pose_w or body_link_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w or body_link_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("body_link_pose_w or body_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_link_state_w(self) -> wp.array(dtype=vec13f):
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
@@ -384,7 +405,11 @@ class RigidObjectData(BaseRigidObjectData):
         return state
 
     @property
-    @warn_overhead_cost("body_com_pose_w or body_com_vel_w", "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays directly instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w or body_com_vel_w",
+        "Launches a kernel to merge a pose and a velocity into a state. Consider using the pose and velocity arrays"
+        " directly instead.",
+    )
     @deprecated("body_com_pose_w or body_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_com_state_w(self) -> wp.array(dtype=vec13f):
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
@@ -437,9 +462,7 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        out = wp.zeros(
-            (self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device
-        )
+        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device)
         wp.launch(
             generate_pose_from_position_with_unit_quaternion_batched,
             dim=(self._root_view.count, self._root_view.link_count),
@@ -534,7 +557,11 @@ class RigidObjectData(BaseRigidObjectData):
         return self._root_com_vel_b.data
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link linear velocity in base frame. Shape is (num_instances, 3).
@@ -554,7 +581,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link angular velocity in base world frame. Shape is (num_instances, 3).
@@ -574,7 +605,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
@@ -594,7 +629,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
@@ -618,7 +657,11 @@ class RigidObjectData(BaseRigidObjectData):
     ##
 
     @property
-    @warn_overhead_cost("root_link_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w",
+        "Launches a kernel to split the transform array to a position array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("root_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_link_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Root link position in simulation world frame. Shape is (num_instances, 3).
@@ -637,7 +680,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w",
+        "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("root_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_link_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
@@ -656,7 +703,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
@@ -675,7 +726,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root link angular velocity in simulation world frame. Shape is (num_instances, 3).
@@ -694,7 +749,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "root_com_pose_w",
+        "Launches a kernel to split the transform array to a position array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("root_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_com_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
@@ -713,7 +772,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "root_com_pose_w",
+        "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("root_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_com_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
@@ -732,7 +795,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass linear velocity in simulation world frame. Shape is (num_instances, 3).
@@ -751,7 +818,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial velocity array directly instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
+        " velocity array directly instead.",
+    )
     @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass angular velocity in simulation world frame. Shape is (num_instances, 3).
@@ -770,7 +841,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w",
+        "Launches a kernel to split the transform array to a position array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("body_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def body_link_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -789,7 +864,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w",
+        "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("body_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def body_link_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
@@ -808,7 +887,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
+    @warn_overhead_cost(
+        "body_link_vel_w",
+        "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array"
+        " directly instead.",
+    )
     @deprecated("body_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_link_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -827,7 +910,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
+    @warn_overhead_cost(
+        "body_link_vel_w",
+        "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array"
+        " directly instead.",
+    )
     @deprecated("body_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_link_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -846,7 +933,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a position array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w",
+        "Launches a kernel to split the transform array to a position array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("body_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def body_com_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -865,7 +956,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array directly instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w",
+        "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
+        " directly instead.",
+    )
     @deprecated("body_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def body_com_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
@@ -884,7 +979,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array directly instead.")
+    @warn_overhead_cost(
+        "body_com_vel_w",
+        "Launches a kernel to split the velocity array to a linear velocity array. Consider using the velocity array"
+        " directly instead.",
+    )
     @deprecated("body_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_com_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -903,7 +1002,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
+    @warn_overhead_cost(
+        "body_com_vel_w",
+        "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array"
+        " directly instead.",
+    )
     @deprecated("body_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def body_com_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -939,7 +1042,11 @@ class RigidObjectData(BaseRigidObjectData):
         return out
 
     @property
-    @warn_overhead_cost("body_com_acc_w", "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array directly instead.")
+    @warn_overhead_cost(
+        "body_com_acc_w",
+        "Launches a kernel to split the velocity array to an angular velocity array. Consider using the velocity array"
+        " directly instead.",
+    )
     @deprecated("body_com_acc_w", since="3.0.0", remove_in="4.0.0")
     def body_com_ang_acc_w(self) -> wp.array(dtype=wp.vec3f):
         """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
@@ -967,7 +1074,11 @@ class RigidObjectData(BaseRigidObjectData):
         return self._sim_bind_body_com_pos_b
 
     @property
-    @warn_overhead_cost("unit_quaternion", "Launches a kernel to split the pose array to a quaternion array. Consider using the pose array directly instead.")
+    @warn_overhead_cost(
+        "unit_quaternion",
+        "Launches a kernel to split the pose array to a quaternion array. Consider using the pose array directly"
+        " instead.",
+    )
     @deprecated("unit_quaternion", since="3.0.0", remove_in="4.0.0")
     def body_com_quat_b(self) -> wp.array(dtype=wp.quatf):
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
@@ -1124,7 +1235,7 @@ class RigidObjectData(BaseRigidObjectData):
     ###
     # Helper functions.
     ###
-    
+
     def _create_simulation_bindings(self) -> None:
         """Create simulation bindings for the root data.
 
@@ -1150,42 +1261,42 @@ class RigidObjectData(BaseRigidObjectData):
         """Create buffers for the root data."""
 
         # Short-hand for the number of instances, number of links, and number of joints.
-        n = self._root_view.count
-        nl = self._root_view.link_count
-        nd = self._root_view.joint_dof_count
+        n_view = self._root_view.count
+        n_link = self._root_view.link_count
 
         # MASKS
-        self.ALL_ENV_MASK = wp.ones((n,), dtype=wp.bool, device=self.device)
-        self.ALL_BODY_MASK = wp.ones((nl,), dtype=wp.bool, device=self.device)
-        self.ENV_MASK = wp.zeros((n,), dtype=wp.bool, device=self.device)
-        self.BODY_MASK = wp.zeros((nl,), dtype=wp.bool, device=self.device)
+        self.ALL_ENV_MASK = wp.ones((n_view,), dtype=wp.bool, device=self.device)
+        self.ALL_BODY_MASK = wp.ones((n_link,), dtype=wp.bool, device=self.device)
+        self.ENV_MASK = wp.zeros((n_view,), dtype=wp.bool, device=self.device)
+        self.BODY_MASK = wp.zeros((n_link,), dtype=wp.bool, device=self.device)
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
         try:
             self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))
-        except:
-            self._previous_root_com_vel = wp.zeros((n, nl), dtype=wp.spatial_vectorf, device=self.device)
+        except Exception as e:
+            logger.error(f"Error getting root com velocity: {e}. If the rigid object is fixed, this is expected.")
+            self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
         # -- default root pose and velocity
-        self._default_root_pose = wp.zeros((n), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((n), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_pose = wp.zeros((n_view,), dtype=wp.transformf, device=self.device)
+        self._default_root_vel = wp.zeros((n_view,), dtype=wp.spatial_vectorf, device=self.device)
 
         # Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(NewtonManager.get_state_0()))
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedWarpBuffer(shape=(n,), dtype=wp.spatial_vectorf)
-        self._root_link_vel_b = TimestampedWarpBuffer(shape=(n,), dtype=wp.spatial_vectorf)
-        self._projected_gravity_b = TimestampedWarpBuffer(shape=(n,), dtype=wp.vec3f)
-        self._heading_w = TimestampedWarpBuffer(shape=(n,), dtype=wp.float32)
-        self._body_link_vel_w = TimestampedWarpBuffer(shape=(n, nl), dtype=wp.spatial_vectorf)
+        self._root_link_vel_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf)
+        self._root_link_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf)
+        self._projected_gravity_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.vec3f)
+        self._heading_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.float32)
+        self._body_link_vel_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf)
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedWarpBuffer(shape=(n,), dtype=wp.transformf)
-        self._root_com_vel_b = TimestampedWarpBuffer(shape=(n,), dtype=wp.spatial_vectorf)
-        self._root_com_acc_w = TimestampedWarpBuffer(shape=(n,), dtype=wp.spatial_vectorf)
-        self._body_com_pose_w = TimestampedWarpBuffer(shape=(n, nl), dtype=wp.transformf)
-        self._body_com_acc_w = TimestampedWarpBuffer(shape=(n, nl), dtype=wp.spatial_vectorf)
+        self._root_com_pose_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.transformf)
+        self._root_com_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf)
+        self._root_com_acc_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.transformf)
+        self._body_com_acc_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf)
 
     def update(self, dt: float):
         # update the simulation timestamp

@@ -13,7 +13,7 @@ def compute_pd_actuator(
     added_effort: wp.array2d(dtype=wp.float32),
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
-    stiffness: wp.array2d(dtype=wp.float32), 
+    stiffness: wp.array2d(dtype=wp.float32),
     damping: wp.array2d(dtype=wp.float32),
     computed_effort: wp.array2d(dtype=wp.float32),
     env_mask: wp.array(dtype=wp.bool),

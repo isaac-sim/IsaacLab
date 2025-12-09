@@ -3,9 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from collections.abc import Iterable
 from dataclasses import MISSING
-from typing import Literal, Iterable
+from typing import Literal
+
+from isaaclab.utils import configclass
+
 from . import actuator_net, actuator_pd
 
 

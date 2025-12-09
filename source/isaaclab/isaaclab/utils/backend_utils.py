@@ -1,7 +1,13 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import importlib
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class FactoryBase:
     """A generic factory class that dynamically loads backends."""
@@ -13,8 +19,8 @@ class FactoryBase:
         # Determine the module subpath for dynamic loading.
         # e.g., if factory is in 'isaaclab.assets.articulation.articulation',
         # the subpath becomes 'assets.articulation'.
-        module_parts = cls.__module__.split('.')
-        if module_parts[0] != 'isaaclab':
+        module_parts = cls.__module__.split(".")
+        if module_parts[0] != "isaaclab":
             raise ImportError(f"Factory class {cls.__name__} must be defined within the 'isaaclab' package.")
         # The subpath is what comes between 'isaaclab' and the final module name.
         cls._module_subpath = ".".join(module_parts[1:-1])

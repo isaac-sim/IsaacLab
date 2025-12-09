@@ -13,7 +13,9 @@ Currently, the following models are supported:
 """
 
 from isaaclab.utils.backend_utils import FactoryBase
+
 from .actuator_base import ActuatorBase
+
 
 class ActuatorNetLSTM(FactoryBase):
     """Factory for creating LSTM-based actuator models."""
@@ -21,6 +23,7 @@ class ActuatorNetLSTM(FactoryBase):
     def __new__(cls, *args, **kwargs) -> ActuatorBase:
         """Create a new instance of an LSTM-based actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
+
 
 class ActuatorNetMLP(FactoryBase):
     """Factory for creating MLP-based actuator models."""

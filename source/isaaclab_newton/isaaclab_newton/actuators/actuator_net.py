@@ -15,9 +15,10 @@ Currently, the following models are supported:
 from __future__ import annotations
 
 import torch
-import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from isaaclab.utils.assets import read_file
 
@@ -77,7 +78,9 @@ class ActuatorNetLSTM(DCMotor):
 
     def compute(self):
         # compute network inputs
-        self.sea_input[:, 0, 0] = wp.to_torch(self.data._actuator_position_target - self.data._sim_bind_joint_pos).flatten()
+        self.sea_input[:, 0, 0] = wp.to_torch(
+            self.data._actuator_position_target - self.data._sim_bind_joint_pos
+        ).flatten()
         self.sea_input[:, 0, 1] = wp.to_torch(self.data._sim_bind_joint_vel).flatten()
 
         # run network inference

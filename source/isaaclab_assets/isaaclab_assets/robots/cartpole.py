@@ -17,7 +17,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 CARTPOLE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"/home/antoiner/Downloads/cartpole.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
         ),

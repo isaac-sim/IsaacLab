@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -106,7 +107,9 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
         asset: Articulation = env.scene[asset_cfg.name]
         # compute the penalty over normalized joints
         joint_pos_scaled = math_utils.scale_transform(
-            wp.to_torch(asset.data.joint_pos), wp.to_torch(asset.data.soft_joint_pos_limits)[..., 0], wp.to_torch(asset.data.soft_joint_pos_limits)[..., 1]
+            wp.to_torch(asset.data.joint_pos),
+            wp.to_torch(asset.data.soft_joint_pos_limits)[..., 0],
+            wp.to_torch(asset.data.soft_joint_pos_limits)[..., 1],
         )
         # scale the violation amount by the gear ratio
         violation_amount = (torch.abs(joint_pos_scaled) - threshold) / (1 - threshold)
@@ -141,4 +144,6 @@ class power_consumption(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # return power = torque * velocity (here actions: joint torques)
-        return torch.sum(torch.abs(env.action_manager.action * wp.to_torch(asset.data.joint_vel) * self.gear_ratio_scaled), dim=-1)
+        return torch.sum(
+            torch.abs(env.action_manager.action * wp.to_torch(asset.data.joint_vel) * self.gear_ratio_scaled), dim=-1
+        )

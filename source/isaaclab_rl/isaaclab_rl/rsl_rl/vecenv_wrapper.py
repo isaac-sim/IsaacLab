@@ -8,10 +8,10 @@ import torch
 from tensordict import TensorDict
 
 import warp as wp
+from isaaclab_experimental.envs import DirectRLEnvWarp
 from rsl_rl.env import VecEnv
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-from isaaclab_experimental.envs import DirectRLEnvWarp
 
 
 class RslRlVecEnvWrapper(VecEnv):

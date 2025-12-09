@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import logging
 import torch
-import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation

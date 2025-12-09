@@ -15,7 +15,6 @@ import builtins
 import inspect
 import re
 import torch
-import warp as wp
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -23,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
+import warp as wp
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils

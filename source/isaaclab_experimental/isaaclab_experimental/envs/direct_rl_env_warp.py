@@ -14,7 +14,7 @@ import torch
 import weakref
 from abc import abstractmethod
 from dataclasses import MISSING
-from typing import Any, ClassVar, Sequence
+from typing import Any, ClassVar
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
@@ -24,15 +24,15 @@ import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
+from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
+from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
+from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.timer import Timer
-from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
-from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
 
 from .utils.spaces import sample_space, spec_to_gym_space
 
@@ -372,7 +372,9 @@ class DirectRLEnvWarp(gym.Env):
             action = self._action_noise_model(action)
 
         # process actions, #TODO pass the torch tensor directly.
-        self._pre_physics_step(wp.from_torch(action)) # Creates a tensor and throws it away. --> Not graphable unless the training loop is using the same pointer.
+        self._pre_physics_step(
+            wp.from_torch(action)
+        )  # Creates a tensor and throws it away. --> Not graphable unless the training loop is using the same pointer.
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop

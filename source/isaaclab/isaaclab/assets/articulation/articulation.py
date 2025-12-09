@@ -1,13 +1,21 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
-from .base_articulation import BaseArticulation
-from .base_articulation_data import BaseArticulationData
-from isaaclab.utils.backend_utils import FactoryBase
 
 from typing import TYPE_CHECKING
+
+from isaaclab.utils.backend_utils import FactoryBase
+
+from .base_articulation import BaseArticulation
+from .base_articulation_data import BaseArticulationData
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation import ArticulationData as NewtonArticulationData
+
 
 class Articulation(FactoryBase):
     """Factory for creating articulation instances."""

@@ -64,6 +64,8 @@ from isaaclab.utils.timer import Timer
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -71,7 +73,6 @@ from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkp
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)

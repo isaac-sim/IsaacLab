@@ -10,6 +10,7 @@ import torch
 import isaacsim.core.utils.torch as torch_utils
 import warp as wp
 from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
@@ -28,7 +29,7 @@ class LocomotionEnv(DirectRLEnv):
         self.action_scale = self.cfg.action_scale
         self.joint_gears = torch.tensor(self.cfg.joint_gears, dtype=torch.float32, device=self.sim.device)
         self.motor_effort_ratio = torch.ones_like(self.joint_gears, device=self.sim.device)
-        _, _,self._joint_dof_idx = self.robot.find_joints(".*")
+        _, _, self._joint_dof_idx = self.robot.find_joints(".*")
 
         self.potentials = torch.zeros(self.num_envs, dtype=torch.float32, device=self.sim.device)
         self.prev_potentials = torch.zeros_like(self.potentials)
@@ -70,8 +71,12 @@ class LocomotionEnv(DirectRLEnv):
         self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
-        self.torso_position, self.torso_rotation = wp.to_torch(self.robot.data.root_pos_w), wp.to_torch(self.robot.data.root_quat_w)
-        self.velocity, self.ang_velocity = wp.to_torch(self.robot.data.root_lin_vel_w), wp.to_torch(self.robot.data.root_ang_vel_w)
+        self.torso_position, self.torso_rotation = wp.to_torch(self.robot.data.root_pos_w), wp.to_torch(
+            self.robot.data.root_quat_w
+        )
+        self.velocity, self.ang_velocity = wp.to_torch(self.robot.data.root_lin_vel_w), wp.to_torch(
+            self.robot.data.root_ang_vel_w
+        )
         self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
 
         (

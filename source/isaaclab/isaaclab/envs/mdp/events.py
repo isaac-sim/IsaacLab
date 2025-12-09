@@ -14,23 +14,21 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 import torch
 from typing import TYPE_CHECKING, Literal
 
-
-import carb
-#import omni.physics.tensors.impl.api as physx
-#from isaacsim.core.utils.extensions import enable_extension
-from pxr import Gf, Sdf, UsdGeom, Vt
 import warp as wp
+from isaacsim.core.utils.extensions import enable_extension
 from newton.solvers import SolverNotifyFlags
+from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
-from isaaclab.assets import Articulation, RigidObject #, DeformableObject
+from isaaclab.assets import Articulation, RigidObject  # , DeformableObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
@@ -39,6 +37,9 @@ from isaaclab.utils.version import compare_versions
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def randomize_rigid_body_scale(
@@ -352,6 +353,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
     ):
         pass
 
+
 def randomize_rigid_body_com(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -417,6 +419,7 @@ def randomize_physics_scene_gravity(
         This function uses CPU tensors to assign gravity.
     """
     raise NotImplementedError("Not implemented")
+
 
 class randomize_actuator_gains(ManagerTermBase):
     """Randomize the actuator gains in an articulation by adding, scaling, or setting random values.
@@ -513,9 +516,7 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][
-                    :, global_indices
-                ].clone()
+                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
                 randomize(stiffness, stiffness_distribution_params)
                 actuator.stiffness[env_ids] = stiffness
                 if isinstance(actuator, ImplicitActuator):
@@ -1125,7 +1126,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
             articulation_asset.set_joint_position_target(default_joint_pos, env_ids=env_ids)
             articulation_asset.set_joint_velocity_target(default_joint_vel, env_ids=env_ids)
     # deformable objects
-    #for deformable_object in env.scene.deformable_objects.values():
+    # for deformable_object in env.scene.deformable_objects.values():
     #    # obtain default and set into the physics simulation
     #    nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
     #    deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
@@ -1205,7 +1206,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             # This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims
             # whether they end in /visuals or have other structures.
             prim_path = f"{asset_main_prim_path}/.*"
-            carb.log_info(
+            logger.info(
                 f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture"
                 " randomization."
             )

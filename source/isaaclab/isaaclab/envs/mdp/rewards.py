@@ -12,14 +12,15 @@ the reward introduced by the function.
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
-from isaaclab.sensors import ContactSensor#, RayCaster
+from isaaclab.sensors import ContactSensor  # , RayCaster
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -112,7 +113,8 @@ def base_height_l2(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    if sensor_cfg is not None:
+    # FIXME: When height scan is implemented for Newton, this should be removed.
+    if sensor_cfg is not None:  # noqa: R506
         raise NotImplementedError("Height scan is not implemented in IsaacLab for Newton.")
         # sensor: RayCaster = env.scene[sensor_cfg.name]
         # Adjust the target height using the sensor data
@@ -177,7 +179,10 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
-    angle = wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    angle = (
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    )
     return torch.sum(torch.abs(angle), dim=1)
 
 
@@ -190,10 +195,12 @@ def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     out_of_limits = -(
-        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0]
     ).clip(max=0.0)
     out_of_limits += (
-        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1]
     ).clip(min=0.0)
     return torch.sum(out_of_limits, dim=1)
 
@@ -239,7 +246,8 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
     out_of_limits = torch.abs(
-        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]
+        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]
     )
     return torch.sum(out_of_limits, dim=1)
 
@@ -304,7 +312,9 @@ def track_lin_vel_xy_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
     lin_vel_error = torch.sum(
-        torch.square(env.command_manager.get_command(command_name)[:, :2] - wp.to_torch(asset.data.root_lin_vel_b)[:, :2]),
+        torch.square(
+            env.command_manager.get_command(command_name)[:, :2] - wp.to_torch(asset.data.root_lin_vel_b)[:, :2]
+        ),
         dim=1,
     )
     return torch.exp(-lin_vel_error / std**2)
@@ -317,5 +327,7 @@ def track_ang_vel_z_exp(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
-    ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - wp.to_torch(asset.data.root_ang_vel_b)[:, 2])
+    ang_vel_error = torch.square(
+        env.command_manager.get_command(command_name)[:, 2] - wp.to_torch(asset.data.root_ang_vel_b)[:, 2]
+    )
     return torch.exp(-ang_vel_error / std**2)

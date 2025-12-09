@@ -6,6 +6,7 @@
 """Sub-package containing utilities for common operations and helper functions."""
 
 from .array import *
+from .backend_utils import *
 from .buffers import *
 from .configclass import configclass
 from .dict import *
@@ -16,4 +17,3 @@ from .string import *
 from .timer import Timer
 from .types import *
 from .version import *
-from .backend_utils import *

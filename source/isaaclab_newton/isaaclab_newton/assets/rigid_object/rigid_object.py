@@ -5,39 +5,38 @@
 
 from __future__ import annotations
 
-import torch
-import warp as wp
 import logging
+import torch
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from newton.selection import ArticulationView as NewtonArticulationView
-from newton.solvers import SolverNotifyFlags
-
-import isaaclab.sim as sim_utils
-import isaaclab.utils.string as string_utils
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-
+import warp as wp
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
-from isaaclab.utils.warp.update_kernels import (
-    update_array1D_with_array1D_masked,
-    update_array2D_with_value_masked,
-    update_array1D_with_array1D_masked,
-    update_array2D_with_array2D_masked,
-)
 from isaaclab_newton.kernels import (
     generate_mask_from_ids,
-    vec13f,
-    update_wrench_array_with_force,
-    update_wrench_array_with_torque,
-    transform_CoM_pose_to_link_frame_masked_root,
     project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose,
     split_state_to_velocity,
+    transform_CoM_pose_to_link_frame_masked_root,
+    update_wrench_array_with_force,
+    update_wrench_array_with_torque,
+    vec13f,
 )
-from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from newton.selection import ArticulationView as NewtonArticulationView
+from newton.solvers import SolverNotifyFlags
+from pxr import UsdPhysics
+
+import isaaclab.sim as sim_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.utils.helpers import deprecated
+from isaaclab.utils.warp.update_kernels import (
+    update_array1D_with_array1D_masked,
+    update_array2D_with_array2D_masked,
+    update_array2D_with_value_masked,
+)
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
@@ -45,7 +44,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 warnings.simplefilter("once", UserWarning)
 logging.captureWarnings(True)
-
 
 
 class RigidObject(BaseRigidObject):
@@ -111,7 +109,7 @@ class RigidObject(BaseRigidObject):
     @property
     def root_view(self):
         """Root view for the asset.
-        
+
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
@@ -167,7 +165,7 @@ class RigidObject(BaseRigidObject):
         mask: torch.Tensor | None = None,
         dtype: type = wp.float32,
     ) -> tuple[wp.array, wp.array | None]:
-        """ Converts any Torch frontend data into warp data with single index support.
+        """Converts any Torch frontend data into warp data with single index support.
 
         Args:
             value: The value to convert. Shape is (N,).
@@ -193,7 +191,8 @@ class RigidObject(BaseRigidObject):
         else:
             if ids is not None:
                 warnings.warn(
-                    "ids is not None, but mask is provided. Ignoring ids. Please make sure you are providing complete data buffers.",
+                    "ids is not None, but mask is provided. Ignoring ids. Please make sure you are providing complete"
+                    " data buffers.",
                     UserWarning,
                 )
             env_mask = wp.from_torch(mask, dtype=wp.bool)
@@ -211,7 +210,7 @@ class RigidObject(BaseRigidObject):
         second_mask: torch.Tensor | None = None,
         dtype: type = wp.float32,
     ) -> tuple[wp.array, wp.array | None, wp.array | None]:
-        """ Converts any Torch frontend data into warp data with dual index support.
+        """Converts any Torch frontend data into warp data with dual index support.
 
         Args:
             value: The value to convert. Shape is (N, M) or (len(first_ids), len(second_ids)).
@@ -257,7 +256,8 @@ class RigidObject(BaseRigidObject):
         else:
             if (first_ids is not None) or (second_ids is not None):
                 warnings.warn(
-                    "Mask and ids are provided. Ignoring ids. Please make sure you are providing complete data buffers.",
+                    "Mask and ids are provided. Ignoring ids. Please make sure you are providing complete data"
+                    " buffers.",
                     UserWarning,
                 )
             first_mask = wp.from_torch(first_mask, dtype=wp.bool)
@@ -265,7 +265,7 @@ class RigidObject(BaseRigidObject):
                 second_mask = wp.from_torch(second_mask, dtype=wp.bool)
             else:
                 value = wp.from_torch(value, dtype=dtype)
-        
+
         return value, first_mask, second_mask
 
     """
@@ -273,10 +273,8 @@ class RigidObject(BaseRigidObject):
     """
 
     def find_bodies(
-        self,
-        name_keys: str | Sequence[str],
-        preserve_order: bool = False
-    ) -> tuple[wp.array , list[str], list[int]]:
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -311,7 +309,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -322,7 +320,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
-            root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
+            root_state, env_mask = self._torch_to_warp_single_index(
+                root_state, self.num_instances, env_ids, env_mask, dtype=vec13f
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -367,7 +367,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -378,7 +378,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
-            root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
+            root_state, env_mask = self._torch_to_warp_single_index(
+                root_state, self.num_instances, env_ids, env_mask, dtype=vec13f
+            )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -421,7 +423,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_state should be of shape (len(env_ids), 13). If
         env_mask is provided, then root_state should be of shape (num_instances, 13).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -432,7 +434,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
-            root_state, env_mask = self._torch_to_warp_single_index(root_state, self.num_instances, env_ids, env_mask, dtype=vec13f)
+            root_state, env_mask = self._torch_to_warp_single_index(
+                root_state, self.num_instances, env_ids, env_mask, dtype=vec13f
+            )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -473,7 +477,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -498,7 +502,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -509,7 +513,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_pose, torch.Tensor):
-            root_pose, env_mask = self._torch_to_warp_single_index(root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
+            root_pose, env_mask = self._torch_to_warp_single_index(
+                root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -542,7 +548,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_pose should be of shape (len(env_ids), 7). If
         env_mask is provided, then root_pose should be of shape (num_instances, 7).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -553,17 +559,14 @@ class RigidObject(BaseRigidObject):
         """
         # resolve all indices
         if isinstance(root_pose, torch.Tensor):
-            root_pose, env_mask = self._torch_to_warp_single_index(root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf)
+            root_pose, env_mask = self._torch_to_warp_single_index(
+                root_pose, self.num_instances, env_ids, env_mask, dtype=wp.transformf
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # Write to Newton using warp
-        self._update_array_with_array_masked(
-            root_pose,
-            self._data.root_com_pose_w.data,
-            env_mask,
-            self.num_instances
-        )
+        self._update_array_with_array_masked(root_pose, self._data.root_com_pose_w.data, env_mask, self.num_instances)
         # set link frame poses
         wp.launch(
             transform_CoM_pose_to_link_frame_masked_root,
@@ -591,7 +594,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -603,7 +606,8 @@ class RigidObject(BaseRigidObject):
         self.write_root_com_velocity_to_sim(root_velocity, env_ids, env_mask)
 
     def write_root_com_velocity_to_sim(
-        self, root_velocity: torch.Tensor | wp.array,
+        self,
+        root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
         env_mask: torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -616,7 +620,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -627,7 +631,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
-            root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
+            root_velocity, env_mask = self._torch_to_warp_single_index(
+                root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -661,7 +667,7 @@ class RigidObject(BaseRigidObject):
         is expected. For example, if env_ids is provided, then root_velocity should be of shape (len(env_ids), 6). If
         env_mask is provided, then root_velocity should be of shape (num_instances, 6).
 
-        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus 
+        ..caution:: If both env_mask and env_ids are provided, then env_mask will be used. The function will thus
         expect the whole of the data to be provided. If none of them are provided, then the function expects the whole
         of the data to be provided.
 
@@ -672,7 +678,9 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
-            root_velocity, env_mask = self._torch_to_warp_single_index(root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf)
+            root_velocity, env_mask = self._torch_to_warp_single_index(
+                root_velocity, self.num_instances, env_ids, env_mask, dtype=wp.spatial_vectorf
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -684,7 +692,7 @@ class RigidObject(BaseRigidObject):
                 root_velocity,
                 self._data._root_link_vel_w.data,
                 env_mask,
-            ]
+            ],
         )
         # set into internal buffers
         wp.launch(
@@ -715,7 +723,7 @@ class RigidObject(BaseRigidObject):
         env_mask: wp.array | None = None,
     ):
         """Set masses of all bodies in the simulation world frame.
-        
+
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
@@ -723,9 +731,11 @@ class RigidObject(BaseRigidObject):
             body_mask: The body mask. Shape is (num_bodies).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        #raise NotImplementedError()
+        # raise NotImplementedError()
         if isinstance(masses, torch.Tensor):
-            masses, env_mask, body_mask = self._torch_to_warp_dual_index(masses, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+            masses, env_mask, body_mask = self._torch_to_warp_dual_index(
+                masses, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -762,7 +772,9 @@ class RigidObject(BaseRigidObject):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         if isinstance(inertias, torch.Tensor):
-            inertias, env_mask, body_mask = self._torch_to_warp_dual_index(inertias, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.mat33f)
+            inertias, env_mask, body_mask = self._torch_to_warp_dual_index(
+                inertias, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.mat33f
+            )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -779,7 +791,7 @@ class RigidObject(BaseRigidObject):
             ],
         )
         NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
-    
+
     def set_external_force_and_torque(
         self,
         forces: torch.Tensor | wp.array,
@@ -833,9 +845,27 @@ class RigidObject(BaseRigidObject):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor):
             if forces is not None:
-                forces, env_mask, body_mask = self._torch_to_warp_dual_index(forces, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+                forces, env_mask, body_mask = self._torch_to_warp_dual_index(
+                    forces,
+                    self.num_instances,
+                    self.num_bodies,
+                    env_ids,
+                    body_ids,
+                    env_mask,
+                    body_mask,
+                    dtype=wp.float32,
+                )
             if torques is not None:
-                torques, env_mask, body_mask = self._torch_to_warp_dual_index(torques, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.float32)
+                torques, env_mask, body_mask = self._torch_to_warp_dual_index(
+                    torques,
+                    self.num_instances,
+                    self.num_bodies,
+                    env_ids,
+                    body_ids,
+                    env_mask,
+                    body_mask,
+                    dtype=wp.float32,
+                )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -873,7 +903,7 @@ class RigidObject(BaseRigidObject):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        template_prim = first_env_matching_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
             raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
         template_prim_path = template_prim.GetPath().pathString
@@ -902,7 +932,6 @@ class RigidObject(BaseRigidObject):
         # container for data access
         self._data = RigidObjectData(self._root_view, self.device)
 
-
         # log information about the rigid body
         logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
         logger.info(f"Number of instances: {self.num_instances}")
@@ -918,9 +947,7 @@ class RigidObject(BaseRigidObject):
         # constraints or contact required to run the simulation.
         # TODO: Do this is warp directly?
         generated_pose = wp.to_torch(self._data._default_root_pose).clone()
-        generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[
-            :, :2
-        ]
+        generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[:, :2]
         self._root_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
         self._root_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
@@ -938,16 +965,12 @@ class RigidObject(BaseRigidObject):
         )
         # update the default root pose
         self._update_array_with_value(
-            wp.transformf(*default_root_pose),
-            self._data.default_root_pose,
-            self.num_instances
+            wp.transformf(*default_root_pose), self._data.default_root_pose, self.num_instances
         )
         # default velocity
         default_root_velocity = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
         self._update_array_with_value(
-            wp.spatial_vectorf(*default_root_velocity),
-            self._data.default_root_vel,
-            self.num_instances
+            wp.spatial_vectorf(*default_root_velocity), self._data.default_root_vel, self.num_instances
         )
 
     """

@@ -5,9 +5,9 @@
 
 """Package containing the core framework."""
 
-from enum import IntEnum
 import os
 import toml
+from enum import IntEnum
 
 # Conveniences to other module directories via relative paths
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
@@ -18,6 +18,7 @@ ISAACLAB_METADATA = toml.load(os.path.join(ISAACLAB_EXT_DIR, "config", "extensio
 
 # Configure the module-level variables
 __version__ = ISAACLAB_METADATA["package"]["version"]
+
 
 class Backend(IntEnum):
     NEWTON = 0

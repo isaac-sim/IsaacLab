@@ -1,5 +1,12 @@
-import warp as wp
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from typing import Any
+
+import warp as wp
+
 
 @wp.kernel
 def update_array1D_with_value(
@@ -11,7 +18,7 @@ def update_array1D_with_value(
 
     Args:
         new_value: The new value.
-    
+
     Modifies:
         array: The array to update.
     """
@@ -27,21 +34,22 @@ def update_array1D_with_value_masked(
 ):
     """
     Assigns a value to all the elements of the array where the mask is true.
-    
+
     ..note:: if None is provided for mask, then all the elements are updated.
 
     Args:
         new_value: The new value.
         mask: The mask to use. Shape is (N,).
-    
+
     Modifies:
         array: The array to update. Shape is (N,).
     """
     index = wp.tid()
-    if not mask:
+    if not mask:  # noqa: SIM114
         array[index] = new_value
     elif mask[index]:
         array[index] = new_value
+
 
 @wp.kernel
 def update_array1D_with_value_indexed(
@@ -76,7 +84,7 @@ def update_array2D_with_value(
 
     Args:
         new_value: The new value.
-    
+
     Modifies:
         array_2d: The array to update. Shape is (N, M).
     """
@@ -100,21 +108,22 @@ def update_array2D_with_value_masked(
         new_value: The new value.
         mask_1: The mask to use. Shape is (N,).
         mask_2: The mask to use. Shape is (M,).
-    
+
     Modifies:
         array_2d: The array to update. Shape is (N, M).
     """
     index_1, index_2 = wp.tid()
-    if not mask_1:
-        if not mask_2:
+    if not mask_1:  # noqa: SIM114
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_value
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_value
     elif mask_1[index_1]:
-        if not mask_2:
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_value
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_value
+
 
 @wp.kernel
 def update_array2D_with_value_indexed(
@@ -141,6 +150,7 @@ def update_array2D_with_value_indexed(
     else:
         array_2d[indices_1[index_1], indices_2[index_2]] = new_value
 
+
 @wp.kernel
 def update_array1D_with_array1D(
     new_array: Any,
@@ -157,6 +167,7 @@ def update_array1D_with_array1D(
     """
     index = wp.tid()
     array[index] = new_array[index]
+
 
 @wp.kernel
 def update_array1D_with_array1D_masked(
@@ -177,10 +188,11 @@ def update_array1D_with_array1D_masked(
         array: The array to update. Shape is (N,).
     """
     index = wp.tid()
-    if not mask:
+    if not mask:  # noqa: SIM114
         array[index] = new_array[index]
     elif mask[index]:
         array[index] = new_array[index]
+
 
 @wp.kernel
 def update_array1D_with_array1D_indexed(
@@ -194,8 +206,9 @@ def update_array1D_with_array1D_indexed(
     index = wp.tid()
     if not indices:
         array[index] = new_array[index]
-    else:   
+    else:
         array[indices[index]] = new_array[index]
+
 
 @wp.kernel
 def update_array2D_with_array1D(
@@ -213,6 +226,7 @@ def update_array2D_with_array1D(
     """
     index_1, index_2 = wp.tid()
     array_2d[index_1, index_2] = new_array[index_2]
+
 
 @wp.kernel
 def update_array2D_with_array1D_masked(
@@ -235,16 +249,17 @@ def update_array2D_with_array1D_masked(
         array_2d: The array to update. Shape is (N, M).
     """
     index_1, index_2 = wp.tid()
-    if not mask_1:
-        if not mask_2:
+    if not mask_1:  # noqa: SIM114
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_array[index_2]
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_array[index_2]
     elif mask_1[index_1]:
-        if not mask_2:
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_array[index_2]
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_array[index_2]
+
 
 @wp.kernel
 def update_array2D_with_array1D_indexed(
@@ -304,6 +319,7 @@ def update_array2D_with_array1D_hybrid(
     if mask_1[index_1]:
         array_2d[index_1, index_2] = new_array_1d[indices_2[index_1]]
 
+
 @wp.kernel
 def update_array2D_with_array2D(
     new_array_2d: Any,
@@ -314,12 +330,13 @@ def update_array2D_with_array2D(
 
     Args:
         new_array_2d: The new array. Shape is (N, M).
-    
+
     Modifies:
         array_2d: The array to update. Shape is (N, M).
     """
     index_1, index_2 = wp.tid()
     array_2d[index_1, index_2] = new_array_2d[index_1, index_2]
+
 
 @wp.kernel
 def update_array2D_with_array2D_masked(
@@ -338,21 +355,22 @@ def update_array2D_with_array2D_masked(
         array_2d: The array to update. Shape is (N, M).
         mask_1: The mask to use. Shape is (N,).
         mask_2: The mask to use. Shape is (M,).
-    
+
     Modifies:
         array_2d: The array to update. Shape is (N, M).
     """
     index_1, index_2 = wp.tid()
-    if not mask_1:
-        if not mask_2:
+    if not mask_1:  # noqa: SIM114
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_array_2d[index_1, index_2]
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_array_2d[index_1, index_2]
     elif mask_1[index_1]:
-        if not mask_2:
+        if not mask_2:  # noqa: SIM114
             array_2d[index_1, index_2] = new_array_2d[index_1, index_2]
         elif mask_2[index_2]:
             array_2d[index_1, index_2] = new_array_2d[index_1, index_2]
+
 
 @wp.kernel
 def update_array2D_with_array2D_indexed(
@@ -385,6 +403,7 @@ def update_array2D_with_array2D_indexed(
         array_2d[indices_1[index_1], index_2] = new_array_2d[index_1, index_2]
     else:
         array_2d[indices_1[index_1], indices_2[index_2]] = new_array_2d[index_1, index_2]
+
 
 @wp.kernel
 def update_array2D_with_array2D_hybrid(
@@ -421,11 +440,27 @@ for dtype in [wp.float32, wp.int32, wp.bool, wp.vec2f, wp.vec3f, wp.quatf, wp.tr
     wp.overload(update_array2D_with_value_masked, {"new_value": dtype, "array_2d": wp.array2d(dtype=dtype)})
     wp.overload(update_array2D_with_value_indexed, {"new_value": dtype, "array_2d": wp.array2d(dtype=dtype)})
     wp.overload(update_array1D_with_array1D, {"new_array": wp.array(dtype=dtype), "array": wp.array(dtype=dtype)})
-    wp.overload(update_array1D_with_array1D_masked, {"new_array": wp.array(dtype=dtype), "array": wp.array(dtype=dtype)})
-    wp.overload(update_array1D_with_array1D_indexed, {"new_array": wp.array(dtype=dtype), "array": wp.array(dtype=dtype)})
+    wp.overload(
+        update_array1D_with_array1D_masked, {"new_array": wp.array(dtype=dtype), "array": wp.array(dtype=dtype)}
+    )
+    wp.overload(
+        update_array1D_with_array1D_indexed, {"new_array": wp.array(dtype=dtype), "array": wp.array(dtype=dtype)}
+    )
     wp.overload(update_array2D_with_array1D, {"new_array": wp.array(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-    wp.overload(update_array2D_with_array1D_masked, {"new_array": wp.array(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-    wp.overload(update_array2D_with_array1D_indexed, {"new_array": wp.array(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-    wp.overload(update_array2D_with_array2D, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-    wp.overload(update_array2D_with_array2D_masked, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
-    wp.overload(update_array2D_with_array2D_indexed, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)})
+    wp.overload(
+        update_array2D_with_array1D_masked, {"new_array": wp.array(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)}
+    )
+    wp.overload(
+        update_array2D_with_array1D_indexed, {"new_array": wp.array(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)}
+    )
+    wp.overload(
+        update_array2D_with_array2D, {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)}
+    )
+    wp.overload(
+        update_array2D_with_array2D_masked,
+        {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)},
+    )
+    wp.overload(
+        update_array2D_with_array2D_indexed,
+        {"new_array_2d": wp.array2d(dtype=dtype), "array_2d": wp.array2d(dtype=dtype)},
+    )

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
+
 from isaaclab_assets import ANT_CFG
 
 import isaaclab.sim as sim_utils
@@ -16,8 +18,6 @@ from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-
-from isaaclab_tasks_experimental.direct.locomotion.locomotion_env_warp import LocomotionWarpEnv
 
 
 @configclass

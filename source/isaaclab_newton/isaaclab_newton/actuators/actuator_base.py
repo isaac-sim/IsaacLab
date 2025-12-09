@@ -6,17 +6,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar
 from enum import IntEnum
+from typing import TYPE_CHECKING, ClassVar
+
 import warp as wp
+from isaaclab_newton.actuators.kernels import clip_efforts_with_limits
 
 import isaaclab.utils.string as string_utils
-from isaaclab_newton.actuators.kernels import clip_efforts_with_limits
-from isaaclab.utils.warp.update_kernels import (
-    update_array2D_with_array1D_indexed,
-    update_array2D_with_value_masked,
-)
 from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value_masked
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
@@ -210,7 +208,7 @@ class ActuatorBase(ABC):
         """
         # parse the parameter
         if cfg_value is not None:
-            if isinstance(cfg_value, float) or isinstance(cfg_value, int):
+            if isinstance(cfg_value, (float, int)):
                 print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
                 if isinstance(cfg_value, IntEnum):
                     cfg_value = int(cfg_value.value)

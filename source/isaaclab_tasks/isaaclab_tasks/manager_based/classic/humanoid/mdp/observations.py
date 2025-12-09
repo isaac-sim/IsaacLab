@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
+
 import warp as wp
+
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import ManagerTermBase, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+
+# TODO: Clean this up
 @wp.func
 def base_yaw_roll_wp_func(root_pose_w: wp.transformf) -> wp.vec2f:
     quat = wp.transform_get_rotation(root_pose_w)
@@ -39,14 +42,14 @@ def base_yaw_roll(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     roll = torch.atan2(torch.sin(roll), torch.cos(roll))
     yaw = torch.atan2(torch.sin(yaw), torch.cos(yaw))
     return torch.cat((yaw.unsqueeze(-1), roll.unsqueeze(-1)), dim=-1)
-    #torch_out = torch.zeros((env.num_envs, 2), device=env.device)
-    #wp.map(base_yaw_roll_wp_func, asset.data.root_pose_w, out=wp.from_torch(torch_out, dtype=wp.vec2f))
-    #return torch_out
+    # torch_out = torch.zeros((env.num_envs, 2), device=env.device)
+    # wp.map(base_yaw_roll_wp_func, asset.data.root_pose_w, out=wp.from_torch(torch_out, dtype=wp.vec2f))
+    # return torch_out
 
 
 @wp.func
 def base_up_proj_wp_func(projected_gravity_b: wp.vec3f) -> wp.float32:
-    return - projected_gravity_b[2]
+    return -projected_gravity_b[2]
 
 
 def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -56,9 +59,9 @@ def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     # compute base up vector
     base_up_vec = -wp.to_torch(asset.data.projected_gravity_b)
     return base_up_vec[:, 2].unsqueeze(-1)
-    #torch_out = torch.zeros((env.num_envs), device=env.device)
-    #wp.map(base_up_proj_wp_func, asset.data.projected_gravity_b, out=wp.from_torch(torch_out, dtype=wp.float32))
-    #return torch_out.unsqueeze(-1)
+    # torch_out = torch.zeros((env.num_envs), device=env.device)
+    # wp.map(base_up_proj_wp_func, asset.data.projected_gravity_b, out=wp.from_torch(torch_out, dtype=wp.float32))
+    # return torch_out.unsqueeze(-1)
 
 
 @wp.func
@@ -92,15 +95,14 @@ def base_heading_proj(
     heading_proj = torch.bmm(heading_vec.view(env.num_envs, 1, 3), to_target_dir.view(env.num_envs, 3, 1))
 
     return heading_proj.view(env.num_envs, 1)
-    #torch_out = torch.zeros((env.num_envs), device=env.device)
-    #target = wp.vec3f(target_pos[0], target_pos[1], target_pos[2])
-    #wp.map(base_heading_proj_wp_func, target, asset.data.root_pose_w, out=wp.from_torch(torch_out, dtype=wp.float32))
-    #return torch_out.unsqueeze(-1)
+    # torch_out = torch.zeros((env.num_envs), device=env.device)
+    # target = wp.vec3f(target_pos[0], target_pos[1], target_pos[2])
+    # wp.map(base_heading_proj_wp_func, target, asset.data.root_pose_w, out=wp.from_torch(torch_out, dtype=wp.float32))
+    # return torch_out.unsqueeze(-1)
 
 
-#@wp.func
-#def base_angle_to_target_wp_func(target_pos: wp.vec3f, root_pose_w: wp.transformf) -> wp.float32:
-
+# @wp.func
+# def base_angle_to_target_wp_func(target_pos: wp.vec3f, root_pose_w: wp.transformf) -> wp.float32:
 
 
 def base_angle_to_target(

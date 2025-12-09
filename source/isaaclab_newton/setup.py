@@ -6,7 +6,6 @@
 """Installation script for the 'isaaclab_newton' python package."""
 
 import os
-import platform
 import toml
 
 from setuptools import setup
@@ -19,13 +18,11 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>2",
     "torch>=2.7",
-    "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
     # reinforcement learning
-    "trimesh",
     "pyglet>=2.1.6",
     # testing
     "pytest",
@@ -33,11 +30,11 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     # newton
-    "warp-lang>=1.9.0.dev20250825",
+    "warp-lang>=1.9.0.dev20250825",  # TODO: update to 1.11.0
     "usd-core==25.05.0",
     "mujoco>=3.3.6.dev802089588",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@64bb938f87b6aaf840753ef9ddc198db655020c0",
-    "newton @ git+https://github.com/newton-physics/newton.git@beta-1-1",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@e9a67538f2c14486121635074c5a5fd6ca55fa83",
+    "newton @ git+https://github.com/newton-physics/newton.git@5047e6307d3a4702b2e6711151588260151a3e02",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
 ]

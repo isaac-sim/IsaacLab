@@ -7,15 +7,17 @@
 
 import functools
 import inspect
-import torch
-from collections.abc import Callable
 import logging
+import torch
 import warnings
+from collections.abc import Callable
+
 import warp as wp
 
 logger = logging.getLogger(__name__)
 warnings.simplefilter("once", UserWarning)
 logging.captureWarnings(True)
+
 
 def deprecated(
     *replacement_function_names: str,

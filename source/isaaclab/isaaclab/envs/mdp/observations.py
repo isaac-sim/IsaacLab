@@ -12,15 +12,16 @@ the observation introduced by the function.
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.sensors import Camera#, Imu, RayCaster, RayCasterCamera, TiledCamera
+from isaaclab.sensors import Camera, TiledCamera  # , Imu, RayCaster, RayCasterCamera
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -156,7 +157,7 @@ def body_pose_w(
     # access the body poses in world frame
     pose = wp.to_torch(asset.data.body_pose_w)[:, asset_cfg.body_ids, :7].clone()
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
-    pose[..., 3:7] = pose[..., 3:7]
+    # pose[..., 3:7] = pose[..., 3:7]
     return pose.reshape(env.num_envs, -1)
 
 
@@ -180,9 +181,10 @@ def body_projected_gravity_b(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
-    #body_quat = convert_quat(wp.to_torch(asset.data.body_quat_w)[:, asset_cfg.body_ids], to="wxyz")
-    #gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
-    #return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
+    # FIXME: This is incorrect.
+    # body_quat = wp.to_torch(asset.data.body_quat_w)[:, asset_cfg.body_ids]
+    # gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
+    # return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
     return wp.to_torch(asset.data.projected_gravity_b)[:, asset_cfg.body_ids].clone().view(env.num_envs, -1)
 
 
@@ -216,7 +218,10 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    return (
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
@@ -261,7 +266,10 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.default_joint_vel)[:, asset_cfg.joint_ids]
+    return (
+        wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_vel)[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(
@@ -289,7 +297,7 @@ Sensors.
 """
 
 
-#def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+# def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
 #    """Height scan from the given sensor w.r.t. the sensor's frame.
 #
 #    The provided offset (Defaults to 0.5) is subtracted from the returned values.
@@ -300,7 +308,7 @@ Sensors.
 #    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
 
 
-#def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+# def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 #    """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
 #
 #    This is the 6-D wrench (force and torque) applied to the body link by the incoming joint force.
@@ -312,7 +320,7 @@ Sensors.
 #    return body_incoming_joint_wrench_b.view(env.num_envs, -1)
 
 
-#def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+# def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor orientation in the simulation world frame.
 #
 #    Args:
@@ -328,7 +336,7 @@ Sensors.
 #    return asset.data.quat_w
 
 
-#def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+# def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor orientation w.r.t the env.scene.origin.
 #
 #    Args:
@@ -343,7 +351,7 @@ Sensors.
 #    return asset.data.projected_gravity_b
 
 
-#def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+# def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.
 #
 #    Args:
@@ -359,7 +367,7 @@ Sensors.
 #    return asset.data.ang_vel_b
 
 
-#def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+# def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
 #    """Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.
 #
 #    Args:
@@ -401,7 +409,7 @@ def image(
         The images produced at the last time-step
     """
     # extract the used quantities (to enable type-hinting)
-    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    sensor: TiledCamera | Camera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
     images = sensor.data.output[data_type]
