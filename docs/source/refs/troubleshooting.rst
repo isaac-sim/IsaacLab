@@ -75,13 +75,8 @@ For instance, to run a standalone script with verbose logging, you can use the f
     # Run the standalone script with info logging
     ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
 
-<<<<<<< HEAD
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.
-=======
-For more fine-grained control, you can modify the logging channels through the ``omni.log`` module.
-For more information, please refer to its `documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/158.2/docs/omni.log/Logging.html>`__.
->>>>>>> c9c7fa8fbe (fixing broken links)
 
 
 Observing long load times at the start of the simulation
