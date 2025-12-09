@@ -36,9 +36,7 @@ parser.add_argument(
     "--validate_success_rate",
     action="store_true",
     default=False,
-    help=(
-        "Validate the replay success rate using the task environment termination criteria"
-    ),
+    help="Validate the replay success rate using the task environment termination criteria",
 )
 parser.add_argument(
     "--enable_pinocchio",
@@ -153,15 +151,16 @@ def main():
 
     # extract success checking function to invoke in the main loop
     success_term = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
-    else:
-        print(
-            "No success termination term was found in the environment."
-            " Will not be able to mark recorded demos as successful."
-        )
-		
+    if args_cli.validate_success_rate:
+        if hasattr(env_cfg.terminations, "success"):
+            success_term = env_cfg.terminations.success
+            env_cfg.terminations.success = None
+        else:
+            print(
+                "No success termination term was found in the environment."
+                " Will not be able to mark recorded demos as successful."
+            )
+
     # Disable all recorders and terminations
     env_cfg.recorders = {}
     env_cfg.terminations = {}
@@ -195,10 +194,10 @@ def main():
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count = 0
     recorded_episode_count = 0
-    
+
     # Track current episode indices for each environment
     current_episode_indices = [None] * num_envs
-    
+
     # Track failed demo IDs
     failed_demo_ids = []
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
@@ -240,7 +239,7 @@ def main():
                                 # if not successful, add to failed demo IDs list
                                 if current_episode_indices[env_id] is not None:
                                     failed_demo_ids.append(current_episode_indices[env_id])
-									
+
                         if next_episode_index is not None:
                             replayed_episode_count += 1
                             current_episode_indices[env_id] = next_episode_index
@@ -286,12 +285,15 @@ def main():
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")
-    print(f"Successfully replayed: {recorded_episode_count}/{replayed_episode_count}")
-    
-    # Print failed demo IDs if any
-    if failed_demo_ids:
-        print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
-        print(f"  {failed_demo_ids}")
+
+    # Print success statistics only if validation was enabled
+    if success_term is not None:
+        print(f"Successfully replayed: {recorded_episode_count}/{replayed_episode_count}")
+
+        # Print failed demo IDs if any
+        if failed_demo_ids:
+            print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
+            print(f"  {failed_demo_ids}")
 
     env.close()
 
