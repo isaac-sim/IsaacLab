@@ -1835,6 +1835,10 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", NewtonManager.get_model())
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())
         # -- joint properties
+        # TODO: THIS IS A CONTROL MODE HACK!!!!
+        self._sim_bind_joint_control_mode_sim = self._root_view.get_attribute(
+            "joint_enabled", NewtonManager.get_model()
+        )
         self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
             "joint_limit_lower", NewtonManager.get_model()
         )

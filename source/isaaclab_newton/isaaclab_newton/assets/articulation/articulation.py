@@ -258,7 +258,7 @@ class Articulation(BaseArticulation):
         # apply actuator models
         self._apply_actuator_model()
         # Write the actuator targets into the simulation
-        self._root_view.set_attribute("joint_f", NewtonManager.get_control(), self.data.actuator_effort_target)
+        self._root_view.set_attribute("joint_f", NewtonManager.get_control(), self.data._applied_effort)
         if self._has_implicit_actuators:
             self._root_view.set_attribute(
                     "joint_target_pos", NewtonManager.get_control(), self.data.actuator_position_target
