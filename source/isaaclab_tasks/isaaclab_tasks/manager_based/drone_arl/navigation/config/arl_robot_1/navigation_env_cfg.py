@@ -162,6 +162,25 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    
+    @configclass
+    class VisualizationCfg(ObsGroup):
+        """Observations for visualization only."""
+        
+        depth_image = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("depth_camera"),
+                "data_type": "distance_to_image_plane",
+                "normalize": False,
+            }
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False 
+
+    visualization: VisualizationCfg = VisualizationCfg()
 
 
 @configclass

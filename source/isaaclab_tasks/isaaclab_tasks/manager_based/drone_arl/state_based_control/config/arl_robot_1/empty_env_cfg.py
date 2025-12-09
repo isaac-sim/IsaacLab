@@ -32,7 +32,7 @@ class EmptyEnvCfg_PLAY(EmptyEnvCfg):
 
         # make a smaller scene for play
         self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
+        self.scene.env_spacing = 1.
 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
