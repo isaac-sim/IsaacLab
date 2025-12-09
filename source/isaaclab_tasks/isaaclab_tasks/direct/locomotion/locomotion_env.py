@@ -17,7 +17,7 @@ from isaaclab.utils.math import (
     quat_apply_inverse,
     quat_conjugate,
     quat_mul,
-    unscale_transform,
+    scale_transform,
 )
 
 
@@ -304,7 +304,7 @@ def compute_intermediate_values(
         torso_quat, velocity, ang_velocity, targets, torso_position
     )
 
-    dof_pos_scaled = unscale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
+    dof_pos_scaled = scale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
 
     to_target = targets - torso_position
     to_target[:, 2] = 0.0
