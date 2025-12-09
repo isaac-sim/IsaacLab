@@ -72,3 +72,11 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0,1]."""
+
+    env_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Environment spacing for visual separation (x, y, z).
+    Set to (0, 0, 0) for actual positions. Ignored if auto_env_spacing is True.
+    """
+
+    auto_env_spacing: bool = True
+    """Enable automatic environment spacing based on environment extents (overrides env_spacing)."""
