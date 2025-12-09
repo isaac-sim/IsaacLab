@@ -49,7 +49,6 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
     friction=0.001,
     effort_limit=80.0,
     velocity_limit=7.5,
-    control_mode="position"  # THIS IS HACK!!
 )
 """Configuration for ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model."""
 

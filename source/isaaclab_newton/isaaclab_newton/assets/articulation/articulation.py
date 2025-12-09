@@ -838,54 +838,6 @@ class Articulation(BaseArticulation):
     Operations - Simulation Parameters Writers.
     """
 
-    def write_joint_control_mode_to_sim(
-        self,
-        control_mode: wp.array | int,
-        joint_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ):
-        """Write joint control mode into the simulation.
-
-        Args:
-            control_mode: Joint control mode. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
-            joint_mask: The joint mask. Shape is (num_joints).
-            env_mask: The environment mask. Shape is (num_instances,).
-
-        Raises:
-            ValueError: If the control mode is invalid.
-        """
-        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        if isinstance(control_mode, torch.Tensor):
-            control_mode, env_mask, joint_mask = self._torch_to_warp_dual_index(control_mode, self.num_instances, self.num_joints, env_ids, joint_ids, env_mask, joint_mask, dtype=wp.float32)
-        # solve for None masks
-        if env_mask is None:
-            env_mask = self._data.ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._data.ALL_JOINT_MASK
-        # set into simulation
-        if isinstance(control_mode, int):
-            self._update_batched_array_with_value_masked(
-                control_mode,
-                self._data.joint_control_mode,
-                env_mask,
-                joint_mask,
-                (self.num_instances, self.num_joints)
-            )
-        else:
-            self._update_batched_array_with_batched_array_masked(
-                control_mode,
-                self._data.joint_control_mode,
-                env_mask,
-                joint_mask,
-                (self.num_instances, self.num_joints)
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
-
     def write_joint_stiffness_to_sim(
         self,
         stiffness: wp.array | float,
@@ -2020,7 +1972,7 @@ class Articulation(BaseArticulation):
             # type annotation for type checkers
             actuator_cfg: ActuatorBaseCfg
             # create actuator group
-            joint_mask, joint_names, _ = self._find_joints(actuator_cfg.joint_names_expr)
+            joint_mask, joint_names, joint_indices = self._find_joints(actuator_cfg.joint_names_expr)
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
@@ -2033,6 +1985,7 @@ class Articulation(BaseArticulation):
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_mask=joint_mask,
+                joint_indices=joint_indices,
                 env_mask=self._data.ALL_ENV_MASK,
                 data=self._data,
                 device=self.device,
@@ -2073,8 +2026,6 @@ class Articulation(BaseArticulation):
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
                 self._update_batched_array_with_value_masked(0.0, self._data.joint_stiffness, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 self._update_batched_array_with_value_masked(0.0, self._data.joint_damping, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
-                # Set the control mode to None when using explicit actuators
-                self._update_batched_array_with_value_masked(0, self._data.joint_control_mode, self._data.ALL_ENV_MASK, actuator._joint_mask, (self.num_instances, self.num_joints))
                 # Bind the applied effort to the simulation effort
                 self.data._applied_effort = self.data.joint_effort
 

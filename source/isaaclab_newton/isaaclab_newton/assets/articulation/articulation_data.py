@@ -247,21 +247,6 @@ class ArticulationData(BaseArticulationData):
     ##
 
     @property
-    def joint_control_mode(self) -> wp.array(dtype=wp.float32):
-        """Joint control mode. Shape is (num_instances, num_joints).
-
-        When using implicit actuator models Newton needs to know how the joints are controlled.
-        The control mode can be one of the following:
-
-        * None: 0
-        * Position control: 1
-        * Velocity control: 2
-
-        This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
-        """
-        return self._sim_bind_joint_control_mode_sim
-
-    @property
     def joint_stiffness(self) -> wp.array(dtype=wp.float32):
         """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
 
@@ -1835,10 +1820,6 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", NewtonManager.get_model())
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())
         # -- joint properties
-        # TODO: THIS IS A CONTROL MODE HACK!!!!
-        self._sim_bind_joint_control_mode_sim = self._root_view.get_attribute(
-            "joint_enabled", NewtonManager.get_model()
-        )
         self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
             "joint_limit_lower", NewtonManager.get_model()
         )
