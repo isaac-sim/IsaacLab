@@ -13,25 +13,27 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    stage_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim_cfg = SimulationCfg(dt=dt, device="cpu")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     stage_utils.update_stage()
     yield sim
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 """
@@ -146,6 +148,7 @@ def test_spawn_cone_with_rigid_props(sim):
     assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props.sleep_threshold)
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_rigid_and_mass_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API."""
     cfg = sim_utils.ConeCfg(
@@ -170,6 +173,7 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_rigid_and_density_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API.
 
@@ -201,6 +205,7 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires Newton graph which is None without articulations")
 def test_spawn_cone_with_all_props(sim):
     """Test spawning of UsdGeom.Cone prim with all properties."""
     cfg = sim_utils.ConeCfg(

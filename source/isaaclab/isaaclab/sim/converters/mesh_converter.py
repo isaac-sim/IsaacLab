@@ -7,15 +7,12 @@ import asyncio
 import logging
 import os
 
-import omni
-import omni.kit.commands
-from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
-from isaaclab.sim.utils import export_prim_to_file
+from isaaclab.sim.utils import create_default_xform_ops, export_prim_to_file
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -136,11 +133,10 @@ class MeshConverter(AssetConverterBase):
                     )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
-        # Apply default Xform rotation to mesh -> enable to set rotation and scale
-        omni.kit.commands.execute(
-            "CreateDefaultXformOnPrimCommand",
-            prim_path=xform_prim.GetPath(),
-            **{"stage": stage},
+
+        # Apply default Xform ops to xform_prim using utility function
+        create_default_xform_ops(
+            prim_path=xform_prim.GetPath(), stage=stage, xform_op_type="Scale, Orient, Translate", precision="Double"
         )
 
         # Apply translation, rotation, and scale to the Xform
@@ -171,9 +167,9 @@ class MeshConverter(AssetConverterBase):
                 source_prim_path=geom_prim.GetPath(),
                 stage=stage,
             )
-            # Delete the original prim that will now be a reference
+            # Delete the original prim that will now be a reference using USD core API
             geom_prim_path = geom_prim.GetPath().pathString
-            omni.kit.commands.execute("DeletePrims", paths=[geom_prim_path], stage=stage)
+            stage.RemovePrim(geom_prim_path)
             # Update references to exported Xform and make it instanceable
             geom_undef_prim = stage.DefinePrim(geom_prim_path)
             geom_undef_prim.GetReferences().AddReference(self.usd_instanceable_meshes_path, primPath=geom_prim_path)
@@ -217,6 +213,8 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
+        from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter
