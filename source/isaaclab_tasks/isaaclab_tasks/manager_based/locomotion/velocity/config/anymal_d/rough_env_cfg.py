@@ -21,10 +21,6 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # switch robot to anymal-d
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-        self.events.push_robot = None
-        self.events.add_base_mass = None
-        self.events.base_com = None
-
 
 @configclass
 class AnymalDRoughEnvCfg_PLAY(AnymalDRoughEnvCfg):

@@ -338,8 +338,17 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 "Randomization term 'randomize_rigid_body_mass' does not support operation:"
                 f" '{cfg.params['operation']}'."
             )
+        # Default values for mass and inertia
         self.default_mass = wp.to_torch(self.asset.data.body_mass).clone()
-        self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone()
+        self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone().reshape(self.asset.num_instances, self.asset.num_bodies, 9)
+        # Pre-allocate tensors for fast access
+        self.inertia = torch.zeros((self.asset.num_instances, self.asset.num_bodies, 9), dtype=torch.float32, device=env.device)
+        self.all_env_ids = torch.arange(env.scene.num_envs, device=env.device)
+        # resolve body indices
+        if self.asset_cfg.body_ids == slice(None):
+            self.body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=env.device)
+        else:
+            self.body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device=env.device)
 
     def __call__(
         self,
@@ -351,7 +360,47 @@ class randomize_rigid_body_mass(ManagerTermBase):
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
         recompute_inertia: bool = True,
     ):
-        pass
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = self.all_env_ids
+
+        # sample from the given range
+        # note: we modify the masses in-place for all environments
+        # FIXME: This is not efficient, we should use something else here. Keeping it for now since it's a quick fix.
+        masses = _randomize_prop_by_op(
+            self.default_mass.clone(),
+            mass_distribution_params,
+            env_ids,
+            self.body_ids,
+            operation=operation,
+            distribution=distribution,
+        )
+
+        # FIXME: This is super "special"... We should not be doing this at all.
+        # set the mass into the physics simulation
+        self.asset.set_masses(masses[env_ids[:, None], self.body_ids], self.body_ids,  env_ids)
+
+        # recompute inertia tensors if needed
+        if recompute_inertia:
+            # compute the ratios of the new masses to the initial masses
+            ratios = masses[env_ids[:, None], self.body_ids] / self.default_mass[env_ids[:, None], self.body_ids]
+            # scale the inertia tensors by the the ratios
+            # since mass randomization is done on default values, we can use the default inertia tensors
+            if isinstance(self.asset, Articulation):
+                # inertia has shape: (num_envs, num_bodies, 9) for articulation
+                self.inertia[env_ids[:, None], self.body_ids] = (
+                    self.default_inertia[env_ids[:, None], self.body_ids] * ratios[..., None]
+                )
+            else:
+                # inertia has shape: (num_envs, 9) for rigid object
+                self.inertia[env_ids] = self.default_inertia[env_ids] * ratios.unsqueeze(-1)
+            # FIXME: This is super "special"... We should not be doing this at all.
+            # set the inertia tensors into the physics simulation
+            self.asset.set_inertias(
+                self.inertia[env_ids[:, None], self.body_ids].reshape(ratios.shape[0], ratios.shape[1], 3, 3),
+                self.body_ids,
+                env_ids,
+            )
 
 
 def randomize_rigid_body_com(
@@ -366,7 +415,33 @@ def randomize_rigid_body_com(
         This function uses CPU tensors to assign the CoM. It is recommended to use this function
         only during the initialization of the environment.
     """
-    raise NotImplementedError("Not implemented")
+    asset: Articulation = env.scene[asset_cfg.name]
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device=env.device)
+
+    # resolve body indices
+    if asset_cfg.body_ids == slice(None):
+        # FIXME: We need to talk performance this is attrocious....
+        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device=env.device)
+    else:
+        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device=env.device)
+
+    # sample random CoM values
+    # FIXME: We need to talk performance this is attrocious.... even Cursor knows it's bad...
+    range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=env.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=env.device).unsqueeze(1)
+
+    # FIXME: Shouldn't this be getting the default coms? That looks dangerous..
+    # get the current com of the bodies (num_assets, num_bodies)
+    coms = wp.to_torch(asset.data.body_com_pos_b).clone()
+
+    # Randomize the com in range
+    coms[env_ids[:, None], body_ids, :3] += rand_samples
+
+    # Set the new coms
+    asset.set_coms(coms[env_ids[:, None], body_ids], body_ids, env_ids)
 
 
 def randomize_rigid_body_collider_offsets(

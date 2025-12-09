@@ -366,6 +366,8 @@ class Articulation(BaseArticulation):
                 # Create a complete data buffer from scratch
                 if dtype == wp.vec3f:
                     complete_value = torch.zeros(N, M, 3, dtype=value.dtype, device=self.device)
+                elif dtype == wp.mat33f:
+                    complete_value = torch.zeros(N, M, 3, 3, dtype=value.dtype, device=self.device)
                 else:
                     complete_value = torch.zeros(N, M, dtype=value.dtype, device=self.device)
                 complete_value[first_ids, second_ids] = value
@@ -1327,6 +1329,38 @@ class Articulation(BaseArticulation):
             body_mask = self._data.ALL_BODY_MASK
         self._update_batched_array_with_batched_array_masked(
             masses, self._data.body_mass, env_mask, body_mask, (self.num_instances, self.num_bodies)
+        )
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+
+    def set_coms(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set center of mass positions of all bodies in the simulation world frame.
+
+        Args:
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        # raise NotImplementedError()
+        if isinstance(coms, torch.Tensor):
+            coms, env_mask, body_mask = self._torch_to_warp_dual_index(
+                coms, self.num_instances, self.num_bodies, env_ids, body_ids, env_mask, body_mask, dtype=wp.vec3f
+            )
+        # solve for None masks
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
+        self._update_batched_array_with_batched_array_masked(
+            coms, self._data.body_com_pos_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
         )
         NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
 

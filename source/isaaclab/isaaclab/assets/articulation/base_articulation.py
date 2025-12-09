@@ -903,6 +903,26 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    def set_coms(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set center of mass positions of all bodies in the simulation world frame.
+
+        Args:
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def set_inertias(
         self,
         inertias: torch.Tensor | wp.array,
