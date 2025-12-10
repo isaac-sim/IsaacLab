@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 08, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 10, 2025"/>
   </head>
   
   
@@ -925,6 +925,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.record_post_reset"><code class="docutils literal notranslate"><span class="pre">RecorderManager.record_post_reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.get_ep_meta"><code class="docutils literal notranslate"><span class="pre">RecorderManager.get_ep_meta()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.export_episodes"><code class="docutils literal notranslate"><span class="pre">RecorderManager.export_episodes()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.close"><code class="docutils literal notranslate"><span class="pre">RecorderManager.close()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderTermCfg"><code class="docutils literal notranslate"><span class="pre">RecorderTermCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -3836,6 +3837,9 @@ in the <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg" ti
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.RecorderManager.export_episodes" title="isaaclab.managers.RecorderManager.export_episodes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_episodes</span></code></a>([env_ids, demo_ids])</p></td>
 <td><p>Concludes and exports the episodes for the given environment ids.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.RecorderManager.close" title="isaaclab.managers.RecorderManager.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<td><p>Closes the recorder manager by exporting any remaining data to file as well as properly closes the recorder terms.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -4074,6 +4078,12 @@ If None, uses the default sequential naming scheme. Defaults to None.</p></li>
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.managers.RecorderManager.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/managers/recorder_manager.html#RecorderManager.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.RecorderManager.close" title="Permalink to this definition">#</a></dt>
+<dd><p>Closes the recorder manager by exporting any remaining data to file as well as properly closes the recorder terms.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4419,6 +4429,7 @@ If None, uses the default sequential naming scheme. Defaults to None.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.record_post_reset"><code class="docutils literal notranslate"><span class="pre">RecorderManager.record_post_reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.get_ep_meta"><code class="docutils literal notranslate"><span class="pre">RecorderManager.get_ep_meta()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.export_episodes"><code class="docutils literal notranslate"><span class="pre">RecorderManager.export_episodes()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderManager.close"><code class="docutils literal notranslate"><span class="pre">RecorderManager.close()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.RecorderTermCfg"><code class="docutils literal notranslate"><span class="pre">RecorderTermCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -4460,7 +4471,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 08, 2025.
+  Last updated on Dec 10, 2025.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 08, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 10, 2025"/>
   </head>
   
   
@@ -813,17 +813,36 @@ a message is printed to console indicating the error, such as
 </div>
 <a class="reference internal image-reference" href="../../_images/multi_asset.jpg"><img alt="Multiple assets managed through the same simulation handles" src="../../_images/multi_asset.jpg" style="width: 100%;" /></a>
 </li>
-<li><p>Use the interactive scene and spawn a simple parallel robot for pick and place:</p>
+<li><p>Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-14" name="sd-tab-set-7" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-14">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/pick_and_place.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/bin_packing.py
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-15" name="sd-tab-set-7" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-15">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\bin_packing.py
+</pre></div>
+</div>
+</div>
+</div>
+<a class="reference internal image-reference" href="../../_images/bin_packing.jpg"><img alt="Spawning random number of random asset per env_id using combination of MultiAssetSpawner and RigidObjectCollection" src="../../_images/bin_packing.jpg" style="width: 100%;" /></a>
+</li>
+<li><p>Use the interactive scene and spawn a simple parallel robot for pick and place:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/pick_and_place.py
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\pick_and_place.py
 </pre></div>
@@ -843,15 +862,15 @@ Use the following controls to interact with the simulation:</p>
 </li>
 <li><p>Teleoperate a Franka Panda robot using Haply haptic device with force feedback:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
+<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/haply_teleoperation.py<span class="w"> </span>--websocket_uri<span class="w"> </span>ws://localhost:10001<span class="w"> </span>--pos_sensitivity<span class="w"> </span><span class="m">1</span>.65
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
+<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 </pre></div>
@@ -871,15 +890,15 @@ The Haply devices provide:</p>
 </li>
 <li><p>Create and spawn procedurally generated terrains with different configurations:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
+<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/procedural_terrain.py
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
+<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\procedural_terrain.py
 </pre></div>
@@ -890,15 +909,15 @@ The Haply devices provide:</p>
 </li>
 <li><p>Spawn a quadcopter in the default environment:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
+<input checked="checked" id="sd-tab-item-22" name="sd-tab-set-11" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-22">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/quadcopter.py
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
+<input id="sd-tab-item-23" name="sd-tab-set-11" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-23">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\quadcopter.py
 </pre></div>
@@ -909,15 +928,15 @@ The Haply devices provide:</p>
 </li>
 <li><p>Spawn different quadrupeds and make robots stand using position commands:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-22" name="sd-tab-set-11" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-22">
+<input checked="checked" id="sd-tab-item-24" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-24">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/quadrupeds.py
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-23" name="sd-tab-set-11" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-23">
+<input id="sd-tab-item-25" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-25">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\demos\quadrupeds.py
 </pre></div>
@@ -993,7 +1012,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 08, 2025.
+  Last updated on Dec 10, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 08, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 10, 2025"/>
   </head>
   
   
@@ -644,6 +644,9 @@
     <span class="n">export_in_record_pre_reset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to export episodes in the record_pre_reset call.&quot;&quot;&quot;</span>
 
+    <span class="n">export_in_close</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to export episodes in the close call.&quot;&quot;&quot;</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">RecorderTerm</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for recorder terms.</span>
@@ -726,6 +729,17 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Finalize and &quot;clean up&quot; the recorder term.</span>
+
+<span class="sd">        This can include tasks such as appending metadata (e.g. labels) to a file</span>
+<span class="sd">        and properly closing any associated file handles or resources.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            file_path: the absolute path to the file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
 
 <div class="viewcode-block" id="RecorderManager"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RecorderManager</span><span class="p">(</span><span class="n">ManagerBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Manager for recording data from recorder terms.&quot;&quot;&quot;</span>
@@ -796,15 +810,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Destructor for recorder.&quot;&quot;&quot;</span>
-        <span class="c1"># Do nothing if no active recorder terms are provided</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
@@ -1113,6 +1119,20 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span></div>
 
+<div class="viewcode-block" id="RecorderManager.close"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.close">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Closes the recorder manager by exporting any remaining data to file as well as properly closes the recorder terms.&quot;&quot;&quot;</span>
+        <span class="c1"># Do nothing if no active recorder terms are provided</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">export_in_close</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">export_episodes</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">term</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dataset_export_dir_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dataset_filename</span><span class="p">))</span></div>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1132,6 +1152,7 @@
                 <span class="s2">&quot;dataset_export_dir_path&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;dataset_export_mode&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;export_in_record_pre_reset&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;export_in_close&quot;</span><span class="p">,</span>
             <span class="p">]:</span>
                 <span class="k">continue</span>
             <span class="c1"># check if term config is None</span>
@@ -1198,7 +1219,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 08, 2025.
+  Last updated on Dec 10, 2025.
   <br/>
 </p>
   </div>
