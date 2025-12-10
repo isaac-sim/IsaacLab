@@ -28,6 +28,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -417,9 +418,6 @@ def test_contact_sensor_threshold(setup_simulation, device):
         scene = InteractiveScene(scene_cfg)
         # Play the simulator
         sim.reset()
-
-        # Get the stage and check the USD threshold attribute on the rigid body prim
-        from isaacsim.core.utils.stage import get_current_stage
 
         stage = get_current_stage()
         prim_path = scene_cfg.shape.prim_path

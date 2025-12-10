@@ -10,9 +10,9 @@ import torch
 import trimesh
 from trimesh.sample import sample_surface
 
-import isaacsim.core.utils.prims as prim_utils
 from pxr import UsdGeom
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import get_all_matching_child_prims
 
 # ---- module-scope caches ----
