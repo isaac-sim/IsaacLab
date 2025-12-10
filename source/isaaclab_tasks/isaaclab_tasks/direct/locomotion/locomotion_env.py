@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 
 import warp as wp
 
