@@ -10,6 +10,24 @@ Added
 * Implemented ability to attach an imu sensor to xform primitives in a usd file. This PR is based on work by '@GiulioRomualdi'
   here: #3094 Addressing issue #3088.
 
+0.49.2 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
+
+
+0.49.1 (2025-12-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+  * Added write to file on close to :class:`~isaaclab.manager.RecorderManager`.
+  * Added :attr:`~isaaclab.manager.RecorderManagerCfg.export_in_close` configuration parameter.
+
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -44,7 +62,9 @@ Added
 Changed
 ^^^^^^^
 
-* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` to properly propagate the Isaac Sim stage context.
+* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` in ``isaaclab.devices.openxr.xr_anchor_utils.py``
+  to properly propagate the Isaac Sim stage context.
+
 
 
 0.48.6 (2025-11-18)

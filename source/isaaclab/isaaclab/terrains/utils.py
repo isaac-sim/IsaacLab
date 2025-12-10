@@ -80,10 +80,10 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         physics_material: The physics material to apply. Defaults to None.
     """
     # need to import these here to prevent isaacsim launching when importing this module
-    import isaacsim.core.utils.prims as prim_utils
     from pxr import UsdGeom
 
     import isaaclab.sim as sim_utils
+    import isaaclab.sim.utils.prims as prim_utils
 
     # create parent prim
     prim_utils.create_prim(prim_path, "Xform")

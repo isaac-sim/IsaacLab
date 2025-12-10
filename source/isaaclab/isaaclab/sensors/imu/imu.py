@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.utils import resolve_pose_relative_to_physx_parent
-from isaaclab.sim.utils import stage as stage_utils
 
 from ..sensor_base import SensorBase
 from .imu_data import ImuData
