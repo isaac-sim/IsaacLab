@@ -13,7 +13,6 @@ import contextlib
 import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
 
 import carb
 from isaacsim.core.version import get_version
@@ -22,7 +21,6 @@ from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
 from ..device_base import DeviceBase, DeviceCfg
-from .openxr_device import OpenXRDevice
 from .xr_cfg import XrCfg
 
 # For testing purposes, we need to mock the XRCore
@@ -60,13 +58,6 @@ class ManusVive(DeviceBase):
     based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
     data is transformed into robot control commands suitable for teleoperation.
     """
-
-    class TrackingTarget(Enum):
-        """Enum class specifying what to track with Manus+Vive. Consistent with :class:`OpenXRDevice.TrackingTarget`."""
-
-        HAND_LEFT = 0
-        HAND_RIGHT = 1
-        HEAD = 2
 
     TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
 
@@ -192,9 +183,9 @@ class ManusVive(DeviceBase):
             joint_name = HAND_JOINT_MAP[int(index)]
             result[hand][joint_name] = np.array(pose["position"] + pose["orientation"], dtype=np.float32)
         return {
-            OpenXRDevice.TrackingTarget.HAND_LEFT: result["left"],
-            OpenXRDevice.TrackingTarget.HAND_RIGHT: result["right"],
-            OpenXRDevice.TrackingTarget.HEAD: self._calculate_headpose(),
+            DeviceBase.TrackingTarget.HAND_LEFT: result["left"],
+            DeviceBase.TrackingTarget.HAND_RIGHT: result["right"],
+            DeviceBase.TrackingTarget.HEAD: self._calculate_headpose(),
         }
 
     def _calculate_headpose(self) -> np.ndarray:

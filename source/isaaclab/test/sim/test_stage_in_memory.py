@@ -12,7 +12,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
+
 import omni
 import omni.physx
 import omni.usd
@@ -22,8 +22,9 @@ from isaacsim.core.cloner import GridCloner
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -91,13 +92,13 @@ def test_stage_in_memory_with_shapes(sim):
         assert stage_utils.is_current_stage_in_memory()
 
         # verify prims exist in stage in memory
-        prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+        prims = sim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context
@@ -107,7 +108,7 @@ def test_stage_in_memory_with_shapes(sim):
     assert not stage_utils.is_current_stage_in_memory()
 
     # verify prims now exist in context stage
-    prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+    prims = sim_utils.find_matching_prim_paths(prim_path_regex)
     assert len(prims) == num_clones
 
 
@@ -157,13 +158,13 @@ def test_stage_in_memory_with_usds(sim):
         assert stage_utils.is_current_stage_in_memory()
 
         # verify prims exist in stage in memory
-        prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+        prims = sim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context
@@ -173,7 +174,7 @@ def test_stage_in_memory_with_usds(sim):
     assert not stage_utils.is_current_stage_in_memory()
 
     # verify prims now exist in context stage
-    prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+    prims = sim_utils.find_matching_prim_paths(prim_path_regex)
     assert len(prims) == num_clones
 
 
@@ -219,7 +220,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
         with stage_utils.use_stage(context_stage):
-            prims = prim_utils.find_matching_prim_paths(prim_path_regex)
+            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
         # attach stage to context

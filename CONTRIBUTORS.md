@@ -73,6 +73,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Hougant Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
@@ -96,6 +97,7 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Mateo Guaman Castro
 * Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
@@ -126,6 +128,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
+* Sahara Yuta
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz

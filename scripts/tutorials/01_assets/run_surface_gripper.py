@@ -35,9 +35,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
 from isaaclab.sim import SimulationContext
 
