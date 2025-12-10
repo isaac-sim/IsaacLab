@@ -113,7 +113,7 @@ UR10_LONG_SUCTION_CFG.init_state.joint_pos = {
     "shoulder_lift_joint": -1.5707,
     "elbow_joint": 1.5707,
     "wrist_1_joint": -1.5707,
-    "wrist_2_joint": 1.5707,
+    "wrist_2_joint": -1.5707,
     "wrist_3_joint": 0.0,
 }
 
