@@ -1,13 +1,32 @@
 Changelog
 ---------
 
-0.48.10 (2025-11-26)
+0.49.2 (2025-11-26)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
+
+
+0.49.1 (2025-12-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+  * Added write to file on close to :class:`~isaaclab.manager.RecorderManager`.
+  * Added :attr:`~isaaclab.manager.RecorderManagerCfg.export_in_close` configuration parameter.
+
+
+0.49.0 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the URDF Importer version to 2.4.31 to avoid issues with merging joints on the latest URDF importer in Isaac Sim 5.1
 
 
 0.48.9 (2025-11-21)

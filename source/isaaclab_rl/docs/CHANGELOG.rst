@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+
+0.4.5 (2025-12-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added state_dependent_std rsl_rl param to RSL-RL wrapper.
+
+
 0.4.4 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~
 

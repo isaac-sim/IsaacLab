@@ -31,8 +31,8 @@ def sim_config():
     # Create a new stage
     stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
+    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
+    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
     # default configuration
     config = UrdfConverterCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",

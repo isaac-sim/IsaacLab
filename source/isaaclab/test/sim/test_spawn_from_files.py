@@ -69,8 +69,8 @@ def test_spawn_usd_fails(sim):
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
+    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
+    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
     # Spawn franka from URDF
     cfg = sim_utils.UrdfFileCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
