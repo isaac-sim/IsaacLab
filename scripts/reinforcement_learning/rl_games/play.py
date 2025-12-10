@@ -62,6 +62,8 @@ from isaaclab.utils.timer import Timer
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint

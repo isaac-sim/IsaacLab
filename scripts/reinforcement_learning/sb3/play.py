@@ -63,6 +63,7 @@ from isaaclab.utils.timer import Timer
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 

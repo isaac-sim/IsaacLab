@@ -8,6 +8,8 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
@@ -28,7 +30,9 @@ def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg:
     command = env.command_manager.get_command(command_name)
     # obtain the desired and current positions
     des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
+    des_pos_w, _ = combine_frame_transforms(
+        wp.to_torch(asset.data.root_pos_w), wp.to_torch(asset.data.root_quat_w).clone(), wp.to_torch(des_pos_b)
+    )
     curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
     return torch.norm(curr_pos_w - des_pos_w, dim=1)
 

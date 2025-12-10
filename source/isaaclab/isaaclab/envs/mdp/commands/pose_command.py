@@ -11,6 +11,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
@@ -27,7 +29,7 @@ class UniformPoseCommand(CommandTerm):
 
     The command generator generates poses by sampling positions uniformly within specified
     regions in cartesian space. For orientation, it samples uniformly the euler angles
-    (roll-pitch-yaw) and converts them into quaternion representation (w, x, y, z).
+    (roll-pitch-yaw) and converts them into quaternion representation (x, y, z, w).
 
     The position and orientation commands are generated in the base frame of the robot, and not the
     simulation world frame. This means that users need to handle the transformation from the
@@ -56,7 +58,7 @@ class UniformPoseCommand(CommandTerm):
 
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
-        self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
+        _, _, self.body_idx = self.robot.find_bodies(cfg.body_name)
 
         # create buffers
         # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
@@ -81,7 +83,7 @@ class UniformPoseCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired pose command. Shape is (num_envs, 7).
 
-        The first three elements correspond to the position, followed by the quaternion orientation in (w, x, y, z).
+        The first three elements correspond to the position, followed by the quaternion orientation in (x, y, z, w).
         """
         return self.pose_command_b
 
@@ -92,8 +94,8 @@ class UniformPoseCommand(CommandTerm):
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            self.robot.data.root_pos_w,
-            self.robot.data.root_quat_w,
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
@@ -101,8 +103,8 @@ class UniformPoseCommand(CommandTerm):
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            self.robot.data.body_pos_w[:, self.body_idx],
-            self.robot.data.body_quat_w[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx],
         )
         self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
@@ -127,7 +129,7 @@ class UniformPoseCommand(CommandTerm):
         pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
+        # create markers if necessary for the first time
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 # -- goal pose
@@ -151,5 +153,5 @@ class UniformPoseCommand(CommandTerm):
         # -- goal pose
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
-        body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
+        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[:, self.body_idx]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])

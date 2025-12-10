@@ -38,10 +38,10 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
-    )
+    # ground = AssetBaseCfg(
+    #    prim_path="/World/ground",
+    #    spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    # )
 
     # cartpole
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -178,6 +178,23 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # Simulation settings
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=5,
+                nconmax=3,
+                ls_iterations=10,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=True,
+                integrator="implicit",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+    )
 
     # Post initialization
     def __post_init__(self) -> None:

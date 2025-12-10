@@ -11,7 +11,7 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.examples import create_collision_pipeline
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
+from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
@@ -63,6 +63,7 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
+    _model_changes: set[int] = set()
 
     @classmethod
     def clear(cls):
@@ -91,6 +92,7 @@ class NewtonManager:
             NewtonManager._cfg = None
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
+        NewtonManager._model_changes = set()
 
     @classmethod
     def set_builder(cls, builder):
@@ -103,6 +105,10 @@ class NewtonManager:
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
         NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def add_model_change(cls, change: SolverNotifyFlags) -> None:
+        NewtonManager._model_changes.add(change)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -180,6 +186,7 @@ class NewtonManager:
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
+            print(NewtonManager._model.gravity)
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
             if isinstance(NewtonManager._solver, SolverMuJoCo):
                 NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
@@ -272,6 +279,11 @@ class NewtonManager:
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
+        if NewtonManager._model_changes:
+            for change in NewtonManager._model_changes:
+                NewtonManager._solver.notify_model_changed(change)
+            NewtonManager._model_changes = set()
+
         if NewtonManager._cfg.use_cuda_graph:
             wp.capture_launch(NewtonManager._graph)
         else:
@@ -318,6 +330,14 @@ class NewtonManager:
     @classmethod
     def get_control(cls):
         return NewtonManager._control
+
+    @classmethod
+    def get_dt(cls):
+        return NewtonManager._dt
+
+    @classmethod
+    def get_solver_dt(cls):
+        return NewtonManager._solver_dt
 
     @classmethod
     def forward_kinematics(cls, mask: wp.array | None = None) -> None:
