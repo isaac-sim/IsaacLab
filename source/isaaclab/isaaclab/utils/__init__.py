@@ -13,6 +13,7 @@ from .dict import *
 from .helpers import deprecated, warn_overhead_cost
 from .interpolation import *
 from .modifiers import *
+from .simulation_runner import close_simulation, is_simulation_running
 from .string import *
 from .timer import Timer
 from .types import *
