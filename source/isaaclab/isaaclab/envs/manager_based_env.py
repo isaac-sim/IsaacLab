@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 # from isaacsim.core.version import get_version
 
 
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
+
 # import logger
 logger = logging.getLogger(__name__)
 
