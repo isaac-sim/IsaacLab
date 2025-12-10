@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from abc import ABC
-from .renderer_cfg import RendererCfg
 from typing import TYPE_CHECKING
+
+from .renderer_cfg import RendererCfg
 
 
 class RendererBase(ABC):
@@ -37,7 +38,7 @@ class RendererBase(ABC):
     def step(self):
         """Step the renderer."""
         raise NotImplementedError("step() is not implemented.")
-    
+
     def reset(self):
         """Reset the renderer."""
         raise NotImplementedError("reset() is not implemented.")
@@ -52,7 +53,7 @@ class RendererBase(ABC):
     def close(self):
         """Close the renderer."""
         raise NotImplementedError("close() is not implemented.")
-    
+
     def clone(self, cameras):
         """TODO: Clone the camera in renderer."""
         raise NotImplementedError("clone() is not implemented.")
