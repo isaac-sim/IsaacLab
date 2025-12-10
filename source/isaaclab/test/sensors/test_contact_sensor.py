@@ -27,7 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
