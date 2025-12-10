@@ -1,6 +1,13 @@
 Changelog
 ---------
 
+0.49.3 (2025-12-03)
+~~~~~~~~~~~~~~~~~~~
+
+* Added :class:`G1TriHandUpperBodyMotionControllerGripperRetargeter` and :class:`G1TriHandUpperBodyMotionControllerGripperRetargeterCfg` for retargeting the gripper state from motion controllers.
+* Added unit tests for the retargeters.
+
+
 0.49.2 (2025-11-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +16,7 @@ Added
 
 * Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
 * Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+
 
 0.49.1 (2025-11-26)
 ~~~~~~~~~~~~~~~~~~~
