@@ -1,0 +1,284 @@
+Metadata-Version: 2.4
+Name: nvidia-ml-py
+Version: 13.580.82
+Summary: Python Bindings for the NVIDIA Management Library
+Home-page: https://forums.developer.nvidia.com
+Author: NVIDIA Corporation
+Author-email: nvml-bindings@nvidia.com
+License: BSD
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Hardware
+Classifier: Topic :: System :: Systems Administration
+Description-Content-Type: text/markdown
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: summary
+
+pyNVML
+======
+
+Python bindings to the NVIDIA Management Library
+------------------------------------------------
+
+Provides a Python interface to GPU management and monitoring functions.
+
+This is a wrapper around the NVML library.
+For information about the NVML library, see the NVML developer page
+http://developer.nvidia.com/nvidia-management-library-nvml
+
+Download the latest package from:
+http://pypi.python.org/pypi/nvidia-ml-py/
+
+Note this file can be run with 'python -m doctest -v README.txt'
+although the results are system dependent
+
+The nvml header file contains function documentation that is relevant
+to this wrapper. The header file is distributed with.
+https://developer.nvidia.com/gpu-deployment-kit
+
+The main difference is this library handles allocating structs and
+passing pointers to the functions, before returning the desired value.
+Non-success return codes are raised as exceptions as described in the
+section below.
+
+REQUIRES
+--------
+Python 2.5, or an earlier version with the ctypes module.
+
+INSTALLATION
+------------
+
+Pip Installation with python3:
+- `python3 -m pip install nvidia-ml-py`
+
+Manual Installation:
+```
+$ tar -xzf nvidia-ml-py-$major-$minor-$patch.tar.gz`
+$ cd nvidia-ml-py-$major-$minor-$patch
+$ sudo python setup.py install
+```
+
+USAGE
+-----
+```
+>>> from pynvml import *
+>>> nvmlInit()
+>>> print(f"Driver Version: {nvmlSystemGetDriverVersion()}")
+Driver Version: 11.515.48
+>>> deviceCount = nvmlDeviceGetCount()
+>>> for i in range(deviceCount):
+...     handle = nvmlDeviceGetHandleByIndex(i)
+...     print(f"Device {i} : {nvmlDeviceGetName(handle)}")
+...
+Device 0 : Tesla K40c
+
+>>> nvmlShutdown()
+```
+
+FUNCTIONS
+---------
+Python methods wrap NVML functions, implemented in a C shared library.
+Each function's use is the same with the following exceptions:
+
+- Instead of returning error codes, failing error codes are raised as Python exceptions.
+
+```
+>>> try:
+...     nvmlDeviceGetCount()
+... except NVMLError as error:
+...     print(error)
+...
+Uninitialized
+```
+
+- C function output parameters are returned from the corresponding Python function left to right.
+```
+nvmlReturn_t nvmlDeviceGetEccMode(nvmlDevice_t device,
+                                  nvmlEnableState_t *current,
+                                  nvmlEnableState_t *pending);
+
+>>> nvmlInit()
+>>> handle = nvmlDeviceGetHandleByIndex(0)
+>>> (current, pending) = nvmlDeviceGetEccMode(handle)
+```
+- C structs are converted into Python classes.
+
+```
+// C Function and typedef struct
+nvmlReturn_t DECLDIR nvmlDeviceGetMemoryInfo(nvmlDevice_t device,
+                                             nvmlMemory_t *memory);
+typedef struct nvmlMemory_st {
+    unsigned long long total;
+    unsigned long long free;
+    unsigned long long used;
+} nvmlMemory_t;
+
+
+# Python call to function and accessing members of ctype struct
+>>> info = nvmlDeviceGetMemoryInfo(handle)
+>>> print(f"Total memory: {info.total}")
+Total memory: 5636292608
+>>> print(f"Free memory:, {info.free}")
+Free memory: 5578420224
+>>> print(f"Used memory: {info.used}")
+Used memory: 57872384
+```
+
+- Python handles string buffer creation.
+
+```
+// C Function that needs character array and length
+nvmlReturn_t nvmlSystemGetDriverVersion(char* version,
+                                        unsigned int length);
+
+# Python function handles memory
+>>> version = nvmlSystemGetDriverVersion()
+>>> print(version)
+... 11.520.75
+>>> nvmlShutdown()
+```
+
+For usage information see the NVML documentation.
+
+VARIABLES
+---------
+All meaningful NVML constants and enums are exposed in Python.
+
+The NVML_VALUE_NOT_AVAILABLE constant is not used.  Instead None is mapped to the field.
+
+EXCEPTIONS
+----------
+Since the C library uses return codes and python prefers exception handling, the
+library converts all return codes to various exceptions. The exceptions are generated
+automatically via a function at run time instead of being defined manually.
+
+The list of exceptions can be found in NVMLError base class.
+
+The example seen above in the FUNCTIONS section:
+
+```
+>>> try:
+...     nvmlDeviceGetCount()
+... except NVMLError as error:
+...     print(error)
+...
+Uninitialized
+```
+
+Can be more accurately caught like this:
+
+```
+>>> try:
+...     nvmlDeviceGetCount()
+... except NVMLError_Uninitialized as error:
+...     print(error)
+...
+Uninitialized
+```
+
+The conversion from name to exception is like this for all exceptions:
+* `NVML_ERROR_UNINITIALIZED` => `NVMLError_Uninitialized`
+* `NVML_ERROR_LIBRARY_NOT_FOUND` => `NVMLError_LibraryNotFound`
+* `NVML_ERROR_ALREADY_INITIALIZED` => `NVMLError_AlreadyInitialized`
+
+RELEASE NOTES
+-------------
+Version 2.285.0
+- Added new functions for NVML 2.285.  See NVML documentation for more information.
+- Ported to support Python 3.0 and Python 2.0 syntax.
+- Added nvidia_smi.py tool as a sample app.
+
+Version 3.295.0
+- Added new functions for NVML 3.295.  See NVML documentation for more information.
+- Updated nvidia_smi.py tool
+- Includes additional error handling
+
+Version 4.304.0
+- Added new functions for NVML 4.304.  See NVML documentation for more information.
+- Updated nvidia_smi.py tool
+
+Version 4.304.3
+- Fixing nvmlUnitGetDeviceCount bug
+
+Version 5.319.0
+- Added new functions for NVML 5.319.  See NVML documentation for more information.
+
+Version 6.340.0
+- Added new functions for NVML 6.340.  See NVML documentation for more information.
+
+Version 7.346.0
+- Added new functions for NVML 7.346.  See NVML documentation for more information.
+
+Version 7.352.0
+- Added new functions for NVML 7.352.  See NVML documentation for more information.
+
+Version 10.418
+- Added new functions for NVML 10.418.  See NVML documentation for more information.
+- Fixed issues with using the bindings with Python 3.x
+- Replaced sample app nvidia_smi.py with example.py
+
+Version 11.515.48
+- Python3 support added
+- Updated API to add function new to NVML, bringing pynvml up to date with NVML
+- Added auto-version to handle byte and string conversion automatically for both structs and functions
+- Minor bug fixes
+- Added README.txt correctly in long_description for pypi.org
+
+Version 11.520
+- Updated Long Description to be actual markdown
+- Added new functions for NVML 11.520
+
+Version 11.525
+- Added new functions for NVML 11.525
+
+Version 12.535
+- Added new functions for NVML 12.535. See NVML documentation for more information.
+
+Version 12.550
+- Added new functions for NVML 12.550. See NVML documentation for more information.
+
+Version 12.555
+- Added new functions for NVML 12.555. See NVML documentation for more information.
+
+Version 12.560
+- Added new functions for NVML 12.560. See NVML documentation for more information.
+
+Version 12.565
+- Added new functions for NVML 12.565. See NVML documentation for more information.
+
+Version 12.575
+- Added new functions for NVML 12.575. See NVML documentation for more information.
+
+Version 13.580
+- Major version increased to 13.
+- Several APIs are now deprecated and will be removed in a future release. Please see NVML documentation for more information.
+- Added new functions for NVML 13.580. See NVML documentation for more information.
+
+COPYRIGHT
+---------
+Copyright (c) 2011-2025, NVIDIA Corporation.  All rights reserved.
+
+LICENSE
+-------
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+- Neither the name of the NVIDIA Corporation nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
