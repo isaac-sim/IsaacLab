@@ -753,8 +753,8 @@ along with performance benchmarks across the libraries.</p>
 <section id="training-performance">
 <h2>Training Performance<a class="headerlink" href="#training-performance" title="Permalink to this heading">#</a></h2>
 <p>We performed training with each RL library on the same <code class="docutils literal notranslate"><span class="pre">Isaac-Humanoid-v0</span></code> environment
-with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> on a single RTX PRO 6000 GPU using 4096 environments
-and logged the total training time for 65.5M steps for each RL library.</p>
+with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> on a single NVIDIA GeForce RTX 4090 and logged the total training time
+for 65.5M steps (4096 environments x 32 rollout steps x 500 iterations).</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>RL Library</p></th>
@@ -763,19 +763,26 @@ and logged the total training time for 65.5M steps for each RL library.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>RL-Games</p></td>
-<td><p>207</p></td>
+<td><p>201</p></td>
 </tr>
 <tr class="row-odd"><td><p>SKRL</p></td>
-<td><p>208</p></td>
+<td><p>201</p></td>
 </tr>
 <tr class="row-even"><td><p>RSL RL</p></td>
-<td><p>199</p></td>
+<td><p>198</p></td>
 </tr>
 <tr class="row-odd"><td><p>Stable-Baselines3</p></td>
-<td><p>322</p></td>
+<td><p>287</p></td>
 </tr>
 </tbody>
 </table>
+</div>
+<p>Training commands (check for the <em>‘Training time: XXX seconds’</em> line in the terminal output):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Humanoid-v0<span class="w"> </span>--max_iterations<span class="w"> </span><span class="m">500</span><span class="w"> </span>--headless
+python<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Humanoid-v0<span class="w"> </span>--max_iterations<span class="w"> </span><span class="m">500</span><span class="w"> </span>--headless
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Humanoid-v0<span class="w"> </span>--max_iterations<span class="w"> </span><span class="m">500</span><span class="w"> </span>--headless
+python<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Humanoid-v0<span class="w"> </span>--max_iterations<span class="w"> </span><span class="m">500</span><span class="w"> </span>--headless
+</pre></div>
 </div>
 </section>
 </section>
