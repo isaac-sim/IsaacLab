@@ -40,7 +40,7 @@ from isaaclab.devices import (
     Se3SpaceMouseCfg,
 )
 from isaaclab.devices.openxr import XrCfg
-from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
+from isaaclab.devices.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 
 # Import teleop device factory for testing
 from isaaclab.devices.teleop_device_factory import create_teleop_device

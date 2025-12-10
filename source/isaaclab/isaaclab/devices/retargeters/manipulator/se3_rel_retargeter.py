@@ -16,7 +16,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 
 
 class Se3RelRetargeter(RetargeterBase):
-    """Retargets OpenXR hand tracking data to end-effector commands using relative positioning.
+    """Retargets hand tracking data to end-effector commands using relative positioning.
 
     This retargeter calculates delta poses between consecutive hand joint poses to generate incremental robot movements.
     It can either:
@@ -90,7 +90,7 @@ class Se3RelRetargeter(RetargeterBase):
 
         Args:
             data: Dictionary mapping tracking targets to joint data dictionaries.
-                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
+                The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES (if using OpenXR)
 
         Returns:
             torch.Tensor: 6D tensor containing position (xyz) and rotation vector (rx,ry,rz)

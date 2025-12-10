@@ -11,15 +11,20 @@ from dataclasses import dataclass
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
 
-class G1LowerBodyStandingRetargeter(RetargeterBase):
-    """Provides lower body standing commands for the G1 robot."""
+class LocomotionFixedRootCmdRetargeter(RetargeterBase):
+    """Provides fixed root commands (velocity zero, fixed hip height).
 
-    def __init__(self, cfg: G1LowerBodyStandingRetargeterCfg):
+    Useful for standing still or when motion controllers are not available but the pipeline expects
+    locomotion commands.
+    """
+
+    def __init__(self, cfg: LocomotionFixedRootCmdRetargeterCfg):
         """Initialize the retargeter."""
         super().__init__(cfg)
         self.cfg = cfg
 
     def retarget(self, data: dict) -> torch.Tensor:
+        # Returns [vel_x, vel_y, rot_vel_z, hip_height]
         return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
 
     def get_requirements(self) -> list[RetargeterBase.Requirement]:
@@ -28,9 +33,10 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
 
 @dataclass
-class G1LowerBodyStandingRetargeterCfg(RetargeterCfg):
-    """Configuration for the G1 lower body standing retargeter."""
+class LocomotionFixedRootCmdRetargeterCfg(RetargeterCfg):
+    """Configuration for the fixed locomotion root command retargeter."""
 
     hip_height: float = 0.72
-    """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
-    retargeter_type: type[RetargeterBase] = G1LowerBodyStandingRetargeter
+    """Height of the robot hip in meters."""
+
+    retargeter_type: type[RetargeterBase] = LocomotionFixedRootCmdRetargeter

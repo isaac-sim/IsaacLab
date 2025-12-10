@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import warnings
 from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
@@ -27,6 +28,12 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
     def __init__(self, cfg: G1TriHandUpperBodyMotionControllerRetargeterCfg):
         """Initialize the retargeter."""
+        warnings.warn(
+            "The 'G1TriHandUpperBodyMotionControllerRetargeter' class is deprecated and will be removed in a future"
+            " release. Please use 'isaaclab.devices.retargeters.DexMotionController' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(cfg)
         self._sim_device = cfg.sim_device
         self._hand_joint_names = cfg.hand_joint_names
