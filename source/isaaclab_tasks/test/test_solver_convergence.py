@@ -112,20 +112,25 @@ def _check_random_actions(
     obs, _ = env.reset()
     # check signal
     # simulate environment for num_steps steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            actions = sample_space(env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
-            # apply actions
-            _ = env.step(actions)
-            convergence_data = NewtonManager.get_solver_convergence_steps()
-            # TODO: this was increased from 25
-            assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
-            # TODO: this was increased from 10
-            assert convergence_data["mean"] < 12, f"Solver did not converge in {convergence_data['mean']} iterations"
-
-    # close the environment
-    env.close()
+    try:
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
+                actions = sample_space(
+                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                )
+                # apply actions
+                _ = env.step(actions)
+                convergence_data = NewtonManager.get_solver_convergence_steps()
+                # TODO: this was increased from 25
+                assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
+                # TODO: this was increased from 10
+                assert (
+                    convergence_data["mean"] < 12
+                ), f"Solver did not converge in {convergence_data['mean']} iterations"
+    finally:
+        # close the environment
+        env.close()
 
 
 def _check_zero_actions(
@@ -174,20 +179,23 @@ def _check_zero_actions(
     obs, _ = env.reset()
     # check signal
     # simulate environment for num_steps steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            actions = torch.zeros(num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device)
-            # apply actions
-            _ = env.step(actions)
-            convergence_data = NewtonManager.get_solver_convergence_steps()
-            # TODO: this was increased from 25
-            assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
-            # TODO: this was increased from 10
-            assert convergence_data["mean"] < 12, f"Solver did not converge in {convergence_data['mean']} iterations"
-
-    # close the environment
-    env.close()
+    try:
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
+                actions = torch.zeros(num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device)
+                # apply actions
+                _ = env.step(actions)
+                convergence_data = NewtonManager.get_solver_convergence_steps()
+                # TODO: this was increased from 25
+                assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
+                # TODO: this was increased from 10
+                assert (
+                    convergence_data["mean"] < 12
+                ), f"Solver did not converge in {convergence_data['mean']} iterations"
+    finally:
+        # close the environment
+        env.close()
 
 
 @pytest.mark.order(2)
@@ -207,11 +215,11 @@ def _run_environments(task_name, device, num_envs, num_steps, create_stage_in_me
     if isaac_sim_version < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
-    # TODO: quadruped environments are failing
-    if "Anymal" in task_name:
-        return
-    if "A1" in task_name or "Go1" in task_name or "Go2" in task_name:
-        return
+    # # TODO: quadruped environments are failing
+    # if "Anymal" in task_name:
+    #     return
+    # if "A1" in task_name or "Go1" in task_name or "Go2" in task_name:
+    #     return
 
     # TODO: this causes crash in CI, but not locally
     if "Isaac-Reach-UR10" in task_name:
