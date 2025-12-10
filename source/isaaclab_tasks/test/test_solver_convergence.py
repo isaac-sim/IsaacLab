@@ -215,12 +215,6 @@ def _run_environments(task_name, device, num_envs, num_steps, create_stage_in_me
     if isaac_sim_version < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
-    # # TODO: quadruped environments are failing
-    # if "Anymal" in task_name:
-    #     return
-    # if "A1" in task_name or "Go1" in task_name or "Go2" in task_name:
-    #     return
-
     # TODO: this causes crash in CI, but not locally
     if "Isaac-Reach-UR10" in task_name:
         return
