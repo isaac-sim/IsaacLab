@@ -7,6 +7,8 @@ import gymnasium as gym
 import torch
 from tensordict import TensorDict
 
+import warp as wp
+from isaaclab_experimental.envs import DirectRLEnvWarp
 from rsl_rl.env import VecEnv
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -24,7 +26,7 @@ class RslRlVecEnvWrapper(VecEnv):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, clip_actions: float | None = None):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp, clip_actions: float | None = None):
         """Initializes the wrapper.
 
         Note:
@@ -35,11 +37,15 @@ class RslRlVecEnvWrapper(VecEnv):
             clip_actions: The clipping value for actions. If ``None``, then no clipping is done.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv` or :class:`DirectRLEnvWarp`.
         """
 
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        if (
+            not isinstance(env.unwrapped, ManagerBasedRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnvWarp)
+        ):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"
@@ -104,7 +110,7 @@ class RslRlVecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
@@ -118,7 +124,10 @@ class RslRlVecEnvWrapper(VecEnv):
     @property
     def episode_length_buf(self) -> torch.Tensor:
         """The episode length buffer."""
-        return self.unwrapped.episode_length_buf
+        if isinstance(self.unwrapped, DirectRLEnvWarp):
+            return wp.to_torch(self.unwrapped.episode_length_buf)
+        else:
+            return self.unwrapped.episode_length_buf
 
     @episode_length_buf.setter
     def episode_length_buf(self, value: torch.Tensor):
@@ -127,7 +136,10 @@ class RslRlVecEnvWrapper(VecEnv):
         Note:
             This is needed to perform random initialization of episode lengths in RSL-RL.
         """
-        self.unwrapped.episode_length_buf = value
+        if isinstance(self.unwrapped, DirectRLEnvWarp):
+            self.unwrapped.episode_length_buf = wp.from_torch(value)
+        else:
+            self.unwrapped.episode_length_buf = value
 
     """
     Operations - MDP
@@ -146,7 +158,11 @@ class RslRlVecEnvWrapper(VecEnv):
         if hasattr(self.unwrapped, "observation_manager"):
             obs_dict = self.unwrapped.observation_manager.compute()
         else:
-            obs_dict = self.unwrapped._get_observations()
+            if isinstance(self.unwrapped, DirectRLEnvWarp):
+                self.unwrapped._get_observations()
+                obs_dict = {"policy": self.unwrapped.torch_obs_buf.clone()}
+            else:
+                obs_dict = self.unwrapped._get_observations()
         return TensorDict(obs_dict, batch_size=[self.num_envs])
 
     def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
@@ -162,7 +178,7 @@ class RslRlVecEnvWrapper(VecEnv):
         if not self.unwrapped.cfg.is_finite_horizon:
             extras["time_outs"] = truncated
         # return the step information
-        return TensorDict(obs_dict, batch_size=[self.num_envs]), rew, dones, extras
+        return TensorDict(obs_dict, batch_size=[self.num_envs]), rew.clone(), dones.clone(), extras
 
     def close(self):  # noqa: D102
         return self.env.close()

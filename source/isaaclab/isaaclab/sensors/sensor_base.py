@@ -21,6 +21,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import warp as wp
+
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim._impl.newton_manager import NewtonManager
@@ -199,7 +201,7 @@ class SensorBase(ABC):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the sensor internals.
 
         Args:

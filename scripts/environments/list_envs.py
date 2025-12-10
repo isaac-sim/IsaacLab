@@ -27,6 +27,8 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 from prettytable import PrettyTable
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 import isaaclab_tasks  # noqa: F401
 
 

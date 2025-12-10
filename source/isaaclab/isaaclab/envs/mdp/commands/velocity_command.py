@@ -12,6 +12,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
@@ -116,10 +118,11 @@ class UniformVelocityCommand(CommandTerm):
         max_command_step = max_command_time / self._env.step_dt
         # logs data
         self.metrics["error_vel_xy"] += (
-            torch.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b[:, :2], dim=-1) / max_command_step
+            torch.norm(self.vel_command_b[:, :2] - wp.to_torch(self.robot.data.root_lin_vel_b)[:, :2], dim=-1)
+            / max_command_step
         )
         self.metrics["error_vel_yaw"] += (
-            torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]) / max_command_step
+            torch.abs(self.vel_command_b[:, 2] - wp.to_torch(self.robot.data.root_ang_vel_b)[:, 2]) / max_command_step
         )
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -150,7 +153,9 @@ class UniformVelocityCommand(CommandTerm):
             # resolve indices of heading envs
             env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
             # compute angular velocity
-            heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
+            heading_error = math_utils.wrap_to_pi(
+                self.heading_target[env_ids] - wp.to_torch(self.robot.data.heading_w)[env_ids]
+            )
             self.vel_command_b[env_ids, 2] = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,
                 min=self.cfg.ranges.ang_vel_z[0],
@@ -165,7 +170,7 @@ class UniformVelocityCommand(CommandTerm):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first tome
+            # create markers if necessary for the first time
             if not hasattr(self, "goal_vel_visualizer"):
                 # -- goal
                 self.goal_vel_visualizer = VisualizationMarkers(self.cfg.goal_vel_visualizer_cfg)
@@ -186,11 +191,13 @@ class UniformVelocityCommand(CommandTerm):
             return
         # get marker location
         # -- base state
-        base_pos_w = self.robot.data.root_pos_w.clone()
+        base_pos_w = wp.to_torch(self.robot.data.root_pos_w).clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
-        vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
+        vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(
+            wp.to_torch(self.robot.data.root_lin_vel_b)[:, :2]
+        )
         # display markers
         self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
         self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
@@ -211,7 +218,7 @@ class UniformVelocityCommand(CommandTerm):
         zeros = torch.zeros_like(heading_angle)
         arrow_quat = math_utils.quat_from_euler_xyz(zeros, zeros, heading_angle)
         # convert everything back from base to world frame
-        base_quat_w = self.robot.data.root_quat_w
+        base_quat_w = wp.to_torch(self.robot.data.root_quat_w)
         arrow_quat = math_utils.quat_mul(base_quat_w, arrow_quat)
 
         return arrow_scale, arrow_quat

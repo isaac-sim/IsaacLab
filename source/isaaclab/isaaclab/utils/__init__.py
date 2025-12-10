@@ -6,9 +6,11 @@
 """Sub-package containing utilities for common operations and helper functions."""
 
 from .array import *
+from .backend_utils import *
 from .buffers import *
 from .configclass import configclass
 from .dict import *
+from .helpers import deprecated, warn_overhead_cost
 from .interpolation import *
 from .modifiers import *
 from .string import *

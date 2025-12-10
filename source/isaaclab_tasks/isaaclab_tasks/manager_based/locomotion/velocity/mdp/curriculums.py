@@ -15,6 +15,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.terrains import TerrainImporter
@@ -43,7 +45,7 @@ def terrain_levels_vel(
     terrain: TerrainImporter = env.scene.terrain
     command = env.command_manager.get_command("base_velocity")
     # compute the distance the robot walked
-    distance = torch.norm(asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids, :2], dim=1)
+    distance = torch.norm(wp.to_torch(asset.data.root_pos_w)[env_ids, :2] - env.scene.env_origins[env_ids, :2], dim=1)
     # robots that walked far enough progress to harder terrains
     move_up = distance > terrain.cfg.terrain_generator.size[0] / 2
     # robots that walked less than half of their required distance go to simpler terrains
