@@ -3,9 +3,9 @@ Installation
 
 Installing the Newton physics integration branch requires three things:
 
-1) Isaac sim 5.1
-2) The ``feature/newton`` branch of Isaac Lab
-3) Ubuntu 22.04 or 24.04 (Windows will be supported soon)
+1) The ``feature/newton`` branch of Isaac Lab
+2) Ubuntu 22.04 or 24.04 (Windows will be supported soon)
+3) [Optional] Isaac sim 5.1 (Isaac Sim is not required if the Omniverse visualizer is not used)
 
 To begin, verify the version of Isaac Sim by checking the title of the window created when launching the simulation app.  Alternatively, you can
 find more explicit version information under the ``Help -> About`` menu within the app.
@@ -48,7 +48,7 @@ Install the correct version of torch and torchvision:
 
     pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
-Install Isaac Sim 5.0:
+[Optional] Install Isaac Sim 5.1:
 
 .. code-block:: bash
 
