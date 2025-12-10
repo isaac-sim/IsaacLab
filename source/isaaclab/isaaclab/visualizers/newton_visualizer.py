@@ -287,10 +287,8 @@ class NewtonVisualizer(Visualizer):
         # Set the model
         self._viewer.set_model(self._model)
 
-        # Configure environment spacing/offsets
-        if not self.cfg.auto_env_spacing:
-            # Display at actual world positions (no offset)
-            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+        # Disable auto world spacing in Newton Viewer to display envs at actual world positions
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
         # Configure camera
         self._viewer.camera.pos = wp.vec3(*self.cfg.camera_position)
