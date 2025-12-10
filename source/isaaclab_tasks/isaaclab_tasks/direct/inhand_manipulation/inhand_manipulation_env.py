@@ -212,9 +212,6 @@ class InHandManipulationEnv(DirectRLEnv):
 
         # reset object
         object_default_state = wp.to_torch(self.object.data.default_root_state).clone()[env_ids]
-        print(f"object_default_state: {wp.to_torch(self.object.data.default_root_pose)[env_ids, 0:3]}")
-        print(f"hand default pos: {wp.to_torch(self.hand.data.default_root_pose)[env_ids, 0:3]}")
-        print(f"hand root pos world: {wp.to_torch(self.hand.data.root_pose_w)[env_ids, 0:3]}")
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
         # global object positions
         object_default_state[:, 0:3] = (
@@ -227,8 +224,6 @@ class InHandManipulationEnv(DirectRLEnv):
         )
 
         object_default_state[:, 7:] = torch.zeros_like(wp.to_torch(self.object.data.default_root_state)[env_ids, 7:])
-        print(f"object_default_state after: {object_default_state}")
-        print(f"env origins: {self.scene.env_origins[env_ids]}")
         self.object.write_root_pose_to_sim(object_default_state[:, :7], env_ids)
         self.object.write_root_velocity_to_sim(object_default_state[:, 7:], env_ids)
 

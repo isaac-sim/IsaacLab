@@ -103,8 +103,8 @@ class UniformPoseCommand(CommandTerm):
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx],
-            wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx[0]],
+            wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx[0]],
         )
         self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
@@ -153,5 +153,5 @@ class UniformPoseCommand(CommandTerm):
         # -- goal pose
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
-        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[:, self.body_idx]
+        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[:, self.body_idx[0]]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])
