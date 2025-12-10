@@ -21,7 +21,6 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import warp as wp
-from isaacsim.core.utils.extensions import enable_extension
 from newton.solvers import SolverNotifyFlags
 from pxr import Gf, Sdf, UsdGeom, Vt
 
