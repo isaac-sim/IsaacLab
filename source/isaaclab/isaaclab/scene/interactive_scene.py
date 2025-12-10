@@ -10,15 +10,15 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import warp as wp
-from isaacsim.core.prims import XFormPrim
 from pxr import Sdf
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -234,7 +234,8 @@ class InteractiveScene:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
-                if "PhysxSceneAPI" in prim.GetAppliedSchemas():
+                # check if prim has attribute starting with "physxScene:"
+                if any(attr.GetName().startswith("physxScene:") for attr in prim.GetAttributes()):
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
@@ -320,11 +321,11 @@ class InteractiveScene:
         raise NotImplementedError("Surface grippers are not supported in IsaacLab for Newton.")
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
+    def extras(self) -> dict[str, Any]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
-        of the corresponding prims.
+        The keys are the names of the miscellaneous objects, and the values are XFormPrim instances
+        from isaaclab.sim.prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -332,9 +333,6 @@ class InteractiveScene:
         Note:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
-
-        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
-
         """
         return self._extras
 

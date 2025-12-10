@@ -351,10 +351,11 @@ def _spawn_mesh_geom_from_mesh(
             material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
         else:
             material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(mesh_prim_path, material_path)
+        # create material (returns None if omni.kit is not available)
+        visual_material_prim = cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material only if it was successfully created
+        if visual_material_prim is not None:
+            bind_visual_material(mesh_prim_path, material_path)
 
     # apply physics material
     if cfg.physics_material is not None:

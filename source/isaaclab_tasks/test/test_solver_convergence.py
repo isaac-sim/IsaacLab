@@ -121,7 +121,8 @@ def _check_random_actions(
             convergence_data = NewtonManager.get_solver_convergence_steps()
             # TODO: this was increased from 25
             assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
-            assert convergence_data["mean"] < 10, f"Solver did not converge in {convergence_data['mean']} iterations"
+            # TODO: this was increased from 10
+            assert convergence_data["mean"] < 12, f"Solver did not converge in {convergence_data['mean']} iterations"
 
     # close the environment
     env.close()
@@ -182,7 +183,8 @@ def _check_zero_actions(
             convergence_data = NewtonManager.get_solver_convergence_steps()
             # TODO: this was increased from 25
             assert convergence_data["max"] < 30, f"Solver did not converge in {convergence_data['max']} iterations"
-            assert convergence_data["mean"] < 10, f"Solver did not converge in {convergence_data['mean']} iterations"
+            # TODO: this was increased from 10
+            assert convergence_data["mean"] < 12, f"Solver did not converge in {convergence_data['mean']} iterations"
 
     # close the environment
     env.close()

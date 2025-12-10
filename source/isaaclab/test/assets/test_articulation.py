@@ -106,7 +106,6 @@ def generate_articulation_cfg(
         articulation_cfg.actuators = {
             "cart_actuator": ImplicitActuatorCfg(
                 joint_names_expr=["slider_to_cart"],
-                control_mode="position",
                 effort_limit=400.0,
                 velocity_limit=100.0,
                 stiffness=10.0,
@@ -114,7 +113,6 @@ def generate_articulation_cfg(
             ),
             "pole_actuator": ImplicitActuatorCfg(
                 joint_names_expr=["cart_to_pole"],
-                control_mode="none",
                 effort_limit=400.0,
                 velocity_limit=100.0,
                 stiffness=0.0,
