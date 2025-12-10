@@ -28,7 +28,7 @@ from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -338,9 +338,9 @@ class DirectRLEnvWarp(gym.Env):
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
         self._get_observations()
@@ -599,6 +599,8 @@ class DirectRLEnvWarp(gym.Env):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
+            import omni.kit.app
+
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()
