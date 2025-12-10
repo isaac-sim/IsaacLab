@@ -52,7 +52,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearBase",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_base/factory_gear_base.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/gear_assets/factory_gear_base/factory_gear_base.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -77,7 +77,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearSmall",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_small/factory_gear_small.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/gear_assets/factory_gear_small/factory_gear_small.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -102,7 +102,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_medium/factory_gear_medium.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/gear_assets/factory_gear_medium/factory_gear_medium.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -127,7 +127,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/Props/Factory/gear_assets/factory_gear_large/factory_gear_large.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/gear_assets/factory_gear_large/factory_gear_large.usd",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
