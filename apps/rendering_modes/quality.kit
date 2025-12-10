@@ -12,10 +12,13 @@
 ### THESE ARE RT2 SETTINGS ###
 # maxBounces should be 3 if indirectDiffuse was true
 rtx.rtpt.maxBounces = 3
+rtx.rtpt.cached.enabled = false
+rtx.rtpt.lightcache.cached.enabled = false
+rtx.rtpt.translucency.virtualMotion.enabled = false
+rtx.rtpt.splitRoughReflection = true
 # these are even more costly, we should only set them to true if noise is observed
 # rtx.rtpt.splitGlass = true
 # rtx.rtpt.splitClearcoat = true
-# rtx.rtpt.splitRoughReflection = true
 ##############################################
 
 rtx.sceneDb.ambientLightIntensity = 1.0

@@ -11,10 +11,15 @@
 
 ### THESE ARE RT2 SETTINGS TO MATCH ABOVE PERFORMANCE SETTINGS ###
 # these are needed if indirectDiffuse = false (this means GI false) - maxBounces needs to be 2
+rtx.rtpt.cached.enabled = false
+rtx.rtpt.lightcache.cached.enabled = false
+rtx.rtpt.translucency.virtualMotion.enabled = false
 rtx.rtpt.maxBounces = 2
 rtx.rtpt.splitGlass = false
 rtx.rtpt.splitClearcoat = false
-rtx.rtpt.splitRoughReflection = false
+rtx.rtpt.splitRoughReflection = true
+# this gives slightly brighter image
+rtx.rtpt.useAmbientOcclusionForAmbientLight = false
 ##############################################
 
 rtx.sceneDb.ambientLightIntensity = 1.0
@@ -32,8 +37,7 @@ rtx.raytracing.cached.enabled = true
 # DLSS frame gen does not yet support tiled camera well
 rtx-transient.dlssg.enabled = false
 
-# RT2 only supports DLSS-RR
-# rtx-transient.dldenoiser.enabled = true
+rtx-transient.dldenoiser.enabled = true
 
 # Set the DLSS model
 rtx.post.dlss.execMode = 1 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
