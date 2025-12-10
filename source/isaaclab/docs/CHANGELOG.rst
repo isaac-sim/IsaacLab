@@ -1,23 +1,22 @@
 Changelog
 ---------
 
-0.49.2 (2025-11-26)
+0.49.2 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+
+0.49.1 (2025-11-26)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
-
-
-0.49.1 (2025-12-08)
-~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-  * Added write to file on close to :class:`~isaaclab.manager.RecorderManager`.
-  * Added :attr:`~isaaclab.manager.RecorderManagerCfg.export_in_close` configuration parameter.
 
 
 0.49.0 (2025-11-10)
@@ -122,6 +121,7 @@ Added
 * Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
   ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
 
+
 0.48.0 (2025-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -195,7 +195,7 @@ Changed
 
 
 0.47.6 (2025-11-01)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
