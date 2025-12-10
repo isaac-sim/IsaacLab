@@ -339,9 +339,15 @@ class randomize_rigid_body_mass(ManagerTermBase):
             )
         # Default values for mass and inertia
         self.default_mass = wp.to_torch(self.asset.data.body_mass).clone()
-        self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone().reshape(self.asset.num_instances, self.asset.num_bodies, 9)
+        self.default_inertia = (
+            wp.to_torch(self.asset.data.body_inertia)
+            .clone()
+            .reshape(self.asset.num_instances, self.asset.num_bodies, 9)
+        )
         # Pre-allocate tensors for fast access
-        self.inertia = torch.zeros((self.asset.num_instances, self.asset.num_bodies, 9), dtype=torch.float32, device=env.device)
+        self.inertia = torch.zeros(
+            (self.asset.num_instances, self.asset.num_bodies, 9), dtype=torch.float32, device=env.device
+        )
         self.all_env_ids = torch.arange(env.scene.num_envs, device=env.device)
         # resolve body indices
         if self.asset_cfg.body_ids == slice(None):
@@ -377,7 +383,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
 
         # FIXME: This is super "special"... We should not be doing this at all.
         # set the mass into the physics simulation
-        self.asset.set_masses(masses[env_ids[:, None], self.body_ids], self.body_ids,  env_ids)
+        self.asset.set_masses(masses[env_ids[:, None], self.body_ids], self.body_ids, env_ids)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -430,7 +436,9 @@ def randomize_rigid_body_com(
     # FIXME: We need to talk performance this is attrocious.... even Cursor knows it's bad...
     range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
     ranges = torch.tensor(range_list, device=env.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=env.device).unsqueeze(1)
+    rand_samples = math_utils.sample_uniform(
+        ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=env.device
+    ).unsqueeze(1)
 
     # FIXME: Shouldn't this be getting the default coms? That looks dangerous..
     # get the current com of the bodies (num_assets, num_bodies)
