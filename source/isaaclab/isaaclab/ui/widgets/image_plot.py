@@ -9,7 +9,6 @@ from contextlib import suppress
 from matplotlib import cm
 from typing import TYPE_CHECKING, Optional
 
-import carb
 import omni
 
 with suppress(ImportError):
@@ -82,7 +81,7 @@ class ImagePlot(UIWidgetWrapper):
 
         self._byte_provider = omni.ui.ByteImageProvider()
         if image is None:
-            carb.log_warn("image is NONE")
+            logger.warning("image is NONE")
             image = np.ones((480, 640, 3), dtype=np.uint8) * 255
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
