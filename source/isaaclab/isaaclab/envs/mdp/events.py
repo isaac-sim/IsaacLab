@@ -21,6 +21,7 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import warp as wp
+from isaacsim.core.utils.extensions import enable_extension
 from newton.solvers import SolverNotifyFlags
 from pxr import Gf, Sdf, UsdGeom, Vt
 
@@ -436,9 +437,11 @@ def randomize_rigid_body_com(
     # FIXME: We need to talk performance this is attrocious.... even Cursor knows it's bad...
     range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
     ranges = torch.tensor(range_list, device=env.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=env.device
-    ).unsqueeze(1)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=env.device).unsqueeze(1)
+
+    # FIXME: Shouldn't this be getting the default coms? That looks dangerous..
+    # get the current com of the bodies (num_assets, num_bodies)
+    coms = wp.to_torch(asset.data.body_com_pos_b).clone()
 
     # FIXME: Shouldn't this be getting the default coms? That looks dangerous..
     # get the current com of the bodies (num_assets, num_bodies)
