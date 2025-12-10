@@ -917,7 +917,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_link_vel_b", since="3.0.0", remove_in="4.0.0")
     def root_link_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link linear velocity in base frame. Shape is (num_instances, 3).
 
@@ -956,7 +955,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_link_vel_b", since="3.0.0", remove_in="4.0.0")
     def root_link_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link angular velocity in base world frame. Shape is (num_instances, 3).
 
@@ -995,7 +993,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
 
@@ -1034,7 +1031,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
@@ -1077,7 +1073,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the transform array to a position array. Consider using the transform array"
         " directly instead.",
     )
-    @deprecated("root_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_link_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Root link position ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -1116,7 +1111,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
         " directly instead.",
     )
-    @deprecated("root_link_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_link_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Root link orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -1156,7 +1150,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -1194,7 +1187,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_link_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_link_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root link angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -1232,7 +1224,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the transform array to a position array. Consider using the transform array"
         " directly instead.",
     )
-    @deprecated("root_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_com_pos_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
@@ -1268,7 +1259,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the transform array to a quaternion array. Consider using the transform array"
         " directly instead.",
     )
-    @deprecated("root_com_pose_w", since="3.0.0", remove_in="4.0.0")
     def root_com_quat_w(self) -> wp.array(dtype=wp.quatf):
         """Root center of mass orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -1307,7 +1297,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to a linear velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_lin_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances,).
 
@@ -1346,7 +1335,6 @@ class ArticulationData(BaseArticulationData):
         "Launches a kernel to split the spatial velocity array to an angular velocity array. Consider using the spatial"
         " velocity array directly instead.",
     )
-    @deprecated("root_com_vel_w", since="3.0.0", remove_in="4.0.0")
     def root_com_ang_vel_w(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
