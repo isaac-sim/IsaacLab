@@ -71,6 +71,7 @@ runs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
+            -e LAUNCH_OV_APP=1 \
             -e TEST_RESULT_FILE=$result_file"
 
           if [ -n "$filter_pattern" ]; then

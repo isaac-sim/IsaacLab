@@ -3,21 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
+# import builtins
+import contextlib
 import logging
 import torch
 import warnings
 from collections.abc import Sequence
 from typing import Any
 
-import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
-
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -29,6 +26,11 @@ from .utils.io_descriptors import export_articulations_data, export_scene_data
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -106,8 +108,8 @@ class ManagerBasedEnv:
         else:
             # simulation context should only be created before the environment
             # when in extension mode
-            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            # if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+            #     raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
         # make sure torch is running on the correct device
@@ -141,7 +143,7 @@ class ManagerBasedEnv:
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.get_initial_stage()):
                 self.scene = InteractiveScene(self.cfg.scene)
-                attach_stage_to_usd_context()
+                # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -165,19 +167,19 @@ class ManagerBasedEnv:
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.get_initial_stage()):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
-            # add timeline event to load managers
-            self.load_managers()
+        # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.get_initial_stage()):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
+        # add timeline event to load managers
+        self.load_managers()
 
         # extend UI elements
         # we need to do this here after all the managers are initialized
@@ -213,7 +215,9 @@ class ManagerBasedEnv:
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        with contextlib.suppress(ImportError, AttributeError, TypeError):
+            self.close()
 
     """
     Properties.
@@ -384,9 +388,10 @@ class ManagerBasedEnv:
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        # TODO: Fix this
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
         return self.obs_buf, self.extras
@@ -531,15 +536,15 @@ class ManagerBasedEnv:
             del self.recorder_manager
             del self.scene
 
-            # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
-                    self.sim.clear()
+            # # clear callbacks and instance
+            # if float(".".join(get_version()[2])) >= 5:
+            #     if self.cfg.sim.create_stage_in_memory:
+            #         # detach physx stage
+            #         omni.physx.get_physx_simulation_interface().detach_stage()
+            #         self.sim.stop()
+            #         self.sim.clear()
 
-            self.sim.clear_all_callbacks()
+            # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window

@@ -21,7 +21,6 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import warp as wp
-from isaacsim.core.utils.extensions import enable_extension
 from newton.solvers import SolverNotifyFlags
 from pxr import Gf, Sdf, UsdGeom, Vt
 
@@ -1246,6 +1245,8 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled
+        from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.replicator.core")
 
         # we import the module here since we may not always need the replicator
@@ -1407,6 +1408,8 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled
+        from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep

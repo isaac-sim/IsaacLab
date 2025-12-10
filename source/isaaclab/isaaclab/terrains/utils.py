@@ -121,9 +121,11 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     # create visual material
     if kwargs.get("visual_material") is not None:
         visual_material_cfg: sim_utils.VisualMaterialCfg = kwargs.get("visual_material")
-        # spawn the material
-        visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
-        sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
+        # spawn the material (returns None if omni.kit is not available)
+        visual_material_prim = visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
+        # only bind the material if it was successfully created
+        if visual_material_prim is not None:
+            sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
     # create physics material
     if kwargs.get("physics_material") is not None:
         physics_material_cfg: sim_utils.RigidBodyMaterialCfg = kwargs.get("physics_material")
