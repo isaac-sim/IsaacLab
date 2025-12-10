@@ -674,10 +674,10 @@
 <span class="sd">        physics_material: The physics material to apply. Defaults to None.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># need to import these here to prevent isaacsim launching when importing this module</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span>
 
     <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 
     <span class="c1"># create parent prim</span>
     <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>

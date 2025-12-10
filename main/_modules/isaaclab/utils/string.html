@@ -964,6 +964,49 @@
         <span class="p">)</span>
     <span class="c1"># return</span>
     <span class="k">return</span> <span class="n">index_list</span><span class="p">,</span> <span class="n">names_list</span><span class="p">,</span> <span class="n">values_list</span></div>
+
+
+<div class="viewcode-block" id="find_unique_string_name"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.string.find_unique_string_name">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">find_unique_string_name</span><span class="p">(</span><span class="n">initial_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">is_unique_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Find a unique string name based on the predicate function provided.</span>
+<span class="sd">    The string is appended with &quot;_N&quot;, where N is a natural number till the resultant string</span>
+<span class="sd">    is unique.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        initial_name (str): The initial string name.</span>
+<span class="sd">        is_unique_fn (Callable[[str], bool]): The predicate function to validate against.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        str: A unique string based on input function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">is_unique_fn</span><span class="p">(</span><span class="n">initial_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">initial_name</span>
+    <span class="n">iterator</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">initial_name</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">iterator</span><span class="p">)</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">is_unique_fn</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">initial_name</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">iterator</span><span class="p">)</span>
+        <span class="n">iterator</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="find_root_prim_path_from_regex"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.string.find_root_prim_path_from_regex">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">find_root_prim_path_from_regex</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the first prim above the regex pattern prim and its position.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path_regex (str): full prim path including the regex pattern prim.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple[str, int]: First position is the prim path to the parent of the regex prim.</span>
+<span class="sd">                    Second position represents the level of the regex prim in the USD stage tree representation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">prim_paths_list</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+    <span class="n">root_idx</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">prim_path_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">prim_paths_list</span><span class="p">)):</span>
+        <span class="n">chars</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="s2">&quot;[]*|^&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">((</span><span class="n">c</span> <span class="ow">in</span> <span class="n">chars</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">prim_paths_list</span><span class="p">[</span><span class="n">prim_path_idx</span><span class="p">]):</span>
+            <span class="n">root_idx</span> <span class="o">=</span> <span class="n">prim_path_idx</span>
+            <span class="k">break</span>
+    <span class="n">root_prim_path</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">tree_level</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">root_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">root_prim_path</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">prim_paths_list</span><span class="p">[:</span><span class="n">root_idx</span><span class="p">])</span>
+        <span class="n">tree_level</span> <span class="o">=</span> <span class="n">root_idx</span>
+    <span class="k">return</span> <span class="n">root_prim_path</span><span class="p">,</span> <span class="n">tree_level</span></div>
 </pre></div>
 
                 </article>

@@ -895,6 +895,8 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.string_to_callable"><code class="docutils literal notranslate"><span class="pre">string_to_callable()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.resolve_matching_names"><code class="docutils literal notranslate"><span class="pre">resolve_matching_names()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.resolve_matching_names_values"><code class="docutils literal notranslate"><span class="pre">resolve_matching_names_values()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.find_unique_string_name"><code class="docutils literal notranslate"><span class="pre">find_unique_string_name()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.find_root_prim_path_from_regex"><code class="docutils literal notranslate"><span class="pre">find_root_prim_path_from_regex()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.timer">Timer operations</a><ul class="nav section-nav flex-column">
@@ -4385,6 +4387,12 @@ in which case all environments are considered.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.string.resolve_matching_names_values" title="isaaclab.utils.string.resolve_matching_names_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_matching_names_values</span></code></a>(data, ...[, ...])</p></td>
 <td><p>Match a list of regular expressions in a dictionary against a list of strings and return the matched indices, names, and values.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.string.find_unique_string_name" title="isaaclab.utils.string.find_unique_string_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_unique_string_name</span></code></a>(initial_name, ...)</p></td>
+<td><p>Find a unique string name based on the predicate function provided.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.string.find_root_prim_path_from_regex" title="isaaclab.utils.string.find_root_prim_path_from_regex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_root_prim_path_from_regex</span></code></a>(prim_path_regex)</p></td>
+<td><p>Find the first prim above the regex pattern prim and its position.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -4562,6 +4570,46 @@ matched strings, and the values as: ([0, 1, 2, 3, 4], [‘a’, ‘b’, ‘c’
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When multiple matches are found for a string in the dictionary.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When not all regular expressions in the data keys are matched (if strict is True).</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.string.find_unique_string_name">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.string.</span></span><span class="sig-name descname"><span class="pre">find_unique_string_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initial_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_unique_fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/string.html#find_unique_string_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.string.find_unique_string_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Find a unique string name based on the predicate function provided.
+The string is appended with “_N”, where N is a natural number till the resultant string
+is unique.
+:param initial_name: The initial string name.
+:type initial_name: str
+:param is_unique_fn: The predicate function to validate against.
+:type is_unique_fn: Callable[[str], bool]</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A unique string based on input function.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.string.find_root_prim_path_from_regex">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.string.</span></span><span class="sig-name descname"><span class="pre">find_root_prim_path_from_regex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path_regex</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/string.html#find_root_prim_path_from_regex"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.string.find_root_prim_path_from_regex" title="Permalink to this definition">#</a></dt>
+<dd><p>Find the first prim above the regex pattern prim and its position.
+:param prim_path_regex: full prim path including the regex pattern prim.
+:type prim_path_regex: str</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>First position is the prim path to the parent of the regex prim.</dt><dd><p>Second position represents the level of the regex prim in the USD stage tree representation.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tuple[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -5179,6 +5227,8 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.string_to_callable"><code class="docutils literal notranslate"><span class="pre">string_to_callable()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.resolve_matching_names"><code class="docutils literal notranslate"><span class="pre">resolve_matching_names()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.resolve_matching_names_values"><code class="docutils literal notranslate"><span class="pre">resolve_matching_names_values()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.find_unique_string_name"><code class="docutils literal notranslate"><span class="pre">find_unique_string_name()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.string.find_root_prim_path_from_regex"><code class="docutils literal notranslate"><span class="pre">find_root_prim_path_from_regex()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.timer">Timer operations</a><ul class="nav section-nav flex-column">

@@ -732,21 +732,21 @@ environment has a different asset.</p></li>
 <span class="linenos"> 37</span>
 <span class="linenos"> 38</span><span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
 <span class="linenos"> 39</span>
-<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
-<span class="linenos"> 41</span><span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span>
-<span class="linenos"> 42</span>
-<span class="linenos"> 43</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos"> 44</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-<span class="linenos"> 45</span>    <span class="n">Articulation</span><span class="p">,</span>
-<span class="linenos"> 46</span>    <span class="n">ArticulationCfg</span><span class="p">,</span>
-<span class="linenos"> 47</span>    <span class="n">AssetBaseCfg</span><span class="p">,</span>
-<span class="linenos"> 48</span>    <span class="n">RigidObject</span><span class="p">,</span>
-<span class="linenos"> 49</span>    <span class="n">RigidObjectCfg</span><span class="p">,</span>
-<span class="linenos"> 50</span>    <span class="n">RigidObjectCollection</span><span class="p">,</span>
-<span class="linenos"> 51</span>    <span class="n">RigidObjectCollectionCfg</span><span class="p">,</span>
-<span class="linenos"> 52</span><span class="p">)</span>
-<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 54</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 40</span><span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span>
+<span class="linenos"> 41</span>
+<span class="linenos"> 42</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos"> 43</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 44</span>    <span class="n">Articulation</span><span class="p">,</span>
+<span class="linenos"> 45</span>    <span class="n">ArticulationCfg</span><span class="p">,</span>
+<span class="linenos"> 46</span>    <span class="n">AssetBaseCfg</span><span class="p">,</span>
+<span class="linenos"> 47</span>    <span class="n">RigidObject</span><span class="p">,</span>
+<span class="linenos"> 48</span>    <span class="n">RigidObjectCfg</span><span class="p">,</span>
+<span class="linenos"> 49</span>    <span class="n">RigidObjectCollection</span><span class="p">,</span>
+<span class="linenos"> 50</span>    <span class="n">RigidObjectCollectionCfg</span><span class="p">,</span>
+<span class="linenos"> 51</span><span class="p">)</span>
+<span class="linenos"> 52</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 53</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 54</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 <span class="linenos"> 55</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">configclass</span>
 <span class="linenos"> 56</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
 <span class="linenos"> 57</span>

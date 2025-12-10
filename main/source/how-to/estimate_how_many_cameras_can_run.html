@@ -937,22 +937,22 @@ directory.</p>
 <span class="linenos">245</span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 <span class="linenos">246</span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="linenos">247</span>
-<span class="linenos">248</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-<span class="linenos">249</span><span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
-<span class="linenos">250</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_new_stage</span>
-<span class="linenos">251</span>
-<span class="linenos">252</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="linenos">253</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos">254</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene.interactive_scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span>
-<span class="linenos">255</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-<span class="linenos">256</span>    <span class="n">Camera</span><span class="p">,</span>
-<span class="linenos">257</span>    <span class="n">CameraCfg</span><span class="p">,</span>
-<span class="linenos">258</span>    <span class="n">RayCasterCamera</span><span class="p">,</span>
-<span class="linenos">259</span>    <span class="n">RayCasterCameraCfg</span><span class="p">,</span>
-<span class="linenos">260</span>    <span class="n">TiledCamera</span><span class="p">,</span>
-<span class="linenos">261</span>    <span class="n">TiledCameraCfg</span><span class="p">,</span>
-<span class="linenos">262</span>    <span class="n">patterns</span><span class="p">,</span>
-<span class="linenos">263</span><span class="p">)</span>
+<span class="linenos">248</span><span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
+<span class="linenos">249</span>
+<span class="linenos">250</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="linenos">251</span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
+<span class="linenos">252</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
+<span class="linenos">253</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene.interactive_scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span>
+<span class="linenos">254</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="linenos">255</span>    <span class="n">Camera</span><span class="p">,</span>
+<span class="linenos">256</span>    <span class="n">CameraCfg</span><span class="p">,</span>
+<span class="linenos">257</span>    <span class="n">RayCasterCamera</span><span class="p">,</span>
+<span class="linenos">258</span>    <span class="n">RayCasterCameraCfg</span><span class="p">,</span>
+<span class="linenos">259</span>    <span class="n">TiledCamera</span><span class="p">,</span>
+<span class="linenos">260</span>    <span class="n">TiledCameraCfg</span><span class="p">,</span>
+<span class="linenos">261</span>    <span class="n">patterns</span><span class="p">,</span>
+<span class="linenos">262</span><span class="p">)</span>
+<span class="linenos">263</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_new_stage</span>
 <span class="linenos">264</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">orthogonalize_perspective_depth</span><span class="p">,</span> <span class="n">unproject_depth</span>
 <span class="linenos">265</span>
 <span class="linenos">266</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_cfg_from_registry</span>
