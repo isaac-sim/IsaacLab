@@ -993,7 +993,6 @@ class AppLauncher:
         # this is mainly done to purge the print statements from the simulation app
         # Note: We save the current stdout (not sys.__stdout__) to properly restore it
         # when running under pytest or other tools that capture output
-        original_stdout = sys.stdout
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
         # launch simulation app
