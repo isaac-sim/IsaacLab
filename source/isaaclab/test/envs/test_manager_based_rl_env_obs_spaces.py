@@ -25,6 +25,9 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg impor
 )
 from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.arm_ci]
+
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_non_concatenated_obs_groups_contain_all_terms(device):

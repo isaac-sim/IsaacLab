@@ -5,6 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -23,6 +25,9 @@ from isaacsim.core.utils.extensions import enable_extension, get_extension_path_
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 # Create a fixture for setup and teardown
@@ -71,6 +76,7 @@ def test_no_change(sim_config):
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.skipif(sys.platform == "win32", reason="Test hangs on Windows due to file locking issues")
 def test_config_change(sim_config):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
     sim, config = sim_config
@@ -102,6 +108,7 @@ def test_create_prim_from_usd(sim_config):
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.skipif(sys.platform == "win32", reason="Test hangs on Windows due to file locking issues")
 def test_config_drive_type(sim_config):
     """Change the drive mechanism of the robot to be position."""
     sim, config = sim_config

@@ -39,6 +39,9 @@ from isaaclab.utils.math import (
     random_orientation,
 )
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
+
 
 def generate_cubes_scene(
     num_cubes: int = 1,

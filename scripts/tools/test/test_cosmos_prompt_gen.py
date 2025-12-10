@@ -18,6 +18,7 @@ from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 def temp_templates_file():
     """Create temporary templates file."""
     temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    temp_file.close()  # Close file handle before opening with json
 
     # Create test templates
     test_templates = {
@@ -34,16 +35,31 @@ def temp_templates_file():
 
     yield temp_file.name
     # Cleanup
-    os.remove(temp_file.name)
+    try:
+        os.remove(temp_file.name)
+    except PermissionError:
+        # On Windows, wait a bit and retry
+        import time
+
+        time.sleep(0.1)
+        os.remove(temp_file.name)
 
 
 @pytest.fixture
 def temp_output_file():
     """Create temporary output file."""
     temp_file = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+    temp_file.close()  # Close file handle immediately
     yield temp_file.name
     # Cleanup
-    os.remove(temp_file.name)
+    try:
+        os.remove(temp_file.name)
+    except PermissionError:
+        # On Windows, wait a bit and retry
+        import time
+
+        time.sleep(0.1)
+        os.remove(temp_file.name)
 
 
 class TestCosmosPromptGen:
@@ -72,14 +88,22 @@ class TestCosmosPromptGen:
     def test_generate_prompt_invalid_json(self):
         """Test generating a prompt with invalid JSON file."""
         # Create a temporary file with invalid JSON
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp_file:
-            temp_file.write(b"invalid json content")
-            temp_file.flush()
+        temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        temp_file.write(b"invalid json content")
+        temp_file.flush()
+        temp_file.close()  # Close file handle before cleanup
 
+        try:
+            with pytest.raises(ValueError):
+                generate_prompt(temp_file.name)
+        finally:
             try:
-                with pytest.raises(ValueError):
-                    generate_prompt(temp_file.name)
-            finally:
+                os.remove(temp_file.name)
+            except PermissionError:
+                # On Windows, wait a bit and retry
+                import time
+
+                time.sleep(0.1)
                 os.remove(temp_file.name)
 
     def test_main_function_single_prompt(self, temp_templates_file, temp_output_file):
