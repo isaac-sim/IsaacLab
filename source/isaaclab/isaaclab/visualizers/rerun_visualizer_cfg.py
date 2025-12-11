@@ -23,17 +23,11 @@ class RerunVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
 
-    server_mode: bool = True
-    """Run Rerun in server mode (gRPC for web viewer)."""
-
-    server_address: str = "127.0.0.1:9876"
-    """Server address and port for gRPC mode."""
-
-    launch_viewer: bool = True
-    """Auto-launch web viewer in browser."""
-
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""
+
+    web_port: int = 9090
+    """Port of the local rerun web viewer which is launched in the browser."""
 
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
