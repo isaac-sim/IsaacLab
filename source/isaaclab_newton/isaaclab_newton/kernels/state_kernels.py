@@ -421,7 +421,7 @@ def project_vec_from_pose_single(
         resulting_vec: The resulting vector. Shape is (3,). (modified)
     """
     index = wp.tid()
-    resulting_vec[index] = wp.quat_rotate(wp.transform_get_rotation(pose[index]), vec)
+    resulting_vec[index] = wp.quat_rotate_inv(wp.transform_get_rotation(pose[index]), vec)
 
 
 @wp.func
@@ -467,8 +467,10 @@ Heading utility kernels
 
 @wp.func
 def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
-    quat_rot = wp.quat_rotate(quat, vec)
-    return wp.atan2(quat_rot[0], quat_rot[3])
+    # Rotate forward vector to world frame
+    forward_w = wp.quat_rotate(quat, vec)
+    # Heading is atan2(y, x) - the yaw angle in world frame
+    return wp.atan2(forward_w[1], forward_w[0])
 
 
 @wp.kernel
