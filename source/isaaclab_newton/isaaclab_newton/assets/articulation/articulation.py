@@ -254,10 +254,10 @@ class Articulation(BaseArticulation):
             This ensures that the external wrench is applied at every simulation step.
         """
         # Wrenches are automatically applied by set_external_force_and_torque.
-        # apply actuator models
+        # apply actuator models. Actuator models automatically write the joint efforts into the simulation.
         self._apply_actuator_model()
         # Write the actuator targets into the simulation
-        self._root_view.set_attribute("joint_f", NewtonManager.get_control(), self.data._applied_effort)
+        # TODO: Move this to the implicit actuator model.
         if self._has_implicit_actuators:
             self._root_view.set_attribute(
                 "joint_target_pos", NewtonManager.get_control(), self.data.actuator_position_target
@@ -2105,7 +2105,7 @@ class Articulation(BaseArticulation):
                     (self.num_instances, self.num_joints),
                 )
                 # Bind the applied effort to the simulation effort
-                self.data._applied_effort = self.data.joint_effort
+                #self.data._applied_effort = self.data.actuator_effort_target
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())

@@ -14,7 +14,7 @@ from isaaclab_newton.actuators.kernels import clip_efforts_with_limits
 
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
-from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value_masked
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_indexed, update_array2D_with_value_indexed
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
@@ -218,13 +218,13 @@ class ActuatorBase(ABC):
                     cfg_value = int(cfg_value)
                 # if int, then use the same value for all joints
                 wp.launch(
-                    update_array2D_with_value_masked,
-                    dim=(self._num_envs, self._num_joints),
+                    update_array2D_with_value_indexed,
+                    dim=(self._num_envs, len(self._joint_indices)),
                     inputs=[
                         cfg_value,
                         original_value,
-                        self._env_mask,
-                        self._joint_mask,
+                        None,
+                        wp.array(self._joint_indices, dtype=wp.int32, device=self._device),
                     ],
                 )
             elif isinstance(cfg_value, dict):

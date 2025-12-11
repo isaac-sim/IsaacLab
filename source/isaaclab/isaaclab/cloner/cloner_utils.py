@@ -302,7 +302,7 @@ def newton_replicate(
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
-        p.add_usd(stage, root_path=src_path, load_visual_shapes=False)
+        p.add_usd(stage, root_path=src_path, load_visual_shapes=True)
         if simplify_meshes:
             p.approximate_meshes("convex_hull")
         protos[src_path] = p

@@ -13,6 +13,7 @@ import warp as wp
 
 from .actuator_base import ActuatorBase
 from .kernels import clip_efforts_dc_motor, compute_pd_actuator
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array2D_masked
 
 # from isaaclab.utils import DelayBuffer, LinearInterpolation
 
@@ -145,6 +146,17 @@ class ImplicitActuator(ActuatorBase):
             ],
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
+        # update the joint effort
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim = (self._num_envs, self.num_joints),
+            inputs=[
+                self.data._actuator_effort_target,
+                self.data.joint_effort,
+                self._env_mask,
+                self._joint_mask,
+            ]
+        )
 
 
 """
@@ -206,6 +218,17 @@ class IdealPDActuator(ActuatorBase):
             ],
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
+        # update the joint effort
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim = (self._num_envs, self.num_joints),
+            inputs=[
+                self.data._applied_effort,
+                self.data.joint_effort,
+                self._env_mask,
+                self._joint_mask,
+            ]
+        )
 
 
 class DCMotor(IdealPDActuator):
