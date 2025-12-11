@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.50.2 (2025-11-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Prevent randomizing mass to zero in :meth:`~isaaclab.envs.mdp.events.randomize_mass_by_scale` to avoid physics errors.
+
+
 0.50.1 (2025-11-25)
 ~~~~~~~~~~~~~~~~~~~
 
