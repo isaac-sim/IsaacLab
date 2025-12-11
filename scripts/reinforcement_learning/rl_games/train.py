@@ -109,11 +109,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "Please use GPU device (e.g., --device cuda) for distributed training."
         )
 
-    # update agent device to match simulation device
-    if args_cli.device is not None:
-        agent_cfg["params"]["config"]["device"] = args_cli.device
-        agent_cfg["params"]["config"]["device_name"] = args_cli.device
-
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
