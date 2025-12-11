@@ -34,10 +34,13 @@ class TimestampedWarpBuffer:
     dtype: type | None = None
     """Dtype of the data stored in the buffer. Default is None, indicating that the buffer is empty."""
 
+    device: str = "cuda:0"
+    """Device of the data stored in the buffer. Default is "cuda:0", indicating that the buffer is on the first GPU."""
+
     def __post_init__(self):
         if self.shape is None:
             raise ValueError("Shape of the data stored in the buffer is not set.")
         if self.dtype is None:
             raise ValueError("Dtype of the data stored in the buffer is not set.")
         if self.data is None:
-            self.data = wp.empty(self.shape, dtype=self.dtype)
+            self.data = wp.empty(self.shape, dtype=self.dtype, device=self.device)
