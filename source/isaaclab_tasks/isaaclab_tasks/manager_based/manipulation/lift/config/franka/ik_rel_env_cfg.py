@@ -22,8 +22,8 @@ class FrankaCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
         super().__post_init__()
 
         # Configure Newton solver parameters for manipulation task
-        self.sim.newton_cfg.solver_cfg.njmax = 15  # Max joints
-        self.sim.newton_cfg.solver_cfg.nconmax = 21  # Increased for collision handling
+        self.sim.newton_cfg.solver_cfg.njmax = 30  # Max joints (increased from warnings)
+        self.sim.newton_cfg.solver_cfg.nconmax = 25  # Increased for collision handling (from warnings)
         self.sim.newton_cfg.solver_cfg.ls_iterations = 12  # Line search iterations for convergence
         self.sim.newton_cfg.solver_cfg.ls_parallel = True  # Parallel line search
         self.sim.newton_cfg.num_substeps = 2  # More substeps for stability

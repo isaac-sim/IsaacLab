@@ -5,34 +5,30 @@
 
 from __future__ import annotations
 
-import logging
 import torch
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_mul, subtract_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
-# import logger
-logger = logging.getLogger(__name__)
-
 
 class DifferentialInverseKinematicsAction(ActionTerm):
     """Differential inverse kinematics action term.
 
     This action term uses a differential IK controller to compute joint position commands to achieve
-    a desired end-effector pose.
+    a desired end-effector pose. The action is a delta pose (position + orientation) command.
 
-    The action term supports two modes:
-    - Relative mode: The action is a delta pose (position + orientation) relative to the current end-effector pose.
-    - Absolute mode: The action is an absolute end-effector pose in the robot's root frame.
-
-    The controller computes the desired joint positions using the Jacobian and current joint positions.
+    Key design:
+    - `process_actions()`: Scales input actions and sets command in IK controller
+    - `apply_actions()`: Computes Jacobian, runs IK solver, and applies joint position targets
+    - `_processed_actions`: Stores **scaled end-effector commands**, NOT joint positions
     """
 
     cfg: actions_cfg.DifferentialInverseKinematicsActionCfg
@@ -41,74 +37,55 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     """The articulation asset on which the action term is applied."""
     _body_idx: int
     """The index of the end-effector body."""
-    _body_name: str
-    """The name of the end-effector body."""
 
     def __init__(self, cfg: actions_cfg.DifferentialInverseKinematicsActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(
-            self.cfg.joint_names
-        )
+        self._joint_ids, self._joint_names = self._asset.find_joints(cfg.joint_names)
         self._num_joints = len(self._joint_ids)
-        # log the resolved joint names for debugging
-        logger.info(
-            f"Resolved joint names for the action term {self.__class__.__name__}:"
-            f" {self._joint_names} [{self._joint_ids}]"
-        )
         
         # Avoid indexing across all joints for efficiency
         if self._num_joints == self._asset.num_joints:
             self._joint_ids = slice(None)
 
         # parse the body index
-        body_ids, body_names = self._asset.find_bodies(self.cfg.body_name)
-        if len(body_ids) == 0:
-            raise ValueError(
-                f"No body found matching the body name: {self.cfg.body_name}"
-            )
+        body_ids, body_names = self._asset.find_bodies(cfg.body_name)
         if len(body_ids) != 1:
             raise ValueError(
-                f"Expected a single body match for the body name: {self.cfg.body_name}, got {len(body_ids)}: {body_names}"
+                f"Expected a single body match for '{cfg.body_name}', got {len(body_ids)}: {body_names}"
             )
         self._body_idx = body_ids[0]
-        self._body_name = body_names[0]
-        logger.info(f"Resolved end-effector body name for action term: {self._body_name} [{self._body_idx}]")
 
         # create the differential IK controller
-        from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-        assert isinstance(self.cfg.controller, DifferentialIKControllerCfg), \
-            f"Expected controller to be DifferentialIKControllerCfg, got {type(self.cfg.controller)}"
         self._ik_controller = DifferentialIKController(
-            cfg=self.cfg.controller,
+            cfg=cfg.controller,
             num_envs=self.num_envs,
             device=self.device
         )
 
         # create tensors for raw and processed actions
+        # CRITICAL: _processed_actions stores SCALED ACTIONS (end-effector commands), NOT joint positions!
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        # Initialize to zeros - will be properly set in reset() after robot is spawned
-        self._processed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
-        self._is_initialized = False
+        self._processed_actions = torch.zeros_like(self._raw_actions)
 
         # convert body offset to tensor if specified
-        if self.cfg.body_offset_pos is not None:
-            self._body_offset_pos = torch.tensor(self.cfg.body_offset_pos, device=self.device).repeat(self.num_envs, 1)
+        if cfg.body_offset_pos is not None:
+            self._offset_pos = torch.tensor(cfg.body_offset_pos, device=self.device).repeat(self.num_envs, 1)
         else:
-            self._body_offset_pos = None
+            self._offset_pos = None
 
-        if self.cfg.body_offset_rot is not None:
-            self._body_offset_rot = torch.tensor(self.cfg.body_offset_rot, device=self.device).repeat(self.num_envs, 1)
+        if cfg.body_offset_rot is not None:
+            self._offset_rot = torch.tensor(cfg.body_offset_rot, device=self.device).repeat(self.num_envs, 1)
         else:
-            self._body_offset_rot = None
+            self._offset_rot = None
 
         # scaling for actions
-        if isinstance(self.cfg.scale, (float, int)):
-            self._scale = float(self.cfg.scale)
+        if isinstance(cfg.scale, (float, int)):
+            self._scale = torch.full((self.num_envs, self.action_dim), float(cfg.scale), device=self.device)
         else:
-            raise ValueError(f"Unsupported scale type: {type(self.cfg.scale)}. Only float is supported.")
+            raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Only float is supported.")
 
     """
     Properties.
@@ -126,7 +103,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
     @property
     def processed_actions(self) -> torch.Tensor:
-        """The processed actions (joint positions) computed by the action term."""
+        """The processed (scaled) actions - these are end-effector commands, NOT joint positions."""
         return self._processed_actions
 
     """
@@ -134,58 +111,42 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     """
 
     def process_actions(self, actions: torch.Tensor):
-        """Process the actions and compute desired joint positions using the IK controller.
-
+        """Process actions: scale and set command in IK controller.
+        
+        Does NOT compute joint positions - that happens in apply_actions().
+        
         Args:
             actions: The input actions (end-effector pose commands).
         """
-        # store the raw actions
+        # store and scale the raw actions
         self._raw_actions[:] = actions
-        # scale the actions
-        scaled_actions = self._scale * self._raw_actions
+        self._processed_actions[:] = self._raw_actions * self._scale
 
-        # In relative mode with differential IK, zero command means "maintain last commanded pose"
-        # Check if all actions are effectively zero (with tolerance for numerical errors)
-        action_magnitude = torch.abs(scaled_actions).max()
-        if action_magnitude < 1e-4:
-            # No movement commanded - keep the last commanded target from reset/previous IK
-            # Do NOT update to current joint positions as that causes drift
-            return
-
-        # get current end-effector pose
-        ee_pos_w = self._asset.data.body_pos_w[:, self._body_idx, :]
-        ee_quat_w = self._asset.data.body_quat_w[:, self._body_idx, :]
-
-        # apply body offset if specified
-        if self._body_offset_pos is not None:
-            # rotate offset into world frame
-            from isaaclab.utils.math import quat_apply
-            ee_pos_w = ee_pos_w + quat_apply(ee_quat_w, self._body_offset_pos)
-        if self._body_offset_rot is not None:
-            # apply rotation offset
-            from isaaclab.utils.math import quat_mul
-            ee_quat_w = quat_mul(ee_quat_w, self._body_offset_rot)
+        # get current end-effector pose (with offset applied)
+        ee_pos_w, ee_quat_w = self._compute_frame_pose()
 
         # set the command for the IK controller
-        self._ik_controller.set_command(scaled_actions, ee_pos=ee_pos_w, ee_quat=ee_quat_w)
+        self._ik_controller.set_command(self._processed_actions, ee_pos=ee_pos_w, ee_quat=ee_quat_w)
 
-        # get current joint positions
+    def apply_actions(self):
+        """Apply actions: compute Jacobian, solve IK, and apply joint position targets."""
+        # get current end-effector pose and joint positions
+        ee_pos_w, ee_quat_w = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos[:, self._joint_ids]
 
-        # compute the Jacobian for the end-effector using numerical differentiation
-        jacobian = self._compute_numerical_jacobian(ee_pos_w, ee_quat_w, joint_pos)
+        # compute the Jacobian for the end-effector
+        jacobian = self._compute_frame_jacobian()
 
-        # compute the desired joint positions
-        self._processed_actions[:] = self._ik_controller.compute(
+        # compute the desired joint positions using IK
+        joint_pos_des = self._ik_controller.compute(
             ee_pos=ee_pos_w,
             ee_quat=ee_quat_w,
             jacobian=jacobian,
             joint_pos=joint_pos
         )
 
-    def apply_actions(self):
-        """Apply the computed joint position commands to the articulation."""
-        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        # apply the joint position targets
+        self._asset.set_joint_position_target(joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: torch.Tensor | None = None) -> None:
         """Reset the action term.
@@ -193,61 +154,154 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         Args:
             env_ids: The environment indices to reset. If None, then all environments are reset.
         """
+        # Zero out actions
         if env_ids is None:
             self._raw_actions[:] = 0.0
-            # Initialize processed actions to current joint positions
-            current_joint_pos = self._asset.data.joint_pos[:, self._joint_ids].clone()
-            self._processed_actions[:] = current_joint_pos
-            # Mark as initialized since we just set it
-            self._is_initialized = True
-            # Reset all environments
-            all_env_ids = torch.arange(self.num_envs, device=self.device, dtype=torch.long)
-            self._ik_controller.reset(all_env_ids)
+            # Reset IK controller for all environments
+            self._ik_controller.reset(torch.arange(self.num_envs, device=self.device))
         else:
             self._raw_actions[env_ids] = 0.0
-            # For partial resets, initialize those environments' targets
-            current_joint_pos = self._asset.data.joint_pos[env_ids, self._joint_ids].clone()
-            self._processed_actions[env_ids] = current_joint_pos
+            # Reset IK controller for specific environments
             self._ik_controller.reset(env_ids)
 
     """
     Helper methods.
     """
 
-    def _compute_numerical_jacobian(
-        self, ee_pos_w: torch.Tensor, ee_quat_w: torch.Tensor, joint_pos: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute an approximate geometric Jacobian.
-
-        This is a placeholder implementation that computes a simple approximation of the Jacobian.
-        For production use, this should be replaced with an analytical Jacobian computation
-        (e.g., using Pinocchio or similar kinematics library).
-
-        Args:
-            ee_pos_w: Current end-effector position in world frame (num_envs, 3).
-            ee_quat_w: Current end-effector orientation in world frame (num_envs, 4).
-            joint_pos: Current joint positions (num_envs, num_joints).
+    def _compute_frame_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute the end-effector pose in the world frame with offset applied.
 
         Returns:
-            The approximate geometric Jacobian matrix (num_envs, 6, num_joints).
+            A tuple of (position, orientation) tensors.
+            - position: (num_envs, 3) in world frame
+            - orientation: (num_envs, 4) as quaternion (w, x, y, z) in world frame
         """
-        # For now, use a simple diagonal approximation
-        # This is not physically accurate but allows the system to run
-        # TODO: Replace with proper analytical Jacobian computation using Pinocchio or similar
-        num_joints = joint_pos.shape[1]
+        # get the body pose in world frame
+        body_pos_w = self._asset.data.body_pos_w[:, self._body_idx, :]
+        body_quat_w = self._asset.data.body_quat_w[:, self._body_idx, :]
+
+        # apply offset if specified
+        if self._offset_pos is not None or self._offset_rot is not None:
+            offset_pos = self._offset_pos if self._offset_pos is not None else torch.zeros_like(body_pos_w)
+            offset_rot = self._offset_rot if self._offset_rot is not None else torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
+            
+            # combine transforms: body_T_world * offset_T_body = ee_T_world
+            ee_pos_w, ee_quat_w = combine_frame_transforms(body_pos_w, body_quat_w, offset_pos, offset_rot)
+        else:
+            ee_pos_w, ee_quat_w = body_pos_w, body_quat_w
+
+        return ee_pos_w, ee_quat_w
+
+    def _compute_frame_jacobian(self) -> torch.Tensor:
+        """Compute the geometric Jacobian using Pinocchio with the robot's URDF.
+
+        This uses Pinocchio's analytical Jacobian computation which is accurate and efficient.
+        The Jacobian is computed using the robot's kinematic model loaded from URDF.
+
+        Returns:
+            The geometric Jacobian matrix (num_envs, 6, num_joints).
+        """
+        # Lazy import and initialize Pinocchio model
+        if not hasattr(self, "_pinocchio_model"):
+            try:
+                self._initialize_pinocchio()
+            except (ImportError, FileNotFoundError) as e:
+                raise RuntimeError(
+                    f"Failed to initialize Pinocchio for Jacobian computation: {e}\n"
+                    "Please install Pinocchio: pip install pin"
+                ) from e
         
-        # Create a Jacobian with reasonable non-zero values
-        # Use a diagonal-like structure where each joint affects the corresponding DOF
-        jacobian = torch.zeros(self.num_envs, 6, num_joints, device=self.device)
+        import pinocchio as pin
+        import numpy as np
         
-        # For joints up to 6, create diagonal-like mapping
-        for i in range(min(6, num_joints)):
-            jacobian[:, i, i] = 0.5  # Reasonable scaling factor
+        num_envs = self.num_envs
+        num_joints = self._num_joints
         
-        # For remaining joints (if more than 6), distribute influence across DOFs
-        if num_joints > 6:
-            for i in range(6, num_joints):
-                jacobian[:, :, i] = 0.1  # Small influence on all DOFs
+        # Initialize Jacobian tensor
+        jacobian = torch.zeros(num_envs, 6, num_joints, device=self.device)
+        
+        # Get current joint positions
+        joint_pos = self._asset.data.joint_pos[:, self._joint_ids].cpu().numpy()
+        
+        # Compute Jacobian for each environment
+        for env_idx in range(num_envs):
+            # Update Pinocchio model with current joint configuration
+            q = joint_pos[env_idx]
+            
+            # Compute forward kinematics
+            pin.forwardKinematics(self._pinocchio_model, self._pinocchio_data, q)
+            pin.updateFramePlacements(self._pinocchio_model, self._pinocchio_data)
+            
+            # Compute Jacobian for the end-effector frame
+            # getFrameJacobian returns Jacobian in the LOCAL frame, so we need WORLD frame
+            J = pin.computeFrameJacobian(
+                self._pinocchio_model,
+                self._pinocchio_data,
+                q,
+                self._ee_frame_id,
+                pin.ReferenceFrame.WORLD
+            )
+            
+            # Convert to torch and store (Pinocchio gives (6, njoints))
+            jacobian[env_idx] = torch.from_numpy(J[:, :num_joints]).to(device=self.device, dtype=torch.float32)
         
         return jacobian
+    
+    def _initialize_pinocchio(self):
+        """Initialize Pinocchio model from URDF for Jacobian computation."""
+        import pinocchio as pin
+        import os
+        
+        # Path to Franka URDF
+        urdf_path = os.path.join(
+            os.path.dirname(__file__),
+            "../../controllers/config/data/lula_franka_gen.urdf"
+        )
+        
+        if not os.path.exists(urdf_path):
+            raise FileNotFoundError(
+                f"Franka URDF not found at {urdf_path}. "
+                "Cannot compute Jacobian without kinematic model."
+            )
+        
+        # Load the URDF model
+        self._pinocchio_model = pin.buildModelFromUrdf(urdf_path)
+        self._pinocchio_data = self._pinocchio_model.createData()
+        
+        # Find the end-effector frame ID
+        # The frame name should match the body name from the config
+        if hasattr(self._asset, 'body_names') and len(self._asset.body_names) > 0:
+            ee_frame_name = self._asset.body_names[self._body_idx]
+        else:
+            # Default to common Franka end-effector frame names
+            ee_frame_name = "panda_hand"  # or "panda_link8"
+        
+        # Find frame ID in Pinocchio model
+        try:
+            self._ee_frame_id = self._pinocchio_model.getFrameId(ee_frame_name)
+        except:
+            # Try alternative names
+            for name in ["panda_hand", "panda_link8", "panda_link7", "end_effector"]:
+                try:
+                    self._ee_frame_id = self._pinocchio_model.getFrameId(name)
+                    print(f"[INFO] Using end-effector frame: {name}")
+                    break
+                except:
+                    continue
+            else:
+                raise RuntimeError(
+                    f"Could not find end-effector frame '{ee_frame_name}' in Pinocchio model. "
+                    f"Available frames: {[self._pinocchio_model.frames[i].name for i in range(self._pinocchio_model.nframes)]}"
+                )
 
+
+def quat_inverse(q: torch.Tensor) -> torch.Tensor:
+    """Compute quaternion inverse (conjugate for unit quaternions).
+    
+    Args:
+        q: Quaternion tensor (N, 4) in (w, x, y, z) format.
+    
+    Returns:
+        Inverse quaternion (N, 4).
+    """
+    return torch.stack([q[:, 0], -q[:, 1], -q[:, 2], -q[:, 3]], dim=-1)
