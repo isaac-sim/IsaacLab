@@ -2105,7 +2105,7 @@ class Articulation(BaseArticulation):
                     (self.num_instances, self.num_joints),
                 )
                 # Bind the applied effort to the simulation effort
-                #self.data._applied_effort = self.data.actuator_effort_target
+                # self.data._applied_effort = self.data.actuator_effort_target
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
