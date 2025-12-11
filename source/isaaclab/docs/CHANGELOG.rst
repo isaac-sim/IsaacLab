@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.49.1 (2025-12-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+  * Added write to file on close to :class:`~isaaclab.manager.RecorderManager`.
+  * Added :attr:`~isaaclab.manager.RecorderManagerCfg.export_in_close` configuration parameter.
+
+
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 
