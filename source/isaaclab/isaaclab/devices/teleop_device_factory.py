@@ -4,62 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Factory to create teleoperation devices from configuration."""
-
-import contextlib
 import inspect
+import logging
 from collections.abc import Callable
-
-import omni.log
+from typing import cast
 
 from isaaclab.devices import DeviceBase, DeviceCfg
-from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
-from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
-from isaaclab.devices.openxr.retargeters import (
-    G1LowerBodyStandingRetargeter,
-    G1LowerBodyStandingRetargeterCfg,
-    G1TriHandUpperBodyRetargeter,
-    G1TriHandUpperBodyRetargeterCfg,
-    GR1T2Retargeter,
-    GR1T2RetargeterCfg,
-    GripperRetargeter,
-    GripperRetargeterCfg,
-    Se3AbsRetargeter,
-    Se3AbsRetargeterCfg,
-    Se3RelRetargeter,
-    Se3RelRetargeterCfg,
-    UnitreeG1Retargeter,
-    UnitreeG1RetargeterCfg,
-)
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices.retargeter_base import RetargeterBase
 
-with contextlib.suppress(ModuleNotFoundError):
-    # May fail if xr is not in use
-    from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
-
-# Map device types to their constructor and expected config type
-DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
-    Se3KeyboardCfg: Se3Keyboard,
-    Se3SpaceMouseCfg: Se3SpaceMouse,
-    Se3GamepadCfg: Se3Gamepad,
-    Se2KeyboardCfg: Se2Keyboard,
-    Se2GamepadCfg: Se2Gamepad,
-    Se2SpaceMouseCfg: Se2SpaceMouse,
-    OpenXRDeviceCfg: OpenXRDevice,
-    ManusViveCfg: ManusVive,
-}
-
-
-# Map configuration types to their corresponding retargeter classes
-RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
-    Se3AbsRetargeterCfg: Se3AbsRetargeter,
-    Se3RelRetargeterCfg: Se3RelRetargeter,
-    GripperRetargeterCfg: GripperRetargeter,
-    GR1T2RetargeterCfg: GR1T2Retargeter,
-    G1TriHandUpperBodyRetargeterCfg: G1TriHandUpperBodyRetargeter,
-    G1LowerBodyStandingRetargeterCfg: G1LowerBodyStandingRetargeter,
-    UnitreeG1RetargeterCfg: UnitreeG1Retargeter,
-}
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def create_teleop_device(
@@ -86,39 +40,48 @@ def create_teleop_device(
     device_cfg = devices_cfg[device_name]
     callbacks = callbacks or {}
 
-    # Check if device config type is supported
-    cfg_type = type(device_cfg)
-    if cfg_type not in DEVICE_MAP:
-        raise ValueError(f"Unsupported device configuration type: {cfg_type.__name__}")
-
-    # Get the constructor for this config type
-    constructor = DEVICE_MAP[cfg_type]
+    # Determine constructor from the configuration itself
+    device_constructor = getattr(device_cfg, "class_type", None)
+    if device_constructor is None:
+        raise ValueError(
+            f"Device configuration '{device_name}' does not declare class_type. "
+            "Set cfg.class_type to the concrete DeviceBase subclass."
+        )
+    if not issubclass(device_constructor, DeviceBase):
+        raise TypeError(f"class_type for '{device_name}' must be a subclass of DeviceBase; got {device_constructor}")
 
     # Try to create retargeters if they are configured
     retargeters = []
     if hasattr(device_cfg, "retargeters") and device_cfg.retargeters is not None:
         try:
-            # Create retargeters based on configuration
+            # Create retargeters based on configuration using per-config retargeter_type
             for retargeter_cfg in device_cfg.retargeters:
-                cfg_type = type(retargeter_cfg)
-                if cfg_type in RETARGETER_MAP:
-                    retargeters.append(RETARGETER_MAP[cfg_type](retargeter_cfg))
-                else:
-                    raise ValueError(f"Unknown retargeter configuration type: {cfg_type.__name__}")
+                retargeter_constructor = getattr(retargeter_cfg, "retargeter_type", None)
+                if retargeter_constructor is None:
+                    raise ValueError(
+                        f"Retargeter configuration {type(retargeter_cfg).__name__} does not declare retargeter_type. "
+                        "Set cfg.retargeter_type to the concrete RetargeterBase subclass."
+                    )
+                if not issubclass(retargeter_constructor, RetargeterBase):
+                    raise TypeError(
+                        f"retargeter_type for {type(retargeter_cfg).__name__} must be a subclass of RetargeterBase; got"
+                        f" {retargeter_constructor}"
+                    )
+                retargeters.append(retargeter_constructor(retargeter_cfg))
 
         except NameError as e:
             raise ValueError(f"Failed to create retargeters: {e}")
 
-    # Check if the constructor accepts retargeters parameter
-    constructor_params = inspect.signature(constructor).parameters
-    if "retargeters" in constructor_params and retargeters:
-        device = constructor(cfg=device_cfg, retargeters=retargeters)
-    else:
-        device = constructor(cfg=device_cfg)
+    # Build constructor kwargs based on signature
+    constructor_params = inspect.signature(device_constructor).parameters
+    params: dict = {"cfg": device_cfg}
+    if "retargeters" in constructor_params:
+        params["retargeters"] = retargeters
+    device = cast(DeviceBase, device_constructor(**params))
 
     # Register callbacks
     for key, callback in callbacks.items():
         device.add_callback(key, callback)
 
-    omni.log.info(f"Created teleoperation device: {device_name}")
+    logging.info(f"Created teleoperation device: {device_name}")
     return device

@@ -10,12 +10,11 @@ import re
 from typing import TYPE_CHECKING
 
 import carb
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 
 if TYPE_CHECKING:
@@ -48,7 +47,7 @@ def spawn_multi_asset(
         The created prim at the first prim path.
     """
     # get stage handle
-    stage = get_current_stage()
+    stage = stage_utils.get_current_stage()
 
     # resolve: {SPAWN_NS}/AssetName
     # note: this assumes that the spawn namespace already exists in the stage

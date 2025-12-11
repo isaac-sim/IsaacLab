@@ -15,13 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import os
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 
@@ -31,8 +31,8 @@ def sim_config():
     # Create a new stage
     stage_utils.create_new_stage()
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
+    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
+    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
     # default configuration
     config = UrdfConverterCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",

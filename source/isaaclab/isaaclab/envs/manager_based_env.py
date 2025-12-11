@@ -4,13 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import builtins
+import logging
 import torch
 import warnings
 from collections.abc import Sequence
 from typing import Any
 
-import isaacsim.core.utils.torch as torch_utils
-import omni.log
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
@@ -18,14 +17,18 @@ from isaacsim.core.version import get_version
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedEnv:
@@ -90,7 +93,7 @@ class ManagerBasedEnv:
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -122,7 +125,7 @@ class ManagerBasedEnv:
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step. "
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # counter for simulation steps
         self._sim_step_counter = 0
@@ -512,7 +515,7 @@ class ManagerBasedEnv:
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""

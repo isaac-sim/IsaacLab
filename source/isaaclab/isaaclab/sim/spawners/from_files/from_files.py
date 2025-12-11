@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
-import omni.log
 from pxr import Gf, Sdf, Usd
+
+import isaaclab.sim.utils.prims as prim_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -18,20 +19,16 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
-from isaacsim.core.utils.stage import get_current_stage
-
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import (
-    bind_physics_material,
-    bind_visual_material,
-    clone,
-    is_current_stage_in_memory,
-    select_usd_variants,
-)
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
 from isaaclab.utils.assets import check_usd_path_with_timeout
 
 if TYPE_CHECKING:
     from . import from_files_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -164,7 +161,7 @@ def spawn_ground_plane(
         # Apply physics material to ground plane
         collision_prim_path = prim_utils.get_prim_path(
             prim_utils.get_first_matching_child_prim(
-                prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
+                prim_path, predicate=lambda x: prim_utils.from_prim_get_type_name(x) == "Plane"
             )
         )
         bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
@@ -183,7 +180,7 @@ def spawn_ground_plane(
         # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
         # is not supported in stage in memory
         if is_current_stage_in_memory():
-            omni.log.warn(
+            logger.warning(
                 "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
             )
 
@@ -282,7 +279,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
