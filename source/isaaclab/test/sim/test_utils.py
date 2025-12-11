@@ -15,13 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
@@ -102,36 +102,6 @@ def test_get_first_matching_child_prim():
     )
     assert isaaclab_result is not None
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
-
-
-def test_find_matching_prim_paths():
-    """Test find_matching_prim_paths() function."""
-    # create scene
-    for index in range(2048):
-        random_pos = np.random.uniform(-100, 100, size=3)
-        prim_utils.create_prim(f"/World/Floor_{index}", "Cube", position=random_pos, attributes={"size": 2.0})
-        prim_utils.create_prim(f"/World/Floor_{index}/Sphere", "Sphere", attributes={"radius": 10})
-        prim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere", "Sphere", attributes={"radius": 1})
-        prim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere2", "Sphere", attributes={"radius": 1})
-
-    # test leaf paths
-    isaac_sim_result = prim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere")
-    isaaclab_result = sim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere")
-    assert isaac_sim_result == isaaclab_result
-
-    # test non-leaf paths
-    isaac_sim_result = prim_utils.find_matching_prim_paths("/World/Floor_.*")
-    isaaclab_result = sim_utils.find_matching_prim_paths("/World/Floor_.*")
-    assert isaac_sim_result == isaaclab_result
-
-    # test child-leaf paths
-    isaac_sim_result = prim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere/childSphere.*")
-    isaaclab_result = sim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere/childSphere.*")
-    assert isaac_sim_result == isaaclab_result
-
-    # test valid path
-    with pytest.raises(ValueError):
-        sim_utils.get_all_matching_child_prims("World/Floor_.*")
 
 
 def test_find_global_fixed_joint_prim():
