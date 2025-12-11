@@ -7,18 +7,17 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
-import warp as wp
 from unittest.mock import MagicMock, patch
+
+import pytest
+import warp as wp
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
-from isaaclab.utils import math as math_utils
 
 # Import mock classes from shared module
-from mock_interface import (
-    MockNewtonModel,
-    MockNewtonArticulationView,
-)
+from mock_interface import MockNewtonArticulationView, MockNewtonModel
+
+from isaaclab.utils import math as math_utils
 
 # Initialize Warp
 wp.init()
@@ -27,6 +26,7 @@ wp.init()
 ##
 # Test Fixtures
 ##
+
 
 @pytest.fixture
 def mock_newton_manager():
@@ -43,9 +43,11 @@ def mock_newton_manager():
         MockManager.get_dt.return_value = 0.01
         yield MockManager
 
+
 ##
 # Test Cases -- Defaults.
 ##
+
 
 class TestDefaults:
     """Tests the following properties:
@@ -89,10 +91,18 @@ class TestDefaults:
         assert articulation_data.default_joint_pos.shape == (num_instances, num_dofs)
         assert articulation_data.default_joint_vel.shape == (num_instances, num_dofs)
         # Check the values are zero
-        assert torch.all(wp.to_torch(articulation_data.default_root_pose) == torch.zeros(num_instances, 7, device=device))
-        assert torch.all(wp.to_torch(articulation_data.default_root_vel) == torch.zeros(num_instances, 6, device=device))
-        assert torch.all(wp.to_torch(articulation_data.default_joint_pos) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.default_joint_vel) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.default_root_pose) == torch.zeros(num_instances, 7, device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.default_root_vel) == torch.zeros(num_instances, 6, device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.default_joint_pos) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.default_joint_vel) == torch.zeros((num_instances, num_dofs), device=device)
+        )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_dofs", [1, 2])
@@ -117,10 +127,16 @@ class TestDefaults:
         assert articulation_data.default_joint_pos.shape == (num_instances, num_dofs)
         assert articulation_data.default_joint_vel.shape == (num_instances, num_dofs)
         # Check the values are set
-        assert torch.all(wp.to_torch(articulation_data.default_root_pose) == torch.ones(num_instances, 7, device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.default_root_pose) == torch.ones(num_instances, 7, device=device)
+        )
         assert torch.all(wp.to_torch(articulation_data.default_root_vel) == torch.ones(num_instances, 6, device=device))
-        assert torch.all(wp.to_torch(articulation_data.default_joint_pos) == torch.ones((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.default_joint_vel) == torch.ones((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.default_joint_pos) == torch.ones((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.default_joint_vel) == torch.ones((num_instances, num_dofs), device=device)
+        )
         # Prime the articulation data
         articulation_data.is_primed = True
         # Check that the values cannot be changed
@@ -133,9 +149,11 @@ class TestDefaults:
         with pytest.raises(RuntimeError):
             articulation_data.default_joint_vel = wp.zeros((num_instances, num_dofs), dtype=wp.float32, device=device)
 
+
 ##
 # Test Cases -- Joint Commands (Set into the simulation).
 ##
+
 
 class TestJointCommandsSetIntoSimulation:
     """Tests the following properties:
@@ -175,9 +193,15 @@ class TestJointCommandsSetIntoSimulation:
         assert articulation_data.joint_vel_target.shape == (num_instances, num_dofs)
         assert articulation_data.joint_effort.shape == (num_instances, num_dofs)
         # Check the values are zero
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_target) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_vel_target) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_effort) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_target) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_vel_target) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_effort) == torch.zeros((num_instances, num_dofs), device=device)
+        )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_dofs", [1, 2])
@@ -207,13 +231,23 @@ class TestJointCommandsSetIntoSimulation:
         joint_vel_target.fill_(2.0)
         joint_effort.fill_(2.0)
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_target) == torch.ones((num_instances, num_dofs), device=device)*2.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_vel_target) == torch.ones((num_instances, num_dofs), device=device)*2.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_effort) == torch.ones((num_instances, num_dofs), device=device)*2.0)
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_target)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_vel_target)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_effort) == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+
 
 ##
 # Test Cases -- Joint Commands (Explicit actuators).
 ##
+
 
 class TestJointCommandsExplicitActuators:
     """Tests the following properties:
@@ -229,7 +263,7 @@ class TestJointCommandsExplicitActuators:
     - Checks that their types and shapes are correct.
     - Checks that the returned values are pointers to the internal data.
     """
-    
+
     def _setup_method(self, num_instances: int, num_dofs: int, device: str) -> ArticulationData:
         mock_view = MockNewtonArticulationView(num_instances, 1, num_dofs, device)
         mock_view.set_mock_data()
@@ -265,13 +299,30 @@ class TestJointCommandsExplicitActuators:
         assert articulation_data.actuator_velocity_target.shape == (num_instances, num_dofs)
         assert articulation_data.actuator_effort_target.shape == (num_instances, num_dofs)
         # Check the values are zero
-        assert torch.all(wp.to_torch(articulation_data.computed_effort) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.applied_effort) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.actuator_stiffness) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.actuator_damping) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.actuator_position_target) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.actuator_velocity_target) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.actuator_effort_target) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.computed_effort) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.applied_effort) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_stiffness) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_damping) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_position_target)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_velocity_target)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_effort_target)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_dofs", [1, 2])
@@ -321,17 +372,38 @@ class TestJointCommandsExplicitActuators:
         actuator_velocity_target.fill_(2.0)
         actuator_effort_target.fill_(2.0)
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.computed_effort) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.applied_effort) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.actuator_stiffness) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.actuator_damping) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.actuator_position_target) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.actuator_velocity_target) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.actuator_effort_target) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
+        assert torch.all(
+            wp.to_torch(articulation_data.computed_effort) == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.applied_effort) == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_stiffness)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_damping)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_position_target)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_velocity_target)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.actuator_effort_target)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+
 
 ##
 # Test Cases -- Joint Properties (Set into Simulation).
 ##
+
 
 class TestJointPropertiesSetIntoSimulation:
     """Tests the following properties:
@@ -351,8 +423,10 @@ class TestJointPropertiesSetIntoSimulation:
 
     .. note:: joint_pos_limits is read-only and does not change the joint position limits.
     """
-    
-    def _setup_method(self, num_instances: int, num_dofs: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
+
+    def _setup_method(
+        self, num_instances: int, num_dofs: int, device: str
+    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, num_dofs, device)
         mock_view.set_mock_data()
 
@@ -371,7 +445,7 @@ class TestJointPropertiesSetIntoSimulation:
         """Test that the joint properties are initialized to zero (or ones for limits)."""
         # Setup the articulation data
         articulation_data, _ = self._setup_method(num_instances, num_dofs, device)
-        
+
         # Check the types are correct
         assert articulation_data.joint_stiffness.dtype is wp.float32
         assert articulation_data.joint_damping.dtype is wp.float32
@@ -382,7 +456,7 @@ class TestJointPropertiesSetIntoSimulation:
         assert articulation_data.joint_pos_limits.dtype is wp.vec2f
         assert articulation_data.joint_vel_limits.dtype is wp.float32
         assert articulation_data.joint_effort_limits.dtype is wp.float32
-        
+
         # Check the shapes are correct
         assert articulation_data.joint_stiffness.shape == (num_instances, num_dofs)
         assert articulation_data.joint_damping.shape == (num_instances, num_dofs)
@@ -393,32 +467,50 @@ class TestJointPropertiesSetIntoSimulation:
         assert articulation_data.joint_pos_limits.shape == (num_instances, num_dofs)
         assert articulation_data.joint_vel_limits.shape == (num_instances, num_dofs)
         assert articulation_data.joint_effort_limits.shape == (num_instances, num_dofs)
-        
+
         # Check the values are zero
-        assert torch.all(wp.to_torch(articulation_data.joint_stiffness) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_damping) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_armature) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_lower) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_upper) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_stiffness) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_damping) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_armature) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_lower)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_upper)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
         # joint_pos_limits should be (0, 0) for each joint since both lower and upper are 0
         joint_pos_limits = wp.to_torch(articulation_data.joint_pos_limits)
         assert torch.all(joint_pos_limits == torch.zeros((num_instances, num_dofs, 2), device=device))
         # vel_limits and effort_limits are initialized to ones in the mock
-        assert torch.all(wp.to_torch(articulation_data.joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device)
+        )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_dofs", [1, 2])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_returns_reference(self, mock_newton_manager, num_instances: int, num_dofs: int, device: str):
         """Test that the joint properties return a reference to the internal data.
-        
+
         Note: joint_pos_limits is read-only and always returns a new computed array.
         """
         # Setup the articulation data
         articulation_data, _ = self._setup_method(num_instances, num_dofs, device)
-        
+
         # Get the pointers
         joint_stiffness = articulation_data.joint_stiffness
         joint_damping = articulation_data.joint_damping
@@ -428,7 +520,7 @@ class TestJointPropertiesSetIntoSimulation:
         joint_pos_limits_upper = articulation_data.joint_pos_limits_upper
         joint_vel_limits = articulation_data.joint_vel_limits
         joint_effort_limits = articulation_data.joint_effort_limits
-        
+
         # Check that they have initial values (zeros or ones based on mock)
         assert torch.all(wp.to_torch(joint_stiffness) == torch.zeros((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_damping) == torch.zeros((num_instances, num_dofs), device=device))
@@ -438,7 +530,7 @@ class TestJointPropertiesSetIntoSimulation:
         assert torch.all(wp.to_torch(joint_pos_limits_upper) == torch.zeros((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device))
-        
+
         # Assign a different value to the internal data
         articulation_data.joint_stiffness.fill_(1.0)
         articulation_data.joint_damping.fill_(1.0)
@@ -448,25 +540,30 @@ class TestJointPropertiesSetIntoSimulation:
         articulation_data.joint_pos_limits_upper.fill_(1.0)
         articulation_data.joint_vel_limits.fill_(2.0)
         articulation_data.joint_effort_limits.fill_(2.0)
-        
+
         # Check that the properties return the new value (reference behavior)
         assert torch.all(wp.to_torch(joint_stiffness) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_damping) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_armature) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_friction_coeff) == torch.ones((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(joint_pos_limits_lower) == torch.ones((num_instances, num_dofs), device=device) * -1.0)
+        assert torch.all(
+            wp.to_torch(joint_pos_limits_lower) == torch.ones((num_instances, num_dofs), device=device) * -1.0
+        )
         assert torch.all(wp.to_torch(joint_pos_limits_upper) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
         assert torch.all(wp.to_torch(joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        
+
         # Check that joint_pos_limits is computed correctly from lower and upper
         joint_pos_limits = wp.to_torch(articulation_data.joint_pos_limits)
-        expected_limits = torch.stack([
-            torch.ones((num_instances, num_dofs), device=device) * -1.0,
-            torch.ones((num_instances, num_dofs), device=device)
-        ], dim=-1)
+        expected_limits = torch.stack(
+            [
+                torch.ones((num_instances, num_dofs), device=device) * -1.0,
+                torch.ones((num_instances, num_dofs), device=device),
+            ],
+            dim=-1,
+        )
         assert torch.all(joint_pos_limits == expected_limits)
-        
+
         # Assign a different value to the pointers
         joint_stiffness.fill_(3.0)
         joint_damping.fill_(3.0)
@@ -476,23 +573,47 @@ class TestJointPropertiesSetIntoSimulation:
         joint_pos_limits_upper.fill_(2.0)
         joint_vel_limits.fill_(4.0)
         joint_effort_limits.fill_(4.0)
-        
+
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.joint_stiffness) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_damping) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_armature) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_friction_coeff) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_lower) == torch.ones((num_instances, num_dofs), device=device) * -2.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_upper) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device) * 4.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device) * 4.0)
-        
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_stiffness) == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_damping) == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_armature) == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_friction_coeff)
+            == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_lower)
+            == torch.ones((num_instances, num_dofs), device=device) * -2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_upper)
+            == torch.ones((num_instances, num_dofs), device=device) * 2.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_vel_limits)
+            == torch.ones((num_instances, num_dofs), device=device) * 4.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_effort_limits)
+            == torch.ones((num_instances, num_dofs), device=device) * 4.0
+        )
+
         # Verify joint_pos_limits reflects the updated lower and upper values
         joint_pos_limits_updated = wp.to_torch(articulation_data.joint_pos_limits)
-        expected_limits_updated = torch.stack([
-            torch.ones((num_instances, num_dofs), device=device) * -2.0,
-            torch.ones((num_instances, num_dofs), device=device) * 2.0
-        ], dim=-1)
+        expected_limits_updated = torch.stack(
+            [
+                torch.ones((num_instances, num_dofs), device=device) * -2.0,
+                torch.ones((num_instances, num_dofs), device=device) * 2.0,
+            ],
+            dim=-1,
+        )
         assert torch.all(joint_pos_limits_updated == expected_limits_updated)
 
     @pytest.mark.parametrize("num_instances", [1, 2])
@@ -500,32 +621,40 @@ class TestJointPropertiesSetIntoSimulation:
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_joint_pos_limits_is_read_only(self, mock_newton_manager, num_instances: int, num_dofs: int, device: str):
         """Test that joint_pos_limits returns a new array each time (not a reference).
-        
+
         Unlike other joint properties, joint_pos_limits is computed on-the-fly from
         joint_pos_limits_lower and joint_pos_limits_upper. Modifying the returned array
         should not affect the underlying data.
         """
         # Setup the articulation data
         articulation_data, _ = self._setup_method(num_instances, num_dofs, device)
-        
+
         # Get joint_pos_limits twice
         limits1 = articulation_data.joint_pos_limits
         limits2 = articulation_data.joint_pos_limits
-        
+
         # They should be separate arrays (not the same reference)
         # Modifying one should not affect the other
         limits1.fill_(2.0)
-        
+
         # limits2 should be changed to 2.0
         assert torch.all(wp.to_torch(limits2) == torch.ones((num_instances, num_dofs, 2), device=device) * 2.0)
-        
+
         # The underlying lower and upper should be unchanged
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_lower) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_pos_limits_upper) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_lower)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_pos_limits_upper)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+
 
 ##
 # Test Cases -- Joint Properties (Custom).
 ##
+
 
 class TestJointPropertiesCustom:
     """Tests the following properties:
@@ -560,29 +689,43 @@ class TestJointPropertiesCustom:
         """Test that the custom joint properties are initialized correctly."""
         # Setup the articulation data
         articulation_data = self._setup_method(num_instances, num_dofs, device)
-        
+
         # Check the types are correct
         assert articulation_data.joint_dynamic_friction_coeff.dtype is wp.float32
         assert articulation_data.joint_viscous_friction_coeff.dtype is wp.float32
         assert articulation_data.soft_joint_pos_limits.dtype is wp.vec2f
         assert articulation_data.soft_joint_vel_limits.dtype is wp.float32
         assert articulation_data.gear_ratio.dtype is wp.float32
-        
+
         # Check the shapes are correct
         assert articulation_data.joint_dynamic_friction_coeff.shape == (num_instances, num_dofs)
         assert articulation_data.joint_viscous_friction_coeff.shape == (num_instances, num_dofs)
         assert articulation_data.soft_joint_pos_limits.shape == (num_instances, num_dofs)
         assert articulation_data.soft_joint_vel_limits.shape == (num_instances, num_dofs)
         assert articulation_data.gear_ratio.shape == (num_instances, num_dofs)
-        
+
         # Check the values are initialized correctly
         # Most are zeros, but gear_ratio is initialized to ones
-        assert torch.all(wp.to_torch(articulation_data.joint_dynamic_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.joint_viscous_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(articulation_data.soft_joint_pos_limits) == torch.zeros((num_instances, num_dofs, 2), device=device))
-        assert torch.all(wp.to_torch(articulation_data.soft_joint_vel_limits) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_dynamic_friction_coeff)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_viscous_friction_coeff)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.soft_joint_pos_limits)
+            == torch.zeros((num_instances, num_dofs, 2), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.soft_joint_vel_limits)
+            == torch.zeros((num_instances, num_dofs), device=device)
+        )
         # gear_ratio is initialized to ones
-        assert torch.all(wp.to_torch(articulation_data.gear_ratio) == torch.ones((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.gear_ratio) == torch.ones((num_instances, num_dofs), device=device)
+        )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_dofs", [1, 2])
@@ -591,53 +734,76 @@ class TestJointPropertiesCustom:
         """Test that the custom joint properties return a reference to the internal data."""
         # Setup the articulation data
         articulation_data = self._setup_method(num_instances, num_dofs, device)
-        
+
         # Get the pointers
         joint_dynamic_friction_coeff = articulation_data.joint_dynamic_friction_coeff
         joint_viscous_friction_coeff = articulation_data.joint_viscous_friction_coeff
         soft_joint_pos_limits = articulation_data.soft_joint_pos_limits
         soft_joint_vel_limits = articulation_data.soft_joint_vel_limits
         gear_ratio = articulation_data.gear_ratio
-        
+
         # Check that they have initial values
-        assert torch.all(wp.to_torch(joint_dynamic_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(joint_viscous_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(joint_dynamic_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(joint_viscous_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device)
+        )
         assert torch.all(wp.to_torch(soft_joint_pos_limits) == torch.zeros((num_instances, num_dofs, 2), device=device))
         assert torch.all(wp.to_torch(soft_joint_vel_limits) == torch.zeros((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(gear_ratio) == torch.ones((num_instances, num_dofs), device=device))
-        
+
         # Assign a different value to the internal data
         articulation_data.joint_dynamic_friction_coeff.fill_(1.0)
         articulation_data.joint_viscous_friction_coeff.fill_(1.0)
         articulation_data.soft_joint_pos_limits.fill_(1.0)
         articulation_data.soft_joint_vel_limits.fill_(1.0)
         articulation_data.gear_ratio.fill_(2.0)
-        
+
         # Check that the properties return the new value (reference behavior)
-        assert torch.all(wp.to_torch(joint_dynamic_friction_coeff) == torch.ones((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(joint_viscous_friction_coeff) == torch.ones((num_instances, num_dofs), device=device))
+        assert torch.all(
+            wp.to_torch(joint_dynamic_friction_coeff) == torch.ones((num_instances, num_dofs), device=device)
+        )
+        assert torch.all(
+            wp.to_torch(joint_viscous_friction_coeff) == torch.ones((num_instances, num_dofs), device=device)
+        )
         assert torch.all(wp.to_torch(soft_joint_pos_limits) == torch.ones((num_instances, num_dofs, 2), device=device))
         assert torch.all(wp.to_torch(soft_joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(gear_ratio) == torch.ones((num_instances, num_dofs), device=device) * 2.0)
-        
+
         # Assign a different value to the pointers
         joint_dynamic_friction_coeff.fill_(3.0)
         joint_viscous_friction_coeff.fill_(3.0)
         soft_joint_pos_limits.fill_(3.0)
         soft_joint_vel_limits.fill_(3.0)
         gear_ratio.fill_(4.0)
-        
+
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.joint_dynamic_friction_coeff) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.joint_viscous_friction_coeff) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.soft_joint_pos_limits) == torch.ones((num_instances, num_dofs, 2), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.soft_joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device) * 3.0)
-        assert torch.all(wp.to_torch(articulation_data.gear_ratio) == torch.ones((num_instances, num_dofs), device=device) * 4.0)
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_dynamic_friction_coeff)
+            == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.joint_viscous_friction_coeff)
+            == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.soft_joint_pos_limits)
+            == torch.ones((num_instances, num_dofs, 2), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.soft_joint_vel_limits)
+            == torch.ones((num_instances, num_dofs), device=device) * 3.0
+        )
+        assert torch.all(
+            wp.to_torch(articulation_data.gear_ratio) == torch.ones((num_instances, num_dofs), device=device) * 4.0
+        )
 
 
 ##
 # Test Cases -- Fixed Tendon Properties.
 ##
+
 
 # TODO: Update these tests when fixed tendon support is added to Newton.
 class TestFixedTendonProperties:
@@ -671,7 +837,7 @@ class TestFixedTendonProperties:
     def test_all_fixed_tendon_properties_not_implemented(self, mock_newton_manager, device: str):
         """Test that all fixed tendon properties raise NotImplementedError."""
         articulation_data = self._setup_method(1, 1, device)
-        
+
         with pytest.raises(NotImplementedError):
             _ = articulation_data.fixed_tendon_stiffness
         with pytest.raises(NotImplementedError):
@@ -689,6 +855,7 @@ class TestFixedTendonProperties:
 ##
 # Test Cases -- Spatial Tendon Properties.
 ##
+
 
 # TODO: Update these tests when spatial tendon support is added to Newton.
 class TestSpatialTendonProperties:
@@ -720,7 +887,7 @@ class TestSpatialTendonProperties:
     def test_all_spatial_tendon_properties_not_implemented(self, mock_newton_manager, device: str):
         """Test that all spatial tendon properties raise NotImplementedError."""
         articulation_data = self._setup_method(1, 1, device)
-        
+
         with pytest.raises(NotImplementedError):
             _ = articulation_data.spatial_tendon_stiffness
         with pytest.raises(NotImplementedError):
@@ -730,9 +897,11 @@ class TestSpatialTendonProperties:
         with pytest.raises(NotImplementedError):
             _ = articulation_data.spatial_tendon_offset
 
+
 ##
 # Test Cases -- Root state properties.
 ##
+
 
 class TestRootLinkPoseW:
     """Tests the root link pose property
@@ -743,18 +912,18 @@ class TestRootLinkPoseW:
     - Checks that the returned value is a pointer to the internal data.
     - Checks that the returned value is correct.
     """
-    
+
     def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
-        
+
         articulation_data = ArticulationData(
             mock_view,
             device,
         )
-        
+
         return articulation_data, mock_view
-        
+
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_root_link_pose_w(self, mock_newton_manager, num_instances: int, device: str):
@@ -764,29 +933,29 @@ class TestRootLinkPoseW:
         # Check the type and shape
         assert articulation_data.root_link_pose_w.shape == (num_instances,)
         assert articulation_data.root_link_pose_w.dtype == wp.transformf
-        
+
         # Mock data is initialized to zeros
         assert torch.all(wp.to_torch(articulation_data.root_link_pose_w) == torch.zeros((1, 7), device=device))
 
         # Get the property
         root_link_pose_w = articulation_data.root_link_pose_w
-          
+
         # Assign a different value to the internal data
         articulation_data.root_link_pose_w.fill_(1.0)
-        
+
         # Check that the property returns the new value (reference behavior)
         assert torch.all(wp.to_torch(articulation_data.root_link_pose_w) == torch.ones((1, 7), device=device))
-        
+
         # Assign a different value to the pointers
         root_link_pose_w.fill_(2.0)
-        
+
         # Check that the internal data has been updated
         assert torch.all(wp.to_torch(articulation_data.root_link_pose_w) == torch.ones((1, 7), device=device) * 2.0)
-        
+
 
 class TestRootLinkVelW:
     """Tests the root link velocity property
-    
+
     This value is derived from the root center of mass velocity. To ensure that the value is correctly computed,
     we will compare the calculated value to the one currently calculated in the version 2.3.1 of IsaacLab.
 
@@ -800,7 +969,7 @@ class TestRootLinkVelW:
     def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
-        
+
         articulation_data = ArticulationData(
             mock_view,
             device,
@@ -812,13 +981,15 @@ class TestRootLinkVelW:
     def test_correctness(self, mock_newton_manager, num_instances: int, device: str):
         """Test that the root link velocity property is correctly computed."""
         articulation_data, mock_view = self._setup_method(num_instances, device)
-        
+
         # Check the type and shape
         assert articulation_data.root_link_vel_w.shape == (num_instances,)
         assert articulation_data.root_link_vel_w.dtype == wp.spatial_vectorf
 
         # Mock data is initialized to zeros
-        assert torch.all(wp.to_torch(articulation_data.root_link_vel_w) == torch.zeros((num_instances, 6), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.root_link_vel_w) == torch.zeros((num_instances, 6), device=device)
+        )
 
         for i in range(10):
             articulation_data._sim_timestamp = i + 1.0
@@ -826,8 +997,8 @@ class TestRootLinkVelW:
             com_vel = torch.rand((num_instances, 6), device=device)
             body_com_pos = torch.rand((num_instances, 1, 3), device=device)
             root_link_pose = torch.zeros((num_instances, 7), device=device)
-            root_link_pose[:,3:] = torch.randn((num_instances, 4), device=device)
-            root_link_pose[:,3:] = torch.nn.functional.normalize(root_link_pose[:,3:], p=2.0, dim=-1, eps=1e-12)
+            root_link_pose[:, 3:] = torch.randn((num_instances, 4), device=device)
+            root_link_pose[:, 3:] = torch.nn.functional.normalize(root_link_pose[:, 3:], p=2.0, dim=-1, eps=1e-12)
             mock_view.set_mock_data(
                 root_transforms=wp.from_torch(root_link_pose, dtype=wp.transformf),
                 root_velocities=wp.from_torch(com_vel, dtype=wp.spatial_vectorf),
@@ -848,7 +1019,7 @@ class TestRootLinkVelW:
     def test_update_timestamp(self, mock_newton_manager, device: str):
         """Test that the timestamp is updated correctly."""
         articulation_data, mock_view = self._setup_method(1, device)
-        
+
         # Check that the timestamp is initialized to -1.0
         assert articulation_data._root_link_vel_w.timestamp == -1.0
 
@@ -881,7 +1052,7 @@ class TestRootLinkVelW:
 
 class TestRootComPoseW:
     """Tests the root center of mass pose property
-    
+
     This value is derived from the root link pose and the body com position. To ensure that the value is correctly computed,
     we will compare the calculated value to the one currently calculated in the version 2.3.1 of IsaacLab.
 
@@ -891,7 +1062,7 @@ class TestRootComPoseW:
     - Checks that the timestamp is updated correctly.
     - Checks that the data is invalidated when the timestamp is updated.
     """
-    
+
     def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
@@ -907,21 +1078,23 @@ class TestRootComPoseW:
     def test_root_com_pose_w(self, mock_newton_manager, num_instances: int, device: str):
         """Test that the root center of mass pose property returns a pointer to the internal data."""
         articulation_data, mock_view = self._setup_method(num_instances, device)
-        
+
         # Check the type and shape
         assert articulation_data.root_com_pose_w.shape == (num_instances,)
         assert articulation_data.root_com_pose_w.dtype == wp.transformf
 
         # Mock data is initialized to zeros
-        assert torch.all(wp.to_torch(articulation_data.root_com_pose_w) == torch.zeros((num_instances, 7), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.root_com_pose_w) == torch.zeros((num_instances, 7), device=device)
+        )
 
         for i in range(10):
             articulation_data._sim_timestamp = i + 1.0
             # Generate random root link pose and body com position
             root_link_pose = torch.zeros((num_instances, 7), device=device)
-            root_link_pose[:,:3] = torch.rand((num_instances, 3), device=device)
-            root_link_pose[:,3:] = torch.randn((num_instances, 4), device=device)
-            root_link_pose[:,3:] = torch.nn.functional.normalize(root_link_pose[:,3:], p=2.0, dim=-1, eps=1e-12)
+            root_link_pose[:, :3] = torch.rand((num_instances, 3), device=device)
+            root_link_pose[:, 3:] = torch.randn((num_instances, 4), device=device)
+            root_link_pose[:, 3:] = torch.nn.functional.normalize(root_link_pose[:, 3:], p=2.0, dim=-1, eps=1e-12)
             body_com_pos = torch.rand((num_instances, 1, 3), device=device)
             mock_view.set_mock_data(
                 root_transforms=wp.from_torch(root_link_pose, dtype=wp.transformf),
@@ -929,11 +1102,11 @@ class TestRootComPoseW:
             )
 
             # Use the original IsaacLab code to compute the root center of mass pose
-            root_link_pos_w = root_link_pose[:,:3]
-            root_link_quat_w = root_link_pose[:,3:]
+            root_link_pos_w = root_link_pose[:, :3]
+            root_link_quat_w = root_link_pose[:, 3:]
             body_com_pos_b = body_com_pos.clone()
             body_com_quat_b = torch.zeros((num_instances, 1, 4), device=device)
-            body_com_quat_b[:,:,3] = 1.0
+            body_com_quat_b[:, :, 3] = 1.0
             # --- IL 2.3.1 code ---
             pos, quat = math_utils.combine_frame_transforms(
                 root_link_pos_w, root_link_quat_w, body_com_pos_b[:, 0], body_com_quat_b[:, 0]
@@ -944,12 +1117,11 @@ class TestRootComPoseW:
             # Compare the computed value to the one from the articulation data
             assert torch.allclose(wp.to_torch(articulation_data.root_com_pose_w), root_com_pose, atol=1e-6, rtol=1e-6)
 
-
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_update_timestamp(self, mock_newton_manager, device: str):
         """Test that the timestamp is updated correctly."""
         articulation_data, mock_view = self._setup_method(1, device)
-        
+
         # Check that the timestamp is initialized to -1.0
         assert articulation_data._root_com_pose_w.timestamp == -1.0
 
@@ -979,9 +1151,10 @@ class TestRootComPoseW:
         # Check that the property value was updated
         assert torch.all(wp.to_torch(articulation_data.root_com_pose_w) != value)
 
+
 class TestRootComVelW:
     """Tests the root center of mass velocity property
-    
+
     This value is read from the simulation. There is no math to check for.
 
     Checks that the returned value is a pointer to the internal data.
@@ -1006,28 +1179,33 @@ class TestRootComVelW:
         # Check the type and shape
         assert articulation_data.root_com_vel_w.shape == (num_instances,)
         assert articulation_data.root_com_vel_w.dtype == wp.spatial_vectorf
-        
+
         # Mock data is initialized to zeros
-        assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.zeros((num_instances, 6), device=device))
+        assert torch.all(
+            wp.to_torch(articulation_data.root_com_vel_w) == torch.zeros((num_instances, 6), device=device)
+        )
 
         # Get the property
         root_com_vel_w = articulation_data.root_com_vel_w
-          
+
         # Assign a different value to the internal data
         articulation_data.root_com_vel_w.fill_(1.0)
-        
+
         # Check that the property returns the new value (reference behavior)
         assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.ones((num_instances, 6), device=device))
-        
+
         # Assign a different value to the pointers
         root_com_vel_w.fill_(2.0)
-        
+
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.ones((num_instances, 6), device=device) * 2.0)
+        assert torch.all(
+            wp.to_torch(articulation_data.root_com_vel_w) == torch.ones((num_instances, 6), device=device) * 2.0
+        )
+
 
 class TestRootState:
     """Tests the root state properties
-    
+
     Test the root state properties are correctly updated from the pose and velocity properties.
     Tests the following properties:
     - root_state_w
@@ -1042,7 +1220,7 @@ class TestRootState:
     def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
-        
+
         articulation_data = ArticulationData(
             mock_view,
             device,
@@ -1054,53 +1232,53 @@ class TestRootState:
     def test_all_root_state_properties(self, mock_newton_manager, num_instances: int, device: str):
         """Test that all root state properties correctly combine pose and velocity."""
         articulation_data, mock_view = self._setup_method(num_instances, device)
-        
+
         # Generate random mock data
         for i in range(5):
             articulation_data._sim_timestamp = i + 1.0
-            
+
             # Generate random root link pose
             root_link_pose = torch.zeros((num_instances, 7), device=device)
             root_link_pose[:, :3] = torch.rand((num_instances, 3), device=device)
             root_link_pose[:, 3:] = torch.randn((num_instances, 4), device=device)
             root_link_pose[:, 3:] = torch.nn.functional.normalize(root_link_pose[:, 3:], p=2.0, dim=-1, eps=1e-12)
-            
+
             # Generate random velocities and com position
             com_vel = torch.rand((num_instances, 6), device=device)
             body_com_pos = torch.rand((num_instances, 1, 3), device=device)
-            
+
             mock_view.set_mock_data(
                 root_transforms=wp.from_torch(root_link_pose, dtype=wp.transformf),
                 root_velocities=wp.from_torch(com_vel, dtype=wp.spatial_vectorf),
                 body_com_pos=wp.from_torch(body_com_pos, dtype=wp.vec3f),
             )
-            
+
             # --- Test root_state_w ---
             # Combines root_link_pose_w with root_com_vel_w
             root_state = wp.to_torch(articulation_data.root_state_w)
             expected_root_state = torch.cat([root_link_pose, com_vel], dim=-1)
-            
+
             assert root_state.shape == (num_instances, 13)
             assert torch.allclose(root_state, expected_root_state, atol=1e-6, rtol=1e-6)
-            
+
             # --- Test root_link_state_w ---
             # Combines root_link_pose_w with root_link_vel_w
             root_link_state = wp.to_torch(articulation_data.root_link_state_w)
-            
+
             # Compute expected root_link_vel from com_vel (same as TestRootLinkVelW)
             root_link_vel = com_vel.clone()
             root_link_vel[:, :3] += torch.linalg.cross(
                 root_link_vel[:, 3:], math_utils.quat_apply(root_link_pose[:, 3:], -body_com_pos[:, 0]), dim=-1
             )
             expected_root_link_state = torch.cat([root_link_pose, root_link_vel], dim=-1)
-            
+
             assert root_link_state.shape == (num_instances, 13)
             assert torch.allclose(root_link_state, expected_root_link_state, atol=1e-6, rtol=1e-6)
-            
+
             # --- Test root_com_state_w ---
             # Combines root_com_pose_w with root_com_vel_w
             root_com_state = wp.to_torch(articulation_data.root_com_state_w)
-            
+
             # Compute expected root_com_pose from root_link_pose and body_com_pos (same as TestRootComPoseW)
             body_com_quat_b = torch.zeros((num_instances, 4), device=device)
             body_com_quat_b[:, 3] = 1.0
@@ -1108,17 +1286,19 @@ class TestRootState:
                 root_link_pose[:, :3], root_link_pose[:, 3:], body_com_pos[:, 0], body_com_quat_b
             )
             expected_root_com_state = torch.cat([root_com_pos, root_com_quat, com_vel], dim=-1)
-            
+
             assert root_com_state.shape == (num_instances, 13)
             assert torch.allclose(root_com_state, expected_root_com_state, atol=1e-6, rtol=1e-6)
-        
+
+
 ##
 # Test Cases -- Body state properties.
 ##
 
+
 class TestBodyMassInertia:
     """Tests the body mass and inertia properties.
-    
+
     These values are read directly from the simulation bindings.
 
     Tests the following properties:
@@ -1130,10 +1310,12 @@ class TestBodyMassInertia:
     - Checks that the returned value is a reference to the internal data.
     """
 
-    def _setup_method(self, num_instances: int, num_bodies: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(
+        self, num_instances: int, num_bodies: int, device: str
+    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, num_bodies, 1, device)
         mock_view.set_mock_data()
-        
+
         articulation_data = ArticulationData(
             mock_view,
             device,
@@ -1146,61 +1328,68 @@ class TestBodyMassInertia:
     def test_body_mass_and_inertia(self, mock_newton_manager, num_instances: int, num_bodies: int, device: str):
         """Test that body_mass and body_inertia have correct types, shapes, and reference behavior."""
         articulation_data, mock_view = self._setup_method(num_instances, num_bodies, device)
-        
+
         # --- Test body_mass ---
         # Check the type and shape
         assert articulation_data.body_mass.shape == (num_instances, num_bodies)
         assert articulation_data.body_mass.dtype == wp.float32
-        
+
         # Mock data initializes body_mass to ones
-        assert torch.all(wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device))
-        
+        assert torch.all(
+            wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device)
+        )
+
         # Get the property reference
         body_mass_ref = articulation_data.body_mass
-        
+
         # Assign a different value to the internal data via property
         articulation_data.body_mass.fill_(2.0)
-        
+
         # Check that the property returns the new value (reference behavior)
-        assert torch.all(wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device) * 2.0)
-        
+        assert torch.all(
+            wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device) * 2.0
+        )
+
         # Assign a different value via reference
         body_mass_ref.fill_(3.0)
-        
+
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device) * 3.0)
-        
+        assert torch.all(
+            wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device) * 3.0
+        )
+
         # --- Test body_inertia ---
         # Check the type and shape
         assert articulation_data.body_inertia.shape == (num_instances, num_bodies)
         assert articulation_data.body_inertia.dtype == wp.mat33f
-        
+
         # Mock data initializes body_inertia to zeros
         expected_inertia = torch.zeros((num_instances, num_bodies, 3, 3), device=device)
         assert torch.all(wp.to_torch(articulation_data.body_inertia) == expected_inertia)
-        
+
         # Get the property reference
         body_inertia_ref = articulation_data.body_inertia
-        
+
         # Assign a different value to the internal data via property
         articulation_data.body_inertia.fill_(1.0)
-        
+
         # Check that the property returns the new value (reference behavior)
         expected_inertia_ones = torch.ones((num_instances, num_bodies, 3, 3), device=device)
         assert torch.all(wp.to_torch(articulation_data.body_inertia) == expected_inertia_ones)
-        
+
         # Assign a different value via reference
         body_inertia_ref.fill_(2.0)
-        
+
         # Check that the internal data has been updated
         expected_inertia_twos = torch.ones((num_instances, num_bodies, 3, 3), device=device) * 2.0
         assert torch.all(wp.to_torch(articulation_data.body_inertia) == expected_inertia_twos)
+
 
 class TestBodyLinkPoseW:
     """Tests the body link pose property.
 
     This value is read directly from the simulation bindings.
-    
+
     Runs the following checks:
     - Checks that the returned value has the correct type and shape.
     - Checks that the returned value is a reference to the internal data.
@@ -1296,7 +1485,7 @@ class TestBodyLinkVelW:
             # Generate random COM velocity and body COM position
             com_vel = torch.rand((num_instances, num_bodies, 6), device=device)
             body_com_pos = torch.rand((num_instances, num_bodies, 3), device=device)
-            
+
             # Generate random link poses with normalized quaternions
             link_pose = torch.zeros((num_instances, num_bodies, 7), device=device)
             link_pose[..., :3] = torch.rand((num_instances, num_bodies, 3), device=device)
@@ -1319,9 +1508,7 @@ class TestBodyLinkVelW:
             )
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.body_link_vel_w), expected_vel, atol=1e-6, rtol=1e-6
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.body_link_vel_w), expected_vel, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_timestamp_invalidation(self, mock_newton_manager, device: str):
@@ -1422,9 +1609,7 @@ class TestBodyComPoseW:
             expected_pose = torch.cat([expected_pos, expected_quat], dim=-1)
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.body_com_pose_w), expected_pose, atol=1e-6, rtol=1e-6
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.body_com_pose_w), expected_pose, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_timestamp_invalidation(self, mock_newton_manager, device: str):
@@ -1543,9 +1728,7 @@ class TestBodyState:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_bodies", [1, 3])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_all_body_state_properties(
-        self, mock_newton_manager, num_instances: int, num_bodies: int, device: str
-    ):
+    def test_all_body_state_properties(self, mock_newton_manager, num_instances: int, num_bodies: int, device: str):
         """Test that all body state properties correctly combine pose and velocity."""
         articulation_data, mock_view = self._setup_method(num_instances, num_bodies, device)
 
@@ -1557,9 +1740,7 @@ class TestBodyState:
             body_link_pose = torch.zeros((num_instances, num_bodies, 7), device=device)
             body_link_pose[..., :3] = torch.rand((num_instances, num_bodies, 3), device=device)
             body_link_pose[..., 3:] = torch.randn((num_instances, num_bodies, 4), device=device)
-            body_link_pose[..., 3:] = torch.nn.functional.normalize(
-                body_link_pose[..., 3:], p=2.0, dim=-1, eps=1e-12
-            )
+            body_link_pose[..., 3:] = torch.nn.functional.normalize(body_link_pose[..., 3:], p=2.0, dim=-1, eps=1e-12)
 
             # Generate random COM velocities and COM position
             com_vel = torch.rand((num_instances, num_bodies, 6), device=device)
@@ -1626,7 +1807,7 @@ class TestBodyComAccW:
         self, num_instances: int, num_bodies: int, device: str, initial_vel: torch.Tensor | None = None
     ) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, num_bodies, 1, device)
-        
+
         # Set initial velocities (these become _previous_body_com_vel)
         if initial_vel is not None:
             mock_view.set_mock_data(
@@ -1670,9 +1851,7 @@ class TestBodyComAccW:
             expected_acc = (current_vel - previous_vel) / dt
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.body_com_acc_w), expected_acc, atol=1e-5, rtol=1e-5
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.body_com_acc_w), expected_acc, atol=1e-5, rtol=1e-5)
             # Update previous velocity
             previous_vel = current_vel.clone()
 
@@ -1777,9 +1956,7 @@ class TestBodyIncomingJointWrenchB:
     - Checks that the property raises NotImplementedError.
     """
 
-    def _setup_method(
-        self, num_instances: int, num_bodies: int, device: str
-    ) -> ArticulationData:
+    def _setup_method(self, num_instances: int, num_bodies: int, device: str) -> ArticulationData:
         mock_view = MockNewtonArticulationView(num_instances, num_bodies, 1, device)
         mock_view.set_mock_data()
 
@@ -1796,6 +1973,7 @@ class TestBodyIncomingJointWrenchB:
 
         with pytest.raises(NotImplementedError):
             _ = articulation_data.body_incoming_joint_wrench_b
+
 
 ##
 # Test Cases -- Joint state properties.
@@ -1831,9 +2009,7 @@ class TestJointPosVel:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_joint_pos_and_vel(
-        self, mock_newton_manager, num_instances: int, num_joints: int, device: str
-    ):
+    def test_joint_pos_and_vel(self, mock_newton_manager, num_instances: int, num_joints: int, device: str):
         """Test that joint_pos and joint_vel have correct type, shape, and reference behavior."""
         articulation_data, mock_view = self._setup_method(num_instances, num_joints, device)
 
@@ -1923,9 +2099,7 @@ class TestJointAcc:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_correctness(
-        self, mock_newton_manager, num_instances: int, num_joints: int, device: str
-    ):
+    def test_correctness(self, mock_newton_manager, num_instances: int, num_joints: int, device: str):
         """Test that joint_acc is correctly computed from velocity finite differencing."""
         # Initial velocity (becomes previous_velocity)
         previous_vel = torch.rand((num_instances, num_joints), device=device)
@@ -1951,9 +2125,7 @@ class TestJointAcc:
             expected_acc = (current_vel - previous_vel) / dt
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.joint_acc), expected_acc, atol=1e-5, rtol=1e-5
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.joint_acc), expected_acc, atol=1e-5, rtol=1e-5)
             # Update previous velocity
             previous_vel = current_vel.clone()
 
@@ -1990,9 +2162,11 @@ class TestJointAcc:
         # Value should now be recomputed (different from cached)
         assert not torch.all(wp.to_torch(articulation_data.joint_acc) == value)
 
+
 ##
 # Test Cases -- Derived properties.
 ##
+
 
 class TestProjectedGravityB:
     """Tests the projected gravity in body frame property.
@@ -2005,9 +2179,7 @@ class TestProjectedGravityB:
     - Checks that the timestamp is updated correctly.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2047,9 +2219,7 @@ class TestProjectedGravityB:
             expected = math_utils.quat_apply_inverse(root_pose[:, 3:], gravity_dir.expand(num_instances, 3))
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.projected_gravity_b), expected, atol=1e-4, rtol=1e-4
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.projected_gravity_b), expected, atol=1e-4, rtol=1e-4)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_timestamp_invalidation(self, mock_newton_manager, device: str):
@@ -2098,9 +2268,7 @@ class TestHeadingW:
     - Checks that the timestamp is updated correctly.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2142,9 +2310,7 @@ class TestHeadingW:
             print(f"expected: {expected}")
 
             # Compare the computed value
-            assert torch.allclose(
-                wp.to_torch(articulation_data.heading_w), expected, atol=1e-6, rtol=1e-6
-            )
+            assert torch.allclose(wp.to_torch(articulation_data.heading_w), expected, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_timestamp_invalidation(self, mock_newton_manager, device: str):
@@ -2196,9 +2362,7 @@ class TestRootLinkVelB:
     - Checks that lin/ang velocities are correct slices.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2321,9 +2485,7 @@ class TestRootComVelB:
     - Checks that lin/ang velocities are correct slices.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2440,9 +2602,7 @@ class TestRootSlicedProperties:
     For each property, we only check that they are the correct slice of the parent property.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2546,9 +2706,7 @@ class TestBodySlicedProperties:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_bodies", [1, 3])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_all_body_sliced_properties(
-        self, mock_newton_manager, num_instances: int, num_bodies: int, device: str
-    ):
+    def test_all_body_sliced_properties(self, mock_newton_manager, num_instances: int, num_bodies: int, device: str):
         """Test that all body sliced properties are correct slices of their parent properties."""
         articulation_data, mock_view = self._setup_method(num_instances, num_bodies, device)
 
@@ -2638,9 +2796,7 @@ class TestBodyComPosQuatB:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_bodies", [1, 3])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_body_com_pos_and_quat_b(
-        self, mock_newton_manager, num_instances: int, num_bodies: int, device: str
-    ):
+    def test_body_com_pos_and_quat_b(self, mock_newton_manager, num_instances: int, num_bodies: int, device: str):
         """Test that body_com_pos_b and body_com_quat_b have correct types, shapes, and values."""
         articulation_data, mock_view = self._setup_method(num_instances, num_bodies, device)
 
@@ -2685,11 +2841,13 @@ class TestBodyComPosQuatB:
 
         assert torch.allclose(body_com_quat, expected_quat, atol=1e-6)
 
+
 ##
 # Test Cases -- Backward compatibility.
 ##
 
-#TODO: Remove this test case in the future.
+
+# TODO: Remove this test case in the future.
 class TestDefaultRootState:
     """Tests the deprecated default_root_state property.
 
@@ -2701,9 +2859,7 @@ class TestDefaultRootState:
     - Checks that it correctly combines default_root_pose and default_root_vel.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2751,7 +2907,8 @@ class TestDefaultRootState:
         expected_updated_state = torch.cat([new_pose, new_vel], dim=-1)
         assert torch.allclose(updated_state, expected_updated_state, atol=1e-6)
 
-#TODO: Remove this test case in the future.
+
+# TODO: Remove this test case in the future.
 class TestDeprecatedRootProperties:
     """Tests the deprecated root pose/velocity properties.
 
@@ -2768,9 +2925,7 @@ class TestDeprecatedRootProperties:
     - root_ang_vel_b -> root_com_ang_vel_b
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -3002,9 +3157,7 @@ class TestDeprecatedComProperties:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_bodies", [1, 3])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_deprecated_com_properties(
-        self, mock_newton_manager, num_instances: int, num_bodies: int, device: str
-    ):
+    def test_deprecated_com_properties(self, mock_newton_manager, num_instances: int, num_bodies: int, device: str):
         """Test that deprecated COM properties match their replacements."""
         articulation_data, mock_view = self._setup_method(num_instances, num_bodies, device)
 
@@ -3061,9 +3214,7 @@ class TestDeprecatedJointMiscProperties:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_deprecated_joint_properties(
-        self, mock_newton_manager, num_instances: int, num_joints: int, device: str
-    ):
+    def test_deprecated_joint_properties(self, mock_newton_manager, num_instances: int, num_joints: int, device: str):
         """Test that deprecated joint properties match their replacements."""
         articulation_data, _ = self._setup_method(num_instances, num_joints, device)
 
@@ -3138,4 +3289,3 @@ class TestDeprecatedJointMiscProperties:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

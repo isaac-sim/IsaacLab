@@ -96,7 +96,8 @@ def velocity_projector(
     Returns:
         wp.spatial_vectorf: The projected velocity in the link frame. Shape is (6,).
     """
-    u = wp.spatial_top(com_velocity) + wp.cross(wp.spatial_bottom(com_velocity),
+    u = wp.spatial_top(com_velocity) + wp.cross(
+        wp.spatial_bottom(com_velocity),
         wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
     )
     w = wp.spatial_bottom(com_velocity)
