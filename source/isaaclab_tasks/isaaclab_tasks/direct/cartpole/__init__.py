@@ -40,6 +40,17 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-Cartpole-Albedo-Camera-Direct-v0",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleAlbedoCameraEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
     id="Isaac-Cartpole-Depth-Camera-Direct-v0",
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,

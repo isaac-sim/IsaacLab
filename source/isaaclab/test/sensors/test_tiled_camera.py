@@ -21,11 +21,12 @@ import random
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
+
+from isaaclab.sim.utils import stage as stage_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -508,6 +509,60 @@ def test_rgba_only_camera(setup_camera, device):
             for i in range(4):
                 assert (im_data[i] / 255.0).mean() > 0.0
     assert camera.data.output["rgba"].dtype == torch.uint8
+    del camera
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_albedo_only_camera(setup_camera, device):
+    """Test initialization with only albedo."""
+    sim, camera_cfg, dt = setup_camera
+    num_cameras = 9
+    for i in range(num_cameras):
+        prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    # Create camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["albedo"]
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.has_rtx_sensors()
+    # Play sim
+    sim.reset()
+    # Check if camera is initialized
+    assert camera.is_initialized
+    # Check if camera prim is set correctly and that it is a camera prim
+    assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
+    assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
+    assert list(camera.data.output.keys()) == ["albedo"]
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+
+    # Check buffers that exists and have correct shapes
+    assert camera.data.pos_w.shape == (num_cameras, 3)
+    assert camera.data.quat_w_ros.shape == (num_cameras, 4)
+    assert camera.data.quat_w_world.shape == (num_cameras, 4)
+    assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
+    assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
+    assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        camera.update(dt)
+        # check image data
+        for _, im_data in camera.data.output.items():
+            assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
+            for i in range(4):
+                assert (im_data[i] / 255.0).mean() > 0.0
+    assert camera.data.output["albedo"].dtype == torch.uint8
     del camera
 
 
@@ -1068,6 +1123,7 @@ def test_all_annotators_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1124,6 +1180,7 @@ def test_all_annotators_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1145,6 +1202,7 @@ def test_all_annotators_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1168,6 +1226,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1226,6 +1285,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1247,6 +1307,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1270,6 +1331,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1326,6 +1388,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1347,6 +1410,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1370,6 +1434,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1450,6 +1515,7 @@ def test_all_annotators_instanceable(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1478,6 +1544,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float

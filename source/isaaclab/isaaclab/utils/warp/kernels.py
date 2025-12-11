@@ -131,3 +131,46 @@ wp.overload(
     reshape_tiled_image,
     {"tiled_image_buffer": wp.array(dtype=wp.float32), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
 )
+
+
+@wp.kernel(enable_backward=False)
+def reshape_tiled_image_motion_vectors(
+    tiled_image_buffer: wp.array(dtype=wp.float32),
+    batched_image: wp.array(dtype=wp.float32, ndim=4),
+    image_height: int,
+    image_width: int,
+    num_tiles_x: int,
+):
+    """Reshapes a tiled motion vectors image into a batch of 2-channel images.
+
+    Motion vectors from the tiled renderer have 4 channels but only the first 2 are needed.
+    This kernel directly extracts only the first 2 channels, avoiding intermediate slicing
+    and contiguous operations that can cause issues with NumPy 2.0.
+
+    Args:
+        tiled_image_buffer: The input image buffer with 4 channels. Shape is (height * width * 4 * num_cameras,).
+        batched_image: The output image with 2 channels. Shape is (num_cameras, height, width, 2).
+        image_height: The height of the image.
+        image_width: The width of the image.
+        num_tiles_x: The number of tiles in x-direction.
+    """
+    # get the thread id
+    camera_id, height_id, width_id = wp.tid()
+
+    # Input has 4 channels, output has 2 channels
+    input_channels = 4
+    output_channels = 2
+
+    # resolve the tile indices
+    tile_x_id = camera_id % num_tiles_x
+    tile_y_id = camera_id // num_tiles_x
+    # compute the start index of the pixel in the tiled image buffer (using 4 channels)
+    pixel_start = (
+        input_channels * num_tiles_x * image_width * (image_height * tile_y_id + height_id)
+        + input_channels * tile_x_id * image_width
+        + input_channels * width_id
+    )
+
+    # copy only the first 2 channel values into the batched image
+    for i in range(output_channels):
+        batched_image[camera_id, height_id, width_id, i] = tiled_image_buffer[pixel_start + i]
