@@ -19,16 +19,15 @@ Example:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import numpy as np
 import time
+import torch
 import warnings
 from dataclasses import dataclass
-from typing import Callable
 from unittest.mock import MagicMock, patch
 
-import numpy as np
-import torch
 import warp as wp
-
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 
 # Import mock classes from shared module
@@ -48,8 +47,8 @@ def get_git_info() -> dict:
     Returns:
         Dictionary containing git commit hash, branch, and other info.
     """
-    import subprocess
     import os
+    import subprocess
 
     git_info = {
         "commit_hash": "Unknown",
@@ -108,43 +107,37 @@ def get_hardware_info() -> dict:
     Returns:
         Dictionary containing CPU, GPU, and memory information.
     """
-    import platform
     import os
+    import platform
 
     hardware_info = {
-        "cpu": {},
+        "cpu": {
+            "name": platform.processor() or "Unknown",
+            "physical_cores": os.cpu_count(),
+        },
         "gpu": {},
         "memory": {},
-        "system": {},
+        "system": {
+            "platform": platform.system(),
+            "platform_release": platform.release(),
+            "platform_version": platform.version(),
+            "architecture": platform.machine(),
+            "python_version": platform.python_version(),
+        },
     }
-
-    # System info
-    hardware_info["system"] = {
-        "platform": platform.system(),
-        "platform_release": platform.release(),
-        "platform_version": platform.version(),
-        "architecture": platform.machine(),
-        "python_version": platform.python_version(),
-    }
-
-    # CPU info
-    hardware_info["cpu"]["name"] = platform.processor() or "Unknown"
-    hardware_info["cpu"]["physical_cores"] = os.cpu_count()
 
     # Try to get more detailed CPU info on Linux
-    try:
-        with open("/proc/cpuinfo", "r") as f:
+    with contextlib.suppress(Exception):
+        with open("/proc/cpuinfo") as f:
             cpuinfo = f.read()
             for line in cpuinfo.split("\n"):
                 if "model name" in line:
                     hardware_info["cpu"]["name"] = line.split(":")[1].strip()
                     break
-    except Exception:
-        pass
 
     # Memory info
     try:
-        with open("/proc/meminfo", "r") as f:
+        with open("/proc/meminfo") as f:
             meminfo = f.read()
             for line in meminfo.split("\n"):
                 if "MemTotal" in line:
@@ -156,6 +149,7 @@ def get_hardware_info() -> dict:
         # Fallback using psutil if available
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             hardware_info["memory"]["total_gb"] = round(mem.total / (1024**3), 2)
         except ImportError:
@@ -189,6 +183,7 @@ def get_hardware_info() -> dict:
     if torch.cuda.is_available():
         try:
             import torch.version as torch_version
+
             cuda_version = getattr(torch_version, "cuda", None)
             hardware_info["gpu"]["cuda_version"] = cuda_version if cuda_version else "Unknown"
         except Exception:
@@ -249,7 +244,7 @@ def print_hardware_info(hardware_info: dict):
 
     # Repository info (get separately since it's not part of hardware)
     repo_info = get_git_info()
-    print(f"\nRepository:")
+    print("\nRepository:")
     print(f"     Commit: {repo_info.get('commit_hash_short', 'Unknown')}")
     print(f"     Branch: {repo_info.get('branch', 'Unknown')}")
     print(f"     Date:   {repo_info.get('commit_date', 'Unknown')}")
@@ -570,11 +565,9 @@ def benchmark_property(
 
         # Call dependencies first to populate their caches (not timed)
         # This ensures we only measure the overhead of the derived property
-        try:
+        with contextlib.suppress(Exception):
             for dep in dependencies:
                 _ = getattr(articulation_data, dep)
-        except Exception:
-            pass
 
         # Sync before timing
         if config.device.startswith("cuda"):
@@ -693,13 +686,16 @@ def print_results(results: list[BenchmarkResult]):
         name_display = result.name
         if result.dependencies:
             name_display = f"{result.name} *"
-        print(f"{name_display:<45} {result.mean_time_us:>12.2f}   {result.std_time_us:>12.2f}   {result.num_iterations:>10}")
+        print(
+            f"{name_display:<45} {result.mean_time_us:>12.2f}   {result.std_time_us:>12.2f}  "
+            f" {result.num_iterations:>10}"
+        )
 
     # Print summary statistics
     if completed:
         print("-" * 87)
         mean_times = [r.mean_time_us for r in completed]
-        print(f"\nSummary Statistics:")
+        print("\nSummary Statistics:")
         print(f"  Total properties benchmarked: {len(completed)}")
         print(f"  Fastest: {min(mean_times):.2f} µs ({completed[-1].name})")
         print(f"  Slowest: {max(mean_times):.2f} µs ({completed[0].name})")
@@ -710,7 +706,7 @@ def print_results(results: list[BenchmarkResult]):
         derived_count = sum(1 for r in completed if r.dependencies)
         if derived_count > 0:
             print(f"\n  * = Derived property ({derived_count} total). Dependencies were pre-computed")
-            print(f"      before timing to measure isolated overhead.")
+            print("      before timing to measure isolated overhead.")
 
     # Print skipped results
     if skipped:
@@ -747,9 +743,7 @@ def export_results_csv(results: list[BenchmarkResult], filename: str):
     print(f"\nResults exported to {filename}")
 
 
-def export_results_json(
-    results: list[BenchmarkResult], config: BenchmarkConfig, hardware_info: dict, filename: str
-):
+def export_results_json(results: list[BenchmarkResult], config: BenchmarkConfig, hardware_info: dict, filename: str):
     """Export benchmark results to a JSON file.
 
     Args:
@@ -915,4 +909,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

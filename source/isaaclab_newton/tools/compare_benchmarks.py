@@ -23,7 +23,6 @@ import math
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 
 class ChangeType(Enum):
@@ -67,7 +66,7 @@ def load_benchmark(filepath: str) -> dict:
         FileNotFoundError: If the file doesn't exist.
         json.JSONDecodeError: If the file is not valid JSON.
     """
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         return json.load(f)
 
 
@@ -227,7 +226,9 @@ def print_metadata_comparison(baseline_data: dict, current_data: dict):
     print(f"\n{'':30} {'BASELINE':>30} {'CURRENT':>30}")
     print("-" * 100)
     print(f"{'Timestamp:':<30} {baseline_meta.get('timestamp', 'N/A'):>30} {current_meta.get('timestamp', 'N/A'):>30}")
-    print(f"{'Commit:':<30} {baseline_repo.get('commit_hash_short', 'N/A'):>30} {current_repo.get('commit_hash_short', 'N/A'):>30}")
+    print(
+        f"{'Commit:':<30} {baseline_repo.get('commit_hash_short', 'N/A'):>30} {current_repo.get('commit_hash_short', 'N/A'):>30}"
+    )
     print(f"{'Branch:':<30} {baseline_repo.get('branch', 'N/A'):>30} {current_repo.get('branch', 'N/A'):>30}")
 
     # Config
@@ -235,10 +236,18 @@ def print_metadata_comparison(baseline_data: dict, current_data: dict):
     current_config = current_meta.get("config", {})
 
     print(f"\n{'Configuration:':<30}")
-    print(f"{'  Iterations:':<30} {baseline_config.get('num_iterations', 'N/A'):>30} {current_config.get('num_iterations', 'N/A'):>30}")
-    print(f"{'  Instances:':<30} {baseline_config.get('num_instances', 'N/A'):>30} {current_config.get('num_instances', 'N/A'):>30}")
-    print(f"{'  Bodies:':<30} {baseline_config.get('num_bodies', 'N/A'):>30} {current_config.get('num_bodies', 'N/A'):>30}")
-    print(f"{'  Joints:':<30} {baseline_config.get('num_joints', 'N/A'):>30} {current_config.get('num_joints', 'N/A'):>30}")
+    print(
+        f"{'  Iterations:':<30} {baseline_config.get('num_iterations', 'N/A'):>30} {current_config.get('num_iterations', 'N/A'):>30}"
+    )
+    print(
+        f"{'  Instances:':<30} {baseline_config.get('num_instances', 'N/A'):>30} {current_config.get('num_instances', 'N/A'):>30}"
+    )
+    print(
+        f"{'  Bodies:':<30} {baseline_config.get('num_bodies', 'N/A'):>30} {current_config.get('num_bodies', 'N/A'):>30}"
+    )
+    print(
+        f"{'  Joints:':<30} {baseline_config.get('num_joints', 'N/A'):>30} {current_config.get('num_joints', 'N/A'):>30}"
+    )
 
     # Hardware
     baseline_hw = baseline_meta.get("hardware", {})
@@ -285,7 +294,9 @@ def print_comparison_results(
         print("\n" + "=" * 115)
         print(f"🔴 REGRESSIONS ({len(regressions)} properties)")
         print("=" * 115)
-        print(f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}")
+        print(
+            f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}"
+        )
         print("-" * 115)
         for comp in regressions:
             change_str = f"+{comp.absolute_change_us:.2f}" if comp.absolute_change_us else "N/A"
@@ -301,7 +312,9 @@ def print_comparison_results(
         print("\n" + "=" * 115)
         print(f"🟢 IMPROVEMENTS ({len(improvements)} properties)")
         print("=" * 115)
-        print(f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}")
+        print(
+            f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}"
+        )
         print("-" * 115)
         for comp in improvements:
             change_str = f"{comp.absolute_change_us:.2f}" if comp.absolute_change_us else "N/A"
@@ -317,7 +330,9 @@ def print_comparison_results(
         print("\n" + "=" * 115)
         print(f"⚪ UNCHANGED ({len(unchanged)} properties)")
         print("=" * 115)
-        print(f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}")
+        print(
+            f"\n{'Property':<35} {'Baseline (µs)':>12} {'Current (µs)':>12} {'Change':>12} {'% Change':>10} {'σ Change':>10}"
+        )
         print("-" * 115)
         for comp in unchanged:
             change_str = f"{comp.absolute_change_us:+.2f}" if comp.absolute_change_us else "N/A"
@@ -350,9 +365,9 @@ def print_comparison_results(
     print("=" * 115)
     total = len(comparisons)
     print(f"\n  Total properties compared: {total}")
-    print(f"  🔴 Regressions:  {len(regressions):>4} ({100*len(regressions)/total:.1f}%)")
-    print(f"  🟢 Improvements: {len(improvements):>4} ({100*len(improvements)/total:.1f}%)")
-    print(f"  ⚪ Unchanged:    {len(unchanged):>4} ({100*len(unchanged)/total:.1f}%)")
+    print(f"  🔴 Regressions:  {len(regressions):>4} ({100 * len(regressions) / total:.1f}%)")
+    print(f"  🟢 Improvements: {len(improvements):>4} ({100 * len(improvements) / total:.1f}%)")
+    print(f"  ⚪ Unchanged:    {len(unchanged):>4} ({100 * len(unchanged) / total:.1f}%)")
     if new_props:
         print(f"  🆕 New:          {len(new_props):>4}")
     if removed_props:
@@ -463,8 +478,10 @@ def main():
         "-s",
         type=float,
         default=1.0,
-        help="Number of standard deviations the change must exceed to be significant. "
-        "Changes within this many std devs of combined uncertainty are considered noise.",
+        help=(
+            "Number of standard deviations the change must exceed to be significant. "
+            "Changes within this many std devs of combined uncertainty are considered noise."
+        ),
     )
     parser.add_argument(
         "--show-unchanged",
@@ -524,4 +541,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 from unittest.mock import MagicMock, patch
+
+import warp as wp
 
 ##
 # Mock classes for Newton
@@ -65,12 +66,8 @@ class MockNewtonArticulationView:
 
         # Initialize default attributes
         self._attributes: dict = {}
-        self._attributes["body_com"] = wp.zeros(
-            (self._count, self._link_count), dtype=wp.vec3f, device=self._device
-        )
-        self._attributes["body_mass"] = wp.ones(
-            (self._count, self._link_count), dtype=wp.float32, device=self._device
-        )
+        self._attributes["body_com"] = wp.zeros((self._count, self._link_count), dtype=wp.vec3f, device=self._device)
+        self._attributes["body_mass"] = wp.ones((self._count, self._link_count), dtype=wp.float32, device=self._device)
         self._attributes["body_inertia"] = wp.zeros(
             (self._count, self._link_count), dtype=wp.mat33f, device=self._device
         )
@@ -261,9 +258,7 @@ class MockNewtonArticulationView:
 class MockSharedMetaDataType:
     """Mock shared meta data types."""
 
-    def __init__(
-        self, fixed_base: bool, dof_count: int, link_count: int, dof_names: list[str], link_names: list[str]
-    ):
+    def __init__(self, fixed_base: bool, dof_count: int, link_count: int, dof_names: list[str], link_names: list[str]):
         self._fixed_base: bool = fixed_base
         self._dof_count: int = dof_count
         self._link_count: int = link_count
@@ -502,4 +497,3 @@ def create_mock_newton_manager(gravity: tuple[float, float, float] = (0.0, 0.0, 
             "get_dt.return_value": 0.01,
         },
     )
-
