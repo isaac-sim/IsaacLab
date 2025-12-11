@@ -45,13 +45,7 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
         self.actions.left_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=[
-                "openarm_left_joint1",
-                "openarm_left_joint2",
-                "openarm_left_joint3",
-                "openarm_left_joint4",
-                "openarm_left_joint5",
-                "openarm_left_joint6",
-                "openarm_left_joint7",
+                "openarm_left_joint.*",
             ],
             scale=0.5,
             use_default_offset=True,
@@ -60,13 +54,7 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
         self.actions.right_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=[
-                "openarm_right_joint1",
-                "openarm_right_joint2",
-                "openarm_right_joint3",
-                "openarm_right_joint4",
-                "openarm_right_joint5",
-                "openarm_right_joint6",
-                "openarm_right_joint7",
+                "openarm_right_joint.*",
             ],
             scale=0.5,
             use_default_offset=True,

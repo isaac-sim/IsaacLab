@@ -112,13 +112,7 @@ class ObservationsCfg:
                 "asset_cfg": SceneEntityCfg(
                     "robot",
                     joint_names=[
-                        "openarm_left_joint1",
-                        "openarm_left_joint2",
-                        "openarm_left_joint3",
-                        "openarm_left_joint4",
-                        "openarm_left_joint5",
-                        "openarm_left_joint6",
-                        "openarm_left_joint7",
+                        "openarm_left_joint.*",
                     ],
                 )
             },
@@ -131,13 +125,7 @@ class ObservationsCfg:
                 "asset_cfg": SceneEntityCfg(
                     "robot",
                     joint_names=[
-                        "openarm_right_joint1",
-                        "openarm_right_joint2",
-                        "openarm_right_joint3",
-                        "openarm_right_joint4",
-                        "openarm_right_joint5",
-                        "openarm_right_joint6",
-                        "openarm_right_joint7",
+                        "openarm_right_joint.*",
                     ],
                 )
             },
@@ -150,13 +138,7 @@ class ObservationsCfg:
                 "asset_cfg": SceneEntityCfg(
                     "robot",
                     joint_names=[
-                        "openarm_left_joint1",
-                        "openarm_left_joint2",
-                        "openarm_left_joint3",
-                        "openarm_left_joint4",
-                        "openarm_left_joint5",
-                        "openarm_left_joint6",
-                        "openarm_left_joint7",
+                        "openarm_left_joint.*",
                     ],
                 )
             },
@@ -168,13 +150,7 @@ class ObservationsCfg:
                 "asset_cfg": SceneEntityCfg(
                     "robot",
                     joint_names=[
-                        "openarm_right_joint1",
-                        "openarm_right_joint2",
-                        "openarm_right_joint3",
-                        "openarm_right_joint4",
-                        "openarm_right_joint5",
-                        "openarm_right_joint6",
-                        "openarm_right_joint7",
+                        "openarm_right_joint.*",
                     ],
                 )
             },
@@ -277,13 +253,7 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg(
                 "robot",
                 joint_names=[
-                    "openarm_left_joint1",
-                    "openarm_left_joint2",
-                    "openarm_left_joint3",
-                    "openarm_left_joint4",
-                    "openarm_left_joint5",
-                    "openarm_left_joint6",
-                    "openarm_left_joint7",
+                    "openarm_left_joint.*",
                 ],
             )
         },
@@ -295,13 +265,7 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg(
                 "robot",
                 joint_names=[
-                    "openarm_right_joint1",
-                    "openarm_right_joint2",
-                    "openarm_right_joint3",
-                    "openarm_right_joint4",
-                    "openarm_right_joint5",
-                    "openarm_right_joint6",
-                    "openarm_right_joint7",
+                    "openarm_right_joint.*",
                 ],
             )
         },
