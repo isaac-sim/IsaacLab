@@ -110,7 +110,7 @@ class ArticulationData(BaseArticulationData):
     @is_primed.setter
     def is_primed(self, value: bool):
         """Set whether the articulation data is fully instantiated and ready to use.
-        
+
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -156,7 +156,7 @@ class ArticulationData(BaseArticulationData):
     @default_root_pose.setter
     def default_root_pose(self, value: wp.array(dtype=wp.transformf)):
         """Set default root pose ``[pos, quat]`` in the local environment frame.
-        
+
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -182,7 +182,7 @@ class ArticulationData(BaseArticulationData):
     @default_root_vel.setter
     def default_root_vel(self, value: wp.array(dtype=wp.spatial_vectorf)):
         """Set default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
-        
+
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -206,7 +206,7 @@ class ArticulationData(BaseArticulationData):
     @default_joint_pos.setter
     def default_joint_pos(self, value: wp.array(dtype=wp.float32)):
         """Set default joint positions of all joints.
-        
+
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -230,7 +230,7 @@ class ArticulationData(BaseArticulationData):
     @default_joint_vel.setter
     def default_joint_vel(self, value: wp.array(dtype=wp.float32)):
         """Set default joint velocities of all joints.
-        
+
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -380,13 +380,15 @@ class ArticulationData(BaseArticulationData):
 
         The limits are in the order :math:`[lower, upper]`.
 
-        .. caution:: This property is computed on-the-fly, and while it returns a pointer, writting to that pointer
-        will not affect change the joint position limits. To change the joint position limits, use the 
+        .. caution:: This property is computed on-the-fly, and while it returns a pointer, writing to that pointer
+        will not affect change the joint position limits. To change the joint position limits, use the
         :attr:`joint_pos_limits_lower` and :attr:`joint_pos_limits_upper` properties.
         """
         if self._joint_pos_limits is None:
-            self._joint_pos_limits = wp.zeros((self._root_view.count, self._root_view.joint_dof_count), dtype=wp.vec2f, device=self.device)
-            
+            self._joint_pos_limits = wp.zeros(
+                (self._root_view.count, self._root_view.joint_dof_count), dtype=wp.vec2f, device=self.device
+            )
+
         wp.launch(
             make_joint_pos_limits_from_lower_and_upper_limits,
             dim=(self._root_view.count, self._root_view.joint_dof_count),
@@ -1047,7 +1049,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_link_lin_vel_b = wp.array(
-                    ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1086,7 +1092,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_link_ang_vel_b = wp.array(
-                    ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr + 3 * 4,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1125,7 +1135,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_com_lin_vel_b = wp.array(
-                    ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1164,7 +1178,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_com_ang_vel_b = wp.array(
-                    ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr + 3 * 4,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1287,7 +1305,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_link_lin_vel_w = wp.array(
-                    ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1325,7 +1347,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._root_link_ang_vel_w = wp.array(
-                    ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,
+                    ptr=data.ptr + 3 * 4,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1362,7 +1388,9 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_pos_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                self._root_com_pos_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device)
+                self._root_com_pos_w = wp.array(
+                    ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device
+                )
             else:
                 # Create a new buffer
                 self._root_com_pos_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
@@ -1680,7 +1708,9 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pos_w is None:
             if data.is_contiguous:
                 # Create a memory view of the data
-                self._body_com_pos_w = wp.array(ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device)
+                self._body_com_pos_w = wp.array(
+                    ptr=data.ptr, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device
+                )
             else:
                 # Create a new buffer
                 self._body_com_pos_w = wp.zeros(
@@ -1884,7 +1914,11 @@ class ArticulationData(BaseArticulationData):
             if data.is_contiguous:
                 # Create a memory view of the data
                 self._body_com_ang_acc_w = wp.array(
-                    ptr=data.ptr + 3 * 4, dtype=wp.vec3f, shape=data.shape, strides=data.strides, device=self.device,   
+                    ptr=data.ptr + 3 * 4,
+                    dtype=wp.vec3f,
+                    shape=data.shape,
+                    strides=data.strides,
+                    device=self.device,
                 )
             else:
                 # Create a new buffer
@@ -1927,8 +1961,10 @@ class ArticulationData(BaseArticulationData):
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame. In Newton
         this quantity is always a unit quaternion.
         """
-        if self._body_com_quat_b is None:   
-            self._body_com_quat_b = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device)
+        if self._body_com_quat_b is None:
+            self._body_com_quat_b = wp.zeros(
+                (self._root_view.count, self._root_view.link_count), dtype=wp.quatf, device=self.device
+            )
             self._body_com_quat_b.fill_(wp.quat_identity(wp.float32))
         return self._body_com_quat_b
 
@@ -2233,13 +2269,17 @@ class ArticulationData(BaseArticulationData):
         self._root_link_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._projected_gravity_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.float32, device=self.device)
-        self._body_link_vel_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+        self._body_link_vel_w = TimestampedWarpBuffer(
+            shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device
+        )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.transformf, device=self.device)
         self._root_com_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._root_com_acc_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._body_com_pose_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.transformf, device=self.device)
-        self._body_com_acc_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+        self._body_com_acc_w = TimestampedWarpBuffer(
+            shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device
+        )
         # -- joint state
         self._joint_acc = TimestampedWarpBuffer(shape=(n_view, n_dof), dtype=wp.float32, device=self.device)
         # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(shape=(n_view, n_dof), dtype=wp.spatial_vectorf, device=self.device)
