@@ -182,6 +182,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._sim_step_counter += 1
             # set actions into buffers
             self.action_manager.apply_action()
+            # set actions into simulator
+            self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
@@ -216,8 +218,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
