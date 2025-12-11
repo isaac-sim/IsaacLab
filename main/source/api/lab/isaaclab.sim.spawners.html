@@ -1077,6 +1077,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.spawn_from_usd"><code class="docutils literal notranslate"><span class="pre">spawn_from_usd()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.usd_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.variants</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visible"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visible</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.semantic_tags</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.copy_from_source</span></code></a></li>
@@ -1092,7 +1093,6 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.joint_drive_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visual_material_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visual_material</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.variants</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.spawn_ground_plane"><code class="docutils literal notranslate"><span class="pre">spawn_ground_plane()</span></code></a></li>
@@ -5922,53 +5922,53 @@ This is done by calling the respective function with the specified properties.</
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path" title="isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
 <td><p>Path to the USD file to spawn asset from.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visible" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants" title="isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variants</span></code></a></p></td>
+<td><p>Variants to select from in the input USD file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visible" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
 <td><p>Whether the spawned asset should be visible.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags" title="isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags" title="isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
 <td><p>List of semantic tags to add to the spawned asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source" title="isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source" title="isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
 <td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.mass_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.mass_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
 <td><p>Mass properties.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.deformable_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.deformable_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
 <td><p>Deformable body properties.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.rigid_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.rigid_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
 <td><p>Rigid body properties.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.collision_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.collision_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
 <td><p>Properties to apply to all collision meshes.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors" title="isaaclab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors" title="isaaclab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
 <td><p>Activate contact reporting on all rigid bodies.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.scale" title="isaaclab.sim.spawners.from_files.UsdFileCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.scale" title="isaaclab.sim.spawners.from_files.UsdFileCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
 <td><p>Scale of the asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.articulation_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.articulation_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_props</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.articulation_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.articulation_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_props</span></code></a></p></td>
 <td><p>Properties to apply to the articulation root.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendons_props</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendons_props</span></code></a></p></td>
 <td><p>Properties to apply to the fixed tendons (if any).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.spatial_tendons_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.spatial_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spatial_tendons_props</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.spatial_tendons_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.spatial_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spatial_tendons_props</span></code></a></p></td>
 <td><p>Properties to apply to the spatial tendons (if any).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_drive_props</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props" title="isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_drive_props</span></code></a></p></td>
 <td><p>Properties to apply to a joint.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
 <td><p>Path to the visual material to use for the prim.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material" title="isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
 <td><p>Visual material properties to override the visual material properties in the URDF file.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants" title="isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variants</span></code></a></p></td>
-<td><p>Variants to select from in the input USD file.</p></td>
 </tr>
 </tbody>
 </table>
@@ -5977,6 +5977,15 @@ This is done by calling the respective function with the specified properties.</
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path">
 <span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path" title="Permalink to this definition">#</a></dt>
 <dd><p>Path to the USD file to spawn asset from.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UsdFileCfg.variants">
+<span class="sig-name descname"><span class="pre">variants</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants" title="Permalink to this definition">#</a></dt>
+<dd><p>Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.</p>
+<p>This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
+or a dictionary mapping between the two. Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function
+for more information.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -6097,15 +6106,6 @@ This parameter is ignored if <cite>visual_material</cite> is not None.</p>
 <p class="admonition-title">Note</p>
 <p>If None, then no visual material will be added.</p>
 </div>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UsdFileCfg.variants">
-<span class="sig-name descname"><span class="pre">variants</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants" title="Permalink to this definition">#</a></dt>
-<dd><p>Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.</p>
-<p>This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-or a dictionary mapping between the two. Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function
-for more information.</p>
 </dd></dl>
 
 </dd></dl>
@@ -7679,6 +7679,7 @@ If True, a random asset configuration is selected for each spawn.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.spawn_from_usd"><code class="docutils literal notranslate"><span class="pre">spawn_from_usd()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.usd_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.variants</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visible"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visible</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.semantic_tags</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.copy_from_source</span></code></a></li>
@@ -7694,7 +7695,6 @@ If True, a random asset configuration is selected for each spawn.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.joint_drive_props"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.joint_drive_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material_path"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visual_material_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.visual_material</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">UsdFileCfg.variants</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.spawners.from_files.spawn_ground_plane"><code class="docutils literal notranslate"><span class="pre">spawn_ground_plane()</span></code></a></li>

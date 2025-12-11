@@ -726,6 +726,28 @@
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_urdf</span></div>
 
 
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MjcfFileCfg</span><span class="p">(</span><span class="n">FileCfg</span><span class="p">,</span> <span class="n">converters</span><span class="o">.</span><span class="n">MjcfConverterCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;MJCF file to spawn asset from.</span>
+
+<span class="sd">    It uses the :class:`MjcfConverter` class to create a USD file from MJCF and spawns the imported</span>
+<span class="sd">    USD file. Similar to the :class:`UsdFileCfg`, the generated USD file can be modified by specifying</span>
+<span class="sd">    the respective properties in the configuration class.</span>
+
+<span class="sd">    See :meth:`spawn_from_mjcf` for more information.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The configuration parameters include various properties. If not `None`, these properties</span>
+<span class="sd">        are modified on the spawned prim in a nested manner.</span>
+
+<span class="sd">        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.</span>
+<span class="sd">        This is done by calling the respective function with the specified properties.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">from_files</span><span class="o">.</span><span class="n">spawn_from_mjcf</span>
+
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Spawning ground plane.</span>
 <span class="sd">&quot;&quot;&quot;</span>

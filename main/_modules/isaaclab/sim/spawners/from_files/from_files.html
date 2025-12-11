@@ -711,6 +711,48 @@
     <span class="k">return</span> <span class="n">_spawn_from_usd_file</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">urdf_loader</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span></div>
 
 
+<span class="nd">@clone</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_mjcf</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">MjcfFileCfg</span><span class="p">,</span>
+    <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Spawn an asset from a MJCF file and override the settings with the given config.</span>
+
+<span class="sd">    It uses the :class:`MjcfConverter` class to create a USD file from MJCF. This file is then imported</span>
+<span class="sd">    at the specified prim path.</span>
+
+<span class="sd">    In case a prim already exists at the given prim path, then the function does not create a new prim</span>
+<span class="sd">    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides</span>
+<span class="sd">    the settings with the given config.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
+<span class="sd">        if the input prim path is a regex pattern. This is done to support spawning multiple assets</span>
+<span class="sd">        from a single and cloning the USD prim at the given path expression.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,</span>
+<span class="sd">            then the asset is spawned at all the matching prim paths.</span>
+<span class="sd">        cfg: The configuration instance.</span>
+<span class="sd">        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which</span>
+<span class="sd">            case the translation specified in the generated USD file is used.</span>
+<span class="sd">        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,</span>
+<span class="sd">            in which case the orientation specified in the generated USD file is used.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The prim of the spawned asset.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        FileNotFoundError: If the MJCF file does not exist at the given path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># mjcf loader to convert mjcf to usd</span>
+    <span class="n">mjcf_loader</span> <span class="o">=</span> <span class="n">converters</span><span class="o">.</span><span class="n">MjcfConverter</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="c1"># spawn asset from the generated usd file</span>
+    <span class="k">return</span> <span class="n">_spawn_from_usd_file</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">mjcf_loader</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="spawn_ground_plane"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.spawn_ground_plane">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">spawn_ground_plane</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">,</span>
