@@ -1154,16 +1154,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
     * - Isaac-Reach-OpenArm-Bi-v0
       - Isaac-Reach-OpenArm-Bi-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **rsl_rl** (PPO), **rl_games** (PPO)
     * - Isaac-Reach-OpenArm-v0
       - Isaac-Reach-OpenArm-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
     * - Isaac-Lift-Cube-OpenArm-v0
       - Isaac-Lift-Cube-OpenArm-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **rsl_rl** (PPO), **rl_games** (PPO)
     * - Isaac-Open-Drawer-OpenArm-v0
       - Isaac-Open-Drawer-OpenArm-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **rsl_rl** (PPO), **rl_games** (PPO)
