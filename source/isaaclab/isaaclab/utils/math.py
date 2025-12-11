@@ -453,7 +453,7 @@ def euler_xyz_from_quat(
     Reference:
         https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     """
-    q_w, q_x, q_y, q_z = quat[:, 3], quat[:, 1], quat[:, 2], quat[:, 0]
+    q_x, q_y, q_z, q_w = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
     # roll (x-axis rotation)
     sin_roll = 2.0 * (q_w * q_x + q_y * q_z)
     cos_roll = 1 - 2 * (q_x * q_x + q_y * q_y)
@@ -488,15 +488,15 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     Reference:
         https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554
     """
-    # Modified to take in quat as [q_w, q_x, q_y, q_z]
-    # Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]
+    # Modified to take in quat as [q_x, q_y, q_z, q_w] (xyzw format)
+    # Quaternion is [q_x, q_y, q_z, q_w] = [n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2), cos(theta/2)]
     # Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]
     # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
     # When theta = 0, (sin(theta/2) / theta) is undefined
     # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
     quat = quat * (1.0 - 2.0 * (quat[..., 3:] < 0.0))
     mag = torch.linalg.norm(quat[..., :3], dim=-1)
-    half_angle = torch.atan2(mag, quat[..., 0])
+    half_angle = torch.atan2(mag, quat[..., 3])
     angle = 2.0 * half_angle
     # check whether to apply Taylor approximation
     sin_half_angles_over_angles = torch.where(
@@ -579,8 +579,9 @@ def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     qw = quat_yaw[:, 3]
     yaw = torch.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
     quat_yaw = torch.zeros_like(quat_yaw)
-    quat_yaw[:, 3] = torch.sin(yaw / 2)
-    quat_yaw[:, 0] = torch.cos(yaw / 2)
+    # For xyzw format: z = sin(yaw/2), w = cos(yaw/2)
+    quat_yaw[:, 2] = torch.sin(yaw / 2)
+    quat_yaw[:, 3] = torch.cos(yaw / 2)
     quat_yaw = normalize(quat_yaw)
     return quat_yaw.view(shape)
 

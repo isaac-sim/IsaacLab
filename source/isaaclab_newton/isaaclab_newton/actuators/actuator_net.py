@@ -21,9 +21,9 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.utils.assets import read_file
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array2D_masked
 
 from .actuator_pd import DCMotor
-from isaaclab.utils.warp.update_kernels import update_array2D_with_array2D_masked
 
 if TYPE_CHECKING:
     from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
@@ -95,13 +95,13 @@ class ActuatorNetLSTM(DCMotor):
         # update the joint effort
         wp.launch(
             update_array2D_with_array2D_masked,
-            dim = (self._num_envs, self.num_joints),
+            dim=(self._num_envs, self.num_joints),
             inputs=[
                 self.data._applied_effort,
                 self.data.joint_effort,
                 self._env_mask,
                 self._joint_mask,
-            ]
+            ],
         )
 
 
@@ -191,11 +191,11 @@ class ActuatorNetMLP(DCMotor):
         # update the joint effort
         wp.launch(
             update_array2D_with_array2D_masked,
-            dim = (self._num_envs, self.num_joints),
+            dim=(self._num_envs, self.num_joints),
             inputs=[
                 self.data._applied_effort,
                 self.data.joint_effort,
                 self._env_mask,
                 self._joint_mask,
-            ]
+            ],
         )

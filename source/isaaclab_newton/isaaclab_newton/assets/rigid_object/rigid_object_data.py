@@ -452,6 +452,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             # set the buffer data and timestamp
             self._body_com_acc_w.timestamp = self._sim_timestamp
+            # update the previous body velocity for next finite differencing
+            wp.copy(self._previous_body_com_vel, self._sim_bind_body_com_vel_w)
         return self._body_com_acc_w.data
 
     @property

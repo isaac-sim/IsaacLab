@@ -765,6 +765,8 @@ class ArticulationData(BaseArticulationData):
             )
             # set the buffer data and timestamp
             self._body_com_acc_w.timestamp = self._sim_timestamp
+            # update the previous body velocity for next finite differencing
+            wp.copy(self._previous_body_com_vel, self._sim_bind_body_com_vel_w)
         return self._body_com_acc_w.data
 
     @property
@@ -826,6 +828,8 @@ class ArticulationData(BaseArticulationData):
                 ],
             )
             self._joint_acc.timestamp = self._sim_timestamp
+            # update the previous joint velocity for next finite differencing
+            wp.copy(self._previous_joint_vel, self._sim_bind_joint_vel)
         return self._joint_acc.data
 
     ##
