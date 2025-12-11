@@ -32,6 +32,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
+from isaaclab.utils import close_simulation, is_simulation_running
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
@@ -64,7 +65,7 @@ def main():
     # reset environment
     env.reset()
     # simulate environment
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         # run everything in inference mode
         with torch.inference_mode():
             # compute zero actions
@@ -80,4 +81,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    close_simulation(simulation_app)
