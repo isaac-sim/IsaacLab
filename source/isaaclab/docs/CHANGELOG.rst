@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.50.1 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed advanced indexing issue in resetting prev action
+  in :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` .
+
+
 0.50.0 (2025-12-8)
 ~~~~~~~~~~~~~~~~~~
 
@@ -13,6 +23,9 @@ Added
 
 0.49.3 (2025-12-03)
 ~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
 
 * Added :class:`G1TriHandUpperBodyMotionControllerGripperRetargeter` and :class:`G1TriHandUpperBodyMotionControllerGripperRetargeterCfg` for retargeting the gripper state from motion controllers.
 * Added unit tests for the retargeters.
@@ -72,6 +85,7 @@ Changed
 
 * Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` in ``isaaclab.devices.openxr.xr_anchor_utils.py``
   to properly propagate the Isaac Sim stage context.
+
 
 
 
