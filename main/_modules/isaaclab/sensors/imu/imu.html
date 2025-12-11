@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 10, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 11, 2025"/>
   </head>
   
   
@@ -604,12 +604,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_pose_relative_to_physx_parent</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.imu_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImuData</span>
@@ -621,10 +621,12 @@
 <div class="viewcode-block" id="Imu"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Imu">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Imu</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The Inertia Measurement Unit (IMU) sensor.</span>
 
-<span class="sd">    The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides complete state information.</span>
-<span class="sd">    The sensor is primarily used to provide the linear acceleration and angular velocity of the object in the body frame. The sensor also provides</span>
-<span class="sd">    the position and orientation of the object in the world frame and the angular acceleration and linear velocity in the body frame. The extra</span>
-<span class="sd">    data outputs are useful for simulating with or comparing against &quot;perfect&quot; state estimation.</span>
+<span class="sd">    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,</span>
+<span class="sd">    along with world-frame pose and body-frame linear and angular accelerations/velocities.</span>
+
+<span class="sd">    If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.</span>
+<span class="sd">    The fixed transform from that ancestor to the target prim is computed once during initialization and</span>
+<span class="sd">    composed with the configured sensor offset.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -634,10 +636,13 @@
 
 <span class="sd">    .. note::</span>
 
-<span class="sd">        It is suggested to use the OffsetCfg to define an IMU frame relative to a rigid body prim defined at the root of</span>
-<span class="sd">        a :class:`RigidObject` or  a prim that is defined by a non-fixed joint in an :class:`Articulation` (except for the</span>
-<span class="sd">        root of a fixed based articulation). The use frames with fixed joints and small mass/inertia to emulate a transform</span>
-<span class="sd">        relative to a body frame can result in lower performance and accuracy.</span>
+<span class="sd">        The user can configure the sensor offset in the configuration file. The offset is applied relative to the rigid source prim.</span>
+<span class="sd">        If the target prim is not a rigid body, the offset is composed with the fixed transform</span>
+<span class="sd">        from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.</span>
+<span class="sd">        The offset is defined as a position vector and a quaternion rotation, which</span>
+<span class="sd">        are applied in the order: position, then rotation. The position is applied as a translation</span>
+<span class="sd">        in the body frame of the rigid source prim, and the rotation is applied as a rotation</span>
+<span class="sd">        in the body frame of the rigid source prim.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -653,7 +658,10 @@
         <span class="c1"># initialize base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="c1"># Create empty variables for storing output data</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">ImuData</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">ImuData</span><span class="p">()</span>
+
+        <span class="c1"># Internal: expression used to build the rigid body view (may be different from cfg.prim_path)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing information about the instance.&quot;&quot;&quot;</span>
@@ -713,11 +721,9 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the sensor handles and internal buffers.</span>
 
-<span class="sd">        This function creates handles and registers the provided data types with the replicator registry to</span>
-<span class="sd">        be able to access the data from the sensor. It also initializes the internal buffers to store the data.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            RuntimeError: If the imu prim is not a RigidBodyPrim</span>
+<span class="sd">        - If the target prim path is a rigid body, build the view directly on it.</span>
+<span class="sd">        - Otherwise find the closest rigid-body ancestor, cache the fixed transform from that ancestor</span>
+<span class="sd">          to the target prim, and build the view on the ancestor expression.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Initialize parent class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
@@ -727,11 +733,12 @@
         <span class="n">prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># check if it is a RigidBody Prim</span>
-        <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a RigidBodyAPI for the prim paths: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Determine rigid source prim and (if needed) the fixed transform from that rigid prim to target prim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="p">,</span> <span class="n">fixed_pos_b</span><span class="p">,</span> <span class="n">fixed_quat_b</span> <span class="o">=</span> <span class="n">resolve_pose_relative_to_physx_parent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+
+        <span class="c1"># Create the rigid body view on the ancestor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="p">)</span>
 
         <span class="c1"># Get world gravity</span>
         <span class="n">gravity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">get_gravity</span><span class="p">()</span>
@@ -742,35 +749,53 @@
         <span class="c1"># Create internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_buffers_impl</span><span class="p">()</span>
 
+        <span class="c1"># Compose the configured offset with the fixed ancestor-&gt;target transform (done once)</span>
+        <span class="c1"># new_offset = fixed * cfg.offset</span>
+        <span class="c1"># where composition is: p = p_fixed + R_fixed * p_cfg, q = q_fixed * q_cfg</span>
+        <span class="k">if</span> <span class="n">fixed_pos_b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">fixed_quat_b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Broadcast fixed transform across instances</span>
+            <span class="n">fixed_p</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">fixed_pos_b</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">fixed_q</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">fixed_quat_b</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">cfg_p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">cfg_q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+            <span class="n">composed_p</span> <span class="o">=</span> <span class="n">fixed_p</span> <span class="o">+</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">fixed_q</span><span class="p">,</span> <span class="n">cfg_p</span><span class="p">)</span>
+            <span class="n">composed_q</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_mul</span><span class="p">(</span><span class="n">fixed_q</span><span class="p">,</span> <span class="n">cfg_q</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span> <span class="o">=</span> <span class="n">composed_p</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat_b</span> <span class="o">=</span> <span class="n">composed_q</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Fills the buffers of the sensor data.&quot;&quot;&quot;</span>
 
         <span class="c1"># default to all sensors</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># obtain the poses of the sensors</span>
+        <span class="c1"># world pose of the rigid source (ancestor) from the PhysX view</span>
         <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
         <span class="n">quat_w</span> <span class="o">=</span> <span class="n">quat_w</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">dims</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
-        <span class="c1"># store the poses</span>
+        <span class="c1"># sensor pose in world: apply composed offset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">pos_w</span> <span class="o">+</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_mul</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span>
 
-        <span class="c1"># get the offset from COM to link origin</span>
+        <span class="c1"># COM of rigid source (body frame)</span>
         <span class="n">com_pos_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
-        <span class="c1"># obtain the velocities of the link COM</span>
+        <span class="c1"># Velocities at rigid source COM</span>
         <span class="n">lin_vel_w</span><span class="p">,</span> <span class="n">ang_vel_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-        <span class="c1"># if an offset is present or the COM does not agree with the link origin, the linear velocity has to be</span>
-        <span class="c1"># transformed taking the angular velocity into account</span>
+
+        <span class="c1"># If sensor offset or COM != link origin, account for angular velocity contribution</span>
         <span class="n">lin_vel_w</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
             <span class="n">ang_vel_w</span><span class="p">,</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">-</span> <span class="n">com_pos_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
         <span class="p">)</span>
 
-        <span class="c1"># numerical derivative</span>
+        <span class="c1"># numerical derivative (world frame)</span>
         <span class="n">lin_acc_w</span> <span class="o">=</span> <span class="p">(</span><span class="n">lin_vel_w</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prev_lin_vel_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dt</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gravity_bias_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
         <span class="n">ang_acc_w</span> <span class="o">=</span> <span class="p">(</span><span class="n">ang_vel_w</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prev_ang_vel_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dt</span>
-        <span class="c1"># stack data in world frame and batch rotate</span>
+
+        <span class="c1"># batch rotate world-&gt;body using current sensor orientation</span>
         <span class="n">dynamics_data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">lin_vel_w</span><span class="p">,</span> <span class="n">ang_vel_w</span><span class="p">,</span> <span class="n">lin_acc_w</span><span class="p">,</span> <span class="n">ang_acc_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
         <span class="n">dynamics_data_rot</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dynamics_data</span><span class="p">)</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span>
             <span class="mi">5</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span>
@@ -801,7 +826,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_prev_lin_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prev_ang_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">)</span>
 
-        <span class="c1"># store sensor offset transformation</span>
+        <span class="c1"># store sensor offset (applied relative to rigid source). This may be composed later with a fixed ancestor-&gt;target transform.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">pos</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">rot</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="c1"># set gravity bias</span>
@@ -895,7 +920,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 10, 2025.
+  Last updated on Dec 11, 2025.
   <br/>
 </p>
   </div>

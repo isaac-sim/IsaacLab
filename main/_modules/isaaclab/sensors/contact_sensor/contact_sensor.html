@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 10, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 11, 2025"/>
   </head>
   
   
@@ -756,8 +756,9 @@
         <span class="c1"># reset contact positions</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_contact_points</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">contact_pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nan</span>
-            <span class="c1"># buffer used during contact position aggregation</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_contact_position_aggregate_buffer</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nan</span></div>
+        <span class="c1"># reset friction forces</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_friction_forces</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">friction_forces_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
 <div class="viewcode-block" id="ContactSensor.find_bodies"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensor.find_bodies">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">find_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Find bodies in the articulation based on the name keys.</span>
@@ -904,6 +905,21 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_pose</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="c1"># check if filter paths are valid</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_contact_points</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_friction_forces</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">filter_prim_paths_expr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;The &#39;filter_prim_paths_expr&#39; is empty. Please specify a valid filter pattern to track&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="s1">&#39;contact points&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_contact_points</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;friction forces&#39;</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_contact_data_count_per_prim</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;The &#39;max_contact_data_count_per_prim&#39; is </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_contact_data_count_per_prim</span><span class="si">}</span><span class="s2">. &quot;</span>
+                    <span class="s2">&quot;Please set it to a value greater than 0 to track&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="s1">&#39;contact points&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_contact_points</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;friction forces&#39;</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+
         <span class="c1"># -- position of contact points</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_contact_points</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">contact_pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
@@ -911,10 +927,11 @@
                 <span class="n">torch</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
                 <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
             <span class="p">)</span>
-            <span class="c1"># buffer used during contact position aggregation</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_contact_position_aggregate_buffer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
-                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">filter_count</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
-                <span class="n">torch</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="c1"># -- friction forces at contact points</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_friction_forces</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">friction_forces_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">filter_count</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+                <span class="mf">0.0</span><span class="p">,</span>
                 <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="c1"># -- air/contact time between contacts</span>
@@ -976,28 +993,17 @@
             <span class="n">_</span><span class="p">,</span> <span class="n">buffer_contact_points</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">buffer_count</span><span class="p">,</span> <span class="n">buffer_start_indices</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">get_contact_data</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_physics_dt</span><span class="p">)</span>
             <span class="p">)</span>
-            <span class="c1"># unpack the contact points: see RigidContactView.get_contact_data() documentation for details:</span>
-            <span class="c1"># https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces</span>
-            <span class="c1"># buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)</span>
-            <span class="n">counts</span><span class="p">,</span> <span class="n">starts</span> <span class="o">=</span> <span class="n">buffer_count</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">buffer_start_indices</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">n_rows</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">numel</span><span class="p">(),</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
-            <span class="c1"># default to NaN rows</span>
-            <span class="n">agg</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_rows</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">buffer_contact_points</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">row_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">),</span> <span class="n">counts</span><span class="p">)</span>
-                <span class="n">total</span> <span class="o">=</span> <span class="n">row_ids</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">contact_pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unpack_contact_buffer_data</span><span class="p">(</span>
+                <span class="n">buffer_contact_points</span><span class="p">,</span> <span class="n">buffer_count</span><span class="p">,</span> <span class="n">buffer_start_indices</span>
+            <span class="p">)[</span><span class="n">env_ids</span><span class="p">]</span>
 
-                <span class="n">block_starts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">counts</span>
-                <span class="n">deltas</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">counts</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-</span> <span class="n">block_starts</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span>
-                <span class="n">flat_idx</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">row_ids</span><span class="p">]</span> <span class="o">+</span> <span class="n">deltas</span>
-
-                <span class="n">pts</span> <span class="o">=</span> <span class="n">buffer_contact_points</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">flat_idx</span><span class="p">)</span>
-                <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span><span class="o">.</span><span class="n">index_add_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">row_ids</span><span class="p">,</span> <span class="n">pts</span><span class="p">)</span> <span class="o">/</span> <span class="n">counts</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-                <span class="n">agg</span><span class="p">[</span><span class="n">counts</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">)</span>
-
-            <span class="bp">self</span><span class="o">.</span><span class="n">_contact_position_aggregate_buffer</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">agg</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">contact_pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_position_aggregate_buffer</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">filter_count</span><span class="p">,</span> <span class="mi">3</span>
+        <span class="c1"># obtain friction forces</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_friction_forces</span><span class="p">:</span>
+            <span class="n">friction_forces</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">buffer_count</span><span class="p">,</span> <span class="n">buffer_start_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">get_friction_data</span><span class="p">(</span>
+                <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_physics_dt</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">friction_forces_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unpack_contact_buffer_data</span><span class="p">(</span>
+                <span class="n">friction_forces</span><span class="p">,</span> <span class="n">buffer_count</span><span class="p">,</span> <span class="n">buffer_start_indices</span><span class="p">,</span> <span class="n">avg</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span>
             <span class="p">)[</span><span class="n">env_ids</span><span class="p">]</span>
 
         <span class="c1"># obtain the air time</span>
@@ -1029,6 +1035,58 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">current_contact_time</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
                 <span class="n">is_contact</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">current_contact_time</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+</span> <span class="n">elapsed_time</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="mf">0.0</span>
             <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_unpack_contact_buffer_data</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">contact_data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">buffer_count</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">buffer_start_indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">avg</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">default</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Unpacks and aggregates contact data for each (env, body, filter) group.</span>
+
+<span class="sd">        This function vectorizes the following nested loop:</span>
+
+<span class="sd">        for i in range(self._num_bodies * self._num_envs):</span>
+<span class="sd">            for j in range(self.contact_physx_view.filter_count):</span>
+<span class="sd">                start_index_ij = buffer_start_indices[i, j]</span>
+<span class="sd">                count_ij = buffer_count[i, j]</span>
+<span class="sd">                self._contact_position_aggregate_buffer[i, j, :] = torch.mean(</span>
+<span class="sd">                    contact_data[start_index_ij : (start_index_ij + count_ij), :], dim=0</span>
+<span class="sd">                )</span>
+
+<span class="sd">        For more details, see the `RigidContactView.get_contact_data() documentation &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_contact_data&gt;`_.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            contact_data: Flat tensor of contact data, shape (N_envs * N_bodies, 3).</span>
+<span class="sd">            buffer_count: Number of contact points per (env, body, filter), shape (N_envs * N_bodies, N_filters).</span>
+<span class="sd">            buffer_start_indices: Start indices for each (env, body, filter), shape (N_envs * N_bodies, N_filters).</span>
+<span class="sd">            avg: If True, average the contact data for each group; if False, sum the data. Defaults to True.</span>
+<span class="sd">            default: Default value to use for groups with zero contacts. Defaults to NaN.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Aggregated contact data, shape (N_envs, N_bodies, N_filters, 3).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">counts</span><span class="p">,</span> <span class="n">starts</span> <span class="o">=</span> <span class="n">buffer_count</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">buffer_start_indices</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">n_rows</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">numel</span><span class="p">(),</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">agg</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_rows</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">default</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">contact_data</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">row_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">),</span> <span class="n">counts</span><span class="p">)</span>
+
+            <span class="n">block_starts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">counts</span>
+            <span class="n">deltas</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">row_ids</span><span class="o">.</span><span class="n">numel</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="n">counts</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-</span> <span class="n">block_starts</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span>
+            <span class="n">flat_idx</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">row_ids</span><span class="p">]</span> <span class="o">+</span> <span class="n">deltas</span>
+
+            <span class="n">pts</span> <span class="o">=</span> <span class="n">contact_data</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">flat_idx</span><span class="p">)</span>
+            <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span><span class="o">.</span><span class="n">index_add_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">row_ids</span><span class="p">,</span> <span class="n">pts</span><span class="p">)</span>
+            <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span> <span class="o">/</span> <span class="n">counts</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">avg</span> <span class="k">else</span> <span class="n">agg</span>
+            <span class="n">agg</span><span class="p">[</span><span class="n">counts</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">default</span>
+
+        <span class="k">return</span> <span class="n">agg</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">filter_count</span><span class="p">,</span> <span class="mi">3</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_debug_vis_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
         <span class="c1"># set visibility of markers</span>
@@ -1119,7 +1177,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 10, 2025.
+  Last updated on Dec 11, 2025.
   <br/>
 </p>
   </div>
