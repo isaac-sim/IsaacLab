@@ -61,15 +61,18 @@ import torch
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.utils import close_simulation, is_simulation_running
+from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
@@ -174,7 +177,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     obs = env.get_observations()
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
@@ -201,5 +204,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    if simulation_app:
-        simulation_app.close()
+    close_simulation(simulation_app)

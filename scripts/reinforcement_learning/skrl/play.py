@@ -68,6 +68,7 @@ import torch
 import skrl
 from packaging import version
 
+from isaaclab.utils import close_simulation, is_simulation_running
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
@@ -86,6 +87,8 @@ if args_cli.ml_framework.startswith("torch"):
     from skrl.utils.runner.torch import Runner
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
+
+import isaaclab_tasks_experimental  # noqa: F401
 
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -176,7 +179,7 @@ def main():
     obs, _ = env.reset()
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
 
         # run everything in inference mode
@@ -210,5 +213,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    if simulation_app:
-        simulation_app.close()
+    close_simulation(simulation_app)

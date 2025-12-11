@@ -10,6 +10,7 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
+import warp as wp
 from pxr import Sdf
 
 import isaaclab.sim as sim_utils
@@ -347,19 +348,20 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
         """Resets the scene entities.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
         """
+        # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(ids=env_ids, mask=mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(env_ids=env_ids, env_mask=mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

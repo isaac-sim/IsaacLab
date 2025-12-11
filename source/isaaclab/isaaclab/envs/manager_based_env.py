@@ -7,6 +7,7 @@
 import contextlib
 import logging
 import torch
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -21,6 +22,15 @@ from isaaclab.utils.timer import Timer
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
+from .utils.io_descriptors import export_articulations_data, export_scene_data
+
+# import logger
+logger = logging.getLogger(__name__)
+
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
 
 # import omni.physx
 # from isaacsim.core.simulation_manager import SimulationManager
@@ -190,6 +200,24 @@ class ManagerBasedEnv:
         # initialize observation buffers
         self.obs_buf = {}
 
+        # export IO descriptors if requested
+        if self.cfg.export_io_descriptors:
+            self.export_IO_descriptors()
+
+        # show deprecation message for rerender_on_reset
+        if self.cfg.rerender_on_reset:
+            msg = (
+                "\033[93m\033[1m[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                " ManagerBasedEnvCfg.num_rerenders_on_reset instead.\033[0m"
+            )
+            warnings.warn(
+                msg,
+                FutureWarning,
+                stacklevel=2,
+            )
+            if self.cfg.num_rerenders_on_reset == 0:
+                self.cfg.num_rerenders_on_reset = 1
+
     def __del__(self):
         """Cleanup for the environment."""
         # Suppress errors during Python shutdown to avoid noisy tracebacks
@@ -225,6 +253,47 @@ class ManagerBasedEnv:
     def device(self):
         """The device on which the environment is running."""
         return self.sim.device
+
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the environment.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+        return {
+            "observations": self.observation_manager.get_IO_descriptors,
+            "actions": self.action_manager.get_IO_descriptors,
+            "articulations": export_articulations_data(self),
+            "scene": export_scene_data(self),
+        }
+
+    def export_IO_descriptors(self, output_dir: str | None = None):
+        """Export the IO descriptors for the environment.
+
+        Args:
+            output_dir: The directory to export the IO descriptors to.
+        """
+        import os
+        import yaml
+
+        IO_descriptors = self.get_IO_descriptors
+
+        if output_dir is None:
+            if self.cfg.log_dir is not None:
+                output_dir = os.path.join(self.cfg.log_dir, "io_descriptors")
+            else:
+                raise ValueError(
+                    "Output directory is not set. Please set the log directory using the `log_dir`"
+                    " configuration or provide an explicit output_dir parameter."
+                )
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
+            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            yaml.safe_dump(IO_descriptors, f)
 
     """
     Operations - Setup.
@@ -312,9 +381,11 @@ class ManagerBasedEnv:
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
+        self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)
@@ -371,10 +442,12 @@ class ManagerBasedEnv:
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
         # update articulation kinematics
+        self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-            self.sim.render()
+        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)

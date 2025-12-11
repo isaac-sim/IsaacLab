@@ -57,10 +57,13 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from isaaclab.utils import close_simulation, is_simulation_running
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
+
+import isaaclab_tasks_experimental  # noqa: F401
 
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -170,7 +173,7 @@ def main():
     # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
     #   attempt to have complete control over environment stepping. However, this removes other
     #   operations such as masking that is used for multi-agent learning by RL-Games.
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
@@ -206,5 +209,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    if simulation_app:
-        simulation_app.close()
+    close_simulation(simulation_app)

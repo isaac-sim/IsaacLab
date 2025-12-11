@@ -10,6 +10,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
@@ -17,6 +19,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -54,7 +57,9 @@ class JointPositionToLimitsAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        _, self._joint_names, self._joint_ids = self._asset.find_joints(
+            self.cfg.joint_names, preserve_order=cfg.preserve_order
+        )
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
         logger.info(
@@ -76,17 +81,22 @@ class JointPositionToLimitsAction(ActionTerm):
         elif isinstance(cfg.scale, dict):
             self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
             # resolve the dictionary config
-            index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(
+                self.cfg.scale, self._joint_names, preserve_order=cfg.preserve_order
+            )
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
+
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, self._joint_names, preserve_order=cfg.preserve_order
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
@@ -106,6 +116,37 @@ class JointPositionToLimitsAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the joint position to limits action.
+        It adds the following information to the base descriptor:
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "JointAction"
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        # This seems to be always [4xNum_joints] IDK why. Need to check.
+        if isinstance(self._offset, torch.Tensor):
+            self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
+        else:
+            self._IO_descriptor.offset = self._offset
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self._clip
+        else:
+            self._IO_descriptor.clip = None
+        return self._IO_descriptor
 
     """
     Operations.
@@ -197,6 +238,33 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         # initialize the previous targets
         self._prev_applied_actions = torch.zeros_like(self.processed_actions)
 
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the EMA joint position to limits action.
+        It adds the following information to the base descriptor:
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - alpha: The moving average weight.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        if isinstance(self._alpha, float):
+            self._IO_descriptor.alpha = self._alpha
+        elif isinstance(self._alpha, torch.Tensor):
+            self._IO_descriptor.alpha = self._alpha[0].detach().cpu().numpy().tolist()
+        else:
+            raise ValueError(
+                f"Unsupported moving average weight type: {type(self._alpha)}. Supported types are float and"
+                " torch.Tensor."
+            )
+        return self._IO_descriptor
+
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # check if specific environment ids are provided
         if env_ids is None:
@@ -205,7 +273,9 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             env_ids = env_ids[:, None]
         super().reset(env_ids)
         # reset history to current joint positions
-        self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
+        self._prev_applied_actions[env_ids, :] = wp.to_torch(self._asset.data.joint_pos).clone()[
+            env_ids, self._joint_ids
+        ]
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations
@@ -214,10 +284,11 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         ema_actions = self._alpha * self._processed_actions
         ema_actions += (1.0 - self._alpha) * self._prev_applied_actions
         # clamp the targets
+        soft_joint_pos_limits = wp.to_torch(self._asset.data.soft_joint_pos_limits)
         self._processed_actions[:] = torch.clamp(
             ema_actions,
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 0],
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 1],
+            soft_joint_pos_limits[:, self._joint_ids, 0],
+            soft_joint_pos_limits[:, self._joint_ids, 1],
         )
         # update previous targets
         self._prev_applied_actions[:] = self._processed_actions[:]

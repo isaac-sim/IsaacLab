@@ -58,11 +58,13 @@ import os
 import time
 import torch
 
+from isaaclab.utils import close_simulation, is_simulation_running
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -159,7 +161,7 @@ def main():
     obs = env.reset()
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
@@ -186,5 +188,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    if simulation_app:
-        simulation_app.close()
+    close_simulation(simulation_app)

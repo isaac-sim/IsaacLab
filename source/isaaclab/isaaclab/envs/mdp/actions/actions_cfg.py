@@ -5,10 +5,16 @@
 
 from dataclasses import MISSING
 
+# from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions
+from . import (  # surface_gripper_actions,; task_space_actions,
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+)
 
 ##
 # Joint actions.
@@ -123,6 +129,9 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
         This operation is performed after applying the scale factor.
     """
 
+    preserve_order: bool = False
+    """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
 
 @configclass
 class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
@@ -180,6 +189,41 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
 
 
+@configclass
+class AbsBinaryJointPositionActionCfg(ActionTermCfg):
+    """Configuration for the absolute binary joint position action term.
+
+    This action term is used for robust grasping by converting continuous gripper joint position actions
+    into binary open/close commands. Unlike directly applying continuous gripper joint position actions, this class
+    applies a threshold-based decision mechanism to determine whether to
+    open or close the gripper.
+
+    The action works by:
+    1. Taking a continuous input action value
+    2. Comparing it against a configurable threshold
+    3. Mapping the result to either open or close commands based on the threshold comparison
+    4. Applying the corresponding gripper open/close commands
+
+    This approach provides more predictable and stable grasping behavior compared to directly applying
+    continuous gripper joint position actions.
+
+    See :class:`AbsBinaryJointPositionAction` for more details.
+    """
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    open_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *open* configuration."""
+    close_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *close* configuration."""
+    threshold: float = 0.5
+    """The threshold for the binary action. Defaults to 0.5."""
+    positive_threshold: bool = True
+    """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
+
+    class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+
+
 ##
 # Non-holonomic actions.
 ##
@@ -211,13 +255,41 @@ class NonHolonomicActionCfg(ActionTermCfg):
 ##
 # Task-space Actions.
 ##
+
+
 @configclass
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
+    """Configuration for inverse differential kinematics action term.
+
+    See :class:`DifferentialInverseKinematicsAction` for more details.
+    """
+
     def __post_init__(self):
-        raise NotImplementedError("Not implemented")
+        raise NotImplementedError("DifferentialInverseKinematicsAction is not implemented for newton.")
 
 
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
+    """Configuration for operational space controller action term.
+
+    See :class:`OperationalSpaceControllerAction` for more details.
+    """
+
     def __post_init__(self):
-        raise NotImplementedError("Not implemented")
+        raise NotImplementedError("OperationalSpaceControllerAction is not implemented for newton.")
+
+
+##
+# Surface Gripper actions.
+##
+
+
+@configclass
+class SurfaceGripperBinaryActionCfg(ActionTermCfg):
+    """Configuration for the binary surface gripper action term.
+
+    See :class:`SurfaceGripperBinaryAction` for more details.
+    """
+
+    def __post_init__(self):
+        raise NotImplementedError("SurfaceGripperBinaryAction is not implemented for newton.")

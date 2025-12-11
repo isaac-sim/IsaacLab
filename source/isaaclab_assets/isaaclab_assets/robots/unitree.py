@@ -78,7 +78,7 @@ UNITREE_A1_CFG = ArticulationCfg(
             velocity_limit=21.0,
             stiffness=25.0,
             damping=0.5,
-            friction=1e3,
+            #friction=1e-3,
             # armature=1e-3,
         ),
     },
@@ -294,7 +294,7 @@ G1_CFG = ArticulationCfg(
             friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
-            effort_limit=20,
+            effort_limit=20.0,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
             damping=2.0,
