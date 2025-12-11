@@ -48,9 +48,9 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco>=3.3.8.dev832233427",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@57153866a9018b53cf01b800354b83bc18c4ac97",
-    "newton @ git+https://github.com/newton-physics/newton.git@1d33147722fdff6d87fe95848c5eeffc4e97bd7f",
+    "mujoco>=3.4.0.dev839962392",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@e9a67538f2c14486121635074c5a5fd6ca55fa83",
+    "newton @ git+https://github.com/newton-physics/newton.git@beta-0.2.0",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     "rerun-sdk==0.27",
