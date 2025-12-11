@@ -38,7 +38,8 @@ OPENARM_BI_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
-            "openarm_.*_joint.*": 0.0,
+            "openarm_left_joint.*": 0.0,
+            "openarm_right_joint.*": 0.0,
             "openarm_left_finger_joint.*": 0.0,
             "openarm_right_finger_joint.*": 0.0,
         },
