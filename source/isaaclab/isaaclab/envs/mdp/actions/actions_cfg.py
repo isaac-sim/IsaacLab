@@ -8,7 +8,7 @@ from dataclasses import MISSING
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions
+from . import binary_joint_actions, differential_inverse_kinematics_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions
 
 ##
 # Joint actions.
@@ -213,8 +213,25 @@ class NonHolonomicActionCfg(ActionTermCfg):
 ##
 @configclass
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
-    def __post_init__(self):
-        raise NotImplementedError("Not implemented")
+    """Configuration for differential inverse kinematics action term.
+
+    See :class:`DifferentialInverseKinematicsAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = differential_inverse_kinematics_actions.DifferentialInverseKinematicsAction
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    body_name: str = MISSING
+    """Name of the end-effector body."""
+    controller: "DifferentialIKControllerCfg" = MISSING  # type: ignore
+    """The differential IK controller configuration."""
+    scale: float = 1.0
+    """Scale factor for the action. Defaults to 1.0."""
+    body_offset_pos: tuple[float, float, float] | None = None
+    """Position offset of the end-effector from the body frame. Defaults to None."""
+    body_offset_rot: tuple[float, float, float, float] | None = None
+    """Rotation offset (quaternion: w, x, y, z) of the end-effector from the body frame. Defaults to None."""
 
 
 @configclass

@@ -115,7 +115,9 @@ def main() -> None:
                 " ignored."
             )
     except Exception as e:
+        import traceback
         logger.error(f"Failed to create environment: {e}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
         simulation_app.close()
         return
 

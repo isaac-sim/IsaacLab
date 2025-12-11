@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaacsim.core.simulation_manager import SimulationManager
-from pxr import UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
@@ -250,13 +250,31 @@ class FrameTransformer(SensorBase):
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # Create a prim view for all frames and initialize it
-        # order of transforms coming out of view will be source frame followed by target frame(s)
-        self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        
+        # Newton compatibility: PhysX views may not be available
+        if self._physics_sim_view is not None:
+            # PhysX path: Create a prim view for all frames and initialize it
+            # order of transforms coming out of view will be source frame followed by target frame(s)
+            self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        else:
+            # Newton path: Store prim paths for manual transform queries
+            self._frame_physx_view = None
+            self._tracked_prim_paths = tracked_prim_paths
+            self._body_names_regex = body_names_regex
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
-        all_prim_paths = self._frame_physx_view.prim_paths
+        if self._frame_physx_view is not None:
+            all_prim_paths = self._frame_physx_view.prim_paths
+        else:
+            # Newton path: manually find all matching prims
+            all_prim_paths = []
+            for regex_pattern in body_names_regex:
+                matching_prims = sim_utils.find_matching_prims(regex_pattern)
+                all_prim_paths.extend([prim.GetPath().pathString for prim in matching_prims])
+        
+        # Store for use in update method (Newton path needs this)
+        self._all_prim_paths = all_prim_paths
 
         if "env_" in all_prim_paths[0]:
 
@@ -369,13 +387,30 @@ class FrameTransformer(SensorBase):
 
         # Extract transforms from view - shape is:
         # (the total number of source and target body frames being tracked * self._num_envs, 7)
-        transforms = self._frame_physx_view.get_transforms()
-
-        # Reorder the transforms to be per environment as is expected of SensorData
-        transforms = transforms[self._per_env_indices]
-
-        # Convert quaternions as PhysX uses xyzw form
-        transforms[:, 3:] = convert_quat(transforms[:, 3:], to="wxyz")
+        if self._frame_physx_view is not None:
+            # PhysX path
+            transforms = self._frame_physx_view.get_transforms()
+            # Reorder the transforms to be per environment as is expected of SensorData
+            transforms = transforms[self._per_env_indices]
+            # Convert quaternions as PhysX uses xyzw form
+            transforms[:, 3:] = convert_quat(transforms[:, 3:], to="wxyz")
+        else:
+            # Newton path: Query transforms directly from USD
+            transforms_list = []
+            for prim_path in self._all_prim_paths:
+                prim = self.stage.GetPrimAtPath(prim_path)
+                if prim.IsValid():
+                    xform_api = UsdGeom.Xformable(prim)
+                    # Get world transform
+                    world_transform = xform_api.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+                    translation = world_transform.ExtractTranslation()
+                    rotation = world_transform.ExtractRotationQuat()
+                    # Format: [x, y, z, qw, qx, qy, qz]
+                    transform = [translation[0], translation[1], translation[2],
+                                rotation.GetReal(), rotation.GetImaginary()[0],
+                                rotation.GetImaginary()[1], rotation.GetImaginary()[2]]
+                    transforms_list.append(transform)
+            transforms = torch.tensor(transforms_list, device=self._device, dtype=torch.float32)
 
         # Process source frame transform
         source_frames = transforms[self._source_frame_body_ids]

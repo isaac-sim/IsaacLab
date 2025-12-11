@@ -287,6 +287,13 @@ def newton_replicate(
 
     from isaaclab.sim._impl.newton_manager import NewtonManager
 
+    # Handle single-source case (whole environment cloning)
+    # When cloning an entire environment as one unit, sources has length 1 but mapping may have
+    # multiple rows (one per object type). Collapse mapping to match the single source dimension.
+    if len(sources) == 1 and mapping.shape[0] > 1:
+        # Use logical OR across rows: if any object is mapped to an env, the whole env is cloned there
+        mapping = mapping.any(dim=0, keepdim=True)
+
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:

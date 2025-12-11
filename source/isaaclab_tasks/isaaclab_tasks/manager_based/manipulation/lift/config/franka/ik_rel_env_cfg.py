@@ -21,9 +21,19 @@ class FrankaCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        # Configure Newton solver parameters for manipulation task
+        self.sim.newton_cfg.solver_cfg.njmax = 15  # Max joints
+        self.sim.newton_cfg.solver_cfg.nconmax = 21  # Increased for collision handling
+        self.sim.newton_cfg.solver_cfg.ls_iterations = 12  # Line search iterations for convergence
+        self.sim.newton_cfg.solver_cfg.ls_parallel = True  # Parallel line search
+        self.sim.newton_cfg.num_substeps = 2  # More substeps for stability
+        
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
         self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Increase damping further to reduce oscillations
+        self.scene.robot.actuators["panda_shoulder"].damping = 120.0
+        self.scene.robot.actuators["panda_forearm"].damping = 120.0
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -32,7 +42,7 @@ class FrankaCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
             body_name="panda_hand",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+            body_offset_pos=(0.0, 0.0, 0.107),
         )
 
 

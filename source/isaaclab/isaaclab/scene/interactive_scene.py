@@ -15,7 +15,15 @@ from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
+    RigidObject,
+    RigidObjectCfg,
+)
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -314,6 +322,16 @@ class InteractiveScene:
         return self._sensors
 
     @property
+    def rigid_objects(self) -> dict[str, RigidObject]:
+        """A dictionary of the rigid objects in the scene."""
+        return self._rigid_objects
+
+    @property
+    def deformable_objects(self) -> dict[str, DeformableObject]:
+        """A dictionary of the deformable objects in the scene."""
+        return self._deformable_objects
+
+    @property
     def surface_grippers(self) -> dict:
         """A dictionary of the surface grippers in the scene."""
         raise NotImplementedError("Surface grippers are not supported in IsaacLab for Newton.")
@@ -359,6 +377,10 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.reset(env_ids)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
@@ -368,6 +390,10 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -378,6 +404,10 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -505,6 +535,8 @@ class InteractiveScene:
         all_keys = ["terrain"]
         for asset_family in [
             self._articulations,
+            self._rigid_objects,
+            self._deformable_objects,
             self._sensors,
             self._extras,
         ]:
@@ -528,6 +560,8 @@ class InteractiveScene:
         # check if it is in other dictionaries
         for asset_family in [
             self._articulations,
+            self._rigid_objects,
+            self._deformable_objects,
             self._sensors,
             self._extras,
         ]:
@@ -607,6 +641,10 @@ class InteractiveScene:
                         asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, RigidObjectCfg):
+                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg):
+                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset
                 if asset_cfg.spawn is not None:

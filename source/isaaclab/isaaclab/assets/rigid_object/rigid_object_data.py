@@ -34,11 +34,11 @@ class RigidObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
-    def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
+    def __init__(self, root_view, device: str):
         """Initializes the rigid object data.
 
         Args:
-            root_physx_view: The root rigid body view.
+            root_view: The root rigid body view (PhysX RigidBodyView or Newton ArticulationView).
             device: The device used for processing.
         """
         # Set the parameters
@@ -46,23 +46,40 @@ class RigidObjectData:
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_physx_view: physx.RigidBodyView = weakref.proxy(root_physx_view)
+        
+        # Check if it's a PhysX view or Newton view
+        self._is_newton = not hasattr(root_view, '_backend')
+        
+        if not self._is_newton:
+            self._root_physx_view: physx.RigidBodyView = weakref.proxy(root_view)
+            self._root_newton_view = None
+        else:
+            self._root_physx_view = None
+            self._root_newton_view = weakref.proxy(root_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
-        # Obtain global physics sim view
-        stage_id = get_current_stage_id()
-        physics_sim_view = physx.create_simulation_view("torch", stage_id)
-        physics_sim_view.set_subspace_roots("/")
-        gravity = physics_sim_view.get_gravity()
-        # Convert to direction vector
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        # Obtain gravity direction
+        if not self._is_newton:
+            # PhysX path
+            stage_id = get_current_stage_id()
+            physics_sim_view = physx.create_simulation_view("torch", stage_id)
+            physics_sim_view.set_subspace_roots("/")
+            gravity = physics_sim_view.get_gravity()
+            gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        else:
+            # Newton path
+            import warp as wp
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            gravity_dir = wp.to_torch(NewtonManager.get_model().gravity)
+        
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        num_instances = self._root_newton_view.count if self._is_newton else self._root_physx_view.count
+        self.GRAVITY_VEC_W = gravity_dir.repeat(num_instances, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(num_instances, 1)
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -132,8 +149,18 @@ class RigidObjectData:
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_transforms().clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            if not self._is_newton:
+                # PhysX path
+                pose = self._root_physx_view.get_transforms().clone()
+                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            else:
+                # Newton path: get root transforms from articulation view
+                import warp as wp
+                from isaaclab.sim._impl.newton_manager import NewtonManager
+                root_transforms = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()))
+                # Newton format is [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+                # Convert to [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z]
+                pose = torch.cat([root_transforms[:, :3], root_transforms[:, 6:7], root_transforms[:, 3:6]], dim=1)
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
             self._root_link_pose_w.timestamp = self._sim_timestamp
@@ -186,7 +213,17 @@ class RigidObjectData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_physx_view.get_velocities()
+            if not self._is_newton:
+                # PhysX path
+                self._root_com_vel_w.data = self._root_physx_view.get_velocities()
+            else:
+                # Newton path: get root velocities from articulation view
+                import warp as wp
+                from isaaclab.sim._impl.newton_manager import NewtonManager
+                root_vels = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+                # Newton format is [ang_vel_x, ang_vel_y, ang_vel_z, lin_vel_x, lin_vel_y, lin_vel_z]
+                # Convert to [lin_vel_x, lin_vel_y, lin_vel_z, ang_vel_x, ang_vel_y, ang_vel_z]
+                self._root_com_vel_w.data = torch.cat([root_vels[:, 3:6], root_vels[:, 0:3]], dim=1)
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data
@@ -311,7 +348,16 @@ class RigidObjectData:
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            self._body_com_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
+            if not self._is_newton:
+                # PhysX path
+                self._body_com_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
+            else:
+                # Newton path: acceleration not directly available, compute from velocity change
+                # For now, return zeros as Newton doesn't expose accelerations directly
+                if self._body_com_acc_w.data is None:
+                    num_instances = self._root_newton_view.count
+                    self._body_com_acc_w.data = torch.zeros((num_instances, 1, 6), device=self.device)
+                # Could compute from velocity diff if needed: (v_current - v_previous) / dt
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
         return self._body_com_acc_w.data
@@ -326,8 +372,22 @@ class RigidObjectData:
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_coms().to(self.device)
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            if not self._is_newton:
+                # PhysX path
+                pose = self._root_physx_view.get_coms().to(self.device)
+                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            else:
+                # Newton path: get COM position from body attributes
+                import warp as wp
+                from isaaclab.sim._impl.newton_manager import NewtonManager
+                
+                body_com = wp.to_torch(self._root_newton_view.get_attribute("body_com", NewtonManager.get_model()))
+                # body_com shape is (num_instances, num_bodies, 3) for position only
+                # Create pose with identity quaternion [w=1, x=0, y=0, z=0]
+                num_instances = self._root_newton_view.count
+                pose = torch.zeros((num_instances, 7), device=self.device)
+                pose[:, :3] = body_com[:, 0, :]  # COM position for single body (index 0)
+                pose[:, 3] = 1.0  # quaternion w component (identity rotation)
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose.view(-1, 1, 7)
             self._body_com_pose_b.timestamp = self._sim_timestamp

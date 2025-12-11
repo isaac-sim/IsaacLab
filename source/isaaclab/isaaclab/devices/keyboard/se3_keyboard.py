@@ -39,7 +39,7 @@ class Se3Keyboard(DeviceBase):
         Toggle gripper (open/close)    K
         Move along x-axis              W                 S
         Move along y-axis              A                 D
-        Move along z-axis              Q                 E
+        Move along z-axis              Q                 R
         Rotate along x-axis            Z                 X
         Rotate along y-axis            T                 G
         Rotate along z-axis            C                 V
@@ -156,13 +156,13 @@ class Se3Keyboard(DeviceBase):
                 self.reset()
             if event.input.name == "K":
                 self._close_gripper = not self._close_gripper
-            elif event.input.name in ["W", "S", "A", "D", "Q", "E"]:
+            elif event.input.name in ["W", "S", "A", "D", "Q", "R"]:
                 self._delta_pos += self._INPUT_KEY_MAPPING[event.input.name]
             elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
                 self._delta_rot += self._INPUT_KEY_MAPPING[event.input.name]
         # remove the command when un-pressed
         if event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            if event.input.name in ["W", "S", "A", "D", "Q", "E"]:
+            if event.input.name in ["W", "S", "A", "D", "Q", "R"]:
                 self._delta_pos -= self._INPUT_KEY_MAPPING[event.input.name]
             elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
                 self._delta_rot -= self._INPUT_KEY_MAPPING[event.input.name]
@@ -187,7 +187,7 @@ class Se3Keyboard(DeviceBase):
             "D": np.asarray([0.0, -1.0, 0.0]) * self.pos_sensitivity,
             # z-axis (up-down)
             "Q": np.asarray([0.0, 0.0, 1.0]) * self.pos_sensitivity,
-            "E": np.asarray([0.0, 0.0, -1.0]) * self.pos_sensitivity,
+            "R": np.asarray([0.0, 0.0, -1.0]) * self.pos_sensitivity,
             # roll (around x-axis)
             "Z": np.asarray([1.0, 0.0, 0.0]) * self.rot_sensitivity,
             "X": np.asarray([-1.0, 0.0, 0.0]) * self.rot_sensitivity,

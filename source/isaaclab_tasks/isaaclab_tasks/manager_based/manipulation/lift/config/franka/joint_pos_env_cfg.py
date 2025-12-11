@@ -71,7 +71,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                    prim_path="/World/envs/env_.*/Robot/panda_hand",
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.1034],

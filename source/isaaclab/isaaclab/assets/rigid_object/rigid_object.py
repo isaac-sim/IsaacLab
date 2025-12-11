@@ -70,7 +70,10 @@ class RigidObject(AssetBase):
 
     @property
     def num_instances(self) -> int:
-        return self.root_physx_view.count
+        if self._root_physx_view is not None:
+            return self._root_physx_view.count
+        else:
+            return self._root_newton_view.count
 
     @property
     def num_bodies(self) -> int:
@@ -83,7 +86,12 @@ class RigidObject(AssetBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
-        prim_paths = self.root_physx_view.prim_paths[: self.num_bodies]
+        if self._root_physx_view is not None:
+            prim_paths = self._root_physx_view.prim_paths[: self.num_bodies]
+        else:
+            # Newton path: get prim paths from Newton view
+            # For rigid objects (single body), we just use the root prim path
+            prim_paths = [self.cfg.prim_path.replace(".*", "_0").replace("{ENV_REGEX_NS}", "env_0")]
         return [path.split("/")[-1] for path in prim_paths]
 
     @property
@@ -92,6 +100,7 @@ class RigidObject(AssetBase):
 
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
+            For Newton, this returns None.
         """
         return self._root_physx_view
 
@@ -242,11 +251,31 @@ class RigidObject(AssetBase):
             )
             self._data.root_com_state_w[env_ids, :3] = expected_com_pos
             self._data.root_com_state_w[env_ids, 3:7] = expected_com_quat
-        # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
-        self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
+        if self._root_physx_view is not None:
+            # PhysX path
+            # convert root quaternion from wxyz to xyzw
+            root_poses_xyzw = self._data.root_link_pose_w.clone()
+            root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+            self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
+        else:
+            # Newton path
+            import warp as wp
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            # Convert from [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z] 
+            # to [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+            root_poses_xyzw = torch.cat([
+                self._data.root_link_pose_w[:, :3],  # position
+                self._data.root_link_pose_w[:, 4:7],  # quat xyz
+                self._data.root_link_pose_w[:, 3:4]   # quat w
+            ], dim=1)
+            # Convert indices to boolean mask for Newton
+            if isinstance(physx_env_ids, torch.Tensor) and physx_env_ids.dtype == torch.long:
+                mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                mask[physx_env_ids] = True
+            else:
+                mask = physx_env_ids
+            self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=mask)
 
     def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -326,7 +355,23 @@ class RigidObject(AssetBase):
         # make the acceleration zero to prevent reporting old values
         self._data.body_com_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
+        if self._root_physx_view is not None:
+            # PhysX path
+            self.root_physx_view.set_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
+        else:
+            # Newton path
+            import warp as wp
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            # Convert from [lin_vel_x, lin_vel_y, lin_vel_z, ang_vel_x, ang_vel_y, ang_vel_z]
+            # to [ang_vel_x, ang_vel_y, ang_vel_z, lin_vel_x, lin_vel_y, lin_vel_z]
+            root_vels_newton = torch.cat([self._data.root_com_vel_w[:, 3:6], self._data.root_com_vel_w[:, 0:3]], dim=1)
+            # Convert indices to boolean mask for Newton
+            if isinstance(physx_env_ids, torch.Tensor) and physx_env_ids.dtype == torch.long:
+                mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                mask[physx_env_ids] = True
+            else:
+                mask = physx_env_ids
+            self._root_newton_view.set_root_velocities(NewtonManager.get_state_0(), root_vels_newton, mask=mask)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -500,12 +545,26 @@ class RigidObject(AssetBase):
         # resolve root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        
         # -- object view
-        self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
-
-        # check if the rigid body was created
-        if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+        if self._physics_sim_view is not None:
+            # PhysX path
+            self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
+            # check if the rigid body was created
+            if self._root_physx_view._backend is None:
+                raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+        else:
+            # Newton path: rigid objects are treated as single-body articulations
+            from newton.selection import ArticulationView as NewtonArticulationView
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            from newton import JointType
+            
+            prim_path = root_prim_path_expr.replace(".*", "*")
+            self._root_newton_view = NewtonArticulationView(
+                NewtonManager.get_model(), prim_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]
+            )
+            # For Newton, create a compatibility wrapper
+            self._root_physx_view = None
 
         # log information about the rigid body
         logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
@@ -513,8 +572,12 @@ class RigidObject(AssetBase):
         logger.info(f"Number of bodies: {self.num_bodies}")
         logger.info(f"Body names: {self.body_names}")
 
-        # container for data access
-        self._data = RigidObjectData(self.root_physx_view, self.device)
+        # container for data access  
+        if self._root_physx_view is not None:
+            self._data = RigidObjectData(self.root_physx_view, self.device)
+        else:
+            # Newton path: pass the Newton view
+            self._data = RigidObjectData(self._root_newton_view, self.device)
 
         # create buffers
         self._create_buffers()
@@ -538,8 +601,23 @@ class RigidObject(AssetBase):
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
-        self._data.default_mass = self.root_physx_view.get_masses().clone()
-        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
+        
+        if self._root_physx_view is not None:
+            # PhysX path
+            self._data.default_mass = self._root_physx_view.get_masses().clone()
+            self._data.default_inertia = self._root_physx_view.get_inertias().clone()
+        else:
+            # Newton path: get mass and inertia from Newton view
+            import warp as wp
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+            
+            body_mass = wp.to_torch(self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model()))
+            body_inertia = wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model()))
+            
+            # Newton returns mass per body; for single-body rigid objects, just use it directly
+            self._data.default_mass = body_mass.clone()
+            # Newton returns inertia as (num_instances, num_bodies, 9)
+            self._data.default_inertia = body_inertia.clone().reshape(self.num_instances, -1)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""

@@ -1327,17 +1327,17 @@ class Articulation(AssetBase):
         prim_path = root_prim_path_expr.replace(".*", "*")
 
         self._root_newton_view = NewtonArticulationView(
-            NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
+            NewtonManager.get_model(), prim_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
 
         # log information about the articulation
-        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
-        print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
-        print(f"[INFO]:Number of bodies: {self.num_bodies}")
-        print(f"[INFO]:Body names: {self.body_names}")
-        print(f"[INFO]:Number of joints: {self.num_joints}")
-        print(f"[INFO]:Joint names: {self.joint_names}")
-        print(f"[INFO]:Number of fixed tendons: {self.num_fixed_tendons}")
+        logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
+        logger.debug(f"Is fixed root: {self.is_fixed_base}")
+        logger.debug(f"Number of bodies: {self.num_bodies}")
+        logger.debug(f"Body names: {self.body_names}")
+        logger.debug(f"Number of joints: {self.num_joints}")
+        logger.debug(f"Joint names: {self.joint_names}")
+        logger.debug(f"Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
         self._data = ArticulationData(self._root_newton_view, self.device)

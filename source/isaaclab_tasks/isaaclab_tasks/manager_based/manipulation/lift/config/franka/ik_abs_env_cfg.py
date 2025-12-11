@@ -43,7 +43,7 @@ class FrankaCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+            body_offset_pos=(0.0, 0.0, 0.107),
         )
 
 
