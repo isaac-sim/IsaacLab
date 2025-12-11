@@ -10,7 +10,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.torch.transformations import tf_combine
+from isaaclab.utils.math import combine_frame_transforms
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
@@ -118,7 +118,7 @@ class GearShaftPosW(ManagerTermBase):
         self.offsets_buffer = self.gear_offsets_stacked[gear_type_indices]
 
         # Transform offsets
-        _, shaft_pos = tf_combine(base_quat, base_pos, self.identity_quat, self.offsets_buffer)
+        shaft_pos, _ = combine_frame_transforms(base_pos, base_quat, self.offsets_buffer, self.identity_quat)
 
         return shaft_pos - env.scene.env_origins
 

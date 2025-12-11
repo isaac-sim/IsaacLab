@@ -10,7 +10,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.torch.transformations import tf_combine
+from isaaclab.utils.math import combine_frame_transforms
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
@@ -42,22 +42,20 @@ def get_keypoint_offsets_full_6d(add_cube_center_kp: bool = False, device: torch
     return keypoint_corners
 
 
-class ComputeKeypointDistance(ManagerTermBase):
+class ComputeKeypointDistance:
     """Compute keypoint distance between current and target poses.
 
-    This class-based term pre-caches keypoint offsets and identity quaternions
+    This helper class pre-caches keypoint offsets and identity quaternions
     to avoid repeated allocations during reward computation.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        """Initialize the compute keypoint distance term.
+        """Initialize the compute keypoint distance helper.
 
         Args:
             cfg: Reward term configuration
             env: Environment instance
         """
-        super().__init__(cfg, env)
-
         # Get keypoint configuration
         add_cube_center_kp = cfg.params.get("add_cube_center_kp", True)
 
@@ -118,11 +116,11 @@ class ComputeKeypointDistance(ManagerTermBase):
         target_pos_expanded = target_pos.unsqueeze(1).expand(-1, self.num_keypoints, -1).reshape(-1, 3)
 
         # Transform all keypoints at once
-        _, keypoints_current_flat = tf_combine(
-            current_quat_expanded, current_pos_expanded, identity_quat, keypoint_offsets_flat
+        keypoints_current_flat, _ = combine_frame_transforms(
+            current_pos_expanded, current_quat_expanded, keypoint_offsets_flat, identity_quat
         )
-        _, keypoints_target_flat = tf_combine(
-            target_quat_expanded, target_pos_expanded, identity_quat, keypoint_offsets_flat
+        keypoints_target_flat, _ = combine_frame_transforms(
+            target_pos_expanded, target_quat_expanded, keypoint_offsets_flat, identity_quat
         )
 
         # Reshape back
