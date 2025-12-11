@@ -88,6 +88,7 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Jinqi Wei
 * Johnson Sun
+* Juana Du
 * Kaixi Bao
 * Kris Wilson
 * Krishna Lakhi
