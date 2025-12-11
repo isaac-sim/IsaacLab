@@ -3,54 +3,43 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 import os
+import torch
+from dataclasses import MISSING
+
+import isaaclab.controllers.utils as ControllerUtils
+import isaaclab.envs.mdp as base_mdp
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets.articulation import Articulation, ArticulationCfg
+from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
+from isaaclab.controllers.pink_ik.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+
+#
+from isaaclab.devices.openxr.retargeters.humanoid.fii.fii_retargeter import FiiRetargeterCfg
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnvCfg
+from isaaclab.envs.common import ViewerCfg
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+
+from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 
 from .swerve_ik import swerve_isosceles_ik
 
-import isaaclab.sim as sim_utils
-import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
-from isaaclab.managers import SceneEntityCfg
-import isaaclab.envs.mdp as base_mdp
-from isaaclab.envs.common import ViewerCfg
-
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
-from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
-
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
-from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.assets.articulation import Articulation
-from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
-
-from isaaclab.controllers.pink_ik.pink_ik_cfg import PinkIKControllerCfg
-from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedEnv
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-
-from dataclasses import MISSING
-
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
-from isaaclab.utils import configclass
-
-
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-#
-from isaaclab.devices.openxr.retargeters.humanoid.fii.fii_retargeter import FiiRetargeterCfg
-
-
-
-#=======================================================================
+# =======================================================================
 #   PARAMETERS
-#=======================================================================
+# =======================================================================
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 FII_USD_PATH = os.path.join(CURRENT_DIR, "Fiibot_W_1_V2_251016_Modified.usd")
@@ -59,28 +48,22 @@ OBJECT_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_asse
 FORCE_URDF_BUILD = True
 
 
-#=======================================================================
+# =======================================================================
 #   SCENE
-#=======================================================================
+# =======================================================================
+
 
 class FiibotSceneCfg(InteractiveSceneCfg):
 
-    ground = AssetBaseCfg(
-        prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg()
-    )
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
 
     dome_light = AssetBaseCfg(
-        prim_path="/World/Light", 
-        spawn=sim_utils.DomeLightCfg(
-            intensity=3000.0, 
-            color=(0.75, 0.75, 0.75)
-        )
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
     packing_table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.85, 0.), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.85, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -92,16 +75,15 @@ class FiibotSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.75, 1.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=OBJECT_USD_PATH,
-            scale=(1., 1., 1.),
+            scale=(1.0, 1.0, 1.0),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         ),
     )
-    
 
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/robot",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0), 
+            pos=(0.0, 0.0, 0.0),
             rot=(0.7071068, 0.0, 0.0, 0.7071068),
             joint_pos={
                 "jack_joint": 0.7,
@@ -119,7 +101,7 @@ class FiibotSceneCfg(InteractiveSceneCfg):
                 "right_5_joint": 0.0,
                 "right_6_joint": -0.785398,
                 "right_7_joint": 0.0,
-            }
+            },
         ),
         spawn=sim_utils.UsdFileCfg(
             usd_path=FII_USD_PATH,
@@ -131,19 +113,11 @@ class FiibotSceneCfg(InteractiveSceneCfg):
                 max_linear_velocity=1000.0,
                 max_angular_velocity=1000.0,
                 max_depenetration_velocity=1.0,
-            )
+            ),
         ),
         actuators={
-            "actuators": ImplicitActuatorCfg(
-                joint_names_expr=[".*"], 
-                damping=None, 
-                stiffness=None
-            ),
-            "jack_joint": ImplicitActuatorCfg(
-                joint_names_expr=["jack_joint"], 
-                damping=5000., 
-                stiffness=500000.
-            ),
+            "actuators": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=None, stiffness=None),
+            "jack_joint": ImplicitActuatorCfg(joint_names_expr=["jack_joint"], damping=5000.0, stiffness=500000.0),
         },
     )
 
@@ -159,7 +133,7 @@ class FiibotLowerBodyAction(ActionTerm):
 
     def __init__(self, cfg: "FiibotLowerBodyActionCfg", env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        
+
         self._env = env
 
         self._joint_names = [
@@ -169,13 +143,10 @@ class FiibotLowerBodyAction(ActionTerm):
             "jack_joint",
             "front_wheel_joint",
             "left_wheel_joint",
-            "right_wheel_joint"
+            "right_wheel_joint",
         ]
 
-        self._joint_ids = [
-            self._asset.data.joint_names.index(joint_name)
-            for joint_name in self._joint_names
-        ]
+        self._joint_ids = [self._asset.data.joint_names.index(joint_name) for joint_name in self._joint_names]
 
         self._joint_pos_target = torch.zeros(self.num_envs, 7, device=self.device)
         self._joint_vel_target = torch.zeros(self.num_envs, 3, device=self.device)
@@ -192,7 +163,7 @@ class FiibotLowerBodyAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._joint_pos_target
-    
+
     def process_actions(self, actions: torch.Tensor):
 
         ik_out = swerve_isosceles_ik(
@@ -202,26 +173,23 @@ class FiibotLowerBodyAction(ActionTerm):
             L1=0.30438,
             d=0.17362,
             w=0.25,
-            R=0.06
+            R=0.06,
         )
 
-        self._joint_pos_target[:, 0] = ik_out['wheel1']['angle_rad']
-        self._joint_pos_target[:, 1] = ik_out['wheel2']['angle_rad']
-        self._joint_pos_target[:, 2] = ik_out['wheel3']['angle_rad']
+        self._joint_pos_target[:, 0] = ik_out["wheel1"]["angle_rad"]
+        self._joint_pos_target[:, 1] = ik_out["wheel2"]["angle_rad"]
+        self._joint_pos_target[:, 2] = ik_out["wheel3"]["angle_rad"]
         self._joint_pos_target[:, 3] = float(actions[0, 3])
 
-        self._joint_vel_target[:, 0] = ik_out['wheel1']['omega']
-        self._joint_vel_target[:, 1] = ik_out['wheel2']['omega']
-        self._joint_vel_target[:, 2] = ik_out['wheel3']['omega']
+        self._joint_vel_target[:, 0] = ik_out["wheel1"]["omega"]
+        self._joint_vel_target[:, 1] = ik_out["wheel2"]["omega"]
+        self._joint_vel_target[:, 2] = ik_out["wheel3"]["omega"]
 
     def apply_actions(self):
 
         self._joint_pos_target[:, 4:] = self._joint_pos_target[:, 4:] + self._env.physics_dt * self._joint_vel_target
 
-        self._asset.set_joint_position_target(
-            target=self._joint_pos_target,
-            joint_ids=self._joint_ids
-        )
+        self._asset.set_joint_position_target(target=self._joint_pos_target, joint_ids=self._joint_ids)
 
 
 @configclass
@@ -249,13 +217,13 @@ class FiibotActionsCfg:
             "right_4_joint",
             "right_5_joint",
             "right_6_joint",
-            "right_7_joint"
+            "right_7_joint",
         ],
         hand_joint_names=[
             "left_hand_grip1_joint",
             "left_hand_grip2_joint",
             "right_hand_grip1_joint",
-            "right_hand_grip2_joint"
+            "right_hand_grip2_joint",
         ],
         target_eef_link_names={
             "left_wrist": "Fiibot_W_2_V2_left_7_Link",
@@ -284,20 +252,18 @@ class FiibotActionsCfg:
                     orientation_cost=1.0,
                     lm_damping=10,
                     gain=0.1,
-                )
+                ),
             ],
             fixed_input_tasks=[],
-        )
+        ),
     )
 
-    lower_body_ik = FiibotLowerBodyActionCfg(
-        asset_name="robot"
-    )
+    lower_body_ik = FiibotLowerBodyActionCfg(asset_name="robot")
 
 
 @configclass
 class FiibotObservationsCfg:
-    
+
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
@@ -318,12 +284,17 @@ class FiibotObservationsCfg:
         right_eef_pos = ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "right_7_Link"})
         right_eef_quat = ObsTerm(func=manip_mdp.get_eef_quat, params={"link_name": "right_7_Link"})
 
-        hand_joint_state = ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": [
-            "left_hand_grip1_joint",
-            "left_hand_grip2_joint",
-            "right_hand_grip1_joint",
-            "right_hand_grip2_joint"
-        ]})
+        hand_joint_state = ObsTerm(
+            func=manip_mdp.get_robot_joint_state,
+            params={
+                "joint_names": [
+                    "left_hand_grip1_joint",
+                    "left_hand_grip2_joint",
+                    "right_hand_grip1_joint",
+                    "right_hand_grip2_joint",
+                ]
+            },
+        )
 
         object = ObsTerm(
             func=manip_mdp.object_obs,
@@ -334,42 +305,44 @@ class FiibotObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-
     policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
 class FiibotTerminationsCfg:
-    
+
     time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
 
     object_dropping = DoneTerm(
         func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={
-        "task_link_name": "right_7_Link",
-        "right_wrist_max_x": 0.26,
-        "min_x": 0.40,
-        "max_x": 0.85,
-        "min_y": 0.35,
-        "max_y": 0.8, 
-        "max_height": 1.10,
-        "min_vel": 0.20,                                                        
-    })
+    success = DoneTerm(
+        func=manip_mdp.task_done_pick_place,
+        params={
+            "task_link_name": "right_7_Link",
+            "right_wrist_max_x": 0.26,
+            "min_x": 0.40,
+            "max_x": 0.85,
+            "min_y": 0.35,
+            "max_y": 0.8,
+            "max_height": 1.10,
+            "min_vel": 0.20,
+        },
+    )
 
 
-#=======================================================================
+# =======================================================================
 #   REWARDS
-#=======================================================================
+# =======================================================================
 @configclass
 class FiibotRewardsCfg:
     pass
 
 
-#=======================================================================
+# =======================================================================
 #   ENVIRONMENT
-#=======================================================================
+# =======================================================================
 @configclass
 class FiibotEnvCfg(ManagerBasedRLEnvCfg):
 
@@ -380,13 +353,14 @@ class FiibotEnvCfg(ManagerBasedRLEnvCfg):
     terminations = FiibotTerminationsCfg()
 
     xr: XrCfg = XrCfg(
-        anchor_pos=(0., 0., 0.25),
+        anchor_pos=(0.0, 0.0, 0.25),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
     viewer: ViewerCfg = ViewerCfg(
         eye=(0.0, 3.0, 1.5), lookat=(0.0, 0.0, 0.7), origin_type="asset_body", asset_name="robot", body_name="base_link"
     )
+
     def __post_init__(self):
         self.decimation = 4
         self.episode_length_s = 200.0
@@ -415,4 +389,3 @@ class FiibotEnvCfg(ManagerBasedRLEnvCfg):
                 ),
             }
         )
-

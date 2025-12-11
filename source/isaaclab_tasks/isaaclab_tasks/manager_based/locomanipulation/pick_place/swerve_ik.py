@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import math
 from typing import Dict, Tuple
 
@@ -10,7 +15,7 @@ def swerve_isosceles_ik(
     d: float,
     w: float,
     R: float,
-) -> Dict[str, Dict[str, float]]:
+) -> dict[str, dict[str, float]]:
     """
     Inverse kinematics for a 3-module swerve (independent steering + drive)
     in an isosceles layout with +x pointing to Wheel 1.
@@ -47,19 +52,19 @@ def swerve_isosceles_ik(
       - Community derivations / implementation notes (angle optimization, etc.). :contentReference[oaicite:2]{index=2}
     """
 
-    def module_state(xi: float, yi: float) -> Tuple[float, float, float, float]:
+    def module_state(xi: float, yi: float) -> tuple[float, float, float, float]:
         vix = vx + wz * (-yi)
-        viy = vy + wz * ( xi)
-        angle = math.atan2(viy, vix)               # [-pi, pi]
+        viy = vy + wz * (xi)
+        angle = math.atan2(viy, vix)  # [-pi, pi]
         speed = math.hypot(vix, viy)
         omega = speed / R if R > 0 else float("inf")
         return angle, math.degrees(angle), speed, omega
 
     # Module positions (isosceles)
     r = {
-        "wheel1": ( L1,  0.0),
-        "wheel2": (-d ,  w ),
-        "wheel3": (-d , -w ),
+        "wheel1": (L1, 0.0),
+        "wheel2": (-d, w),
+        "wheel3": (-d, -w),
     }
 
     out = {}
@@ -72,4 +77,3 @@ def swerve_isosceles_ik(
             "omega": omega,
         }
     return out
-

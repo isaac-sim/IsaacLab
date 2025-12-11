@@ -1,10 +1,14 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import numpy as np
 import torch
 from dataclasses import dataclass
 
 from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
 
 
 class FiiRetargeter(RetargeterBase):
@@ -19,9 +23,12 @@ class FiiRetargeter(RetargeterBase):
         base_vel = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float32, device=self._sim_device)
         base_height = torch.tensor([0.7], dtype=torch.float32, device=self._sim_device)
 
-        left_eef_pose = torch.tensor([-0.3, 0.3, 0.72648, 1.0, 0., 0., 0.], dtype=torch.float32, device=self._sim_device)
-        right_eef_pose = torch.tensor([-0.3, 0.3, 0.72648, 1.0, 0., 0., 0.], dtype=torch.float32, device=self._sim_device)
-
+        left_eef_pose = torch.tensor(
+            [-0.3, 0.3, 0.72648, 1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self._sim_device
+        )
+        right_eef_pose = torch.tensor(
+            [-0.3, 0.3, 0.72648, 1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self._sim_device
+        )
 
         left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
         right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
@@ -38,8 +45,10 @@ class FiiRetargeter(RetargeterBase):
         gripper_value_left = self._hand_data_to_gripper_values(data[OpenXRDevice.TrackingTarget.HAND_LEFT])
         gripper_value_right = self._hand_data_to_gripper_values(data[OpenXRDevice.TrackingTarget.HAND_RIGHT])
 
-        return torch.cat([left_eef_pose, right_eef_pose, gripper_value_left, gripper_value_right, base_vel, base_height])
-    
+        return torch.cat(
+            [left_eef_pose, right_eef_pose, gripper_value_left, gripper_value_right, base_vel, base_height]
+        )
+
     def _hand_data_to_gripper_values(self, hand_data):
         thumb_tip = hand_data["thumb_tip"]
         index_tip = hand_data["index_tip"]
