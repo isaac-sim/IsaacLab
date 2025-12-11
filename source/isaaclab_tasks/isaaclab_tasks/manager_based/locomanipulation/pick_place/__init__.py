@@ -9,7 +9,7 @@
 import gymnasium as gym
 import os
 
-from . import agents, fixed_base_upper_body_ik_g1_env_cfg, locomanipulation_g1_env_cfg
+from . import agents, fixed_base_upper_body_ik_g1_env_cfg, locomanipulation_g1_env_cfg, locomanipulation_fii_env_cfg
 
 gym.register(
     id="Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
@@ -26,6 +26,15 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": fixed_base_upper_body_ik_g1_env_cfg.FixedBaseUpperBodyIKG1EnvCfg,
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-PickPlace-Locomanipulation-Fii",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": locomanipulation_fii_env_cfg.FiibotEnvCfg
     },
     disable_env_checker=True,
 )

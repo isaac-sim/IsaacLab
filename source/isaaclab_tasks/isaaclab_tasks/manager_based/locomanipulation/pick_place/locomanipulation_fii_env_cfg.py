@@ -37,20 +37,11 @@ from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_md
 
 from .swerve_ik import swerve_isosceles_ik
 
-# =======================================================================
-#   PARAMETERS
-# =======================================================================
-
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 FII_USD_PATH = os.path.join(CURRENT_DIR, "Fiibot_W_1_V2_251016_Modified.usd")
 FII_URDF_PATH = os.path.join(CURRENT_DIR, "Fiibot_W_1_V2_251016_Modified_urdf")  # will be created if it doesn't exit
-OBJECT_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd"
+OBJECT_USD_PATH = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd"
 FORCE_URDF_BUILD = True
-
-
-# =======================================================================
-#   SCENE
-# =======================================================================
 
 
 class FiibotSceneCfg(InteractiveSceneCfg):
@@ -72,10 +63,10 @@ class FiibotSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.75, 1.0), rot=(1, 0, 0, 0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.75, 1.035), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=OBJECT_USD_PATH,
-            scale=(1.0, 1.0, 1.0),
+            scale=(1.5, 1.5, 1.5),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         ),
     )
@@ -332,17 +323,11 @@ class FiibotTerminationsCfg:
     )
 
 
-# =======================================================================
-#   REWARDS
-# =======================================================================
 @configclass
 class FiibotRewardsCfg:
     pass
 
 
-# =======================================================================
-#   ENVIRONMENT
-# =======================================================================
 @configclass
 class FiibotEnvCfg(ManagerBasedRLEnvCfg):
 
