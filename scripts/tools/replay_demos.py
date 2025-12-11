@@ -200,6 +200,7 @@ def main():
 
     # Track failed demo IDs
     failed_demo_ids = []
+
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running() and not simulation_app.is_exiting():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
@@ -213,32 +214,40 @@ def main():
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()
                     if env_next_action is None:
+                        # check if the episode is successful after the whole episode_data is
+                        if (
+                            (success_term is not None)
+                            and (current_episode_indices[env_id]) is not None
+                            and (not episode_ended[env_id])
+                        ):
+                            if bool(success_term.func(env, **success_term.params)[env_id]):
+                                recorded_episode_count += 1
+                                plural_trailing_s = "s" if recorded_episode_count > 1 else ""
+
+                                print(
+                                    f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
+                                    f" of {replayed_episode_count} demos.",
+                                    "  ",
+                                    current_episode_indices[env_id],
+                                )
+                            else:
+                                # if not successful, add to failed demo IDs list
+                                if (
+                                    current_episode_indices[env_id] is not None
+                                    and current_episode_indices[env_id] not in failed_demo_ids
+                                ):
+                                    failed_demo_ids.append(current_episode_indices[env_id])
+
+                            episode_ended[env_id] = True
+
                         next_episode_index = None
                         while episode_indices_to_replay:
                             next_episode_index = episode_indices_to_replay.pop(0)
+
                             if next_episode_index < episode_count:
                                 episode_ended[env_id] = False
                                 break
                             next_episode_index = None
-
-                        # check if the episode is successful after the whole episode_data is evaluated
-                        if success_term is not None and current_episode_indices[env_id] is not None:
-                            if (
-                                bool(success_term.func(env, **success_term.params)[env_id])
-                                and not episode_ended[env_id]
-                            ):
-                                recorded_episode_count += 1
-                                plural_trailing_s = "s" if recorded_episode_count > 1 else ""
-                                episode_ended[env_id] = True
-
-                                print(
-                                    f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
-                                    f" of {replayed_episode_count} demos."
-                                )
-                            else:
-                                # if not successful, add to failed demo IDs list
-                                if current_episode_indices[env_id] is not None:
-                                    failed_demo_ids.append(current_episode_indices[env_id])
 
                         if next_episode_index is not None:
                             replayed_episode_count += 1
@@ -293,7 +302,7 @@ def main():
         # Print failed demo IDs if any
         if failed_demo_ids:
             print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
-            print(f"  {failed_demo_ids}")
+            print(f"  {sorted(failed_demo_ids)}")
 
     env.close()
 
