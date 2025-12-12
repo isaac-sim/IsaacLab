@@ -8,8 +8,6 @@
 # Omniverse logger
 import logging
 
-from isaaclab.app import AppLauncher
-
 # # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # # pinocchio is required by the Pink IK controller
 # if sys.platform != "win32":
@@ -34,7 +32,6 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 logger = logging.getLogger(__name__)
 
 
-# @pytest.fixture(scope="module", autouse=True)
 def setup_environment():
     # disable interactive mode for wandb for automate environments
     os.environ["WANDB_DISABLED"] = "true"

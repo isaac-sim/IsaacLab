@@ -170,6 +170,7 @@ class SimulationContext:
             # Try to get existing stage from USD StageCache
             stage_cache = UsdUtils.StageCache.Get()
             if stage_cache.Size() > 0:
+                logger.info("USD stage found in StageCache. Getting the first stage.")
                 all_stages = stage_cache.GetAllStages()
                 if all_stages:
                     self._initial_stage = all_stages[0]
@@ -178,13 +179,21 @@ class SimulationContext:
             else:
                 # No stage exists, try omni.usd as fallback
                 try:
+                    logger.info("No USD stage found in StageCache. Using omni.usd as fallback.")
                     import omni.usd
-
                     self._initial_stage = omni.usd.get_context().get_stage()
+                    if self._initial_stage is None:
+                        logger.warning("No USD stage found using omni.usd. Creating a new stage in memory.")
+                        self._initial_stage = create_new_stage_in_memory()
                 except (ImportError, AttributeError):
                     # if we need to create a new stage outside of omni.usd, we have to do it in memory with USD core APIs
+                    logger.info("No USD stage found. Creating a new stage in memory.")
                     self._initial_stage = create_new_stage_in_memory()
+                    stage_cache.Insert(self._initial_stage)
                     # raise RuntimeError("No USD stage is currently open. Please create a stage first.")
+            
+        if self._initial_stage is None:
+            raise RuntimeError("No USD stage found. Please create a stage first.")
 
         # Store stage reference for easy access
         self.stage = self._initial_stage

@@ -47,21 +47,6 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 logger = logging.getLogger(__name__)
 
 
-def _reset_stage_for_next_test():
-    """Clear the USD stage cache and create a fresh stage for the next test.
-
-    This is necessary because in standalone mode, we don't have the Omniverse
-    USD context to manage stage lifecycle. We need to manually clear the stage
-    cache and create a new stage.
-    """
-    # Clear all stages from the cache
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_cache.Clear()
-
-    # Create a fresh stage in memory for the next test
-    create_new_stage_in_memory()
-
-
 # Keywords indicating vision/camera-based environments that require Omniverse
 VISION_KEYWORDS = ["RGB", "Depth", "Vision", "Camera", "Visuomotor", "Theia"]
 
@@ -139,9 +124,6 @@ def _run_environments(task_name, device, num_envs, num_steps):
 
 def _check_random_actions(task_name: str, device: str, num_envs: int, num_steps: int = 1000):
     """Run random actions and check environments returned signals are valid."""
-
-    # Reset stage for each new environment test
-    _reset_stage_for_next_test()
 
     env = None
     try:
