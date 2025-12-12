@@ -18,7 +18,7 @@ import os
 import pathlib
 
 
-ISAACLAB_DIR = pathlib.Path(__file__).parent.absolute()
+ISAACLAB_DIR = pathlib.Path(__file__).parent.parents[2]
 """Path to the Isaac Lab directory."""
 
 isaacsim_dir = None
