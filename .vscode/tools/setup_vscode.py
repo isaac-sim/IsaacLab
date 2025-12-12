@@ -18,33 +18,37 @@ import os
 import pathlib
 
 
-ISAACLAB_DIR = pathlib.Path(__file__).parents[2]
+ISAACLAB_DIR = pathlib.Path(__file__).parent.absolute()
 """Path to the Isaac Lab directory."""
+
+isaacsim_dir = None
 
 try:
     import isaacsim  # noqa: F401
 
     isaacsim_dir = os.environ.get("ISAAC_PATH", "")
-except ModuleNotFoundError or ImportError:
-    isaacsim_dir = os.path.join(ISAACLAB_DIR, "_isaac_sim")
+except (ModuleNotFoundError, ImportError):
+    # Try to find the symlinked Isaac Sim directory
+    potential_isaacsim_dir = os.path.join(ISAACLAB_DIR, "_isaac_sim")
+    if os.path.exists(potential_isaacsim_dir):
+        isaacsim_dir = potential_isaacsim_dir
 except EOFError:
     print("Unable to trigger EULA acceptance. This is likely due to the script being run in a non-interactive shell.")
     print("Please run the script in an interactive shell to accept the EULA.")
     print("Skipping the setup of the VSCode settings...")
     sys.exit(0)
 
-# check if the isaac-sim directory exists
-if not os.path.exists(isaacsim_dir):
-    raise FileNotFoundError(
-        f"Could not find the isaac-sim directory: {isaacsim_dir}. There are two possible reasons for this:"
-        f"\n\t1. The Isaac Sim directory does not exist as a symlink at: {os.path.join(ISAACLAB_DIR, '_isaac_sim')}"
-        "\n\t2. The script could not import the 'isaacsim' package. This could be due to the 'isaacsim' package not "
-        "being installed in the Python environment.\n"
-        "\nPlease make sure that the Isaac Sim directory exists or that the 'isaacsim' package is installed."
-    )
+# check if Isaac Sim is available
+if isaacsim_dir and not os.path.exists(isaacsim_dir):
+    isaacsim_dir = None
+
+# Warn if Isaac Sim is not found, but continue with setup
+if not isaacsim_dir:
+    print("[WARN] Isaac Sim installation not found. VSCode settings will be configured with Isaac Lab extensions only.")
+    print("[WARN] This is expected if you are running Isaac Lab in 'Without OV' mode.")
 
 ISAACSIM_DIR = isaacsim_dir
-"""Path to the isaac-sim directory."""
+"""Path to the isaac-sim directory (None if not installed)."""
 
 
 def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
@@ -61,41 +65,44 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     Returns:
         The settings string with overwritten python analysis extra paths.
     """
-    # isaac-sim settings
-    isaacsim_vscode_filename = os.path.join(ISAACSIM_DIR, ".vscode", "settings.json")
+    path_names = []
 
-    # we use the isaac-sim settings file to get the python.analysis.extraPaths for kit extensions
-    # if this file does not exist, we will not add any extra paths
-    if os.path.exists(isaacsim_vscode_filename):
-        # read the path names from the isaac-sim settings file
-        with open(isaacsim_vscode_filename) as f:
-            vscode_settings = f.read()
-        # extract the path names
-        # search for the python.analysis.extraPaths section and extract the contents
-        settings = re.search(
-            r"\"python.analysis.extraPaths\": \[.*?\]", vscode_settings, flags=re.MULTILINE | re.DOTALL
-        )
-        settings = settings.group(0)
-        settings = settings.split('"python.analysis.extraPaths": [')[-1]
-        settings = settings.split("]")[0]
+    # Only try to read Isaac Sim settings if ISAACSIM_DIR is available
+    if ISAACSIM_DIR:
+        # isaac-sim settings
+        isaacsim_vscode_filename = os.path.join(ISAACSIM_DIR, ".vscode", "settings.json")
 
-        # read the path names from the isaac-sim settings file
-        path_names = settings.split(",")
-        path_names = [path_name.strip().strip('"') for path_name in path_names]
-        path_names = [path_name for path_name in path_names if len(path_name) > 0]
+        # we use the isaac-sim settings file to get the python.analysis.extraPaths for kit extensions
+        # if this file does not exist, we will not add any extra paths
+        if os.path.exists(isaacsim_vscode_filename):
+            # read the path names from the isaac-sim settings file
+            with open(isaacsim_vscode_filename) as f:
+                vscode_settings = f.read()
+            # extract the path names
+            # search for the python.analysis.extraPaths section and extract the contents
+            settings = re.search(
+                r"\"python.analysis.extraPaths\": \[.*?\]", vscode_settings, flags=re.MULTILINE | re.DOTALL
+            )
+            if settings:
+                settings = settings.group(0)
+                settings = settings.split('"python.analysis.extraPaths": [')[-1]
+                settings = settings.split("]")[0]
 
-        # change the path names to be relative to the Isaac Lab directory
-        rel_path = os.path.relpath(ISAACSIM_DIR, ISAACLAB_DIR)
-        path_names = ['"${workspaceFolder}/' + rel_path + "/" + path_name + '"' for path_name in path_names]
-    else:
-        path_names = []
-        print(
-            f"[WARN] Could not find Isaac Sim VSCode settings: {isaacsim_vscode_filename}."
-            "\n\tThis will result in missing 'python.analysis.extraPaths' in the VSCode"
-            "\n\tsettings, which limits the functionality of the Python language server."
-            "\n\tHowever, it does not affect the functionality of the Isaac Lab project."
-            "\n\tWe are working on a fix for this issue with the Isaac Sim team."
-        )
+                # read the path names from the isaac-sim settings file
+                path_names_raw = settings.split(",")
+                path_names_raw = [path_name.strip().strip('"') for path_name in path_names_raw]
+                path_names_raw = [path_name for path_name in path_names_raw if len(path_name) > 0]
+
+                # change the path names to be relative to the Isaac Lab directory
+                rel_path = os.path.relpath(ISAACSIM_DIR, ISAACLAB_DIR)
+                path_names = ['"${workspaceFolder}/' + rel_path + "/" + path_name + '"' for path_name in path_names_raw]
+        else:
+            print(
+                f"[WARN] Could not find Isaac Sim VSCode settings: {isaacsim_vscode_filename}."
+                "\n\tThis will result in missing 'python.analysis.extraPaths' in the VSCode"
+                "\n\tsettings, which limits the functionality of the Python language server."
+                "\n\tHowever, it does not affect the functionality of the Isaac Lab project."
+            )
 
     # add the path names that are in the Isaac Lab extensions directory
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source"))
