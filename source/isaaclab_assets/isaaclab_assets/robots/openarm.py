@@ -12,7 +12,18 @@ The following configurations are available:
 * :obj:`OPENARM_UNI_CFG`: OpenArm robot with one arm.
 * :obj:`OPENARM_UNI_HIGH_PD_CFG`: OpenArm robot with one arm and stiffer PD control.
 
-Reference: https://github.com/enactic/openarm_isaac_lab
+References:
+OpenArm repositories:
+* https://github.com/enactic/openarm
+* https://github.com/enactic/openarm_isaac_lab
+
+Motor spec sheets:
+* Joint 1–2 (DM-J8009P-2EC):
+    https://cdn.shopify.com/s/files/1/0673/6848/5000/files/DM-J8009P-2EC_User_Manual.pdf?v=1755481750
+* Joint 3–4 (DM-J4340P-2EC / DM-J4340-2EC):
+    https://cdn.shopify.com/s/files/1/0673/6848/5000/files/DM-J4340-2EC_User_Manual.pdf?v=1756883905
+* Joint 5–8 (DM-J4310-2EC V1.1):
+    https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
 
 Please `git clone https://github.com/enactic/openarm_isaac_lab` and `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
 """
@@ -44,6 +55,13 @@ OPENARM_BI_CFG = ArticulationCfg(
             "openarm_right_finger_joint.*": 0.0,
         },
     ),
+    # spec sheet for reference
+    # DM-J8009P-2EC (Joint 1, 2):
+    # https://cdn.shopify.com/s/files/1/0673/6848/5000/files/DM-J8009P-2EC_User_Manual.pdf?v=1755481750
+    # DM-J4340P-2EC, DM-J4340-2EC (Joint 3, 4):
+    # https://cdn.shopify.com/s/files/1/0673/6848/5000/files/DM-J4340-2EC_User_Manual.pdf?v=1756883905
+    # DM-J4310-2EC V1.1 (Joint 5, 6, 7, 8):
+    # https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
     actuators={
         "openarm_arm": ImplicitActuatorCfg(
             joint_names_expr=[
