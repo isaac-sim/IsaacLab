@@ -2060,8 +2060,10 @@ class ArticulationData(BaseArticulationData):
         try:
             self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))
         except Exception as e:
-            logger.error(f"Error getting root com velocity: {e}. If the articulation is fixed, this is expected.")
+            logger.warning(f"Failed to get root com velocity: {e}. If the articulation is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+            logger.warning("Setting root com velocity to zeros.")
+            self._sim_bind_root_com_vel_w = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((n_view,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((n_view,), dtype=wp.spatial_vectorf, device=self.device)
