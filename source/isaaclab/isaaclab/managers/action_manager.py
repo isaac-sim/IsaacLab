@@ -16,8 +16,6 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Any
 
-import omni.kit.app
-
 from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
@@ -124,6 +122,8 @@ class ActionTerm(ManagerTermBase):
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False
+
+        import omni.kit.app
 
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
