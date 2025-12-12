@@ -89,11 +89,9 @@ PY
 
 # check if running in docker
 is_docker() {
-    [ -f /.dockerenv ] || \
-    grep -q docker /proc/1/cgroup || \
-    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
-    grep -q docker /proc/mounts || \
-    [[ "$(hostname)" == *"."* ]]
+    [ -f /.dockerenv ] || [ -f /run/.containerenv ] || \
+    grep -qaE '(docker|containerd|kubepods|podman)' /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]]
 }
 
 # check if running on ARM architecture

@@ -11,6 +11,10 @@ from .humanoid.unitree.g1_motion_controller_locomotion import (
     G1LowerBodyStandingMotionControllerRetargeterCfg,
 )
 from .humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1Retargeter, UnitreeG1RetargeterCfg
+from .humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (
+    G1TriHandUpperBodyMotionControllerGripperRetargeter,
+    G1TriHandUpperBodyMotionControllerGripperRetargeterCfg,
+)
 from .humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
     G1TriHandUpperBodyMotionControllerRetargeter,
     G1TriHandUpperBodyMotionControllerRetargeterCfg,
