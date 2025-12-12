@@ -3,6 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""
+We modified parts of the environment—such as the target’s position and orientation—to better suit the smaller robot.
+"""
+
 import math
 from dataclasses import MISSING
 
