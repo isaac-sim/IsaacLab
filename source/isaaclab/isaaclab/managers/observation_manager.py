@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import numpy as np
 import torch
 from collections.abc import Sequence
@@ -22,6 +23,9 @@ from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ObservationManager(ManagerBase):
@@ -264,7 +268,7 @@ class ObservationManager(ManagerBase):
                     desc.update(overloads)
                     group_data[group_name].append(desc)
                 except Exception as e:
-                    print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
+                    logger.warning(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
         # Format the data for YAML export
         formatted_data = {}
         for group_name, data in group_data.items():

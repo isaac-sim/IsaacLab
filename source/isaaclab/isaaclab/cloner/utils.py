@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import numpy as np
 from typing import Any
 
@@ -11,6 +12,9 @@ from newton import AxisType, ModelBuilder
 from pxr import Usd
 
 from isaaclab.utils.timer import Timer
+
+# Import logging
+logger = logging.getLogger(__name__)
 
 
 @Timer(name="replicate_environment", msg="Replicate environment took:", enable=True, format="ms")
@@ -56,7 +60,7 @@ def replicate_environment(
         # up_axis sanity check
         stage_up_axis = stage_info.get("up_axis")
         if isinstance(stage_up_axis, str) and stage_up_axis.upper() != up_axis.upper():
-            print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
+            logger.warning(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
 
     with Timer(name="newton_prototype_builder", msg="Prototype Builder took:", enable=True, format="ms"):
         # Get child xforms from the prototype path

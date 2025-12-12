@@ -7,6 +7,7 @@
 
 import glob
 import json
+import logging
 import os
 
 import isaaclab.utils.assets as assets_utils
@@ -44,6 +45,9 @@ WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
     "sb3": None,
     "skrl": "agent.agent.experiment.directory",
 }
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def has_pretrained_checkpoints_asset_root_dir() -> bool:
@@ -117,14 +121,14 @@ def get_published_pretrained_checkpoint(workflow: str, task_name: str) -> str | 
     resume_path = os.path.join(download_dir, WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES[workflow])
 
     if not os.path.exists(resume_path):
-        print(f"Fetching pre-trained checkpoint : {ov_path}")
+        logger.info(f"Fetching pre-trained checkpoint : {ov_path}")
         try:
             resume_path = assets_utils.retrieve_file_path(ov_path, download_dir)
         except Exception:
-            print("A pre-trained checkpoint is currently unavailable for this task.")
+            logger.warning("A pre-trained checkpoint is currently unavailable for this task.")
             return None
     else:
-        print("Using pre-fetched pre-trained checkpoint")
+        logger.info("Using pre-fetched pre-trained checkpoint")
     return resume_path
 
 

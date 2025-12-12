@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -25,6 +26,9 @@ from .contact_sensor_data import ContactSensorData
 
 if TYPE_CHECKING:
     from .contact_sensor_cfg import ContactSensorCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ContactSensor(SensorBase):
@@ -274,7 +278,7 @@ class ContactSensor(SensorBase):
                 "Number of bodies is not an integer multiple of the number of environments. Received:"
                 f" {self._num_bodies} bodies and {self._num_envs} environments."
             )
-        print(f"[INFO] Contact sensor initialized with {self._num_bodies} bodies.")
+        logger.info(f"Contact sensor initialized with {self._num_bodies} bodies.")
 
         # Assume homogeneous envs, i.e. all envs have the same number of bodies / shapes
         # Only get the names for the first env. Expected structure: /World/envs/env_.*/...
