@@ -37,10 +37,8 @@ class FiiRetargeter(RetargeterBase):
 
         if left_wrist is not None:
             left_eef_pose = torch.tensor(torch.from_numpy(left_wrist), dtype=torch.float32, device=self._sim_device)
-            left_eef_pose[2] = left_eef_pose[2]
         if right_wrist is not None:
             right_eef_pose = torch.tensor(torch.from_numpy(right_wrist), dtype=torch.float32, device=self._sim_device)
-            right_eef_pose[2] = right_eef_pose[2]
 
         gripper_value_left = self._hand_data_to_gripper_values(data[OpenXRDevice.TrackingTarget.HAND_LEFT])
         gripper_value_right = self._hand_data_to_gripper_values(data[OpenXRDevice.TrackingTarget.HAND_RIGHT])
