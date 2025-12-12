@@ -20,10 +20,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import PhysxCfg, SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import ResetSampledNoiseModelCfg, UniformNoiseCfg
+from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as gear_assembly_terminations
+from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 # Get the directory where this configuration file is located
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -187,7 +188,7 @@ class ObservationsCfg:
         gear_shaft_pos = ObsTerm(
             func=mdp.GearShaftPosW,
             params={},  # Will be populated in __post_init__
-            noise=ResetSampledNoiseModelCfg(noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")),
+            noise=ResetSampledConstantNoiseModelCfg(noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")),
         )
         gear_shaft_quat = ObsTerm(func=mdp.GearShaftQuatW)
 

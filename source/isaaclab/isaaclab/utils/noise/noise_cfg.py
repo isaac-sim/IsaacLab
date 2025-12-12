@@ -109,16 +109,3 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
 
     Defaults to True.
     """
-
-
-@configclass
-class ResetSampledNoiseModelCfg(NoiseModelCfg):
-    """Configuration for a noise model that samples noise ONLY during reset."""
-
-    class_type: type = noise_model.ResetSampledNoiseModel
-
-    noise_cfg: NoiseCfg = MISSING
-    """The noise configuration for the noise.
-
-    Based on this configuration, the noise is sampled at every reset of the noise model.
-    """
