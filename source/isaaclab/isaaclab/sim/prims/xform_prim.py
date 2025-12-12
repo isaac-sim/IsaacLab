@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import re
 import torch
 from collections.abc import Sequence
 
