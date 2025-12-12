@@ -18,7 +18,7 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=50,
                 nconmax=30,
-                ls_iterations=10,
+                ls_iterations=40,
                 cone="elliptic",
                 impratio=100,
                 ls_parallel=True,
