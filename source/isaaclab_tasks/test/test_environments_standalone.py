@@ -19,14 +19,6 @@ Note:
 
 import logging
 
-from isaaclab.app import AppLauncher
-
-# Launch in pure headless mode without Omniverse
-# Setting headless=True and enable_cameras=False triggers standalone mode
-app_launcher = AppLauncher(headless=True, enable_cameras=False)
-simulation_app = app_launcher.app  # Will be None in standalone mode
-
-
 """Rest everything follows."""
 
 import gymnasium as gym

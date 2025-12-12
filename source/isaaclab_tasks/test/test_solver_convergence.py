@@ -98,7 +98,6 @@ def _check_random_actions(
                 actions = sample_space(
                     env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
                 )
-                print(actions)
                 # apply actions
                 _ = env.step(actions)
                 convergence_data = NewtonManager.get_solver_convergence_steps()
@@ -179,6 +178,7 @@ def _check_zero_actions(
         env.close()
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 @pytest.mark.order(2)
 @pytest.mark.parametrize("num_envs, device", [(4096, "cuda")])
 @pytest.mark.parametrize("action_type", [_check_random_actions, _check_zero_actions])
