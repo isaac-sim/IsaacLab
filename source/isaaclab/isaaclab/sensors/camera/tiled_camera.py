@@ -12,7 +12,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+# import carb
 import warp as wp
 from pxr import UsdGeom
 
