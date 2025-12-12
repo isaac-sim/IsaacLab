@@ -214,14 +214,15 @@ class LocomotionEnv(DirectRLEnv):
 
         joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids].clone()
         joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids].clone()
-        default_root_state = wp.to_torch(self.robot.data.default_root_state)[env_ids].clone()
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        self.robot.write_root_pose_to_sim(default_root_pose, env_ids)
+        self.robot.write_root_velocity_to_sim(default_root_vel, env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
-        to_target = self.targets[env_ids] - default_root_state[:, :3]
+        to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2] = 0.0
         self.potentials[env_ids] = -torch.norm(to_target, p=2, dim=-1) / self.cfg.sim.dt
 
