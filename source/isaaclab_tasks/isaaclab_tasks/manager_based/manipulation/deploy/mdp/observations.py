@@ -10,10 +10,9 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.math import combine_frame_transforms
-
 from isaaclab.assets import RigidObject
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

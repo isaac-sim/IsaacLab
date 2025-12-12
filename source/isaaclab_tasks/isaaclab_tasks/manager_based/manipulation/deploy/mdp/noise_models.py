@@ -102,4 +102,3 @@ class ResetSampledConstantNoiseModelCfg(NoiseModelCfg):
 
     Based on this configuration, the noise is sampled at every reset of the noise model.
     """
-

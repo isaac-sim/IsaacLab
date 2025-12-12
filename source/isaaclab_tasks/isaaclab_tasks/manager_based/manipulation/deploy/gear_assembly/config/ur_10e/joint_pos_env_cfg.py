@@ -190,9 +190,7 @@ class EventCfg:
     randomize_gear_type = EventTerm(
         func=gear_assembly_events.RandomizeGearType,
         mode="reset",
-        params={
-            "gear_types": ["gear_small", "gear_medium", "gear_large"]
-        },
+        params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
     )
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
