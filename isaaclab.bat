@@ -47,18 +47,22 @@ set "TV_VER=0.22.0"
 set "CUDA_TAG=cu128"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/%CUDA_TAG%"
 
+rem Get pip command
+call :extract_pip_command
+call :extract_pip_uninstall_command
+
 rem Do we already have torch?
 call "!python_exe!" -m pip show torch >nul 2>&1
 if errorlevel 1 (
     echo [INFO] Installing PyTorch !TORCH_VER! with CUDA !CUDA_TAG!...
-    call "!python_exe!" -m pip install "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
+    call !pip_command! "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
 ) else (
     for /f "tokens=2" %%V in ('"!python_exe!" -m pip show torch ^| findstr /B /C:"Version:"') do set "TORCH_CUR=%%V"
     echo [INFO] Found PyTorch version !TORCH_CUR!.
     if /I not "!TORCH_CUR!"=="!TORCH_VER!+!CUDA_TAG!" (
         echo [INFO] Replacing PyTorch !TORCH_CUR! -> !TORCH_VER!+!CUDA_TAG!...
-        call "!python_exe!" -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
-        call "!python_exe!" -m pip install "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
+        call !pip_uninstall_command! torch torchvision torchaudio >nul 2>&1
+        call !pip_command! "torch==!TORCH_VER!" "torchvision==!TV_VER!" --index-url "!PYTORCH_INDEX!"
     ) else (
         echo [INFO] PyTorch !TORCH_VER!+!CUDA_TAG! already installed.
     )
@@ -98,6 +102,9 @@ rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
     set python_exe=%CONDA_PREFIX%\python.exe
+) else if not "%VIRTUAL_ENV%"=="" (
+    rem use uv virtual environment python
+    set python_exe=%VIRTUAL_ENV%\python.exe
 ) else (
     rem use kit python
     set python_exe=%ISAACLAB_PATH%\_isaac_sim\python.bat
@@ -117,7 +124,7 @@ if not exist "%python_exe%" (
 if not exist "%python_exe%" (
     echo [ERROR] Unable to find any Python executable at path: %python_exe%
     echo %tab%This could be due to the following reasons:
-    echo %tab%1. Conda environment is not activated.
+    echo %tab%1. Conda or uv environment is not activated.
     echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
@@ -145,16 +152,130 @@ if not exist "%isaacsim_exe%" (
 goto :eof
 
 
+rem find pip command based on virtualization
+:extract_pip_command
+rem detect if we're in a uv environment
+if not "%VIRTUAL_ENV%"=="" (
+    if exist "%VIRTUAL_ENV%\pyvenv.cfg" (
+        findstr /C:"uv" "%VIRTUAL_ENV%\pyvenv.cfg" >nul
+        if !ERRORLEVEL! EQU 0 (
+            set pip_command=uv pip install
+            goto :eof
+        )
+    )
+)
+rem retrieve the python executable
+call :extract_python_exe
+set pip_command=!python_exe! -m pip install
+goto :eof
+
+:extract_pip_uninstall_command
+rem detect if we're in a uv environment
+if not "%VIRTUAL_ENV%"=="" (
+    if exist "%VIRTUAL_ENV%\pyvenv.cfg" (
+        findstr /C:"uv" "%VIRTUAL_ENV%\pyvenv.cfg" >nul
+        if !ERRORLEVEL! EQU 0 (
+            set pip_uninstall_command=uv pip uninstall
+            goto :eof
+        )
+    )
+)
+rem retrieve the python executable
+call :extract_python_exe
+set pip_uninstall_command=!python_exe! -m pip uninstall -y
+goto :eof
+
+
 rem check if input directory is a python extension and install the module
 :install_isaaclab_extension
 echo %ext_folder%
 rem retrieve the python executable
 call :extract_python_exe
+rem retrieve pip command
+call :extract_pip_command
 rem if the directory contains setup.py then install the python module
 if exist "%ext_folder%\setup.py" (
     echo     module: %ext_folder%
-    call !python_exe! -m pip install --editable %ext_folder%
+    call !pip_command! --editable %ext_folder%
 )
+goto :eof
+
+
+rem setup uv environment for Isaac Lab
+:setup_uv_env
+rem get environment name from input
+set env_name=%uv_env_name%
+rem check uv is installed
+where uv >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] uv could not be found. Please install uv and try again.
+    echo [ERROR] uv can be installed here:
+    echo [ERROR] https://docs.astral.sh/uv/getting-started/installation/
+    exit /b 1
+)
+
+rem check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+if not exist "%ISAACLAB_PATH%\_isaac_sim" (
+    python -m pip list | findstr /C:"isaacsim-rl" >nul
+    if errorlevel 1 (
+        echo [WARNING] _isaac_sim symlink not found at %ISAACLAB_PATH%\_isaac_sim
+        echo     This warning can be ignored if you plan to install Isaac Sim via pip.
+        echo     If you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the uv environment.
+    )
+)
+
+rem check if the environment exists
+set env_path=%ISAACLAB_PATH%\%env_name%
+if not exist "%env_path%" (
+    echo [INFO] Creating uv environment named '%env_name%'...
+    call uv venv --clear "%env_path%"
+) else (
+    echo [INFO] uv environment '%env_name%' already exists.
+)
+
+rem cache current paths for later
+set "cache_pythonpath=%PYTHONPATH%"
+set "cache_ld_library_path=%LD_LIBRARY_PATH%"
+
+rem ensure activate file exists
+if not exist "%env_path%\Scripts\activate.bat" (
+    echo [ERROR] Failed to create uv environment activation script
+    exit /b 1
+)
+
+rem add variables to environment during activation
+(
+    echo.
+    echo rem for Isaac Lab
+    echo set "ISAACLAB_PATH=%ISAACLAB_PATH%"
+    echo doskey isaaclab=%ISAACLAB_PATH%\isaaclab.bat $*
+    echo set "RESOURCE_NAME=IsaacSim"
+    echo.
+) >> "%env_path%\Scripts\activate.bat"
+
+rem obtain isaacsim path if available
+call :extract_isaacsim_path 2>nul
+if exist "%isaac_path%" (
+    rem add Isaac Sim variables to activation script
+    (
+        echo rem for Isaac Sim
+        echo set "CARB_APP_PATH=%isaac_path%\kit"
+        echo set "EXP_PATH=%isaac_path%\apps"
+        echo set "ISAAC_PATH=%isaac_path%"
+        echo set "PYTHONPATH=%PYTHONPATH%;%isaac_path%\site"
+        echo.
+    ) >> "%env_path%\Scripts\activate.bat"
+)
+
+rem add information to the user about alias
+echo [INFO] Added 'isaaclab' alias to uv environment for 'isaaclab.bat' script.
+echo [INFO] Created uv environment named '%env_name%'.
+echo.
+echo       1. To activate the environment, run:                %env_path%\Scripts\activate.bat
+echo       2. To install Isaac Lab extensions, run:            isaaclab -i
+echo       3. To perform formatting, run:                      isaaclab -f
+echo       4. To deactivate the environment, run:              deactivate
+echo.
 goto :eof
 
 
@@ -322,7 +443,7 @@ goto :eof
 rem Print the usage description
 :print_help
 echo.
-echo usage: %~nx0 [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-n] [-c] -- Utility to manage extensions in Isaac Lab.
+echo usage: %~nx0 [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-n] [-c] [-u] -- Utility to manage extensions in Isaac Lab.
 echo.
 echo optional arguments:
 echo     -h, --help           Display the help content.
@@ -335,6 +456,7 @@ echo     -v, --vscode         Generate the VSCode settings file from template.
 echo     -d, --docs           Build the documentation from source using sphinx.
 echo     -n, --new            Create a new external project or internal task from template.
 echo     -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+echo     -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 echo.
 goto :eof
 
@@ -382,7 +504,8 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    call :extract_pip_command
+    call !pip_command! -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
     rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
     rem installed again
     call :ensure_cuda_torch
@@ -418,7 +541,8 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    call :extract_pip_command
+    call !pip_command! -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
     rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
     rem installed again
     call :ensure_cuda_torch
@@ -449,6 +573,30 @@ if "%arg%"=="-i" (
         set conda_env_name=env_isaaclab
     )
     call :setup_conda_env %conda_env_name%
+    shift
+) else if "%arg%"=="-u" (
+    rem use default name if not provided
+    if not "%~2"=="" (
+        echo [INFO] Using uv environment name: %2
+        set uv_env_name=%2
+        shift
+    ) else (
+        echo [INFO] Using default uv environment name: env_isaaclab
+        set uv_env_name=env_isaaclab
+    )
+    call :setup_uv_env %uv_env_name%
+    shift
+) else if "%arg%"=="--uv" (
+    rem use default name if not provided
+    if not "%~2"=="" (
+        echo [INFO] Using uv environment name: %2
+        set uv_env_name=%2
+        shift
+    ) else (
+        echo [INFO] Using default uv environment name: env_isaaclab
+        set uv_env_name=env_isaaclab
+    )
+    call :setup_uv_env %uv_env_name%
     shift
 ) else if "%arg%"=="-f" (
     rem reset the python path to avoid conflicts with pre-commit
@@ -569,7 +717,8 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    call !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call :extract_pip_command
+    call !pip_command! -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
@@ -588,7 +737,8 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    call !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call :extract_pip_command
+    call !pip_command! -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
@@ -637,7 +787,8 @@ if "%arg%"=="-i" (
     echo [INFO] Building documentation...
     call :extract_python_exe
     pushd %ISAACLAB_PATH%\docs
-    call !python_exe! -m pip install -r requirements.txt >nul
+    call :extract_pip_command
+    call !pip_command! -r requirements.txt >nul
     call !python_exe! -m sphinx -b html -d _build\doctrees . _build\html
     echo [INFO] To open documentation on default browser, run:
     echo xdg-open "%ISAACLAB_PATH%\docs\_build\html\index.html"
@@ -649,7 +800,8 @@ if "%arg%"=="-i" (
     echo [INFO] Building documentation...
     call :extract_python_exe
     pushd %ISAACLAB_PATH%\docs
-    call !python_exe! -m pip install -r requirements.txt >nul
+    call :extract_pip_command
+    call !pip_command! -r requirements.txt >nul
     call !python_exe! -m sphinx -b html -d _build\doctrees . _build\current
     echo [INFO] To open documentation on default browser, run:
     echo xdg-open "%ISAACLAB_PATH%\docs\_build\current\index.html"
