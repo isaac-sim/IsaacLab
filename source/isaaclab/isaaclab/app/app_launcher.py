@@ -936,7 +936,9 @@ class AppLauncher:
             else:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.kit")
         elif not os.path.isabs(self._sim_experience_file):
-            option_1_app_exp_path = os.path.join(kit_app_exp_path, self._sim_experience_file) if kit_app_exp_path else ""
+            option_1_app_exp_path = (
+                os.path.join(kit_app_exp_path, self._sim_experience_file) if kit_app_exp_path else ""
+            )
             option_2_app_exp_path = os.path.join(isaaclab_app_exp_path, self._sim_experience_file)
             if option_1_app_exp_path and os.path.exists(option_1_app_exp_path):
                 self._sim_experience_file = option_1_app_exp_path
