@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import time
-import logging
 from contextlib import ContextDecorator
 from typing import Any, ClassVar, Literal
 
 import warp as wp
-
 
 # import logger
 logger = logging.getLogger(__name__)

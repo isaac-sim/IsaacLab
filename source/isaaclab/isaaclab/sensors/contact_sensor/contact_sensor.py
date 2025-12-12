@@ -8,10 +8,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-import logging
 
 import warp as wp
 from newton.sensors import ContactSensor as NewtonContactSensor

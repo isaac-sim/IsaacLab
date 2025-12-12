@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import numpy as np
 import re
-import logging
 
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
@@ -414,9 +414,7 @@ class NewtonManager:
                     logger.info(f"Adding contact view for {body_names_expr} with filter {shape_names_expr}.")
             else:
                 if contact_partners_body_expr is not None:
-                    logger.info(
-                        f"Adding contact view for {shape_names_expr} with filter {contact_partners_body_expr}."
-                    )
+                    logger.info(f"Adding contact view for {shape_names_expr} with filter {contact_partners_body_expr}.")
                 else:
                     logger.info(
                         f"Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."

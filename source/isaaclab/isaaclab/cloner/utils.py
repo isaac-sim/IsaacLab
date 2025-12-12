@@ -16,6 +16,7 @@ from isaaclab.utils.timer import Timer
 # Import logging
 logger = logging.getLogger(__name__)
 
+
 @Timer(name="replicate_environment", msg="Replicate environment took:", enable=True, format="ms")
 def replicate_environment(
     source,

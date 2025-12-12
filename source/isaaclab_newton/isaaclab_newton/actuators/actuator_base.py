@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 

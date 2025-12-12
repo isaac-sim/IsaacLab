@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import gymnasium as gym
+import logging
 import math
 import numpy as np
 import torch
@@ -19,6 +20,9 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
