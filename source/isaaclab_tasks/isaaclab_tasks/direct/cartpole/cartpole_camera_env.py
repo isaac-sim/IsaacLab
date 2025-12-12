@@ -47,6 +47,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         ),
         width=100,
         height=100,
+        renderer_type="newton_warp",
     )
     write_image_to_file = False
 
@@ -86,6 +87,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
         ),
         width=100,
         height=100,
+        renderer_type="newton_warp",
     )
 
     # spaces
