@@ -14,7 +14,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.manipulation.cabinet import mdp
 
-from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_openarm_env_cfg import (  # isort: skip
+from isaaclab_tasks.manager_based.manipulation.cabinet.config.openarm.cabinet_openarm_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
 )

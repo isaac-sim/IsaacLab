@@ -29,7 +29,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
-from . import mdp
+from ... import mdp
 
 ##
 # Scene definition
@@ -180,8 +180,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("cabinet", body_names="drawer_handle_bottom"),
-            "static_friction_range": (2.0, 2.25),
-            "dynamic_friction_range": (2.25, 2.5),
+            "static_friction_range": (2.25, 2.5),
+            "dynamic_friction_range": (2.0, 2.25),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
