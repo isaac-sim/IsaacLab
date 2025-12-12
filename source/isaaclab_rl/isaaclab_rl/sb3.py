@@ -25,6 +25,7 @@ import torch.nn as nn  # noqa: F401
 import warnings
 from typing import Any
 
+from isaaclab_experimental.envs import DirectRLEnvWarp
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
@@ -146,7 +147,11 @@ class Sb3VecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        if (
+            not isinstance(env.unwrapped, ManagerBasedRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnvWarp)
+        ):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

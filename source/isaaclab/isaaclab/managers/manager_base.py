@@ -180,9 +180,11 @@ class ManagerBase(ABC):
     def __del__(self):
         """Delete the manager."""
         # Suppress errors during Python shutdown
-        with contextlib.suppress(ImportError, AttributeError, TypeError):
-            if getattr(self, "_resolve_terms_handle", None):
-                self._resolve_terms_handle.unsubscribe()
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                if getattr(self, "_resolve_terms_handle", None):
+                    self._resolve_terms_handle.unsubscribe()
                 self._resolve_terms_handle = None
 
     """

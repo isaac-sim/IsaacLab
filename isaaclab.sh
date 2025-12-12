@@ -576,7 +576,8 @@ while [[ $# -gt 0 ]]; do
             # install pytorch (version based on arch)
             ensure_cuda_torch
             # install omni.client via packman helper
-            ${python_exe} "${ISAACLAB_PATH}/tools/installation/install_omni_client_packman.py"
+            # ${python_exe} "${ISAACLAB_PATH}/tools/installation/install_omni_client_packman.py"
+            ${python_exe} -m pip install omniverseclient --index-url=https://urm.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
             if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then

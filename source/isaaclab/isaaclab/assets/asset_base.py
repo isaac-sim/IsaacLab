@@ -129,9 +129,11 @@ class AssetBase(ABC):
     def __del__(self):
         """Unsubscribe from the callbacks."""
         # Suppress errors during Python shutdown
-        with contextlib.suppress(ImportError, AttributeError, TypeError):
-            # clear events handles
-            self._clear_callbacks()
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                # clear events handles
+                self._clear_callbacks()
 
     """
     Properties
