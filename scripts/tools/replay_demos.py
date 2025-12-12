@@ -226,9 +226,7 @@ def main():
 
                                 print(
                                     f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
-                                    f" of {replayed_episode_count} demos.",
-                                    "  ",
-                                    current_episode_indices[env_id],
+                                    f" of {replayed_episode_count} demos."
                                 )
                             else:
                                 # if not successful, add to failed demo IDs list
