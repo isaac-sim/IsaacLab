@@ -47,9 +47,9 @@ def swerve_isosceles_ik(
         φ̇_i = s_i / R
 
     References:
-      - WPILib swerve kinematics (maps chassis speeds → module angles & speeds). :contentReference[oaicite:0]{index=0}
-      - Rigid-body relation v_P = v_O + ω × r (planar form used above). :contentReference[oaicite:1]{index=1}
-      - Community derivations / implementation notes (angle optimization, etc.). :contentReference[oaicite:2]{index=2}
+      - WPILib swerve kinematics (maps chassis speeds → module angles & speeds).
+      - Rigid-body relation v_P = v_O + ω × r (planar form used above).
+      - Community derivations / implementation notes (angle optimization, etc.). 
     """
 
     def module_state(xi: float, yi: float) -> tuple[float, float, float, float]:
