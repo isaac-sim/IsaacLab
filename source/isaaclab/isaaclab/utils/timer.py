@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import math
 import time
+import logging
 from contextlib import ContextDecorator
 from typing import Any, ClassVar, Literal
 
 import warp as wp
+
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class TimerError(Exception):
@@ -223,7 +228,7 @@ class Timer(ContextDecorator):
         # print message
         if self._enable:
             if (self._msg is not None) and (Timer.enable_display_output):
-                print(
+                logger.info(
                     self._msg,
                     f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
                     f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "

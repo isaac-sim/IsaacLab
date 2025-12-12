@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import TYPE_CHECKING, ClassVar
@@ -19,6 +20,7 @@ from isaaclab.utils.warp.update_kernels import update_array2D_with_array1D_index
 if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 
+logger = logging.getLogger(__name__)
 
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
@@ -209,7 +211,7 @@ class ActuatorBase(ABC):
         # parse the parameter
         if cfg_value is not None:
             if isinstance(cfg_value, (float, int)):
-                print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
+                logger.info(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
                 if isinstance(cfg_value, IntEnum):
                     cfg_value = int(cfg_value.value)
                 if original_value.dtype is wp.float32:

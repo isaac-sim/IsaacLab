@@ -929,7 +929,7 @@ def remove_deleted_references():
         payload_list = prim_spec.GetInfo("payload")
         if payload_list.deletedItems:
             deleted_payload_count = len(payload_list.deletedItems)
-            print(f"Removed {deleted_payload_count} deleted payload items from {prim.GetPath()}")
+            logger.info(f"Removed {deleted_payload_count} deleted payload items from {prim.GetPath()}")
             payload_list.deletedItems = []
             prim_spec.SetInfo("payload", payload_list)
             deleted_count += deleted_payload_count
@@ -938,10 +938,10 @@ def remove_deleted_references():
         references_list = prim_spec.GetInfo("references")
         if references_list.deletedItems:
             deleted_ref_count = len(references_list.deletedItems)
-            print(f"Removed {deleted_ref_count} deleted reference items from {prim.GetPath()}")
+            logger.info(f"Removed {deleted_ref_count} deleted reference items from {prim.GetPath()}")
             references_list.deletedItems = []
             prim_spec.SetInfo("references", references_list)
             deleted_count += deleted_ref_count
 
     if deleted_count == 0:
-        print("No deleted references or payloads found in the stage.")
+        logger.info("No deleted references or payloads found in the stage.")
