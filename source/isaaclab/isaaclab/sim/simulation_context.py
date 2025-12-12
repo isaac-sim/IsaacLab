@@ -708,6 +708,17 @@ class SimulationContext(_SimulationContext):
             "enable_shadows": "/rtx/shadows/enabled",
             "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
             "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
+            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
+            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
+            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
+            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
+            "view_tile_limit": "/rtx/viewTile/limit",
+            # RT2 settings
+            "max_bounces": "/rtx/rtpt/maxBounces",
+            "split_glass": "/rtx/rtpt/splitGlass",
+            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
+            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
         }
 
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
@@ -733,9 +744,9 @@ class SimulationContext(_SimulationContext):
 
             # grab isaac lab apps path
             isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if float(".".join(self._isaacsim_version[2])) < 5:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+            # for Isaac Sim 4.5 compatibility, we use the 5.X rendering mode app files in a different folder
+            if float(".".join(self._isaacsim_version[2])) < 6:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
             # grab preset settings
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")

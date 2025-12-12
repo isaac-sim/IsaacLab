@@ -311,6 +311,88 @@ class RenderCfg:
     This is set by the variable: ``/rtx/domeLight/upperLowerStrategy``.
     """
 
+    max_bounces: int | None = None
+    """Maximum number of ray bounces for path tracing (RT2). Default is 2.
+
+    For global illumination (indirect diffuse), this should be at least 3.
+
+    This is set by the variable: ``/rtx/rtpt/maxBounces``.
+    """
+
+    split_glass: bool | None = None
+    """Enables separate glass ray splitting for improved glass rendering (RT2). Default is False.
+
+    Enabling this can reduce noise on glass materials at the cost of performance.
+
+    This is set by the variable: ``/rtx/rtpt/splitGlass``.
+    """
+
+    split_clearcoat: bool | None = None
+    """Enables separate clearcoat ray splitting (RT2). Default is False.
+
+    Enabling this can reduce noise on clearcoat materials at the cost of performance.
+
+    This is set by the variable: ``/rtx/rtpt/splitClearcoat``.
+    """
+
+    split_rough_reflection: bool | None = None
+    """Enables separate rough reflection ray splitting (RT2). Default is False.
+
+    Enabling this can reduce noise on rough reflective materials at the cost of performance.
+
+    This is set by the variable: ``/rtx/rtpt/splitRoughReflection``.
+    """
+
+    ambient_light_intensity: float | None = None
+    """Scene ambient light intensity. Default is 1.0.
+
+    This is set by the variable: ``/rtx/sceneDb/ambientLightIntensity``.
+    """
+
+    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = None
+    """Ambient occlusion denoiser mode. Default is 1.
+
+    Valid values are:
+
+    * 0: Higher quality denoising
+    * 1: Performance-oriented denoising
+
+    This is set by the variable: ``/rtx/ambientOcclusion/denoiserMode``.
+    """
+
+    subpixel_mode: Literal[0, 1] | None = None
+    """Raytracing subpixel mode. Default is 0.
+
+    Valid values are:
+
+    * 0: Performance mode
+    * 1: Quality mode (better anti-aliasing)
+
+    This is set by the variable: ``/rtx/raytracing/subpixel/mode``.
+    """
+
+    enable_cached_raytracing: bool | None = None
+    """Enables cached raytracing for improved performance. Default is True.
+
+    This is set by the variable: ``/rtx/raytracing/cached/enabled``.
+    """
+
+    max_samples_per_launch: int | None = None
+    """Maximum samples per launch for path tracing. Default is 1000000.
+
+    This setting helps avoid replicator warnings when using large tile counts.
+
+    This is set by the variable: ``/rtx/pathtracing/maxSamplesPerLaunch``.
+    """
+
+    view_tile_limit: int | None = None
+    """Maximum number of view tiles. Default is 1000000.
+
+    This setting helps avoid silent trimming of tiles.
+
+    This is set by the variable: ``/rtx/viewTile/limit``.
+    """
+
     carb_settings: dict[str, Any] | None = None
     """A general dictionary for users to supply all carb rendering settings with native names.
 

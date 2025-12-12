@@ -15,13 +15,31 @@ keywords = ["experience", "app", "usd", "headless"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.5.0"
+app.version = "5.1.0"
+
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
+# xr optimizations
+xr.skipInputDeviceUSDWrites = true
+'rtx-transient'.resourcemanager.enableTextureStreaming = false
+
+[settings.isaaclab]
+# This is used to check that this experience file is loaded when using cameras
+cameras_enabled = true
 
 [dependencies]
 "isaaclab.python.xr.openxr" = {}
 
 [settings]
 xr.profile.ar.enabled = true
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
 
 # Register extension folder from this repo in kit
 [settings.app.exts]
@@ -37,5 +55,11 @@ folders = [
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
+    "${app}/../source", # needed to find extensions in Isaac Lab
     "${app}/../../source", # needed to find extensions in Isaac Lab
 ]
+
+[settings]
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
