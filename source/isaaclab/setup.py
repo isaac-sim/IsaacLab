@@ -25,7 +25,7 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     "toml",
     "fast_simplification",
-    "tqdm",
+    "tqdm==4.67.1", # previous version was causing sys errors
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
