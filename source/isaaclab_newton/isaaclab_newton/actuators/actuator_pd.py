@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import logging
 import warp as wp
 
 from isaaclab.utils.warp.update_kernels import update_array2D_with_array2D_masked

@@ -1171,7 +1171,7 @@ class SimulationContext:
         # pass if omniverse is not running
         if not self.has_omniverse_visualizer():
             return
-        
+
         import omni.kit.app
 
         # check if we need to raise an exception that was raised in a callback

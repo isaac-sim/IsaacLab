@@ -140,6 +140,8 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
+        import carb
+
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
