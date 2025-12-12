@@ -42,7 +42,6 @@ UR10_CFG = ArticulationCfg(
             effort_limit_sim=87.0,
             stiffness=800.0,
             damping=40.0,
-            friction=1e-5,
             armature=1e-3,
         ),
     },
