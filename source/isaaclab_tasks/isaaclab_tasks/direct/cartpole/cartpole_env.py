@@ -160,13 +160,13 @@ class CartpoleEnv(DirectRLEnv):
         )
         joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids].clone()
 
-        default_root_state = wp.to_torch(self.cartpole.data.default_root_state)[env_ids].clone()
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
+        self.cartpole.write_root_pose_to_sim(default_root_pose, env_ids)
         self.cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 
