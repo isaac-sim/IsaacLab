@@ -34,7 +34,6 @@ ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     saturation_effort=120.0,
     effort_limit=80.0,
     effort_limit_sim=80.0,
-    friction=0.001,
     velocity_limit=7.5,
     stiffness={".*": 40.0},
     damping={".*": 5.0},
@@ -46,7 +45,6 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/ANYbotics/anydrive_3_lstm_jit.pt",
     saturation_effort=120.0,
     effort_limit_sim=120.0,
-    friction=0.001,
     effort_limit=80.0,
     velocity_limit=7.5,
 )

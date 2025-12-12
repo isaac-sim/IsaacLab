@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.utils import configclass
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
@@ -15,6 +18,21 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 @configclass
 class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=60,
+                nconmax=25,
+                ls_iterations=40,
+                cone="elliptic",
+                impratio=100.0,
+                ls_parallel=True,
+                use_mujoco_contacts=False,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

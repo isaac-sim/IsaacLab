@@ -74,12 +74,9 @@ UNITREE_A1_CFG = ArticulationCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
             effort_limit=33.5,
             saturation_effort=33.5,
-            # effort_limit_sim=33.5,
             velocity_limit=21.0,
             stiffness=25.0,
             damping=0.5,
-            # friction=1e-3,
-            # armature=1e-3,
         ),
     },
 )
