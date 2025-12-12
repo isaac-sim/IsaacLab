@@ -53,7 +53,7 @@ respectively that provides utilities to manage extensions.
             -d, --docs           Build the documentation from source using sphinx.
             -n, --new            Create a new external project or internal task from template.
             -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
-            -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
+            -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'. Use delimiter -- to pass additional arg to uv.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -75,4 +75,3 @@ respectively that provides utilities to manage extensions.
             -d, --docs           Build the documentation from source using sphinx.
             -n, --new            Create a new external project or internal task from template.
             -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
-            -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
