@@ -228,8 +228,10 @@ class DirectRLEnv(gym.Env):
     def __del__(self):
         """Cleanup for the environment."""
         # Suppress errors during Python shutdown to avoid noisy tracebacks
-        with contextlib.suppress(ImportError, AttributeError, TypeError):
-            self.close()
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                self.close()
 
     """
     Properties.

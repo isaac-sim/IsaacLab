@@ -42,6 +42,7 @@ from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv, VecEnvObs
+from isaaclab_experimental.envs import DirectRLEnvWarp
 
 """
 Vectorized environment wrapper.
@@ -93,7 +94,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv) and not isinstance(env.unwrapped, DirectRLEnvWarp):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

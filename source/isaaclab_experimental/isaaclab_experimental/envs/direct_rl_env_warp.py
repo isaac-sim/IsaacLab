@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import gymnasium as gym
 import inspect
 import logging
@@ -260,7 +261,11 @@ class DirectRLEnvWarp(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                self.close()
 
     """
     Properties.
@@ -343,7 +348,7 @@ class DirectRLEnvWarp(gym.Env):
 
         # return observations
         self._get_observations()
-        return self.torch_obs_buf.clone(), self.extras
+        return {"policy": self.torch_obs_buf.clone()}, self.extras
 
     @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
