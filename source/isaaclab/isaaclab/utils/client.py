@@ -146,6 +146,7 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
 
 # stat / read_file
 
+
 def stat(path: str) -> tuple[Result, dict[str, Any] | None]:
     """Check whether a remote or local file exists and return basic metadata.
     Args:
@@ -299,6 +300,7 @@ async def read_file_async(path: str) -> tuple[Result, dict[str, Any], memoryview
 
 # copy
 
+
 def copy(
     src: str,
     dst: str,
@@ -405,6 +407,7 @@ async def copy_async(
 
 
 # USD dependency resolution
+
 
 def _is_downloadable_asset(path: str) -> bool:
     """Return True for USD or other asset types we mirror locally (textures, etc.)."""
