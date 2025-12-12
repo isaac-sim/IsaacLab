@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
@@ -33,6 +33,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             debug_mode=False,
         )
     )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

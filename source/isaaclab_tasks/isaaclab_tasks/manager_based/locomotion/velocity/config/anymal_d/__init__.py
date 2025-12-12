@@ -11,7 +11,7 @@ from . import agents
 # Register Gym environments.
 ##
 
-#gym.register(
+# gym.register(
 #    id="Isaac-Velocity-Rough-Anymal-D-v0",
 #    entry_point="isaaclab.envs:ManagerBasedRLEnv",
 #    disable_env_checker=True,
@@ -20,10 +20,10 @@ from . import agents
 #        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
 #        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
 #    },
-#)
+# )
 
 
-#gym.register(
+# gym.register(
 #    id="Isaac-Velocity-Rough-Anymal-D-Play-v0",
 #    entry_point="isaaclab.envs:ManagerBasedRLEnv",
 #    disable_env_checker=True,
@@ -32,7 +32,7 @@ from . import agents
 #        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
 #        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
 #    },
-#)
+# )
 
 
 gym.register(

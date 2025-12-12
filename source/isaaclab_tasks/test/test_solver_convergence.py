@@ -19,6 +19,7 @@ import logging
 import gymnasium as gym
 import os
 import torch
+
 import pytest
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -162,9 +163,13 @@ def _check_zero_actions(
                 convergence_data = NewtonManager.get_solver_convergence_steps()
                 if ("Anymal" in task_name) or ("A1" in task_name):
                     # TODO: Tweak solver settings for Anymal. It's kind of unstable....
-                    assert convergence_data["max"] < 50, f"Solver did not converge in {convergence_data['max']} iterations"
+                    assert (
+                        convergence_data["max"] < 50
+                    ), f"Solver did not converge in {convergence_data['max']} iterations"
                 else:
-                    assert convergence_data["max"] < 25, f"Solver did not converge in {convergence_data['max']} iterations"
+                    assert (
+                        convergence_data["max"] < 25
+                    ), f"Solver did not converge in {convergence_data['max']} iterations"
                 # TODO: this was increased from 10
                 assert (
                     convergence_data["mean"] < 12

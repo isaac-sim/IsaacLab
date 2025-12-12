@@ -181,6 +181,7 @@ class SimulationContext:
                 try:
                     logger.info("No USD stage found in StageCache. Using omni.usd as fallback.")
                     import omni.usd
+
                     self._initial_stage = omni.usd.get_context().get_stage()
                     if self._initial_stage is None:
                         logger.warning("No USD stage found using omni.usd. Creating a new stage in memory.")
@@ -191,7 +192,7 @@ class SimulationContext:
                     self._initial_stage = create_new_stage_in_memory()
                     stage_cache.Insert(self._initial_stage)
                     # raise RuntimeError("No USD stage is currently open. Please create a stage first.")
-            
+
         if self._initial_stage is None:
             raise RuntimeError("No USD stage found. Please create a stage first.")
 

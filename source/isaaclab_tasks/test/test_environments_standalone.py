@@ -34,11 +34,9 @@ import os
 import torch
 
 import pytest
-from pxr import UsdUtils
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
-from isaaclab.sim.utils import create_new_stage_in_memory
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
