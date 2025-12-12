@@ -29,11 +29,14 @@ from pxr import Sdf
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Basic types
-# ---------------------------------------------------------------------------
+
+_s3 = None
 
 OMNI_S3_HOST_PREFIX = "omniverse-content-production.s3-"
+
+USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
+
+_DOWNLOADABLE_EXTS = {".usd", ".usda", ".usdz", ".usdc", ".png", ".jpg", ".jpeg", ".exr", ".hdr", ".tif", ".tiff"}
 
 
 class Result(IntEnum):
@@ -61,12 +64,12 @@ def break_url(url: str) -> UrlParts:
     return UrlParts(parsed.scheme or "", parsed.netloc or "", parsed.path or "")
 
 
-_s3 = boto3.client("s3")
-
-
-# ---------------------------------------------------------------------------
-# URL helpers
-# ---------------------------------------------------------------------------
+def _get_s3_client():
+    """Return a cached boto3 S3 client."""
+    global _s3
+    if _s3 is None:
+        _s3 = boto3.client("s3")
+    return _s3
 
 
 def _is_s3_url(path: str) -> bool:
@@ -141,10 +144,7 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
     return f"{base.scheme}://{base.netloc}{new_path}"
 
 
-# ---------------------------------------------------------------------------
 # stat / read_file
-# ---------------------------------------------------------------------------
-
 
 def stat(path: str) -> tuple[Result, dict[str, Any] | None]:
     """Check whether a remote or local file exists and return basic metadata.
@@ -188,8 +188,9 @@ def stat(path: str) -> tuple[Result, dict[str, Any] | None]:
     # S3 (non-omniverse)
     if _is_s3_url(url):
         bucket, key = _split_s3_url(url)
+        s3 = _get_s3_client()
         try:
-            response = _s3.head_object(Bucket=bucket, Key=key)
+            response = s3.head_object(Bucket=bucket, Key=key)
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             if code in ("404", "NoSuchKey", "NotFound"):
@@ -261,8 +262,9 @@ def read_file(path: str) -> tuple[Result, dict[str, Any], memoryview]:
     # S3
     if _is_s3_url(url):
         bucket, key = _split_s3_url(url)
+        s3 = _get_s3_client()
         try:
-            obj = _s3.get_object(Bucket=bucket, Key=key)
+            obj = s3.get_object(Bucket=bucket, Key=key)
             data_bytes = obj["Body"].read()
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
@@ -295,10 +297,7 @@ async def read_file_async(path: str) -> tuple[Result, dict[str, Any], memoryview
     return await loop.run_in_executor(None, read_file, path)
 
 
-# ---------------------------------------------------------------------------
 # copy
-# ---------------------------------------------------------------------------
-
 
 def copy(
     src: str,
@@ -361,11 +360,12 @@ def copy(
     # S3 -> local
     if _is_s3_url(src) and _is_local_path(dst):
         bucket, key = _split_s3_url(src)
+        s3 = _get_s3_client()
         os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
         try:
-            head = _s3.head_object(Bucket=bucket, Key=key)
+            head = s3.head_object(Bucket=bucket, Key=key)
             total_size = head.get("ContentLength")
-            obj = _s3.get_object(Bucket=bucket, Key=key)
+            obj = s3.get_object(Bucket=bucket, Key=key)
             body = obj["Body"]
 
             transferred = 0
@@ -404,31 +404,7 @@ async def copy_async(
     return await loop.run_in_executor(None, copy, src, dst, behavior, progress_callback, chunk_size)
 
 
-# ---------------------------------------------------------------------------
 # USD dependency resolution
-# ---------------------------------------------------------------------------
-
-USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
-
-
-_DOWNLOADABLE_EXTS = {
-    ".usd",
-    ".usda",
-    ".usdz",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".exr",
-    ".hdr",
-    ".tif",
-    ".tiff",
-}
-
-
-def _is_usd_file(path: str) -> bool:
-    """Return True if path ends with a USD extension."""
-    return Path(path).suffix.lower() in USD_EXTENSIONS
-
 
 def _is_downloadable_asset(path: str) -> bool:
     """Return True for USD or other asset types we mirror locally (textures, etc.)."""
@@ -548,13 +524,13 @@ async def download_usd_with_references(
         mapping[current_url] = local_path
 
         behavior = CopyBehavior.OVERWRITE if force_overwrite else CopyBehavior.SKIP
-        logger.info("Downloading asset %s -> %s", current_url, local_path)
+        logger.debug("Downloading asset %s -> %s", current_url, local_path)
         res = await copy_async(current_url, local_path, behavior=behavior, progress_callback=progress_callback)
         if res != Result.OK:
             logger.warning("Failed to download %s (Result=%s)", current_url, res)
             continue
 
-        if _is_usd_file(local_path):
+        if Path(local_path).suffix.lower() in USD_EXTENSIONS:
             for ref in _find_usd_references(local_path):
                 dep_url = _resolve_reference_url(current_url, ref)
                 dep_url = _normalize_url(dep_url)
