@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 11, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 13, 2025"/>
   </head>
   
   
@@ -602,6 +602,8 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">omni.physx.scripts</span><span class="w"> </span><span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
@@ -620,9 +622,25 @@
 <span class="c1"># import logger</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
+
 <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Articulation root properties.</span>
+<span class="sd">Constants.</span>
 <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># Mapping from string names to USD/PhysX tokens for mesh collision approximation</span>
+<span class="c1"># Refer to omniverse documentation</span>
+<span class="c1"># https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/rigid_bodies_articulations/collision.html#mesh-geometry-colliders</span>
+<span class="c1"># for available tokens.</span>
+<span class="n">MESH_APPROXIMATION_TOKENS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;boundingCube&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">boundingCube</span><span class="p">,</span>
+    <span class="s2">&quot;boundingSphere&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">boundingSphere</span><span class="p">,</span>
+    <span class="s2">&quot;convexDecomposition&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">convexDecomposition</span><span class="p">,</span>
+    <span class="s2">&quot;convexHull&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">convexHull</span><span class="p">,</span>
+    <span class="s2">&quot;none&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">none</span><span class="p">,</span>
+    <span class="s2">&quot;meshSimplification&quot;</span><span class="p">:</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">meshSimplification</span><span class="p">,</span>
+    <span class="s2">&quot;sdf&quot;</span><span class="p">:</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">sdf</span><span class="p">,</span>
+<span class="p">}</span>
+
 
 <span class="n">PHYSX_MESH_COLLISION_CFGS</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexDecompositionPropertiesCfg</span><span class="p">,</span>
@@ -639,6 +657,11 @@
     <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexHullPropertiesCfg</span><span class="p">,</span>
     <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">TriangleMeshSimplificationPropertiesCfg</span><span class="p">,</span>
 <span class="p">]</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Articulation root properties.</span>
+<span class="sd">&quot;&quot;&quot;</span>
 
 
 <div class="viewcode-block" id="define_articulation_root_properties"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_articulation_root_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_articulation_root_properties</span><span class="p">(</span>
@@ -1555,13 +1578,26 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">extract_mesh_collision_api_and_attrs</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_mesh_collision_api_and_attrs</span><span class="p">(</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Callable</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract the mesh collision API function and custom attributes from the configuration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cfg: The configuration for the mesh collision properties.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple containing the API function to use and a dictionary of custom attributes.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When neither USD nor PhysX API can be determined to be used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># We use the number of user set attributes outside of the API function</span>
     <span class="c1"># to determine which API to use in ambiguous cases, so collect them here</span>
     <span class="n">custom_attrs</span> <span class="o">=</span> <span class="p">{</span>
         <span class="n">key</span><span class="p">:</span> <span class="n">value</span>
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;usd_func&quot;</span><span class="p">,</span> <span class="s2">&quot;physx_func&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;usd_func&quot;</span><span class="p">,</span> <span class="s2">&quot;physx_func&quot;</span><span class="p">,</span> <span class="s2">&quot;mesh_approximation_name&quot;</span><span class="p">]</span>
     <span class="p">}</span>
 
     <span class="n">use_usd_api</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1579,20 +1615,17 @@
             <span class="c1"># Use the PhysX API</span>
             <span class="n">use_phsyx_api</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">custom_attrs</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">USD_MESH_COLLISION_CFGS</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">custom_attrs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">USD_MESH_COLLISION_CFGS</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Args are specified but the USD Mesh API doesn&#39;t support them!&quot;</span><span class="p">)</span>
 
-    <span class="n">mesh_collision_appx_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">&quot;PropertiesCfg&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-
     <span class="k">if</span> <span class="n">use_usd_api</span><span class="p">:</span>
-        <span class="c1"># Add approximation to the attributes as this is how USD collision mesh API is configured</span>
+        <span class="c1"># Use USD API for corresponding attributes</span>
+        <span class="c1"># For mesh collision approximation attribute, we set it explicitly in `modify_mesh_collision_properties``</span>
         <span class="n">api_func</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">usd_func</span>
-        <span class="c1"># Approximation needs to be formatted with camelCase</span>
-        <span class="n">custom_attrs</span><span class="p">[</span><span class="s2">&quot;Approximation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mesh_collision_appx_type</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">+</span> <span class="n">mesh_collision_appx_type</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
     <span class="k">elif</span> <span class="n">use_phsyx_api</span><span class="p">:</span>
         <span class="n">api_func</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physx_func</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either USD or PhysX API should be used for mesh collision approximation!&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either USD or PhysX API should be used for modifying mesh collision attributes!&quot;</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">api_func</span><span class="p">,</span> <span class="n">custom_attrs</span>
 
@@ -1631,7 +1664,7 @@
 <span class="nd">@apply_nested</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">modify_mesh_collision_properties</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">):</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set properties for the mesh collision of a prim.</span>
 <span class="sd">    These properties are based on either the `Phsyx the `UsdPhysics.MeshCollisionAPI` schema.</span>
 <span class="sd">    .. note::</span>
@@ -1643,12 +1676,31 @@
 <span class="sd">        cfg : The configuration for the mesh collision properties.</span>
 <span class="sd">        stage : The stage where to find the prim. Defaults to None, in which case the</span>
 <span class="sd">            current stage is used.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        True if the properties were successfully set, False otherwise.</span>
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the mesh approximation name is invalid.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># obtain stage</span>
     <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># get USD prim</span>
     <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
+    <span class="c1"># we need MeshCollisionAPI to set mesh collision approximation attribute</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="p">(</span><span class="n">prim</span><span class="p">):</span>
+        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="c1"># convert mesh approximation string to token</span>
+    <span class="n">approximation_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mesh_approximation_name</span>
+    <span class="k">if</span> <span class="n">approximation_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">MESH_APPROXIMATION_TOKENS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid mesh approximation name: &#39;</span><span class="si">{</span><span class="n">approximation_name</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Valid options are: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">MESH_APPROXIMATION_TOKENS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="n">approximation_token</span> <span class="o">=</span> <span class="n">MESH_APPROXIMATION_TOKENS</span><span class="p">[</span><span class="n">approximation_name</span><span class="p">]</span>
+    <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span>
+        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="p">(</span><span class="n">prim</span><span class="p">),</span> <span class="s2">&quot;Approximation&quot;</span><span class="p">,</span> <span class="n">approximation_token</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">)</span>
 
     <span class="n">api_func</span><span class="p">,</span> <span class="n">custom_attrs</span> <span class="o">=</span> <span class="n">extract_mesh_collision_api_and_attrs</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="p">)</span>
 
@@ -1713,7 +1765,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 11, 2025.
+  Last updated on Dec 13, 2025.
   <br/>
 </p>
   </div>

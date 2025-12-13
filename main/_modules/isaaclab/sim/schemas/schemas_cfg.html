@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 11, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 13, 2025"/>
   </head>
   
   
@@ -1036,8 +1036,23 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;USD API function for modifying mesh collision properties.</span>
+<span class="sd">    Refer to</span>
+<span class="sd">    `original USD Documentation &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html&gt;`_</span>
+<span class="sd">    for more information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;PhysX API function for modifying mesh collision properties.</span>
+<span class="sd">    Refer to</span>
+<span class="sd">    `original PhysX Documentation &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/annotated.html&gt;`_</span>
+<span class="sd">    for more information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;none&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 
 <span class="nd">@configclass</span>
@@ -1047,12 +1062,22 @@
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;boundingCube&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;boundingCube&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
 
 <span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">BoundingSpherePropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
     <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;boundingSphere&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;boundingSphere&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 
@@ -1066,6 +1091,11 @@
     <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxConvexDecompositionCollisionAPI</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Original PhysX Documentation:</span>
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;convexDecomposition&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;convexDecomposition&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">hull_vertex_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1112,6 +1142,11 @@
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;convexHull&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;convexHull&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">hull_vertex_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex hull vertex limit used for convex hull cooking.</span>
 
@@ -1133,6 +1168,11 @@
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;none&quot; (uses triangle mesh).</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">weld_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Mesh weld tolerance, controls the distance at which vertices are welded.</span>
 
@@ -1151,6 +1191,11 @@
     <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxTriangleMeshSimplificationCollisionAPI</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Original PhysX Documentation:</span>
 <span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;meshSimplification&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;meshSimplification&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">simplification_metric</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1177,6 +1222,12 @@
 <span class="sd">    More details and steps for optimizing SDF results can be found here:</span>
 <span class="sd">    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mesh_approximation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sdf&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of mesh collision approximation method. Default: &quot;sdf&quot;.</span>
+<span class="sd">    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">sdf_margin</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.</span>
 
@@ -1266,7 +1317,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 11, 2025.
+  Last updated on Dec 13, 2025.
   <br/>
 </p>
   </div>
