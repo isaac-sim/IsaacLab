@@ -30,7 +30,7 @@ class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
         ]
         self.policy_action_space = "joint"
         self.action_space = 6
-        self.state_space = 0
+        self.state_space = 19
         self.observation_space = 19
 
         # Set joint_action_scale from the existing arm_action.scale
