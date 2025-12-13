@@ -227,10 +227,9 @@ class FrameTransformer(SensorBase):
                         " rigid body. The class only supports transformations between rigid bodies."
                     )
 
-                # Get relative prim path as unique body identifier (e.g., "Robot/left_hand" instead of just "left_hand")
-                # This allows tracking bodies with the same name at different hierarchy levels
+                # Get the name of the body: use relative prim path for unique identification
                 body_name = _get_relative_body_path(matching_prim_path)
-                # Use leaf name if frame isn't specified by user (for backwards compatibility)
+                # Use leaf name of prim path if frame name isn't specified by user
                 frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
                 # Keep track of which frames are associated with which bodies
@@ -321,8 +320,7 @@ class FrameTransformer(SensorBase):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [_get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: extract relative path from config pattern
-        # Handle patterns like "{ENV_REGEX_NS}/Robot/torso" or "/World/envs/env_.*/Robot/torso" -> "Robot/torso"
+        # -- source frame: use relative prim path for unique identification
         self._source_frame_body_name = _get_relative_body_path(self.cfg.prim_path)
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
