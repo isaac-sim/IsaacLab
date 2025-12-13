@@ -491,10 +491,10 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     # Download remote files to local cache
     if file_status == 2:
-        logger.info(f"Downloading remote USD file: {original_usd_path}")
+        logger.debug(f"Downloading remote USD file: {original_usd_path}")
         try:
             usd_path = retrieve_file_path(usd_path, force_download=False)
-            logger.info(f"  Downloaded to: {usd_path}")
+            logger.debug(f"  Downloaded to: {usd_path}")
         except Exception as e:
             raise FileNotFoundError(f"Failed to download USD file from {original_usd_path}: {e}")
 
