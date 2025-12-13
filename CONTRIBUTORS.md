@@ -71,6 +71,7 @@ Guidelines for modifications:
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Hany Hamed
 * Haoran Zhou
 * Harsh Patel
 * HoJin Jeon
