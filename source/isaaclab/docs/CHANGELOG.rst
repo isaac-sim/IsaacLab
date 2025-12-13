@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.50.4 (2025-12-07)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer body name collision when tracking bodies with the same name but different hierarchical paths
+  (e.g., Robot/left_hand vs Robot_1/left_hand). The sensor now uses the relative prim path as the unique body identifier
+  instead of body name.
+
+
 0.50.3 (2025-12-11)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -68,6 +79,7 @@ Changed
 ^^^^^^^
 
 * Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
+
 
 0.49.0 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
