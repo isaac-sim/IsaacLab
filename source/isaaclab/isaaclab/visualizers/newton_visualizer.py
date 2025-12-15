@@ -287,36 +287,21 @@ class NewtonVisualizer(Visualizer):
         # Disable auto world spacing in Newton Viewer to display envs at actual world positions
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
-        # Configure camera position and orientation
+        # Configure camera position and orientation (Z-up axis)
         self._viewer.camera.pos = wp.vec3(*self.cfg.camera_position)
-        self._viewer.up_axis = ["X", "Y", "Z"].index(self.cfg.up_axis)
+        self._viewer.up_axis = 2  # Z-up
 
         # Calculate pitch and yaw from camera_position and camera_target
         cam_pos = np.array(self.cfg.camera_position, dtype=np.float32)
         cam_target = np.array(self.cfg.camera_target, dtype=np.float32)
         direction = cam_target - cam_pos
 
-        # Calculate yaw and pitch based on the up axis
-        up_axis_index = ["X", "Y", "Z"].index(self.cfg.up_axis)
-
-        if up_axis_index == 2:  # Z up
-            # Yaw: rotation around Z axis (horizontal plane)
-            yaw = np.degrees(np.arctan2(direction[1], direction[0]))
-            # Pitch: elevation angle
-            horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
-            pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
-        elif up_axis_index == 1:  # Y up
-            # Yaw: rotation around Y axis
-            yaw = np.degrees(np.arctan2(direction[2], direction[0]))
-            # Pitch: elevation angle
-            horizontal_dist = np.sqrt(direction[0] ** 2 + direction[2] ** 2)
-            pitch = np.degrees(np.arctan2(direction[1], horizontal_dist))
-        else:  # X up
-            # Yaw: rotation around X axis
-            yaw = np.degrees(np.arctan2(direction[2], direction[1]))
-            # Pitch: elevation angle
-            horizontal_dist = np.sqrt(direction[1] ** 2 + direction[2] ** 2)
-            pitch = np.degrees(np.arctan2(direction[0], horizontal_dist))
+        # Calculate yaw and pitch for Z-up coordinate system
+        # Yaw: rotation around Z axis (horizontal plane)
+        yaw = np.degrees(np.arctan2(direction[1], direction[0]))
+        # Pitch: elevation angle
+        horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
+        pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
 
         self._viewer.camera.yaw = float(yaw)
         self._viewer.camera.pitch = float(pitch)

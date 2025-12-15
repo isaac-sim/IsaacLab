@@ -5,8 +5,6 @@
 
 """Configuration for Newton OpenGL Visualizer."""
 
-from typing import Literal
-
 from isaaclab.utils import configclass
 
 from .visualizer_cfg import VisualizerCfg
@@ -25,17 +23,14 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton"
     """Type identifier for Newton visualizer."""
 
-    window_width: int = 4000  # 1920
+    window_width: int = 1920
     """Window width in pixels."""
 
-    window_height: int = 2000  # 1080
+    window_height: int = 1080
     """Window height in pixels."""
 
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""
-
-    up_axis: Literal["X", "Y", "Z"] = "Z"
-    """World up axis."""
 
     show_joints: bool = False
     """Show joint visualization."""

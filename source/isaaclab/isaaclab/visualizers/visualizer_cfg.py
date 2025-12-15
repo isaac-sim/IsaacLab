@@ -44,7 +44,7 @@ class VisualizerCfg:
     This provides a better out-of-the-box experience when you want to monitor training metrics.
     """
 
-    camera_position: tuple[float, float, float] = (10.0, 10.0, 3.0)
+    camera_position: tuple[float, float, float] = (8.0, 8.0, 3.0)
     """Initial camera position (x, y, z) in world coordinates."""
 
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
