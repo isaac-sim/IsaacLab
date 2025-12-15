@@ -27,6 +27,7 @@ from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim.spawners.materials import PreviewSurfaceCfg
 from isaaclab.sim.spawners.meshes import MeshSphereCfg, spawn_mesh_sphere
+from isaaclab.utils.math import subtract_frame_transforms
 
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 from isaaclab_mimic.motion_planners.motion_planner_base import MotionPlannerBase
@@ -626,6 +627,14 @@ class CuroboPlanner(MotionPlannerBase):
             env_origin = self.env.scene.env_origins[self.env_id]
             current_pos_raw = obj.data.root_pos_w[self.env_id] - env_origin
             current_quat_raw = obj.data.root_quat_w[self.env_id]  # (w, x, y, z)
+
+            # Transform object pose from world frame to robot base frame
+            robot_base_pos = self.robot.data.root_pos_w[self.env_id, :3]
+            robot_base_quat = self.robot.data.root_quat_w[self.env_id]  # [w, x, y, z]
+
+            current_pos_raw, current_quat_raw = subtract_frame_transforms(
+                robot_base_pos, robot_base_quat, current_pos_raw, current_quat_raw
+            )
 
             # Convert to cuRobo device and extract float values for pose list
             current_pos = self._to_curobo_device(current_pos_raw)
