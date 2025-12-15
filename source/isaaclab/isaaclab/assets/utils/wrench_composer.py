@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from numpy import isin
+
 import torch
 from typing import TYPE_CHECKING
 
@@ -141,6 +143,7 @@ class WrenchComposer:
 
         Raises:
             ValueError: If the type of the input is not supported.
+            ValueError: If the input is a slice and it is not None.
         """
         # Resolve all indices
         # -- env_ids
@@ -148,15 +151,25 @@ class WrenchComposer:
             env_ids = self._ALL_ENV_INDICES_WP
         elif isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        elif isinstance(env_ids, (list, slice)):
+        elif isinstance(env_ids, list):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        elif isinstance(env_ids, slice):
+            if env_ids == slice(None):
+                env_ids = self._ALL_ENV_INDICES_WP
+            else:
+                raise ValueError(f"Doesn't support slice input for env_ids: {env_ids}")
         # -- body_ids
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES_WP
         elif isinstance(body_ids, torch.Tensor):
             body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-        elif isinstance(body_ids, (list, slice)):
+        elif isinstance(body_ids, list):
             body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        elif isinstance(body_ids, slice):
+            if body_ids == slice(None):
+                body_ids = self._ALL_BODY_INDICES_WP
+            else:
+                raise ValueError(f"Doesn't support slice input for body_ids: {body_ids}")
         # Resolve remaining inputs
         # -- don't launch if no forces or torques are provided
         if forces is None and torques is None:
@@ -228,6 +241,7 @@ class WrenchComposer:
 
         Raises:
             ValueError: If the type of the input is not supported.
+            ValueError: If the input is a slice and it is not None.
         """
         # Resolve all indices
         # -- env_ids
@@ -235,15 +249,25 @@ class WrenchComposer:
             env_ids = self._ALL_ENV_INDICES_WP
         elif isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        elif isinstance(env_ids, (list, slice)):
+        elif isinstance(env_ids, list):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        elif isinstance(env_ids, slice):
+            if env_ids == slice(None):
+                env_ids = self._ALL_ENV_INDICES_WP
+            else:
+                raise ValueError(f"Doesn't support slice input for env_ids: {env_ids}")
         # -- body_ids
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES_WP
         elif isinstance(body_ids, torch.Tensor):
             body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-        elif isinstance(body_ids, (list, slice)):
+        elif isinstance(body_ids, list):
             body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        elif isinstance(body_ids, slice):
+            if body_ids == slice(None):
+                body_ids = self._ALL_BODY_INDICES_WP
+            else:
+                raise ValueError(f"Doesn't support slice input for body_ids: {body_ids}")
         # Resolve remaining inputs
         # -- don't launch if no forces or torques are provided
         if forces is None and torques is None:
@@ -289,7 +313,7 @@ class WrenchComposer:
             device=self.device,
         )
 
-    def reset(self, env_ids: wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids:  wp.array | torch.Tensor | None = None):
         """Reset the composed force and torque.
 
         This function will reset the composed force and torque to zero.
@@ -306,6 +330,13 @@ class WrenchComposer:
             indices = env_ids
             if isinstance(env_ids, torch.Tensor):
                 indices = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            elif isinstance(env_ids, list):
+                indices = wp.array(env_ids, dtype=wp.int32, device=self.device)
+            elif isinstance(env_ids, slice):
+                if env_ids == slice(None):
+                    indices = self._ALL_ENV_INDICES_WP
+                else:
+                    indices = env_ids
 
             self._composed_force_b[indices].zero_()
             self._composed_torque_b[indices].zero_()
