@@ -724,8 +724,8 @@ class RigidObjectCollection(AssetBase):
     def _get_final_wrenches(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get the final wrenches for a step by composing the instantaneous and permanent wrenches."""
         self._instantaneous_wrench_composer.add_forces_and_torques(
-            env_ids = self._ALL_ENV_INDICES_WP,
-            body_ids = self._ALL_OBJ_INDICES_WP,
+            env_ids=self._ALL_ENV_INDICES_WP,
+            body_ids=self._ALL_OBJ_INDICES_WP,
             forces=self._permanent_wrench_composer.composed_force,
             torques=self._permanent_wrench_composer.composed_torque,
         )

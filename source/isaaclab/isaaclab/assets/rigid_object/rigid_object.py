@@ -137,7 +137,6 @@ class RigidObject(AssetBase):
             )
             self._instantaneous_wrench_composer.reset()
 
-
     def update(self, dt: float):
         self._data.update(dt)
 
@@ -552,7 +551,6 @@ class RigidObject(AssetBase):
             self._instantaneous_wrench_composer.composed_force_as_torch,
             self._instantaneous_wrench_composer.composed_torque_as_torch,
         )
-
 
     """
     Internal simulation callbacks.

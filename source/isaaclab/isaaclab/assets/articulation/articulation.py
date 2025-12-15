@@ -961,6 +961,7 @@ class Articulation(AssetBase):
     """
     Operations - Setters.
     """
+
     def set_external_force_and_torque(
         self,
         forces: torch.Tensor,
