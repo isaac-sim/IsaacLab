@@ -48,7 +48,7 @@ def test_wrench_composer_add_force(device: str, num_envs: int, num_bodies: int):
             # Add forces to hand-calculated composed force
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.composed_force_as_numpy
+        composed_force_np = wrench_composer.composed_force.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
 
 
@@ -84,7 +84,7 @@ def test_wrench_composer_add_torque(device: str, num_envs: int, num_bodies: int)
             # Add torques to hand-calculated composed torque
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.composed_torque_as_numpy
+        composed_torque_np = wrench_composer.composed_torque.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -148,10 +148,10 @@ def test_add_forces_at_positons(device: str, num_envs: int, num_bodies: int):
             # hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += np.einsum('EBij,EBi->EBi', forces_np, skew_matrices)
 
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.composed_force_as_numpy
+        composed_force_np = wrench_composer.composed_force.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.composed_torque_as_numpy
+        composed_torque_np = wrench_composer.composed_torque.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -192,7 +192,7 @@ def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
             # Add torques to hand-calculated composed torque
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.composed_torque_as_numpy
+        composed_torque_np = wrench_composer.composed_torque.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -261,10 +261,10 @@ def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodi
                     )
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.composed_force_as_numpy
+        composed_force_np = wrench_composer.composed_force.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.composed_torque_as_numpy
+        composed_torque_np = wrench_composer.composed_torque.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -301,7 +301,7 @@ def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
         # Reset wrench composer
         wrench_composer.reset()
         # Get composed force and torque from wrench composer
-        composed_force_np = wrench_composer.composed_force_as_numpy
-        composed_torque_np = wrench_composer.composed_torque_as_numpy
+        composed_force_np = wrench_composer.composed_force.numpy()
+        composed_torque_np = wrench_composer.composed_torque.numpy()
         assert np.allclose(composed_force_np, np.zeros((num_envs, num_bodies, 3)), atol=1, rtol=1e-7)
         assert np.allclose(composed_torque_np, np.zeros((num_envs, num_bodies, 3)), atol=1, rtol=1e-7)

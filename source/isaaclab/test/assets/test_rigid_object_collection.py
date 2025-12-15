@@ -243,10 +243,11 @@ def test_external_force_buffer(sim, device):
         external_wrench_b[:, :, 0] = force
         external_wrench_b[:, :, 3] = force
 
-        object_collection.set_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
-            object_ids=object_ids,
+        object_collection.permanent_wrench_composer.set_forces_and_torques(
+            env_ids = None,
+            body_ids = object_ids,
+            forces = external_wrench_b[..., :3],
+            torques = external_wrench_b[..., 3:],
         )
 
         # check if the object collection's force and torque buffers are correctly updated
@@ -254,10 +255,10 @@ def test_external_force_buffer(sim, device):
             assert object_collection._permanent_wrench_composer.composed_force_as_torch[i, 0, 0].item() == force
             assert object_collection._permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
 
-        object_collection.add_instantaneous_external_wrench(
+        object_collection.instantaneous_wrench_composer.add_forces_and_torques(
+            body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
-            object_ids=object_ids,
         )
         final_force, final_torque = object_collection._get_final_wrenches()
         for i in range(num_envs):
@@ -303,12 +304,13 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
             positions = None
 
         # apply force
-        object_collection.set_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
-            object_ids=object_ids,
-            positions=positions,
-            is_global=is_global,
+        object_collection.permanent_wrench_composer.set_forces_and_torques(
+            env_ids = None,
+            body_ids = object_ids,
+            forces = external_wrench_b[..., :3],
+            torques = external_wrench_b[..., 3:],
+            positions = positions,
+            is_global = is_global,
         )
         for _ in range(10):
             # write data to sim
@@ -380,19 +382,20 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             external_wrench_positions_b[..., 2] = 0.0
 
         # apply force
-        object_collection.set_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
+        object_collection.permanent_wrench_composer.set_forces_and_torques(
+            env_ids = None,
+            body_ids = object_ids,
+            forces = external_wrench_b[..., :3],
+            torques = external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
-            object_ids=object_ids,
             is_global=is_global,
         )
-        object_collection.add_permanent_external_wrench(
-            forces=external_wrench_b[..., :3],
-            torques=external_wrench_b[..., 3:],
-            object_ids=object_ids,
-            positions=external_wrench_positions_b,
-            is_global=is_global,
+        object_collection.permanent_wrench_composer.add_forces_and_torques(
+            body_ids = object_ids,
+            forces = external_wrench_b[..., :3],
+            torques = external_wrench_b[..., 3:],
+            positions = external_wrench_positions_b,
+            is_global = is_global,
         )
         torch.testing.assert_close(
             object_collection._permanent_wrench_composer.composed_force_as_torch[:, object_ids, :],

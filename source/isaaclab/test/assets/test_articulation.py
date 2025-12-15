@@ -827,6 +827,7 @@ def test_external_force_buffer(sim, num_articulations, device):
         external_wrench_b[:, :, 3] = force
 
         # apply force
+        # TODO: Replace with wrench composer once the deprecation is complete
         articulation.set_external_force_and_torque(
             external_wrench_b[..., :3],
             external_wrench_b[..., 3:],
@@ -835,11 +836,11 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert articulation._permanent_wrench_composer.composed_force_as_torch[i, 0, 0].item() == force
-            assert articulation._permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.composed_force_as_torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
-        articulation.add_instantaneous_external_wrench(
+        articulation.instantaneous_wrench_composer.add_forces_and_torques(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             body_ids=body_ids,
@@ -903,6 +904,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
         # reset articulation
         articulation.reset()
         # apply force
+        # TODO: Replace with wrench composer once the deprecation is complete
         articulation.set_external_force_and_torque(
             external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
         )
@@ -986,17 +988,17 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
 
-        articulation.set_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
+        articulation.permanent_wrench_composer.set_forces_and_torques(
             body_ids=body_ids,
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
-        articulation.add_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
+        articulation.permanent_wrench_composer.add_forces_and_torques(
             body_ids=body_ids,
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
@@ -1067,6 +1069,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         # reset articulation
         articulation.reset()
         # apply force
+        # TODO: Replace with wrench composer once the deprecation is complete
         articulation.set_external_force_and_torque(
             external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
         )
@@ -1149,17 +1152,17 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             external_wrench_positions_b[..., 2] = 0.0
 
         # apply force
-        articulation.set_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
+        articulation.permanent_wrench_composer.set_forces_and_torques(
             body_ids=body_ids,
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
-        articulation.add_permanent_external_wrench(
-            external_wrench_b[..., :3],
-            external_wrench_b[..., 3:],
+        articulation.permanent_wrench_composer.add_forces_and_torques(
             body_ids=body_ids,
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
@@ -1584,11 +1587,12 @@ def test_reset(sim, num_articulations, device):
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
+        # TODO: Replace with wrench composer once the deprecation is complete
         articulation.set_external_force_and_torque(
             forces=torch.ones((num_articulations, num_bodies, 3), device=device),
             torques=torch.ones((num_articulations, num_bodies, 3), device=device),
         )
-        articulation.add_instantaneous_external_wrench(
+        articulation.instantaneous_wrench_composer.add_forces_and_torques(
             forces=torch.ones((num_articulations, num_bodies, 3), device=device),
             torques=torch.ones((num_articulations, num_bodies, 3), device=device),
         )
@@ -1873,6 +1877,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     articulation.set_joint_position_target(joint_pos)
     articulation.write_data_to_sim()
     for _ in range(50):
+        # TODO: Replace with wrench composer once the deprecation is complete
         articulation.set_external_force_and_torque(forces=external_force_vector_b, torques=external_torque_vector_b)
         articulation.write_data_to_sim()
         # perform step

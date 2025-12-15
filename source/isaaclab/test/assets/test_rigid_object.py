@@ -241,10 +241,10 @@ def test_external_force_buffer(device):
             external_wrench_b[:, :, 3] = force
 
             # apply force
-            cube_object.set_permanent_external_wrench(
-                external_wrench_b[..., :3],
-                external_wrench_b[..., 3:],
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
                 body_ids=body_ids,
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
             )
 
             # check if the cube's force and torque buffers are correctly updated
@@ -253,10 +253,10 @@ def test_external_force_buffer(device):
                 assert cube_object._permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
 
             # Check if the instantaneous wrench is correctly added to the permanent wrench
-            cube_object.add_instantaneous_external_wrench(
+            cube_object.permanent_wrench_composer.add_forces_and_torques(
+                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
-                body_ids=body_ids,
             )
 
             final_force, final_torque = cube_object._get_final_wrenches()
@@ -323,11 +323,11 @@ def test_external_force_on_single_body(num_cubes, device):
                 positions = None
 
             # apply force
-            cube_object.set_permanent_external_wrench(
-                external_wrench_b[..., :3],
-                external_wrench_b[..., 3:],
-                positions=positions,
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
                 body_ids=body_ids,
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+                positions=positions,
                 is_global=is_global,
             )
             # perform simulation
@@ -410,17 +410,17 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
                 external_wrench_positions_b[..., 2] = 0.0
 
             # apply force
-            cube_object.set_permanent_external_wrench(
-                external_wrench_b[..., :3],
-                external_wrench_b[..., 3:],
-                positions=external_wrench_positions_b,
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
                 body_ids=body_ids,
-                is_global=is_global,
-            )
-            cube_object.add_permanent_external_wrench(
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
+                positions=external_wrench_positions_b,
+                is_global=is_global,
+            )
+            cube_object.permanent_wrench_composer.add_forces_and_torques(
                 body_ids=body_ids,
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
                 positions=external_wrench_positions_b,
                 is_global=is_global,
             )
@@ -720,6 +720,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
             else:
                 external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
 
+            # TODO: Replace with wrench composer once the deprecation is complete
             cube_object.set_external_force_and_torque(
                 external_wrench_b[..., :3],
                 external_wrench_b[..., 3:],
