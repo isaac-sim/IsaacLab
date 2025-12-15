@@ -25,17 +25,11 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton"
     """Type identifier for Newton visualizer."""
 
-    window_width: int = 1920
+    window_width: int = 4000  # 1920
     """Window width in pixels."""
 
-    window_height: int = 1080
+    window_height: int = 2000  # 1080
     """Window height in pixels."""
-
-    camera_position: tuple[float, float, float] = (10.0, 0.0, 3.0)
-    """Initial camera position (x, y, z)."""
-
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z)."""
 
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames). Lower = more responsive but slower training."""

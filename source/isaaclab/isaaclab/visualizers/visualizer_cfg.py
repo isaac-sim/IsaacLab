@@ -44,6 +44,12 @@ class VisualizerCfg:
     This provides a better out-of-the-box experience when you want to monitor training metrics.
     """
 
+    camera_position: tuple[float, float, float] = (10.0, 10.0, 3.0)
+    """Initial camera position (x, y, z) in world coordinates."""
+
+    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera target/look-at point (x, y, z) in world coordinates."""
+
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
 
