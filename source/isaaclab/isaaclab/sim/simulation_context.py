@@ -814,7 +814,7 @@ class SimulationContext(_SimulationContext):
 
         if self.cfg.physx.solver_type == 1:
             if not self.cfg.physx.enable_external_forces_every_iteration:
-                omni.log.warn(
+                logger.warning(
                     "The `enable_external_forces_every_iteration` parameter in the PhysxCfg is set to False. If you are"
                     " experiencing noisy velocities, consider enabling this flag. You may need to slightly increase the"
                     " number of velocity iterations (setting it to 1 or 2 rather than 0), together with this flag, to"
