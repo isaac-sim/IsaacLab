@@ -5,10 +5,7 @@
 
 from __future__ import annotations
 
-from numpy import isin
-
 import torch
-from typing import TYPE_CHECKING
 
 import warp as wp
 
@@ -313,7 +310,7 @@ class WrenchComposer:
             device=self.device,
         )
 
-    def reset(self, env_ids:  wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids: wp.array | torch.Tensor | None = None):
         """Reset the composed force and torque.
 
         This function will reset the composed force and torque to zero.
