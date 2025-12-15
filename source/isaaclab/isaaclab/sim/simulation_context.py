@@ -810,6 +810,19 @@ class SimulationContext(_SimulationContext):
         physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             self.cfg.physx.solve_articulation_contact_last
         )
+        # -- Enable external forces every iteration, helps improve the accuracy of velocity updates.
+
+        if self.cfg.physx.solver_type == 1:
+            if not self.cfg.physx.enable_external_forces_every_iteration:
+                logger.warning(
+                    "The `enable_external_forces_every_iteration` parameter in the PhysxCfg is set to False. If you are"
+                    " experiencing noisy velocities, consider enabling this flag. You may need to slightly increase the"
+                    " number of velocity iterations (setting it to 1 or 2 rather than 0), together with this flag, to"
+                    " improve the accuracy of velocity updates."
+                )
+            physx_scene_api.CreateEnableExternalForcesEveryIterationAttr(
+                self.cfg.physx.enable_external_forces_every_iteration
+            )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
