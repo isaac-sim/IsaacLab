@@ -190,7 +190,7 @@ class Articulation(AssetBase):
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
-        # reset external wrench
+        # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids)
         self._permanent_wrench_composer.reset(env_ids)
 
