@@ -635,9 +635,10 @@ class Camera(SensorBase):
 
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        # breakpoint()
+        self._data.pos_w[env_ids] = torch.from_numpy(poses).to(device=self._device)
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            torch.from_numpy(quat).to(device=self._device), origin="opengl", target="world"
         )
 
     def _create_annotator_data(self):
