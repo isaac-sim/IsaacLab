@@ -15,7 +15,6 @@ from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_
 from ..asset_base import AssetBase
 
 
-
 class WrenchComposer:
     def __init__(self, num_envs: int, num_bodies: int, device: str, asset: AssetBase | None = None) -> None:
         """Wrench composer.
@@ -53,8 +52,12 @@ class WrenchComposer:
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
         self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
         # Env / body resolution buffers
-        self._ALL_ENV_INDICES_WP = wp.from_torch(torch.arange(num_envs, dtype=torch.int32, device=device), dtype=wp.int32)
-        self._ALL_BODY_INDICES_WP = wp.from_torch(torch.arange(num_bodies, dtype=torch.int32, device=device), dtype=wp.int32)
+        self._ALL_ENV_INDICES_WP = wp.from_torch(
+            torch.arange(num_envs, dtype=torch.int32, device=device), dtype=wp.int32
+        )
+        self._ALL_BODY_INDICES_WP = wp.from_torch(
+            torch.arange(num_bodies, dtype=torch.int32, device=device), dtype=wp.int32
+        )
 
     @property
     def active(self) -> bool:
@@ -135,7 +138,7 @@ class WrenchComposer:
             torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
             positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
             is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
-        
+
         Raises:
             ValueError: If the type of the input is not supported.
         """
@@ -222,7 +225,7 @@ class WrenchComposer:
             torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
             positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
             is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
-        
+
         Raises:
             ValueError: If the type of the input is not supported.
         """
