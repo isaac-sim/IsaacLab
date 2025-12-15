@@ -108,26 +108,12 @@ class XFormPrim:
         Returns:
             List of resolved prim paths.
         """
+        from isaaclab.sim.utils.prims import find_matching_prim_paths
         resolved_paths = []
 
         for pattern in patterns:
             # Check if pattern contains regex characters
-            if re.search(r"[\[\]\*\?\|]", pattern):
-                # Convert USD-style regex to Python regex
-                # [1-5] stays as is, .* for wildcard
-                regex_pattern = pattern.replace(".", r"\.")  # Escape dots
-                regex_pattern = regex_pattern.replace("*", ".*")  # * becomes .*
-                regex_pattern = f"^{regex_pattern}$"
-
-                # Search through all prims
-                for prim in self._stage.Traverse():
-                    prim_path = str(prim.GetPath())
-                    if re.match(regex_pattern, prim_path):
-                        if prim.IsA(UsdGeom.Xformable) or prim.IsA(UsdGeom.Xform):
-                            resolved_paths.append(prim_path)
-            else:
-                # Direct path, just add it
-                resolved_paths.append(pattern)
+            resolved_paths.extend(find_matching_prim_paths(pattern, self._stage))
 
         # Remove duplicates while preserving order
         seen = set()

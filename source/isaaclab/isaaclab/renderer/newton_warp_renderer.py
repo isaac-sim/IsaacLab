@@ -312,15 +312,13 @@ class NewtonWarpRenderer(RendererBase):
             device=camera_positions_wp.device,
         )
 
-        # breakpoint()
-
         # Render using TiledCameraSensor
         self._tiled_camera_sensor.render(
-            NewtonManager.get_state_0(),  # Use current physics state
-            camera_transforms,
-            self._camera_rays,
-            self._raw_output_rgb_buffer,
-            self._raw_output_depth_buffer,
+            state=NewtonManager.get_state_0(),  # Use current physics state
+            camera_transforms=camera_transforms,
+            camera_rays=self._camera_rays,
+            color_image=self._raw_output_rgb_buffer,
+            depth_image=self._raw_output_depth_buffer,
         )
 
         # breakpoint()

@@ -20,6 +20,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
+import warp as wp
+
 
 @configclass
 class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
@@ -102,13 +104,13 @@ class CartpoleCameraEnv(DirectRLEnv):
         self, cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg, render_mode: str | None = None, **kwargs
     ):
         super().__init__(cfg, render_mode, **kwargs)
-
-        self._cart_dof_idx, _ = self._cartpole.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
+        # breakpoint()
+        self._cart_dof_idx, _, _ = self._cartpole.find_joints(self.cfg.cart_dof_name)
+        self._pole_dof_idx, _, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
-        self.joint_pos = self._cartpole.data.joint_pos
-        self.joint_vel = self._cartpole.data.joint_vel
+        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
+        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
 
         if "rgb" in self.cfg.tiled_camera.data_types:
             self.stacked_frames = torch.zeros(
@@ -219,8 +221,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = self._cartpole.data.joint_pos
-        self.joint_vel = self._cartpole.data.joint_vel
+        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
+        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
@@ -243,21 +245,23 @@ class CartpoleCameraEnv(DirectRLEnv):
             camera_data[camera_data == float("inf")] = 0
             self.stacked_frames[env_ids, :, :, -1] = camera_data.squeeze()
 
-        joint_pos = self._cartpole.data.default_joint_pos[env_ids]
-        joint_pos[:, self._pole_dof_idx] += sample_uniform(
+        joint_pos = wp.to_torch(self._cartpole.data.default_joint_pos)[env_ids]
+
+        joint_pos[:, wp.to_torch(self._pole_dof_idx)] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
-            joint_pos[:, self._pole_dof_idx].shape,
+            joint_pos[:, wp.to_torch(self._pole_dof_idx)].shape,
             joint_pos.device,
         )
-        joint_vel = self._cartpole.data.default_joint_vel[env_ids]
+        joint_vel = wp.to_torch(self._cartpole.data.default_joint_vel)[env_ids]
 
-        default_root_state = self._cartpole.data.default_root_state[env_ids]
+        default_root_state = wp.to_torch(self._cartpole.data.default_root_state)[env_ids]
         default_root_state[:, :3] += self.scene.env_origins[env_ids]
-
+        
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
+        breakpoint()
         self._cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self._cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
