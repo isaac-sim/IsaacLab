@@ -14,8 +14,6 @@ from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_
 
 from ..asset_base import AssetBase
 
-if TYPE_CHECKING:
-    import numpy as np
 
 
 class WrenchComposer:
@@ -54,6 +52,9 @@ class WrenchComposer:
         # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor every time.
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
         self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
+        # Env / body resolution buffers
+        self._ALL_ENV_INDICES_WP = wp.from_torch(torch.arange(num_envs, dtype=torch.int32, device=device), dtype=wp.int32)
+        self._ALL_BODY_INDICES_WP = wp.from_torch(torch.arange(num_bodies, dtype=torch.int32, device=device), dtype=wp.int32)
 
     @property
     def active(self) -> bool:
@@ -85,30 +86,6 @@ class WrenchComposer:
         return self._composed_torque_b
 
     @property
-    def composed_force_as_numpy(self) -> np.ndarray:
-        """Composed force at the body's center of mass frame as numpy array.
-
-        .. note:: If some of the forces are applied in the global frame, the composed force will be in the center
-        mass frame of the body.
-
-        Returns:
-            np.ndarray: Composed force at the body's center of mass frame. (num_envs, num_bodies, 3)
-        """
-        return self._composed_force_b.numpy()
-
-    @property
-    def composed_torque_as_numpy(self) -> np.ndarray:
-        """Composed torque at the body's center of mass frame as numpy array.
-
-        .. note:: If some of the torques are applied in the global frame, the composed torque will be in the center
-        mass frame of the body.
-
-        Returns:
-            np.ndarray: Composed torque at the body's center of mass frame. (num_envs, num_bodies, 3)
-        """
-        return self._composed_torque_b.numpy()
-
-    @property
     def composed_force_as_torch(self) -> torch.Tensor:
         """Composed force at the body's center of mass frame as torch tensor.
 
@@ -134,11 +111,11 @@ class WrenchComposer:
 
     def add_forces_and_torques(
         self,
-        env_ids: wp.array,
-        body_ids: wp.array,
-        forces: wp.array | None = None,
-        torques: wp.array | None = None,
-        positions: wp.array | None = None,
+        env_ids: wp.array | torch.Tensor | None = None,
+        body_ids: wp.array | torch.Tensor | None = None,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
         """Add forces and torques to the composed force and torque.
@@ -152,19 +129,47 @@ class WrenchComposer:
         However, this may not necessary if the user calls `set_forces_and_torques` function instead of `add_forces_and_torques`.
 
         Args:
-            env_mask: Environment ids. (num_envs)
-            body_mask: Body ids. (num_envs, num_bodies)
-            forces: Forces. (num_envs, num_bodies, 3)
-            torques: Torques. (num_envs, num_bodies, 3)
-            positions: Positions. (num_envs, num_bodies, 3)
-            is_global: Whether the forces and torques are applied in the global frame.
+            env_mask: Environment ids. (num_envs). Defaults to None (all environments).
+            body_mask: Body ids. (num_envs, num_bodies). Defaults to None (all bodies).
+            forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
+            torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
+            positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
+            is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
+        
+        Raises:
+            ValueError: If the type of the input is not supported.
         """
+        # Resolve all indices
+        # -- env_ids
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES_WP
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+        elif isinstance(env_ids, (list, slice)):
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        # -- body_ids
+        if body_ids is None:
+            body_ids = self._ALL_BODY_INDICES_WP
+        elif isinstance(body_ids, torch.Tensor):
+            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+        elif isinstance(body_ids, (list, slice)):
+            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        # Resolve remaining inputs
+        # -- don't launch if no forces or torques are provided
+        if forces is None and torques is None:
+            return
         if forces is None:
             forces = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(forces, torch.Tensor):
+            forces = wp.from_torch(forces, dtype=wp.vec3f)
         if torques is None:
             torques = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(torques, torch.Tensor):
+            torques = wp.from_torch(torques, dtype=wp.vec3f)
         if positions is None:
             positions = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(positions, torch.Tensor):
+            positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         if is_global:
             if not self._com_positions_updated:
@@ -175,7 +180,6 @@ class WrenchComposer:
                         "Center of mass positions are not available. Please provide an asset to the wrench composer."
                     )
                 self._com_positions_updated = True
-        self._active = True
 
         wp.launch(
             add_forces_and_torques_at_position,
@@ -193,14 +197,15 @@ class WrenchComposer:
             ],
             device=self.device,
         )
+        self._active = True
 
     def set_forces_and_torques(
         self,
-        env_ids: wp.array,
-        body_ids: wp.array,
-        forces: wp.array | None = None,
-        torques: wp.array | None = None,
-        positions: wp.array | None = None,
+        env_ids: wp.array | torch.Tensor | None = None,
+        body_ids: wp.array | torch.Tensor | None = None,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
         """Set forces and torques to the composed force and torque.
@@ -211,19 +216,47 @@ class WrenchComposer:
         The user can provide any combination of forces, torques, and positions.
 
         Args:
-            env_ids: Environment ids. (num_envs)
-            body_ids: Body ids. (num_envs, num_bodies)
-            forces: Forces. (num_envs, num_bodies, 3)
-            torques: Torques. (num_envs, num_bodies, 3)
-            positions: Positions. (num_envs, num_bodies, 3)
-            is_global: Whether the forces and torques are applied in the global frame.
+            env_ids: Environment ids. (num_envs). Defaults to None (all environments).
+            body_ids: Body ids. (num_envs, num_bodies). Defaults to None (all bodies).
+            forces: Forces. (num_envs, num_bodies, 3). Defaults to None.
+            torques: Torques. (num_envs, num_bodies, 3). Defaults to None.
+            positions: Positions. (num_envs, num_bodies, 3). Defaults to None.
+            is_global: Whether the forces and torques are applied in the global frame. Defaults to False.
+        
+        Raises:
+            ValueError: If the type of the input is not supported.
         """
+        # Resolve all indices
+        # -- env_ids
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES_WP
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+        elif isinstance(env_ids, (list, slice)):
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        # -- body_ids
+        if body_ids is None:
+            body_ids = self._ALL_BODY_INDICES_WP
+        elif isinstance(body_ids, torch.Tensor):
+            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+        elif isinstance(body_ids, (list, slice)):
+            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        # Resolve remaining inputs
+        # -- don't launch if no forces or torques are provided
+        if forces is None and torques is None:
+            return
         if forces is None:
             forces = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(forces, torch.Tensor):
+            forces = wp.from_torch(forces, dtype=wp.vec3f)
         if torques is None:
             torques = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(torques, torch.Tensor):
+            torques = wp.from_torch(torques, dtype=wp.vec3f)
         if positions is None:
             positions = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
+        elif isinstance(positions, torch.Tensor):
+            positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         if is_global:
             if not self._com_positions_updated:
@@ -253,7 +286,7 @@ class WrenchComposer:
             device=self.device,
         )
 
-    def reset(self, env_ids: None = None):
+    def reset(self, env_ids: wp.array | torch.Tensor | None = None):
         """Reset the composed force and torque.
 
         This function will reset the composed force and torque to zero.
@@ -265,16 +298,14 @@ class WrenchComposer:
             self._composed_force_b.zero_()
             self._composed_torque_b.zero_()
             self._com_positions.zero_()
-            self._com_positions_updated = False
             self._active = False
-        elif isinstance(env_ids, slice):
-            self._composed_force_b[env_ids].zero_()
-            self._composed_torque_b[env_ids].zero_()
-            self._com_positions[env_ids].zero_()
-            self._com_positions_updated = False
         else:
-            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-            self._composed_force_b[env_ids].zero_()
-            self._composed_torque_b[env_ids].zero_()
-            self._com_positions[env_ids].zero_()
-            self._com_positions_updated = False
+            indices = env_ids
+            if isinstance(env_ids, torch.Tensor):
+                indices = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+
+            self._composed_force_b[indices].zero_()
+            self._composed_torque_b[indices].zero_()
+            self._com_positions[indices].zero_()
+
+        self._com_positions_updated = False
