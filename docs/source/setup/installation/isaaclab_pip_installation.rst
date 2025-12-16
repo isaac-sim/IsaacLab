@@ -30,7 +30,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.3.1 --extra-index-url https://pypi.nvidia.com
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
