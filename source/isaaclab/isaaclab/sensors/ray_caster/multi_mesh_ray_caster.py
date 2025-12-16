@@ -5,11 +5,6 @@
 
 from __future__ import annotations
 
-"""Multi-mesh ray casting sensor implementation.
-
-This file adds support for ray casting against multiple (possibly regex-selected) mesh targets.
-"""
-
 import logging
 import numpy as np
 import re
