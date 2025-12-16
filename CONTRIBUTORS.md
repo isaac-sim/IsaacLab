@@ -63,6 +63,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Yang
 * Dhananjay Shendre
+* Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
 * Fabian Jenelten
