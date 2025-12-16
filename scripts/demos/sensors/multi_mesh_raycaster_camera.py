@@ -4,10 +4,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Example on using the MultiMesh Raycaster Camera sensor.
+"""Example on using the Multi-Mesh Raycaster Camera sensor.
 
-Usage:
-    `python scripts/demos/sensors/multi_mesh_raycaster_camera.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
+.. code-block:: bash
+
+    # with allegro hand
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type allegro_hand
+
+    # with anymal-D bodies
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type anymal_d
+
+    # with random multiple objects
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+
 """
 
 import argparse
@@ -15,14 +24,14 @@ import argparse
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Example on using the raycaster sensor.")
+parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument(
     "--asset_type",
     type=str,
     default="allegro_hand",
     help="Asset type to use.",
-    choices=["allegro_hand", "anymal_d", "multi"],
+    choices=["allegro_hand", "anymal_d", "objects"],
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -115,7 +124,7 @@ elif args_cli.asset_type == "anymal_d":
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
-elif args_cli.asset_type == "multi":
+elif args_cli.asset_type == "objects":
     asset_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(

@@ -53,27 +53,30 @@ class MultiMeshRayCaster(RayCaster):
     Compared to the default RayCaster, the MultiMeshRayCaster provides additional functionality and flexibility as
     an extension of the default RayCaster with the following enhancements:
 
-    - Raycasting against multiple target types : Supports primitive shapes (spheres, cubes, …) as well as arbitrary
-        meshes.
+    - Raycasting against multiple target types : Supports primitive shapes (spheres, cubes, etc.) as well as arbitrary
+      meshes.
     - Dynamic mesh tracking : Keeps track of specified meshes, enabling raycasting against moving parts
-        (e.g., robot links, articulated bodies, or dynamic obstacles).
+      (e.g., robot links, articulated bodies, or dynamic obstacles).
     - Memory-efficient caching : Avoids redundant memory usage by reusing mesh data across environments.
 
-    Example usage to raycast against the visual meshes of a robot (e.g. anymal):
-        .. code-block:: python
-            ray_caster_cfg = MultiMeshRayCasterCfg(
-                prim_path="{ENV_REGEX_NS}/Robot",
-                mesh_prim_paths=[
-                    "/World/Ground",
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
-                    MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
-                ],
-                ray_alignment="world",
-                pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
-            )
+    Example usage to raycast against the visual meshes of a robot (e.g. ANYmal):
+
+    .. code-block:: python
+
+        ray_caster_cfg = MultiMeshRayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            mesh_prim_paths=[
+                "/World/Ground",
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+            ],
+            ray_alignment="world",
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
+        )
+
     """
 
     cfg: MultiMeshRayCasterCfg
@@ -84,7 +87,8 @@ class MultiMeshRayCaster(RayCaster):
     mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
 
-    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
+    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.
+    """
 
     def __init__(self, cfg: MultiMeshRayCasterCfg):
         """Initializes the ray-caster object.
@@ -148,11 +152,12 @@ class MultiMeshRayCaster(RayCaster):
         """Parse mesh prim expressions, build (or reuse) Warp meshes, and cache per-env mesh IDs.
 
         High-level steps (per target expression):
-            1. Resolve matching prims by regex/path expression.
-            2. Collect supported mesh child prims; merge into a single mesh if configured.
-            3. Deduplicate identical vertex buffers (exact match) to avoid uploading duplicates to Warp.
-            4. Partition mesh IDs per environment or mark as globally shared.
-            5. Optionally create physics views (articulation / rigid body / fallback XForm) and cache local offsets.
+
+        1. Resolve matching prims by regex/path expression.
+        2. Collect supported mesh child prims; merge into a single mesh if configured.
+        3. Deduplicate identical vertex buffers (exact match) to avoid uploading duplicates to Warp.
+        4. Partition mesh IDs per environment or mark as globally shared.
+        5. Optionally create physics views (articulation / rigid body / fallback XForm) and cache local offsets.
 
         Exceptions:
             Raises a RuntimeError if:
