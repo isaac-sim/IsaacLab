@@ -99,6 +99,10 @@ isaac.startup.ros_bridge_extension = ""
 # disable the metrics assembler change listener, we don't want to do any runtime changes
 metricsAssembler.changeListenerEnabled = false
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+# warp.core has this as a dependency, which forces numpy 1.26 to be pulled in
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 # Extensions
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
