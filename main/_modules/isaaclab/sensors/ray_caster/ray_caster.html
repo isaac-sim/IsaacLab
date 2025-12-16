@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2025"/>
   </head>
   
   
@@ -604,23 +604,24 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_plane</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_quat</span><span class="p">,</span> <span class="n">quat_apply</span><span class="p">,</span> <span class="n">quat_apply_yaw</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">quat_apply</span><span class="p">,</span> <span class="n">quat_apply_yaw</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span><span class="p">,</span> <span class="n">raycast_mesh</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.prim_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">obtain_world_pose_from_view</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -649,12 +650,21 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">RayCasterCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
 
+    <span class="c1"># Class variables to share meshes across instances</span>
+    <span class="n">meshes</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A dictionary to store warp meshes for raycasting, shared across all instances.</span>
+
+<span class="sd">    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.&quot;&quot;&quot;</span>
+    <span class="n">_instance_count</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A counter to track the number of RayCaster instances, used to manage class variable lifecycle.&quot;&quot;&quot;</span>
+
 <div class="viewcode-block" id="RayCaster.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCaster.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">RayCasterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the ray-caster object.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration parameters.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">RayCaster</span><span class="o">.</span><span class="n">_instance_count</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># check if sensor path is valid</span>
         <span class="c1"># note: currently we do not handle environment indices if there is a regex pattern in the leaf</span>
         <span class="c1">#   For example, if the prim path is &quot;/World/Sensor_[1,2]&quot;.</span>
@@ -662,15 +672,13 @@
         <span class="n">sensor_path_is_regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^[a-zA-Z0-9/_]+$&quot;</span><span class="p">,</span> <span class="n">sensor_path</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">sensor_path_is_regex</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Invalid prim path for the ray-caster sensor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid prim path for the ray-caster sensor: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Hint: Please ensure that the prim path does not contain any regex patterns in the leaf.&quot;</span>
             <span class="p">)</span>
         <span class="c1"># Initialize base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="c1"># Create empty variables for storing output data</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">RayCasterData</span><span class="p">()</span>
-        <span class="c1"># the warp meshes used for raycasting.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">RayCasterData</span><span class="p">()</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing information about the instance.&quot;&quot;&quot;</span>
@@ -678,7 +686,7 @@
             <span class="sa">f</span><span class="s2">&quot;Ray-caster @ &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">view type            : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">update period (s)    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of sensors    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of rays/sensor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">total number of rays : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -729,28 +737,16 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
         <span class="c1"># obtain global simulation view</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_view</span><span class="p">()</span>
-        <span class="c1"># check if the prim at path is an articulated or rigid prim</span>
-        <span class="c1"># we do this since for physics-based view classes we can access their data directly</span>
-        <span class="c1"># otherwise we need to use the xform view class which is slower</span>
-        <span class="n">found_supported_prim_class</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># create view based on the type of prim</span>
-        <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_articulation_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
-            <span class="n">found_supported_prim_class</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">elif</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
-            <span class="n">found_supported_prim_class</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="n">XFormPrim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">reset_xform_properties</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">found_supported_prim_class</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The prim at path </span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2"> is not a physics prim! Using XFormPrim.&quot;</span><span class="p">)</span>
-        <span class="c1"># check if prim view class is found</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">found_supported_prim_class</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a valid prim view class for the prim paths: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">available_prims</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span><span class="o">.</span><span class="n">Traverse</span><span class="p">()])</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">. Available prims: </span><span class="si">{</span><span class="n">available_prims</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obtain_trackable_prim_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
 
         <span class="c1"># load the meshes by parsing the stage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_warp_meshes</span><span class="p">()</span>
@@ -766,6 +762,10 @@
 
         <span class="c1"># read prims to ray-cast</span>
         <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">:</span>
+            <span class="c1"># check if mesh already casted into warp mesh</span>
+            <span class="k">if</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
+                <span class="k">continue</span>
+
             <span class="c1"># check if the prim is a plane - handle PhysX plane as a special case</span>
             <span class="c1"># if a plane exists then we need to create an infinite mesh that is a plane</span>
             <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span>
@@ -799,10 +799,10 @@
                 <span class="c1"># print info</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Created infinite plane mesh prim: </span><span class="si">{</span><span class="n">mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
             <span class="c1"># add the warp mesh to the list</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">mesh_prim_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">wp_mesh</span>
+            <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">mesh_prim_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">wp_mesh</span>
 
         <span class="c1"># throw an error if no meshes are found</span>
-        <span class="k">if</span> <span class="nb">all</span><span class="p">([</span><span class="n">mesh_prim_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span> <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">([</span><span class="n">mesh_prim_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span> <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">]):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;No meshes found for ray-casting! Please check the mesh prim paths: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
@@ -823,26 +823,19 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">drift</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ray_cast_drift</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># fill the data buffer</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">ray_hits_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">ray_hits_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ray_starts_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ray_directions_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fills the buffers of the sensor data.&quot;&quot;&quot;</span>
-        <span class="c1"># obtain the poses of the sensors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">XFormPrim</span><span class="p">):</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">):</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_root_transforms</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">quat_w</span> <span class="o">=</span> <span class="n">convert_quat</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span><span class="p">):</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">quat_w</span> <span class="o">=</span> <span class="n">convert_quat</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported view type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># note: we clone here because we are read-only operations</span>
-        <span class="n">pos_w</span> <span class="o">=</span> <span class="n">pos_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="n">quat_w</span> <span class="o">=</span> <span class="n">quat_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_ray_infos</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the ray information buffers.&quot;&quot;&quot;</span>
+
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="p">)</span>
         <span class="c1"># apply drift to ray starting position in world frame</span>
         <span class="n">pos_w</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">drift</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
         <span class="c1"># store the poses</span>
@@ -889,13 +882,20 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported ray_alignment type: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ray_alignment</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ray_starts_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">ray_starts_w</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ray_directions_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">ray_directions_w</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fills the buffers of the sensor data.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_ray_infos</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
         <span class="c1"># ray cast and store the hits</span>
         <span class="c1"># TODO: Make this work for multiple meshes?</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">ray_hits_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">raycast_mesh</span><span class="p">(</span>
-            <span class="n">ray_starts_w</span><span class="p">,</span>
-            <span class="n">ray_directions_w</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ray_starts_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ray_directions_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span>
             <span class="n">max_dist</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_distance</span><span class="p">,</span>
-            <span class="n">mesh</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="n">mesh</span><span class="o">=</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
         <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
         <span class="c1"># apply vertical drift to ray starting position in ray caster frame</span>
@@ -914,11 +914,96 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">ray_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_debug_vis_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">ray_hits_w</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
         <span class="c1"># remove possible inf values</span>
         <span class="n">viz_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">ray_hits_w</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
         <span class="n">viz_points</span> <span class="o">=</span> <span class="n">viz_points</span><span class="p">[</span><span class="o">~</span><span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">viz_points</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
-        <span class="c1"># show ray hit positions</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">ray_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">viz_points</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal Helpers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_obtain_trackable_prim_view</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">target_prim_path</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">XFormPrim</span> <span class="o">|</span> <span class="nb">any</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Obtain a prim view that can be used to track the pose of the parget prim.</span>
+
+<span class="sd">        The target prim path is a regex expression that matches one or more mesh prims. While we can track its</span>
+<span class="sd">        pose directly using XFormPrim, this is not efficient and can be slow. Instead, we create a prim view</span>
+<span class="sd">        using the physics simulation view, which provides a more efficient way to track the pose of the mesh prims.</span>
+
+<span class="sd">        The function additionally resolves the relative pose between the mesh and its corresponding physics prim.</span>
+<span class="sd">        This is especially useful if the mesh is not directly parented to the physics prim.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            target_prim_path: The target prim path to obtain the prim view for.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple containing:</span>
+
+<span class="sd">            - An XFormPrim or a physics prim view (ArticulationView or RigidBodyView).</span>
+<span class="sd">            - A tuple containing the positions and orientations of the mesh prims in the physics prim frame.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="n">target_prim_path</span><span class="p">)</span>
+        <span class="n">current_prim</span> <span class="o">=</span> <span class="n">mesh_prim</span>
+        <span class="n">current_path_expr</span> <span class="o">=</span> <span class="n">target_prim_path</span>
+
+        <span class="n">prim_view</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">while</span> <span class="n">prim_view</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># TODO: Need to handle the case where API is present but it is disabled</span>
+            <span class="k">if</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">):</span>
+                <span class="n">prim_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_articulation_view</span><span class="p">(</span><span class="n">current_path_expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Created articulation view for mesh prim at path: </span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">break</span>
+
+            <span class="c1"># TODO: Need to handle the case where API is present but it is disabled</span>
+            <span class="k">if</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">):</span>
+                <span class="n">prim_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">current_path_expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Created rigid body view for mesh prim at path: </span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">break</span>
+
+            <span class="n">new_root_prim</span> <span class="o">=</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">GetParent</span><span class="p">()</span>
+            <span class="n">current_path_expr</span> <span class="o">=</span> <span class="n">current_path_expr</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">new_root_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+                <span class="n">prim_view</span> <span class="o">=</span> <span class="n">XFormPrim</span><span class="p">(</span><span class="n">target_prim_path</span><span class="p">,</span> <span class="n">reset_xform_properties</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">current_path_expr</span> <span class="o">=</span> <span class="n">target_prim_path</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;The prim at path </span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2"> which is used for raycasting is not a physics prim.&quot;</span>
+                    <span class="s2">&quot; Defaulting to XFormPrim. </span><span class="se">\n</span><span class="s2"> The pose of the mesh will most likely not&quot;</span>
+                    <span class="s2">&quot; be updated correctly when running in headless mode and position lookups will be much slower. </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot; If possible, ensure that the mesh or its parent is a physics prim (rigid body or articulation).&quot;</span>
+                <span class="p">)</span>
+                <span class="k">break</span>
+
+            <span class="c1"># switch the current prim to the parent prim</span>
+            <span class="n">current_prim</span> <span class="o">=</span> <span class="n">new_root_prim</span>
+
+        <span class="c1"># obtain the relative transforms between target prim and the view prims</span>
+        <span class="n">mesh_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prims</span><span class="p">(</span><span class="n">target_prim_path</span><span class="p">)</span>
+        <span class="n">view_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prims</span><span class="p">(</span><span class="n">current_path_expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mesh_prims</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">view_prims</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;The number of mesh prims (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mesh_prims</span><span class="p">)</span><span class="si">}</span><span class="s2">) does not match the number of physics prims&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">view_prims</span><span class="p">)</span><span class="si">}</span><span class="s2">)Please specify the correct mesh and physics prim paths more&quot;</span>
+                <span class="s2">&quot; specifically in your target expressions.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">quaternions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">mesh_prim</span><span class="p">,</span> <span class="n">view_prim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mesh_prims</span><span class="p">,</span> <span class="n">view_prims</span><span class="p">):</span>
+            <span class="n">pos</span><span class="p">,</span> <span class="n">orientation</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">resolve_prim_pose</span><span class="p">(</span><span class="n">mesh_prim</span><span class="p">,</span> <span class="n">view_prim</span><span class="p">)</span>
+            <span class="n">positions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+            <span class="n">quaternions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">orientation</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+
+        <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">quaternions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">quaternions</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">prim_view</span><span class="p">,</span> <span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">quaternions</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal simulation callbacks.</span>
@@ -929,7 +1014,12 @@
         <span class="c1"># call parent</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
         <span class="c1"># set all existing views to None to invalidate them</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="kc">None</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">RayCaster</span><span class="o">.</span><span class="n">_instance_count</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">RayCaster</span><span class="o">.</span><span class="n">_instance_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
 </pre></div>
 
                 </article>
@@ -977,7 +1067,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2025.
+  Last updated on Dec 16, 2025.
   <br/>
 </p>
   </div>

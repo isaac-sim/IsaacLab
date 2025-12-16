@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2025"/>
   </head>
   
   
@@ -800,6 +800,13 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.generate_random_transformation_matrix"><code class="docutils literal notranslate"><span class="pre">generate_random_transformation_matrix()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.mesh">Mesh operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.create_trimesh_from_geom_mesh"><code class="docutils literal notranslate"><span class="pre">create_trimesh_from_geom_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.create_trimesh_from_geom_shape"><code class="docutils literal notranslate"><span class="pre">create_trimesh_from_geom_shape()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.convert_faces_to_triangles"><code class="docutils literal notranslate"><span class="pre">convert_faces_to_triangles()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES"><code class="docutils literal notranslate"><span class="pre">PRIMITIVE_MESH_TYPES</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
@@ -926,7 +933,9 @@
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.warp">Warp operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.convert_to_warp_mesh"><code class="docutils literal notranslate"><span class="pre">convert_to_warp_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_dynamic_meshes"><code class="docutils literal notranslate"><span class="pre">raycast_dynamic_meshes()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_mesh"><code class="docutils literal notranslate"><span class="pre">raycast_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_single_mesh"><code class="docutils literal notranslate"><span class="pre">raycast_single_mesh()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -967,22 +976,25 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.math" title="isaaclab.utils.math"><code class="xref py py-obj docutils literal notranslate"><span class="pre">math</span></code></a></p></td>
 <td><p>Sub-module containing utilities for various math operations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.modifiers" title="isaaclab.utils.modifiers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modifiers</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.mesh" title="isaaclab.utils.mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mesh</span></code></a></p></td>
+<td><p>Utility functions for working with meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.modifiers" title="isaaclab.utils.modifiers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modifiers</span></code></a></p></td>
 <td><p>Sub-module containing different modifiers implementations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.noise" title="isaaclab.utils.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.noise" title="isaaclab.utils.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise</span></code></a></p></td>
 <td><p>Sub-module containing different noise models implementations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.string" title="isaaclab.utils.string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">string</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.string" title="isaaclab.utils.string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">string</span></code></a></p></td>
 <td><p>Sub-module containing utilities for transforming strings and regular expressions.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.timer" title="isaaclab.utils.timer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timer</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.timer" title="isaaclab.utils.timer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timer</span></code></a></p></td>
 <td><p>Sub-module for a timer class that can be used for performance measurements.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.types" title="isaaclab.utils.types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">types</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.types" title="isaaclab.utils.types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">types</span></code></a></p></td>
 <td><p>Sub-module for different data types.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.warp" title="isaaclab.utils.warp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warp</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.warp" title="isaaclab.utils.warp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warp</span></code></a></p></td>
 <td><p>Sub-module containing operations based on warp.</p></td>
 </tr>
 </tbody>
@@ -3480,6 +3492,92 @@ Passing 0 corresponds to no interpolation. If None, step_size must be provided.<
 </dd></dl>
 
 </section>
+<section id="module-isaaclab.utils.mesh">
+<span id="mesh-operations"></span><h2>Mesh operations<a class="headerlink" href="#module-isaaclab.utils.mesh" title="Permalink to this heading">#</a></h2>
+<p>Utility functions for working with meshes.</p>
+<p><strong>Functions:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.mesh.create_trimesh_from_geom_mesh" title="isaaclab.utils.mesh.create_trimesh_from_geom_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_trimesh_from_geom_mesh</span></code></a>(mesh_prim)</p></td>
+<td><p>Reads the vertices and faces of a mesh prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.mesh.create_trimesh_from_geom_shape" title="isaaclab.utils.mesh.create_trimesh_from_geom_shape"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_trimesh_from_geom_shape</span></code></a>(prim)</p></td>
+<td><p>Converts a primitive object to a trimesh.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.mesh.convert_faces_to_triangles" title="isaaclab.utils.mesh.convert_faces_to_triangles"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_faces_to_triangles</span></code></a>(faces, point_counts)</p></td>
+<td><p>Converts quad mesh face indices into triangle face indices.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Data:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES" title="isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PRIMITIVE_MESH_TYPES</span></code></a></p></td>
+<td><p>List of supported primitive mesh types that can be converted to a trimesh.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.mesh.create_trimesh_from_geom_mesh">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.mesh.</span></span><span class="sig-name descname"><span class="pre">create_trimesh_from_geom_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_prim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">pxr.Usd.Prim</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.html#trimesh.Trimesh" title="(in trimesh)"><span class="pre">trimesh.Trimesh</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/mesh.html#create_trimesh_from_geom_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.mesh.create_trimesh_from_geom_mesh" title="Permalink to this definition">#</a></dt>
+<dd><p>Reads the vertices and faces of a mesh prim.</p>
+<p>The function reads the vertices and faces of a mesh prim and returns it. If the underlying mesh is a quad mesh,
+it converts it to a triangle mesh.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mesh_prim</strong> – The mesh prim to read the vertices and faces from.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A trimesh.Trimesh object containing the mesh geometry.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.mesh.create_trimesh_from_geom_shape">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.mesh.</span></span><span class="sig-name descname"><span class="pre">create_trimesh_from_geom_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">pxr.Usd.Prim</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.html#trimesh.Trimesh" title="(in trimesh)"><span class="pre">trimesh.Trimesh</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/mesh.html#create_trimesh_from_geom_shape"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.mesh.create_trimesh_from_geom_shape" title="Permalink to this definition">#</a></dt>
+<dd><p>Converts a primitive object to a trimesh.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>prim</strong> – The prim that should be converted to a trimesh.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A trimesh object representing the primitive.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the prim is not a supported primitive. Check PRIMITIVE_MESH_TYPES for supported primitives.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.mesh.convert_faces_to_triangles">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.mesh.</span></span><span class="sig-name descname"><span class="pre">convert_faces_to_triangles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">faces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">point_counts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/mesh.html#convert_faces_to_triangles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.mesh.convert_faces_to_triangles" title="Permalink to this definition">#</a></dt>
+<dd><p>Converts quad mesh face indices into triangle face indices.</p>
+<p>This function expects an array of faces (indices) and the number of points per face. It then converts potential
+quads into triangles and returns the new triangle face indices as a numpy array of shape (n_faces_new, 3).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>faces</strong> – The faces of the quad mesh as a one-dimensional array. Shape is (N,).</p></li>
+<li><p><strong>point_counts</strong> – The number of points per face. Shape is (N,).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The new face ids with triangles. Shape is (n_faces_new, 3).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.mesh.</span></span><span class="sig-name descname"><span class="pre">PRIMITIVE_MESH_TYPES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['Plane',</span> <span class="pre">'Cube',</span> <span class="pre">'Sphere',</span> <span class="pre">'Cylinder',</span> <span class="pre">'Capsule',</span> <span class="pre">'Cone']</span></em><a class="headerlink" href="#isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES" title="Permalink to this definition">#</a></dt>
+<dd><p>List of supported primitive mesh types that can be converted to a trimesh.</p>
+</dd></dl>
+
+</section>
 <section id="module-isaaclab.utils.modifiers">
 <span id="modifier-operations"></span><h2>Modifier operations<a class="headerlink" href="#module-isaaclab.utils.modifiers" title="Permalink to this heading">#</a></h2>
 <p>Sub-module containing different modifiers implementations.</p>
@@ -4878,7 +4976,13 @@ to all the joints of the articulation. We use a slice to make the indexing more 
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.warp.convert_to_warp_mesh" title="isaaclab.utils.warp.convert_to_warp_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_to_warp_mesh</span></code></a>(points, indices, device)</p></td>
 <td><p>Create a warp mesh object with a mesh defined from vertices and triangles.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.warp.raycast_mesh" title="isaaclab.utils.warp.raycast_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">raycast_mesh</span></code></a>(ray_starts, ray_directions, mesh)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.warp.raycast_dynamic_meshes" title="isaaclab.utils.warp.raycast_dynamic_meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">raycast_dynamic_meshes</span></code></a>(ray_starts, ...[, ...])</p></td>
+<td><p>Performs ray-casting against multiple, dynamic meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.warp.raycast_mesh" title="isaaclab.utils.warp.raycast_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">raycast_mesh</span></code></a>(ray_starts, ray_directions, mesh)</p></td>
+<td><p>Performs ray-casting against a mesh.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.warp.raycast_single_mesh" title="isaaclab.utils.warp.raycast_single_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">raycast_single_mesh</span></code></a>(ray_starts, ...[, ...])</p></td>
 <td><p>Performs ray-casting against a mesh.</p></td>
 </tr>
 </tbody>
@@ -4899,6 +5003,52 @@ Shape is (M, 3), where M is the number of triangles / faces.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The warp mesh object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.warp.raycast_dynamic_meshes">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.warp.</span></span><span class="sig-name descname"><span class="pre">raycast_dynamic_meshes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ray_starts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ray_directions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_ids_wp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">wp.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_positions_w</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_orientations_w</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_dist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_distance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_normal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_face_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_mesh_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/warp/ops.html#raycast_dynamic_meshes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.warp.raycast_dynamic_meshes" title="Permalink to this definition">#</a></dt>
+<dd><p>Performs ray-casting against multiple, dynamic meshes.</p>
+<p>Note that the <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_starts</span></code> and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_directions</span></code>, and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_hits</span></code> should have compatible shapes
+and data types to ensure proper execution. Additionally, they all must be in the same frame.</p>
+<p>If mesh positions and rotations are provided, they need to have to have the same shape as the
+number of meshes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ray_starts</strong> – The starting position of the rays. Shape (B, N, 3).</p></li>
+<li><p><strong>ray_directions</strong> – The ray directions for each ray. Shape (B, N, 3).</p></li>
+<li><p><strong>mesh_ids_wp</strong> – The warp mesh ids to ray-cast against. Length (B, M).</p></li>
+<li><p><strong>mesh_positions_w</strong> – The world positions of the meshes. Shape (B, M, 3).</p></li>
+<li><p><strong>mesh_orientations_w</strong> – The world orientation as quaternion (wxyz) format. Shape (B, M, 4).</p></li>
+<li><p><strong>max_dist</strong> – The maximum distance to ray-cast. Defaults to 1e6.</p></li>
+<li><p><strong>return_distance</strong> – Whether to return the distance of the ray until it hits the mesh. Defaults to False.</p></li>
+<li><p><strong>return_normal</strong> – Whether to return the normal of the mesh face the ray hits. Defaults to False.</p></li>
+<li><p><strong>return_face_id</strong> – Whether to return the face id of the mesh face the ray hits. Defaults to False.</p></li>
+<li><p><strong>return_mesh_id</strong> – Whether to return the mesh id of the mesh face the ray hits. Defaults to False.
+NOTE: the type of the returned tensor is torch.int16, so you can’t have more than 32767 meshes.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>The ray hit position. Shape (B, N, 3).</dt><dd><p>The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit distance. Shape (B, N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_distance</span></code> is True, else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit normal. Shape (B, N, 3).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_normal</span></code> is True else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit face id. Shape (B, N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_face_id</span></code> is True else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">int(-1)</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit mesh id. Shape (B, N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_mesh_id</span></code> is True else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">-1</span></code> for missed hits.</p>
+</dd>
+</dl>
+</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4932,6 +5082,43 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
 </dd>
 <dt>The ray hit face id. Shape (N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_face_id</span></code> is True else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">int(-1)</span></code> for missed hits.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.warp.raycast_single_mesh">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.warp.</span></span><span class="sig-name descname"><span class="pre">raycast_single_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ray_starts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ray_directions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_dist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_distance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_normal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_face_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/warp/ops.html#raycast_single_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.warp.raycast_single_mesh" title="Permalink to this definition">#</a></dt>
+<dd><p>Performs ray-casting against a mesh.</p>
+<p>Note that the <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_starts</span></code> and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_directions</span></code>, and <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_hits</span></code> should have compatible shapes
+and data types to ensure proper execution. Additionally, they all must be in the same frame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ray_starts</strong> – The starting position of the rays. Shape (B, N, 3).</p></li>
+<li><p><strong>ray_directions</strong> – The ray directions for each ray. Shape (B, N, 3).</p></li>
+<li><p><strong>mesh_id</strong> – The warp mesh id to ray-cast against.</p></li>
+<li><p><strong>max_dist</strong> – The maximum distance to ray-cast. Defaults to 1e6.</p></li>
+<li><p><strong>return_distance</strong> – Whether to return the distance of the ray until it hits the mesh. Defaults to False.</p></li>
+<li><p><strong>return_normal</strong> – Whether to return the normal of the mesh face the ray hits. Defaults to False.</p></li>
+<li><p><strong>return_face_id</strong> – Whether to return the face id of the mesh face the ray hits. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>The ray hit position. Shape (B, N, 3).</dt><dd><p>The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit distance. Shape (B, N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_distance</span></code> is True, else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit normal. Shape (B, N, 3).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_normal</span></code> is True else returns None.
+The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">float('inf')</span></code> for missed hits.</p>
+</dd>
+<dt>The ray hit face id. Shape (B, N,).</dt><dd><p>Will only return if <code class="xref py py-attr docutils literal notranslate"><span class="pre">return_face_id</span></code> is True else returns None.
 The returned tensor contains <code class="xref py py-obj docutils literal notranslate"><span class="pre">int(-1)</span></code> for missed hits.</p>
 </dd>
 </dl>
@@ -5132,6 +5319,13 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.math.generate_random_transformation_matrix"><code class="docutils literal notranslate"><span class="pre">generate_random_transformation_matrix()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.mesh">Mesh operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.create_trimesh_from_geom_mesh"><code class="docutils literal notranslate"><span class="pre">create_trimesh_from_geom_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.create_trimesh_from_geom_shape"><code class="docutils literal notranslate"><span class="pre">create_trimesh_from_geom_shape()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.convert_faces_to_triangles"><code class="docutils literal notranslate"><span class="pre">convert_faces_to_triangles()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES"><code class="docutils literal notranslate"><span class="pre">PRIMITIVE_MESH_TYPES</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg"><code class="docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.modifiers.ModifierCfg.params"><code class="docutils literal notranslate"><span class="pre">ModifierCfg.params</span></code></a></li>
@@ -5258,7 +5452,9 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.warp">Warp operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.convert_to_warp_mesh"><code class="docutils literal notranslate"><span class="pre">convert_to_warp_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_dynamic_meshes"><code class="docutils literal notranslate"><span class="pre">raycast_dynamic_meshes()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_mesh"><code class="docutils literal notranslate"><span class="pre">raycast_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.warp.raycast_single_mesh"><code class="docutils literal notranslate"><span class="pre">raycast_single_mesh()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -5294,7 +5490,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2025.
+  Last updated on Dec 16, 2025.
   <br/>
 </p>
   </div>

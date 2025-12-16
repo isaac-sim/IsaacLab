@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2025"/>
   </head>
   
   
@@ -599,22 +599,24 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">Literal</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">CameraData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">raycast_mesh</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.prim_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">obtain_world_pose_from_view</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCaster</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_camera_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCameraCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="RayCasterCamera"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCamera">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RayCasterCamera</span><span class="p">(</span><span class="n">RayCaster</span><span class="p">):</span>
@@ -680,7 +682,7 @@
             <span class="sa">f</span><span class="s2">&quot;Ray-Caster-Camera @ &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">view type            : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">update period (s)    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of sensors    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of rays/sensor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">total number of rays : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
@@ -737,11 +739,14 @@
         <span class="c1"># reset the timestamps</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># resolve None</span>
-        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="c1"># reset the data</span>
         <span class="c1"># note: this recomputation is useful if one performs events such as randomizations on the camera poses.</span>
-        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_camera_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">pos_w</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">quat_w</span>
         <span class="c1"># Reset the frame count</span>
@@ -778,11 +783,11 @@
 <span class="sd">            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
-        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
 
         <span class="c1"># get current positions</span>
-        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_view_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># transform to camera frame</span>
             <span class="n">pos_offset_world_frame</span> <span class="o">=</span> <span class="n">positions</span> <span class="o">-</span> <span class="n">pos_w</span>
@@ -795,7 +800,10 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_mul</span><span class="p">(</span><span class="n">math_utils</span><span class="o">.</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">quat_w</span><span class="p">),</span> <span class="n">quat_w_set</span><span class="p">)</span>
 
         <span class="c1"># update the data</span>
-        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_camera_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">pos_w</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">quat_w</span></div>
 
@@ -854,7 +862,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
 
         <span class="c1"># compute poses from current view</span>
-        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_camera_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="p">)</span>
         <span class="c1"># update the data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">pos_w</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">quat_w</span>
@@ -874,7 +885,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ray_hits_w</span><span class="p">,</span> <span class="n">ray_depth</span><span class="p">,</span> <span class="n">ray_normal</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">raycast_mesh</span><span class="p">(</span>
             <span class="n">ray_starts_w</span><span class="p">,</span>
             <span class="n">ray_directions_w</span><span class="p">,</span>
-            <span class="n">mesh</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="n">mesh</span><span class="o">=</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
             <span class="n">max_dist</span><span class="o">=</span><span class="mf">1e6</span><span class="p">,</span>
             <span class="n">return_distance</span><span class="o">=</span><span class="nb">any</span><span class="p">(</span>
                 <span class="p">[</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">,</span> <span class="s2">&quot;distance_to_camera&quot;</span><span class="p">]]</span>
@@ -989,42 +1000,49 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_compute_view_world_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Obtains the pose of the view the camera is attached to in the world frame.</span>
 
+<span class="sd">        .. deprecated v2.3.1:</span>
+<span class="sd">            This function will be removed in a future release in favor of implementation :meth:`obtain_world_pose_from_view`.</span>
+
 <span class="sd">        Returns:</span>
 <span class="sd">            A tuple of the position (in meters) and quaternion (w, x, y, z).</span>
+
+
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># obtain the poses of the sensors</span>
-        <span class="c1"># note: clone arg doesn&#39;t exist for xform prim view so we need to do this manually</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">XFormPrim</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>  <span class="c1"># catch the case where env_ids is a slice</span>
-                <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">):</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_root_transforms</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span><span class="p">):</span>
-            <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported view type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># return the pose</span>
-        <span class="k">return</span> <span class="n">pos_w</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">quat_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="c1"># deprecation</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;The function &#39;_compute_view_world_poses&#39; will be deprecated in favor of the util method&quot;</span>
+            <span class="s2">&quot; &#39;obtain_world_pose_from_view&#39;. Please use &#39;obtain_world_pose_from_view&#39; instead....&quot;</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_compute_camera_world_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Computes the pose of the camera in the world frame.</span>
 
 <span class="sd">        This function applies the offset pose to the pose of the view the camera is attached to.</span>
 
+<span class="sd">        .. deprecated v2.3.1:</span>
+<span class="sd">            This function will be removed in a future release. Instead, use the code block below:</span>
+
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)</span>
+<span class="sd">                pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids],  self._offset_quat[env_ids])</span>
+
 <span class="sd">        Returns:</span>
 <span class="sd">            A tuple of the position (in meters) and quaternion (w, x, y, z) in &quot;world&quot; convention.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># get the pose of the view the camera is attached to</span>
-        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_view_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># apply offsets</span>
-        <span class="c1"># need to apply quat because offset relative to parent frame</span>
-        <span class="n">pos_w</span> <span class="o">+=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span>
-        <span class="n">quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_mul</span><span class="p">(</span><span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span>
 
-        <span class="k">return</span> <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span></div>
+        <span class="c1"># deprecation</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;The function &#39;_compute_camera_world_poses&#39; will be deprecated in favor of the combination of methods&quot;</span>
+            <span class="s2">&quot; &#39;obtain_world_pose_from_view&#39; and &#39;math_utils.combine_frame_transforms&#39;. Please use&quot;</span>
+            <span class="s2">&quot; &#39;obtain_world_pose_from_view&#39; and &#39;math_utils.combine_frame_transforms&#39; instead....&quot;</span>
+        <span class="p">)</span>
+
+        <span class="c1"># get the pose of the view the camera is attached to</span>
+        <span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span> <span class="o">=</span> <span class="n">obtain_world_pose_from_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span><span class="n">pos_w</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span></div>
 </pre></div>
 
                 </article>
@@ -1072,7 +1090,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2025.
+  Last updated on Dec 16, 2025.
   <br/>
 </p>
   </div>

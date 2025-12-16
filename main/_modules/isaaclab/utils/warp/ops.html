@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2025"/>
   </head>
   
   
@@ -612,6 +612,8 @@
 <span class="c1"># initialize the warp module</span>
 <span class="n">wp</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_quat</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">kernels</span>
 
 
@@ -721,6 +723,257 @@
     <span class="k">return</span> <span class="n">ray_hits</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">ray_distance</span><span class="p">,</span> <span class="n">ray_normal</span><span class="p">,</span> <span class="n">ray_face_id</span></div>
 
 
+<div class="viewcode-block" id="raycast_single_mesh"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.warp.raycast_single_mesh">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">raycast_single_mesh</span><span class="p">(</span>
+    <span class="n">ray_starts</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">ray_directions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">mesh_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_dist</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e6</span><span class="p">,</span>
+    <span class="n">return_distance</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_normal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_face_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs ray-casting against a mesh.</span>
+
+<span class="sd">    Note that the :attr:`ray_starts` and :attr:`ray_directions`, and :attr:`ray_hits` should have compatible shapes</span>
+<span class="sd">    and data types to ensure proper execution. Additionally, they all must be in the same frame.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ray_starts: The starting position of the rays. Shape (B, N, 3).</span>
+<span class="sd">        ray_directions: The ray directions for each ray. Shape (B, N, 3).</span>
+<span class="sd">        mesh_id: The warp mesh id to ray-cast against.</span>
+<span class="sd">        max_dist: The maximum distance to ray-cast. Defaults to 1e6.</span>
+<span class="sd">        return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.</span>
+<span class="sd">        return_normal: Whether to return the normal of the mesh face the ray hits. Defaults to False.</span>
+<span class="sd">        return_face_id: Whether to return the face id of the mesh face the ray hits. Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The ray hit position. Shape (B, N, 3).</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit distance. Shape (B, N,).</span>
+<span class="sd">            Will only return if :attr:`return_distance` is True, else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit normal. Shape (B, N, 3).</span>
+<span class="sd">            Will only return if :attr:`return_normal` is True else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit face id. Shape (B, N,).</span>
+<span class="sd">            Will only return if :attr:`return_face_id` is True else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`int(-1)` for missed hits.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># cast mesh id into array</span>
+    <span class="n">mesh_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array2d</span><span class="p">(</span>
+        <span class="p">[[</span><span class="n">mesh_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ray_starts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">device_from_torch</span><span class="p">(</span><span class="n">ray_starts</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ray_hits</span><span class="p">,</span> <span class="n">ray_distance</span><span class="p">,</span> <span class="n">ray_normal</span><span class="p">,</span> <span class="n">ray_face_id</span><span class="p">,</span> <span class="n">ray_mesh_id</span> <span class="o">=</span> <span class="n">raycast_dynamic_meshes</span><span class="p">(</span>
+        <span class="n">ray_starts</span><span class="o">=</span><span class="n">ray_starts</span><span class="p">,</span>
+        <span class="n">ray_directions</span><span class="o">=</span><span class="n">ray_directions</span><span class="p">,</span>
+        <span class="n">mesh_ids_wp</span><span class="o">=</span><span class="n">mesh_ids</span><span class="p">,</span>
+        <span class="n">max_dist</span><span class="o">=</span><span class="n">max_dist</span><span class="p">,</span>
+        <span class="n">return_distance</span><span class="o">=</span><span class="n">return_distance</span><span class="p">,</span>
+        <span class="n">return_normal</span><span class="o">=</span><span class="n">return_normal</span><span class="p">,</span>
+        <span class="n">return_face_id</span><span class="o">=</span><span class="n">return_face_id</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ray_hits</span><span class="p">,</span> <span class="n">ray_distance</span><span class="p">,</span> <span class="n">ray_normal</span><span class="p">,</span> <span class="n">ray_face_id</span></div>
+
+
+<div class="viewcode-block" id="raycast_dynamic_meshes"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.warp.raycast_dynamic_meshes">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">raycast_dynamic_meshes</span><span class="p">(</span>
+    <span class="n">ray_starts</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">ray_directions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">mesh_ids_wp</span><span class="p">:</span> <span class="n">wp</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">mesh_positions_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mesh_orientations_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_dist</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e6</span><span class="p">,</span>
+    <span class="n">return_distance</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_normal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_face_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_mesh_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs ray-casting against multiple, dynamic meshes.</span>
+
+<span class="sd">    Note that the :attr:`ray_starts` and :attr:`ray_directions`, and :attr:`ray_hits` should have compatible shapes</span>
+<span class="sd">    and data types to ensure proper execution. Additionally, they all must be in the same frame.</span>
+
+<span class="sd">    If mesh positions and rotations are provided, they need to have to have the same shape as the</span>
+<span class="sd">    number of meshes.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ray_starts: The starting position of the rays. Shape (B, N, 3).</span>
+<span class="sd">        ray_directions: The ray directions for each ray. Shape (B, N, 3).</span>
+<span class="sd">        mesh_ids_wp: The warp mesh ids to ray-cast against. Length (B, M).</span>
+<span class="sd">        mesh_positions_w: The world positions of the meshes. Shape (B, M, 3).</span>
+<span class="sd">        mesh_orientations_w: The world orientation as quaternion (wxyz) format. Shape (B, M, 4).</span>
+<span class="sd">        max_dist: The maximum distance to ray-cast. Defaults to 1e6.</span>
+<span class="sd">        return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.</span>
+<span class="sd">        return_normal: Whether to return the normal of the mesh face the ray hits. Defaults to False.</span>
+<span class="sd">        return_face_id: Whether to return the face id of the mesh face the ray hits. Defaults to False.</span>
+<span class="sd">        return_mesh_id: Whether to return the mesh id of the mesh face the ray hits. Defaults to False.</span>
+<span class="sd">                        NOTE: the type of the returned tensor is torch.int16, so you can&#39;t have more than 32767 meshes.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The ray hit position. Shape (B, N, 3).</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit distance. Shape (B, N,).</span>
+<span class="sd">            Will only return if :attr:`return_distance` is True, else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit normal. Shape (B, N, 3).</span>
+<span class="sd">            Will only return if :attr:`return_normal` is True else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`float(&#39;inf&#39;)` for missed hits.</span>
+<span class="sd">        The ray hit face id. Shape (B, N,).</span>
+<span class="sd">            Will only return if :attr:`return_face_id` is True else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`int(-1)` for missed hits.</span>
+<span class="sd">        The ray hit mesh id. Shape (B, N,).</span>
+<span class="sd">            Will only return if :attr:`return_mesh_id` is True else returns None.</span>
+<span class="sd">            The returned tensor contains :obj:`-1` for missed hits.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract device and shape information</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">ray_starts</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">device</span> <span class="o">=</span> <span class="n">ray_starts</span><span class="o">.</span><span class="n">device</span>
+
+    <span class="c1"># device of the mesh</span>
+    <span class="n">torch_device</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">device_to_torch</span><span class="p">(</span><span class="n">mesh_ids_wp</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">n_meshes</span> <span class="o">=</span> <span class="n">mesh_ids_wp</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">n_envs</span> <span class="o">=</span> <span class="n">ray_starts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">n_rays_per_env</span> <span class="o">=</span> <span class="n">ray_starts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># reshape the tensors</span>
+    <span class="n">ray_starts</span> <span class="o">=</span> <span class="n">ray_starts</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+    <span class="n">ray_directions</span> <span class="o">=</span> <span class="n">ray_directions</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+
+    <span class="c1"># create output tensor for the ray hits</span>
+    <span class="n">ray_hits</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+
+    <span class="c1"># map the memory to warp arrays</span>
+    <span class="n">ray_starts_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_starts</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">)</span>
+    <span class="n">ray_directions_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_directions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">)</span>
+    <span class="n">ray_hits_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_hits</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">)</span>
+    <span class="c1"># required to check if a closer hit is reported, returned only if return_distance is true</span>
+    <span class="n">ray_distance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="n">n_envs</span><span class="p">,</span>
+            <span class="n">n_rays_per_env</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+    <span class="n">ray_distance_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_distance</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">return_normal</span><span class="p">:</span>
+        <span class="n">ray_normal</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="n">ray_normal_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_normal</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ray_normal</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">ray_normal_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">return_face_id</span><span class="p">:</span>
+        <span class="n">ray_face_id</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">n_envs</span><span class="p">,</span>
+                <span class="n">n_rays_per_env</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">ray_face_id_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_face_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ray_face_id</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">ray_face_id_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">return_mesh_id</span><span class="p">:</span>
+        <span class="n">ray_mesh_id</span> <span class="o">=</span> <span class="o">-</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="n">ray_mesh_id_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">ray_mesh_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ray_mesh_id</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">ray_mesh_id_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Call the warp kernels</span>
+    <span class="c1">###</span>
+    <span class="k">if</span> <span class="n">mesh_positions_w</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">mesh_orientations_w</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Static mesh case, no need to pass in positions and rotations.</span>
+        <span class="c1"># launch the warp kernel</span>
+        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+            <span class="n">kernel</span><span class="o">=</span><span class="n">kernels</span><span class="o">.</span><span class="n">raycast_static_meshes_kernel</span><span class="p">,</span>
+            <span class="n">dim</span><span class="o">=</span><span class="p">[</span><span class="n">n_meshes</span><span class="p">,</span> <span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">],</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">mesh_ids_wp</span><span class="p">,</span>
+                <span class="n">ray_starts_wp</span><span class="p">,</span>
+                <span class="n">ray_directions_wp</span><span class="p">,</span>
+                <span class="n">ray_hits_wp</span><span class="p">,</span>
+                <span class="n">ray_distance_wp</span><span class="p">,</span>
+                <span class="n">ray_normal_wp</span><span class="p">,</span>
+                <span class="n">ray_face_id_wp</span><span class="p">,</span>
+                <span class="n">ray_mesh_id_wp</span><span class="p">,</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">max_dist</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_normal</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_face_id</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_mesh_id</span><span class="p">),</span>
+            <span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># dynamic mesh case</span>
+        <span class="k">if</span> <span class="n">mesh_positions_w</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mesh_positions_wp_w</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_meshes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mesh_positions_w</span> <span class="o">=</span> <span class="n">mesh_positions_w</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_envs</span><span class="p">,</span> <span class="n">n_meshes</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="n">mesh_positions_wp_w</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">mesh_positions_w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mesh_orientations_w</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Note (zrene): This is a little bit ugly, since it requires to initialize torch memory first</span>
+            <span class="c1"># But I couldn&#39;t find a better way to initialize a quaternion identity in warp</span>
+            <span class="c1"># wp.zeros(1, dtype=wp.quat, device=torch_device) gives all zero quaternion</span>
+            <span class="n">quat_identity</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+                <span class="n">n_envs</span><span class="p">,</span> <span class="n">n_meshes</span><span class="p">,</span> <span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="n">mesh_quat_wp_w</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">quat_identity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">quat</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mesh_orientations_w</span> <span class="o">=</span> <span class="n">convert_quat</span><span class="p">(</span>
+                <span class="n">mesh_orientations_w</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">),</span> <span class="s2">&quot;xyzw&quot;</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="n">mesh_quat_wp_w</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">mesh_orientations_w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">quat</span><span class="p">)</span>
+
+        <span class="c1"># launch the warp kernel</span>
+        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+            <span class="n">kernel</span><span class="o">=</span><span class="n">kernels</span><span class="o">.</span><span class="n">raycast_dynamic_meshes_kernel</span><span class="p">,</span>
+            <span class="n">dim</span><span class="o">=</span><span class="p">[</span><span class="n">n_meshes</span><span class="p">,</span> <span class="n">n_envs</span><span class="p">,</span> <span class="n">n_rays_per_env</span><span class="p">],</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">mesh_ids_wp</span><span class="p">,</span>
+                <span class="n">ray_starts_wp</span><span class="p">,</span>
+                <span class="n">ray_directions_wp</span><span class="p">,</span>
+                <span class="n">ray_hits_wp</span><span class="p">,</span>
+                <span class="n">ray_distance_wp</span><span class="p">,</span>
+                <span class="n">ray_normal_wp</span><span class="p">,</span>
+                <span class="n">ray_face_id_wp</span><span class="p">,</span>
+                <span class="n">ray_mesh_id_wp</span><span class="p">,</span>
+                <span class="n">mesh_positions_wp_w</span><span class="p">,</span>
+                <span class="n">mesh_quat_wp_w</span><span class="p">,</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">max_dist</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_normal</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_face_id</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">return_mesh_id</span><span class="p">),</span>
+            <span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">torch_device</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="c1">##</span>
+    <span class="c1"># Cleanup and convert back to torch tensors</span>
+    <span class="c1">##</span>
+
+    <span class="c1"># NOTE: Synchronize is not needed anymore, but we keep it for now. Check with @dhoeller.</span>
+    <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">return_distance</span><span class="p">:</span>
+        <span class="n">ray_distance</span> <span class="o">=</span> <span class="n">ray_distance</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">return_normal</span><span class="p">:</span>
+        <span class="n">ray_normal</span> <span class="o">=</span> <span class="n">ray_normal</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">return_face_id</span><span class="p">:</span>
+        <span class="n">ray_face_id</span> <span class="o">=</span> <span class="n">ray_face_id</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">return_mesh_id</span><span class="p">:</span>
+        <span class="n">ray_mesh_id</span> <span class="o">=</span> <span class="n">ray_mesh_id</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">ray_hits</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">ray_distance</span><span class="p">,</span> <span class="n">ray_normal</span><span class="p">,</span> <span class="n">ray_face_id</span><span class="p">,</span> <span class="n">ray_mesh_id</span></div>
+
+
 <div class="viewcode-block" id="convert_to_warp_mesh"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.warp.convert_to_warp_mesh">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">convert_to_warp_mesh</span><span class="p">(</span><span class="n">points</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a warp mesh object with a mesh defined from vertices and triangles.</span>
 
@@ -784,7 +1037,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2025.
+  Last updated on Dec 16, 2025.
   <br/>
 </p>
   </div>
