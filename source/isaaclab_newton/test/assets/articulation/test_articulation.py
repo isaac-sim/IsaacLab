@@ -2297,6 +2297,139 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_inertias_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
         self.generic_test_property_writer_warp(device, env_ids, body_ids, num_instances, num_bodies, "set_inertias", "body_inertia", dtype=wp.mat33f)
+
+# TODO: Implement these tests once the Wrench Composers made it to main IsaacLab.
+class TestSettersExternalWrench:
+    """Tests for setter methods that set external wrench.
+
+    Tests methods:
+    - set_external_force_and_torque
+    """
+
+    @pytest.mark.skip(reason="Not implemented")
+    def test_external_force_and_torque_to_sim_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
+        raise NotImplementedError()
+
+    @pytest.mark.skip(reason="Not implemented")
+    def test_external_force_and_torque_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
+        raise NotImplementedError()
+
+
+class TestFixedTendonsSetters:
+    """Tests for setter methods that set fixed tendon properties.
+
+    Tests methods:
+    - set_fixed_tendon_stiffness
+    - set_fixed_tendon_damping
+    - set_fixed_tendon_limit_stiffness
+    - set_fixed_tendon_position_limit
+    - set_fixed_tendon_limit (deprecated)
+    - set_fixed_tendon_rest_length
+    - set_fixed_tendon_offset
+    - write_fixed_tendon_properties_to_sim
+    """
+
+    def test_set_fixed_tendon_stiffness_not_implemented(self):
+        """Test that set_fixed_tendon_stiffness raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        stiffness = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_stiffness(stiffness)
+
+    def test_set_fixed_tendon_damping_not_implemented(self):
+        """Test that set_fixed_tendon_damping raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        damping = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_damping(damping)
+
+    def test_set_fixed_tendon_limit_stiffness_not_implemented(self):
+        """Test that set_fixed_tendon_limit_stiffness raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        limit_stiffness = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_limit_stiffness(limit_stiffness)
+
+    def test_set_fixed_tendon_position_limit_not_implemented(self):
+        """Test that set_fixed_tendon_position_limit raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        limit = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_position_limit(limit)
+
+    def test_set_fixed_tendon_limit_not_implemented(self):
+        """Test that set_fixed_tendon_limit (deprecated) raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        limit = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_limit(limit)
+
+    def test_set_fixed_tendon_rest_length_not_implemented(self):
+        """Test that set_fixed_tendon_rest_length raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        rest_length = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_rest_length(rest_length)
+
+    def test_set_fixed_tendon_offset_not_implemented(self):
+        """Test that set_fixed_tendon_offset raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        offset = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_fixed_tendon_offset(offset)
+
+    def test_write_fixed_tendon_properties_to_sim_not_implemented(self):
+        """Test that write_fixed_tendon_properties_to_sim raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        with pytest.raises(NotImplementedError):
+            articulation.write_fixed_tendon_properties_to_sim()
+
+
+class TestSpatialTendonsSetters:
+    """Tests for setter methods that set spatial tendon properties.
+
+    Tests methods:
+    - set_spatial_tendon_stiffness
+    - set_spatial_tendon_damping
+    - set_spatial_tendon_limit_stiffness
+    - set_spatial_tendon_offset
+    - write_spatial_tendon_properties_to_sim
+    """
+
+    def test_set_spatial_tendon_stiffness_not_implemented(self):
+        """Test that set_spatial_tendon_stiffness raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        stiffness = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_spatial_tendon_stiffness(stiffness)
+
+    def test_set_spatial_tendon_damping_not_implemented(self):
+        """Test that set_spatial_tendon_damping raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        damping = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_spatial_tendon_damping(damping)
+
+    def test_set_spatial_tendon_limit_stiffness_not_implemented(self):
+        """Test that set_spatial_tendon_limit_stiffness raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        limit_stiffness = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_spatial_tendon_limit_stiffness(limit_stiffness)
+
+    def test_set_spatial_tendon_offset_not_implemented(self):
+        """Test that set_spatial_tendon_offset raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        offset = wp.zeros((2, 1), dtype=wp.float32, device="cuda:0")
+        with pytest.raises(NotImplementedError):
+            articulation.set_spatial_tendon_offset(offset)
+
+    def test_write_spatial_tendon_properties_to_sim_not_implemented(self):
+        """Test that write_spatial_tendon_properties_to_sim raises NotImplementedError."""
+        articulation, _, _ = create_test_articulation()
+        with pytest.raises(NotImplementedError):
+            articulation.write_spatial_tendon_properties_to_sim()
+
 #
 #class TestSetters:
 #    """Tests for setter methods.
