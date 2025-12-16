@@ -24,19 +24,16 @@ Motor spec sheets:
     https://cdn.shopify.com/s/files/1/0673/6848/5000/files/DM-J4340-2EC_User_Manual.pdf?v=1756883905
 * Joint 5–8 (DM-J4310-2EC V1.1):
     https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
-
-Please `git clone https://github.com/enactic/openarm_isaac_lab` and `export PYTHONPATH=$PYTHONPATH:~/openarm_isaac_lab` to use these configurations.
 """
-
-from source.openarm.openarm.tasks.manager_based.openarm_manipulation import OPENARM_ROOT_DIR
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 OPENARM_BI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{OPENARM_ROOT_DIR}/usds/openarm_bimanual/openarm_bimanual.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_bimanual/openarm_bimanual.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
@@ -104,7 +101,7 @@ OPENARM_BI_CFG = ArticulationCfg(
 
 OPENARM_UNI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{OPENARM_ROOT_DIR}/usds/openarm_unimanual/openarm_unimanual.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_unimanual/openarm_unimanual.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
