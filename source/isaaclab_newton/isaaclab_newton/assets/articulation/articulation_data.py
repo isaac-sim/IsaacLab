@@ -2172,7 +2172,7 @@ class ArticulationData(BaseArticulationData):
         """
         # -- root properties
         self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())
-        breakpoint()
+        # breakpoint()
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
         # -- body properties
         self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())
