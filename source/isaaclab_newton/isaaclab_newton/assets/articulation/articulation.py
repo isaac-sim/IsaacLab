@@ -354,6 +354,7 @@ class Articulation(BaseArticulation):
                 else:
                     first_ids = slice(None)
                 if second_ids is not None:
+                    second_ids = wp.to_torch(second_ids)
                     # Create a mask from scratch
                     second_mask = torch.zeros(M, dtype=torch.bool, device=self.device)
                     second_mask[second_ids] = True

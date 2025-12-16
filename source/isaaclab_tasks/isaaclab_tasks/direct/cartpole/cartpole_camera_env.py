@@ -206,16 +206,17 @@ class CartpoleCameraEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
+        # breakpoint()
         total_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_cart_vel,
             self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._cart_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
+            self.joint_pos[:, wp.to_torch(self._pole_dof_idx)].squeeze(),
+            self.joint_vel[:, wp.to_torch(self._pole_dof_idx)].squeeze(),
+            self.joint_pos[:, wp.to_torch(self._cart_dof_idx)].squeeze(),
+            self.joint_vel[:, wp.to_torch(self._cart_dof_idx)].squeeze(),
             self.reset_terminated,
         )
         return total_reward
@@ -225,8 +226,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
-        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
+        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, wp.to_torch(self._cart_dof_idx)]) > self.cfg.max_cart_pos, dim=1)
+        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, wp.to_torch(self._pole_dof_idx)]) > math.pi / 2, dim=1)
         return out_of_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -261,9 +262,9 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        breakpoint()
+        # breakpoint()
         self._cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        # self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self._cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 
@@ -285,5 +286,7 @@ def compute_rewards(
     rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
     rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
     rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    # print(rew_alive.shape, rew_termination.shape, rew_pole_pos.shape, rew_cart_vel.shape, rew_pole_vel.shape)
     total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
+    # total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
     return total_reward
