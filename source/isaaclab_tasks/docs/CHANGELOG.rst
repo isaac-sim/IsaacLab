@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.11 (2025-12-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-GearAssembly`` environments.
+
+
 0.11.10 (2025-12-13)
 ~~~~~~~~~~~~~~~~~~~~
 
