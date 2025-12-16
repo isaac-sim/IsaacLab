@@ -152,7 +152,7 @@ class RayCaster(SensorBase):
                 f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
             )
 
-        self._view, self._offset = self._get_trackable_prim_view(self.cfg.prim_path)
+        self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -328,12 +328,31 @@ class RayCaster(SensorBase):
 
         self.ray_visualizer.visualize(viz_points)
 
-    def _get_trackable_prim_view(
+    """
+    Internal Helpers.
+    """
+
+    def _obtain_trackable_prim_view(
         self, target_prim_path: str
     ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
-        """Get a prim view that can be used to track the pose of the mesh prims. Additionally, it resolves the
-        relative pose between the mesh and its corresponding physics prim. This is especially useful if the
-        mesh is not directly parented to the physics prim.
+        """Obtain a prim view that can be used to track the pose of the parget prim.
+
+        The target prim path is a regex expression that matches one or more mesh prims. While we can track its
+        pose directly using XFormPrim, this is not efficient and can be slow. Instead, we create a prim view
+        using the physics simulation view, which provides a more efficient way to track the pose of the mesh prims.
+
+        The function additionally resolves the relative pose between the mesh and its corresponding physics prim.
+        This is especially useful if the mesh is not directly parented to the physics prim.
+
+        Args:
+            target_prim_path: The target prim path to obtain the prim view for.
+
+        Returns:
+            A tuple containing:
+
+            - An XFormPrim or a physics prim view (ArticulationView or RigidBodyView).
+            - A tuple containing the positions and orientations of the mesh prims in the physics prim frame.
+
         """
 
         mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
@@ -343,11 +362,13 @@ class RayCaster(SensorBase):
         prim_view = None
 
         while prim_view is None:
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
                 logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                 break
 
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
                 logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
@@ -365,25 +386,29 @@ class RayCaster(SensorBase):
                     " If possible, ensure that the mesh or its parent is a physics prim (rigid body or articulation)."
                 )
                 break
+
+            # switch the current prim to the parent prim
             current_prim = new_root_prim
 
+        # obtain the relative transforms between target prim and the view prims
         mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        target_prims = sim_utils.find_matching_prims(current_path_expr)
-        if len(mesh_prims) != len(target_prims):
+        view_prims = sim_utils.find_matching_prims(current_path_expr)
+        if len(mesh_prims) != len(view_prims):
             raise RuntimeError(
                 f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
-                f" ({len(target_prims)})Please specify the correct mesh and physics prim paths more"
+                f" ({len(view_prims)})Please specify the correct mesh and physics prim paths more"
                 " specifically in your target expressions."
             )
         positions = []
         quaternions = []
-        for mesh, target in zip(mesh_prims, target_prims):
-            pos, orientation = sim_utils.resolve_prim_pose(mesh, target)
+        for mesh_prim, view_prim in zip(mesh_prims, view_prims):
+            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, view_prim)
             positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
             quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
 
         positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
         quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
+
         return prim_view, (positions, quaternions)
 
     """

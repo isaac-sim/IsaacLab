@@ -17,4 +17,5 @@ class MultiMeshRayCasterData(RayCasterData):
     """The mesh ids of the ray hits.
 
     Shape is (N, B, 1), where N is the number of sensors, B is the number of rays
-    in the scan pattern per sensor."""
+    in the scan pattern per sensor.
+    """

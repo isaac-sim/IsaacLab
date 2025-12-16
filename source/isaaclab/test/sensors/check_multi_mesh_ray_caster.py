@@ -5,12 +5,13 @@
 
 
 """
-This script shows how to use the ray caster from the Isaac Lab framework.
+This script shows how to use the multi-mesh ray caster from the Isaac Lab framework.
 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/extensions/omni.isaac.lab/test/sensors/check_multi_mesh_ray_caster.py --headless
+    ./isaaclab.sh -p source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py --headless
+
 """
 
 """Launch Isaac Sim Simulator first."""

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 
 import omni.physics.tensors.impl.api as physx
@@ -17,14 +19,18 @@ def obtain_world_pose_from_view(
     clone: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Get the world poses of the prim referenced by the prim view.
+
     Args:
         physx_view: The prim view to get the world poses from.
         env_ids: The environment ids of the prims to get the world poses for.
         clone: Whether to clone the returned tensors (default: False).
+
     Returns:
-        A tuple containing the world positions and orientations of the prims. Orientation is in wxyz format.
+        A tuple containing the world positions and orientations of the prims.
+        Orientation is in (w, x, y, z) format.
+
     Raises:
-        NotImplementedError: If the prim view is not of the correct type.
+        NotImplementedError: If the prim view is not of the supported type.
     """
     if isinstance(physx_view, XFormPrim):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
