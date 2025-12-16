@@ -29,11 +29,11 @@ class RerunVisualizerCfg(VisualizerCfg):
     web_port: int = 9090
     """Port of the local rerun web viewer which is launched in the browser."""
 
-    keep_historical_data: bool = True
+    keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
-    keep_scalar_history: bool = True
+    keep_scalar_history: bool = False
     """Keep scalar/plot history in timeline."""
 
-    record_to_rrd: str | None = "isaaclab_simulation.rrd"
+    record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
