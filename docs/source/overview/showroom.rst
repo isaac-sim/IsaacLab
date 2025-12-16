@@ -360,7 +360,7 @@ A few quick showroom scripts to run and checkout:
       :alt: Quadrupeds in Isaac Lab
 
 
-- Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
+-  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
 
    .. tab-set::
       :sync-group: os
