@@ -292,7 +292,7 @@ class MultiMeshRayCaster(RayCaster):
 
             if target_cfg.track_mesh_transforms:
                 MultiMeshRayCaster.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
-                    self._get_trackable_prim_view(target_prim_path)
+                    self._obtain_trackable_prim_view(target_prim_path)
                 )
 
         # throw an error if no meshes are found
