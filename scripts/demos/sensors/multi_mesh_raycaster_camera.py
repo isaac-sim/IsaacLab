@@ -103,7 +103,7 @@ if args_cli.asset_type == "allegro_hand":
 elif args_cli.asset_type == "anymal_d":
     asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0, -0.1, 1.5), rot=(0.0, 1.0, 0.0, 0.0)),
         mesh_prim_paths=[
