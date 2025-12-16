@@ -311,7 +311,7 @@ def main():
     scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
 
-    if args_cli.asset_type == "multi":
+    if args_cli.asset_type == "objects":
         randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
     # Play the simulator

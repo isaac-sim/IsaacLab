@@ -161,9 +161,11 @@ class MultiMeshRayCaster(RayCaster):
 
         Exceptions:
             Raises a RuntimeError if:
-                - No prims match the provided expression.
-                - No supported mesh prims are found under a matched prim.
-                - Multiple mesh prims are found but merging is disabled.
+
+            - No prims match the provided expression.
+            - No supported mesh prims are found under a matched prim.
+            - Multiple mesh prims are found but merging is disabled.
+
         """
         multi_mesh_ids: dict[str, list[list[int]]] = {}
         for target_cfg in self._raycast_targets_cfg:
