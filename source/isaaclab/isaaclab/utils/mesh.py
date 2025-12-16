@@ -12,6 +12,13 @@ from collections.abc import Callable
 
 from pxr import Usd, UsdGeom
 
+__all__ = [
+    "create_trimesh_from_geom_mesh",
+    "create_trimesh_from_geom_shape",
+    "convert_faces_to_triangles",
+    "PRIMITIVE_MESH_TYPES",
+]
+
 
 def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
     """Reads the vertices and faces of a mesh prim.
@@ -87,6 +94,11 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
 
         vertex_counter += num_points
     return np.asarray(all_faces)
+
+
+"""
+Internal USD Shape Handlers.
+"""
 
 
 def _create_plane_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
