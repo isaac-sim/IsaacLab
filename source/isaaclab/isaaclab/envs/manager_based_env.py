@@ -122,12 +122,12 @@ class ManagerBasedEnv:
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info("Base environment:")
+        logger.info(f"\tEnvironment device    : {self.device}")
+        logger.info(f"\tEnvironment seed      : {self.cfg.seed}")
+        logger.info(f"\tPhysics step-size     : {self.physics_dt}")
+        logger.info(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
+        logger.info(f"\tEnvironment step-size : {self.step_dt}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -149,7 +149,7 @@ class ManagerBasedEnv:
             with use_stage(self.sim.get_initial_stage()):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -173,7 +173,7 @@ class ManagerBasedEnv:
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        logger.info("Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -294,7 +294,7 @@ class ManagerBasedEnv:
             os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
-            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            logger.info(f"Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
             yaml.safe_dump(IO_descriptors, f)
 
     """
@@ -319,16 +319,16 @@ class ManagerBasedEnv:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        print("[INFO] Event Manager: ", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        print("[INFO] Action Manager: ", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
-        print("[INFO] Observation Manager:", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen

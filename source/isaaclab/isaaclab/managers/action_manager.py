@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 import torch
 import weakref
@@ -24,6 +25,9 @@ from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ActionTerm(ManagerTermBase):
@@ -291,13 +295,13 @@ class ActionManager(ManagerBase):
             try:
                 data.append(term.IO_descriptor.__dict__.copy())
             except Exception as e:
-                print(f"Error getting IO descriptor for term '{term_name}': {e}")
+                logger.warning(f"Failed to get IO descriptor for term '{term_name}': {e}")
 
         formatted_data = []
         for item in data:
             name = item.pop("name")
             formatted_item = {"name": name, "extras": item.pop("extras")}
-            print(item["export"])
+            logger.info(item["export"])
             if not item.pop("export"):
                 continue
             for k, v in item.items():

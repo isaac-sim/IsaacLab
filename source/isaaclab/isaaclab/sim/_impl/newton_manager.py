@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import numpy as np
 import re
 
@@ -16,6 +17,9 @@ from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverN
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -117,13 +121,13 @@ class NewtonManager:
         This function finalizes the model and initializes the simulation state.
         """
 
-        print(f"[INFO] Builder: {NewtonManager._builder}")
+        logger.info(f"Builder: {NewtonManager._builder}")
         if NewtonManager._builder is None:
             NewtonManager.instantiate_builder_from_stage()
-        print("[INFO] Running on init callbacks")
+        logger.info("Running on init callbacks")
         for callback in NewtonManager._on_init_callbacks:
             callback()
-        print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
+        logger.info(f"Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
@@ -141,7 +145,7 @@ class NewtonManager:
             )
         else:
             NewtonManager._contacts = Contacts(0, 0)
-        print("[INFO] Running on start callbacks")
+        logger.info("Running on start callbacks")
         for callback in NewtonManager._on_start_callbacks:
             callback()
         if not NewtonManager._clone_physics_only:
@@ -186,7 +190,6 @@ class NewtonManager:
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
-            print(NewtonManager._model.gravity)
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
             if isinstance(NewtonManager._solver, SolverMuJoCo):
                 NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
@@ -291,9 +294,9 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            # print(f"solver niter: {convergence_data}")
+            logger.info(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
-                print("solver didn't converge!", convergence_data["max"])
+                logger.warning("solver didn't converge!", convergence_data["max"])
 
         NewtonManager._sim_time += NewtonManager._solver_dt * NewtonManager._num_substeps
 
@@ -402,21 +405,19 @@ class NewtonManager:
         if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
             raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
         if contact_partners_body_expr is None and contact_partners_shape_expr is None:
-            print(f"[INFO] Adding contact view for {body_names_expr}. It will report contacts with all bodies/shapes.")
+            logger.info(f"Adding contact view for {body_names_expr}. It will report contacts with all bodies/shapes.")
         else:
             if body_names_expr is not None:
                 if contact_partners_body_expr is not None:
-                    print(f"[INFO] Adding contact view for {body_names_expr} with filter {contact_partners_body_expr}.")
+                    logger.info(f"Adding contact view for {body_names_expr} with filter {contact_partners_body_expr}.")
                 else:
-                    print(f"[INFO] Adding contact view for {body_names_expr} with filter {shape_names_expr}.")
+                    logger.info(f"Adding contact view for {body_names_expr} with filter {shape_names_expr}.")
             else:
                 if contact_partners_body_expr is not None:
-                    print(
-                        f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_body_expr}."
-                    )
+                    logger.info(f"Adding contact view for {shape_names_expr} with filter {contact_partners_body_expr}.")
                 else:
-                    print(
-                        f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
+                    logger.info(
+                        f"Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
                     )
 
         NewtonManager._newton_contact_sensor = NewtonContactSensor(

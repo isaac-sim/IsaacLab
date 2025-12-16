@@ -111,12 +111,12 @@ class DirectRLEnv(gym.Env):
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info("Base environment:")
+        logger.info(f"\tEnvironment device    : {self.device}")
+        logger.info(f"\tEnvironment seed      : {self.cfg.seed}")
+        logger.info(f"\tPhysics step-size     : {self.physics_dt}")
+        logger.info(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
+        logger.info(f"\tEnvironment step-size : {self.step_dt}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -133,7 +133,7 @@ class DirectRLEnv(gym.Env):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -158,7 +158,7 @@ class DirectRLEnv(gym.Env):
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        logger.info("Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -213,7 +213,7 @@ class DirectRLEnv(gym.Env):
         # perform events at the start of the simulation
         if self.cfg.events:
             # we print it here to make the logging consistent
-            print("[INFO] Event Manager: ", self.event_manager)
+            logger.info(f"Event Manager: {self.event_manager}")
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
@@ -223,7 +223,7 @@ class DirectRLEnv(gym.Env):
         self.metadata["render_fps"] = 1 / self.step_dt
 
         # print the environment information
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     def __del__(self):
         """Cleanup for the environment."""
