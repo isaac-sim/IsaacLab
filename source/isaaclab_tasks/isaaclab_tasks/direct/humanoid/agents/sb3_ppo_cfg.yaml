@@ -1,0 +1,27 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Adapted from rsl_rl config
+seed: 42
+policy: "MlpPolicy"
+n_timesteps: !!float 5e7
+# For 4 minibatches with 4096 envs
+# batch_size = (n_envs * n_steps) / n_minibatches = 32768
+n_minibatches: 4
+n_steps: 32
+gamma: 0.99
+learning_rate: !!float 5e-4
+ent_coef: 0.0
+clip_range: 0.2
+n_epochs: 5
+gae_lambda: 0.95
+max_grad_norm: 1.0
+vf_coef: 0.5
+policy_kwargs:
+  activation_fn: 'nn.ELU'
+  net_arch: [400, 200, 100]
+  optimizer_kwargs:
+    eps: !!float 1e-8
+  ortho_init: False

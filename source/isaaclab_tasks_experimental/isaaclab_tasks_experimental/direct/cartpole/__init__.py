@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Cartpole-Warp-v0",
+    id="Isaac-Cartpole-Direct-Warp-v0",
     entry_point=f"{__name__}.cartpole_warp_env:CartpoleWarpEnv",
     disable_env_checker=True,
     kwargs={

@@ -573,6 +573,9 @@ while [[ $# -gt 0 ]]; do
             # LD_PRELOAD is restored below, after installation
             begin_arm_install_sandbox
 
+            # remove any Isaac Sim bundled numpy 1.X as we need numpy 2.X
+            ${python_exe} -m pip uninstall -y numpy
+
             # install pytorch (version based on arch)
             ensure_cuda_torch
             # install omni.client via packman helper
