@@ -370,15 +370,15 @@ A few quick showroom scripts to run and checkout:
 
          .. code:: bash
 
-            ./isaaclab.sh -p scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type multi
+            ./isaaclab.sh -p scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat -p scripts\demos\sensors\multi_mesh_raycaster.py --num_envs 16 --asset_type multi
+            isaaclab.bat -p scripts\demos\sensors\multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
-   .. image:: ../_static/demos/quadrupeds.jpg
+   .. image:: ../_static/demos/multi-mesh-raycast.jpg
       :width: 100%
-      :alt: Quadrupeds in Isaac Lab
+      :alt: Multi-mesh raycaster in Isaac Lab
