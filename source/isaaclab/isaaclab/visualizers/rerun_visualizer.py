@@ -157,9 +157,12 @@ class RerunVisualizer(Visualizer):
             # Set the model
             self._viewer.set_model(self._model)
 
+            # Disable auto world spacing in Newton Viewer to display envs at actual world positions
+            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+
             # Set initial camera view using Rerun's blueprint system
             try:
-                # Calculate camera direction vector (from position to target)
+                # Get camera configuration
                 cam_pos = self.cfg.camera_position
                 cam_target = self.cfg.camera_target
 
@@ -168,6 +171,10 @@ class RerunVisualizer(Visualizer):
                     rrb.Spatial3DView(
                         name="3D View",
                         origin="/",
+                        eye_controls=rrb.EyeControls3D(
+                            position=cam_pos,
+                            look_target=cam_target,
+                        ),
                     ),
                     collapse_panels=True,
                 )

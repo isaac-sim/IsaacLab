@@ -32,14 +32,8 @@ class RerunVisualizerCfg(VisualizerCfg):
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
-    keep_scalar_history: bool = True
+    keep_scalar_history: bool = False
     """Keep scalar/plot history in timeline."""
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
-
-    camera_position: tuple[float, float, float] = (5.0, 5.0, 2.0)
-    """Initial camera position (x, y, z). Closer to robots than default (10, 10, 3)."""
-
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z)."""
