@@ -15,8 +15,9 @@ import warp as wp
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 
 # Import mock classes from shared module
-from mock_interface import MockNewtonArticulationView, MockNewtonModel
+from .mock_interface import MockNewtonArticulationView, MockNewtonModel
 
+#TODO: Remove this import
 from isaaclab.utils import math as math_utils
 
 # Initialize Warp

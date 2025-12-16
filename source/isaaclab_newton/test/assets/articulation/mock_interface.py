@@ -40,6 +40,9 @@ class MockNewtonArticulationView:
         num_bodies: int,
         num_joints: int,
         device: str = "cuda:0",
+        is_fixed_base: bool = False,
+        joint_names: list[str] | None = None,
+        body_names: list[str] | None = None,
     ):
         """Initialize the mock NewtonArticulationView.
 
@@ -48,12 +51,27 @@ class MockNewtonArticulationView:
             num_bodies: Number of bodies.
             num_joints: Number of joints.
             device: Device to use.
+            is_fixed_base: Whether the articulation is fixed-base.
+            joint_names: Names of joints. Defaults to ["joint_0", ...].
+            body_names: Names of bodies. Defaults to ["body_0", ...].
         """
         # Set the parameters
         self._count = num_instances
         self._link_count = num_bodies
         self._joint_dof_count = num_joints
         self._device = device
+        self._is_fixed_base = is_fixed_base
+
+        # Set joint and body names
+        if joint_names is None:
+            self._joint_dof_names = [f"joint_{i}" for i in range(num_joints)]
+        else:
+            self._joint_dof_names = joint_names
+
+        if body_names is None:
+            self._body_names = [f"body_{i}" for i in range(num_bodies)]
+        else:
+            self._body_names = body_names
 
         # Storage for mock data
         # Note: These are set via set_mock_data() before any property access in tests
@@ -67,7 +85,7 @@ class MockNewtonArticulationView:
         # Initialize default attributes
         self._attributes: dict = {}
         self._attributes["body_com"] = wp.zeros((self._count, self._link_count), dtype=wp.vec3f, device=self._device)
-        self._attributes["body_mass"] = wp.ones((self._count, self._link_count), dtype=wp.float32, device=self._device)
+        self._attributes["body_mass"] = wp.zeros((self._count, self._link_count), dtype=wp.float32, device=self._device)
         self._attributes["body_inertia"] = wp.zeros(
             (self._count, self._link_count), dtype=wp.mat33f, device=self._device
         )
@@ -89,10 +107,10 @@ class MockNewtonArticulationView:
         self._attributes["joint_friction"] = wp.zeros(
             (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
-        self._attributes["joint_velocity_limit"] = wp.ones(
+        self._attributes["joint_velocity_limit"] = wp.zeros(
             (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
-        self._attributes["joint_effort_limit"] = wp.ones(
+        self._attributes["joint_effort_limit"] = wp.zeros(
             (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["body_f"] = wp.zeros(
@@ -119,6 +137,18 @@ class MockNewtonArticulationView:
     @property
     def joint_dof_count(self) -> int:
         return self._joint_dof_count
+
+    @property
+    def is_fixed_base(self) -> bool:
+        return self._is_fixed_base
+
+    @property
+    def joint_dof_names(self) -> list[str]:
+        return self._joint_dof_names
+
+    @property
+    def body_names(self) -> list[str]:
+        return self._body_names
 
     def get_root_transforms(self, state) -> wp.array:
         return self._root_transforms
@@ -199,7 +229,7 @@ class MockNewtonArticulationView:
 
         if body_mass is None:
             self._attributes["body_mass"].assign(
-                wp.ones((self._count, self._link_count), dtype=wp.float32, device=self._device)
+                wp.zeros((self._count, self._link_count), dtype=wp.float32, device=self._device)
             )
         else:
             self._attributes["body_mass"].assign(body_mass)
