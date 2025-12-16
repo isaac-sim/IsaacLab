@@ -156,7 +156,7 @@ Ray-Cast Camera
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, OffsetCfg
 
 Multi-Mesh Ray-Cast Sensor
 --------------------------
@@ -175,7 +175,7 @@ Multi-Mesh Ray-Cast Sensor
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, OffsetCfg
 
 Multi-Mesh Ray-Cast Camera
 --------------------------
@@ -189,7 +189,7 @@ Multi-Mesh Ray-Cast Camera
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, OffsetCfg, RaycastTargetCfg
 
 Inertia Measurement Unit
 ------------------------
