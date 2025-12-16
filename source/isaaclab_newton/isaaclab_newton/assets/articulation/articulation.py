@@ -496,7 +496,6 @@ class Articulation(BaseArticulation):
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # set into simulation
-        print(f"pose: {wp.to_torch(pose)}")
         self._update_array_with_array_masked(pose, self._data.root_link_pose_w, env_mask, self.num_instances)
         # invalidate the root com pose
         self._data._root_com_pose_w.timestamp = -1.0
