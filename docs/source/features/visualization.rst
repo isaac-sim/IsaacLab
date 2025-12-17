@@ -14,7 +14,7 @@ Overview
 Isaac Lab supports three visualizer backends, each optimized for different use cases:
 
 .. list-table:: Visualizer Comparison
-   :widths: 20 40 40
+   :widths: 15 35 50
    :header-rows: 1
 
    * - Visualizer
