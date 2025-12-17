@@ -3379,6 +3379,126 @@ class TestProcessTendons:
         assert result is None
 
 
+# TODO: Expand these tests when actuator mocking is more mature.
+#       Full actuator integration tests would require:
+#       - Mocking ActuatorBaseCfg and ActuatorBase classes
+#       - Testing implicit vs explicit actuator behavior
+#       - Testing stiffness/damping propagation
+#       Currently, we test the initialization behavior without actuators configured.
+class TestProcessActuatorsCfg:
+    """Tests for _process_actuators_cfg method.
+
+    Note: These tests focus on the initialization behavior when no actuators are configured.
+    Full actuator integration tests require additional mocking infrastructure.
+    """
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_actuators_cfg_initializes_empty_dict(self, device: str):
+        """Test that _process_actuators_cfg initializes actuators as empty dict when none configured."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Ensure no actuators are configured
+        articulation.cfg.actuators = {}
+
+        # Call _process_actuators_cfg
+        articulation._process_actuators_cfg()
+
+        # Verify actuators dict is empty
+        assert articulation.actuators == {}
+        assert isinstance(articulation.actuators, dict)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_actuators_cfg_sets_implicit_flag_false(self, device: str):
+        """Test that _process_actuators_cfg sets _has_implicit_actuators to False initially."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        articulation.cfg.actuators = {}
+
+        # Call _process_actuators_cfg
+        articulation._process_actuators_cfg()
+
+        # Verify flag is set to False
+        assert articulation._has_implicit_actuators is False
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_actuators_cfg_sets_joint_limit_gains(self, device: str):
+        """Test that _process_actuators_cfg sets joint_limit_ke and joint_limit_kd."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        articulation.cfg.actuators = {}
+
+        # Call _process_actuators_cfg
+        articulation._process_actuators_cfg()
+
+        # Verify joint limit gains are set
+        joint_limit_ke = wp.to_torch(mock_view.get_attribute("joint_limit_ke", None))
+        joint_limit_kd = wp.to_torch(mock_view.get_attribute("joint_limit_kd", None))
+
+        expected_ke = torch.full((num_instances, num_joints), 2500.0, device=device)
+        expected_kd = torch.full((num_instances, num_joints), 100.0, device=device)
+
+        torch.testing.assert_close(joint_limit_ke, expected_ke, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(joint_limit_kd, expected_kd, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_actuators_cfg_warns_unactuated_joints(self, device: str):
+        """Test that _process_actuators_cfg warns when not all joints have actuators."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # No actuators configured but we have joints
+        articulation.cfg.actuators = {}
+
+        # Should warn about unactuated joints
+        with pytest.warns(UserWarning, match="Not all actuators are configured"):
+            articulation._process_actuators_cfg()
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_actuators_cfg_no_warning_zero_joints(self, device: str):
+        """Test that _process_actuators_cfg does not warn when there are no joints."""
+        num_instances = 2
+        num_joints = 0
+        num_bodies = 1
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=num_bodies,
+            device=device,
+        )
+
+        articulation.cfg.actuators = {}
+
+        # Should not warn when there are no joints to actuate
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # This should not raise a warning
+            articulation._process_actuators_cfg()
+
+
 #
 #class TestSetters:
 #    """Tests for setter methods.
