@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from typing import Dict, Tuple
 
 
 def swerve_isosceles_ik(
@@ -49,7 +48,7 @@ def swerve_isosceles_ik(
     References:
       - WPILib swerve kinematics (maps chassis speeds → module angles & speeds).
       - Rigid-body relation v_P = v_O + ω × r (planar form used above).
-      - Community derivations / implementation notes (angle optimization, etc.). 
+      - Community derivations / implementation notes (angle optimization, etc.).
     """
 
     def module_state(xi: float, yi: float) -> tuple[float, float, float, float]:

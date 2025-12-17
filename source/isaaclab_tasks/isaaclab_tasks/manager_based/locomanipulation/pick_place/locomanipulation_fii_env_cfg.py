@@ -5,7 +5,6 @@
 
 import os
 import torch
-from dataclasses import MISSING
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
@@ -29,7 +28,7 @@ from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 

@@ -8,7 +8,6 @@ import torch
 from dataclasses import dataclass
 
 import isaaclab.utils.math as PoseUtils
-
 from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
