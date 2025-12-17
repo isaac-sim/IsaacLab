@@ -8,6 +8,8 @@
 import gymnasium as gym
 
 from .exhaustpipe_gr1t2_mimic_env_cfg import ExhaustPipeGR1T2MimicEnvCfg
+from .locomanipulation_g1_mimic_env import LocomanipulationG1MimicEnv
+from .locomanipulation_g1_mimic_env_cfg import LocomanipulationG1MimicEnvCfg
 from .nutpour_gr1t2_mimic_env_cfg import NutPourGR1T2MimicEnvCfg
 from .pickplace_gr1t2_mimic_env import PickPlaceGR1T2MimicEnv
 from .pickplace_gr1t2_mimic_env_cfg import PickPlaceGR1T2MimicEnvCfg
@@ -42,5 +44,12 @@ gym.register(
     id="Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-Mimic-v0",
     entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
     kwargs={"env_cfg_entry_point": exhaustpipe_gr1t2_mimic_env_cfg.ExhaustPipeGR1T2MimicEnvCfg},
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Locomanipulation-G1-Abs-Mimic-v0",
+    entry_point="isaaclab_mimic.envs.pinocchio_envs:LocomanipulationG1MimicEnv",
+    kwargs={"env_cfg_entry_point": locomanipulation_g1_mimic_env_cfg.LocomanipulationG1MimicEnvCfg},
     disable_env_checker=True,
 )

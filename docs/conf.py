@@ -124,8 +124,8 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    "torch": ("https://docs.pytorch.org/docs/stable", None),
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
     "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
@@ -157,6 +157,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
@@ -262,7 +263,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg",
             "type": "url",
         },
         {

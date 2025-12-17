@@ -36,13 +36,12 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.utils.timer import Timer
@@ -83,7 +82,7 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
@@ -106,6 +105,7 @@ def main():
         prim_path="/World/envs/env_.*/Robot/.*_FOOT",
         track_air_time=True,
         track_contact_points=True,
+        track_friction_forces=True,
         debug_vis=False,  # not args_cli.headless,
         filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
     )

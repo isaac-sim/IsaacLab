@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
-import omni.log
 from pxr import Gf, Sdf, Usd
+
+import isaaclab.sim.utils.prims as prim_utils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -18,20 +19,16 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
-from isaacsim.core.utils.stage import get_current_stage
-
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import (
-    bind_physics_material,
-    bind_visual_material,
-    clone,
-    is_current_stage_in_memory,
-    select_usd_variants,
-)
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
 from isaaclab.utils.assets import check_usd_path_with_timeout
 
 if TYPE_CHECKING:
     from . import from_files_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -120,6 +117,48 @@ def spawn_from_urdf(
     return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
 
+@clone
+def spawn_from_mjcf(
+    prim_path: str,
+    cfg: from_files_cfg.MjcfFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Spawn an asset from a MJCF file and override the settings with the given config.
+
+    It uses the :class:`MjcfConverter` class to create a USD file from MJCF. This file is then imported
+    at the specified prim path.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the MJCF file does not exist at the given path.
+    """
+    # mjcf loader to convert mjcf to usd
+    mjcf_loader = converters.MjcfConverter(cfg)
+    # spawn asset from the generated usd file
+    return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+
+
 def spawn_ground_plane(
     prim_path: str,
     cfg: from_files_cfg.GroundPlaneCfg,
@@ -164,7 +203,7 @@ def spawn_ground_plane(
         # Apply physics material to ground plane
         collision_prim_path = prim_utils.get_prim_path(
             prim_utils.get_first_matching_child_prim(
-                prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
+                prim_path, predicate=lambda x: prim_utils.from_prim_get_type_name(x) == "Plane"
             )
         )
         bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
@@ -183,7 +222,7 @@ def spawn_ground_plane(
         # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
         # is not supported in stage in memory
         if is_current_stage_in_memory():
-            omni.log.warn(
+            logger.warning(
                 "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
             )
 
@@ -282,7 +321,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:

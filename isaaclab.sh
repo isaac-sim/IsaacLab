@@ -89,36 +89,59 @@ PY
 
 # check if running in docker
 is_docker() {
-    [ -f /.dockerenv ] || \
-    grep -q docker /proc/1/cgroup || \
-    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
-    grep -q docker /proc/mounts || \
-    [[ "$(hostname)" == *"."* ]]
+    [ -f /.dockerenv ] || [ -f /run/.containerenv ] || \
+    grep -qaE '(docker|containerd|kubepods|podman)' /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]]
+}
+
+# check if running on ARM architecture
+is_arm() {
+    [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]
 }
 
 ensure_cuda_torch() {
-  local pip_command=$(extract_pip_command)
-  local pip_uninstall_command=$(extract_pip_uninstall_command)
-  local -r TORCH_VER="2.7.0"
-  local -r TV_VER="0.22.0"
-  local -r CUDA_TAG="cu128"
-  local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
-  local torch_ver
+    local python_exe=$(extract_python_exe)
+    local pip_install_command=$(extract_pip_command)
+    local pip_uninstall_command=$(extract_pip_uninstall_command)
+    # base index for torch
+    local base_index="https://download.pytorch.org/whl"
 
-  if "$pip_command" show torch >/dev/null 2>&1; then
-    torch_ver="$("$pip_command" show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
-    echo "[INFO] Found PyTorch version ${torch_ver}."
-    if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
-      echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
-      "$pip_uninstall_command" torch torchvision torchaudio >/dev/null 2>&1 || true
-      "$pip_command" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    # choose pins per arch
+    local torch_ver tv_ver cuda_ver
+    if is_arm; then
+        torch_ver="2.9.0"
+        tv_ver="0.24.0"
+        cuda_ver="130"
     else
-      echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
+        torch_ver="2.7.0"
+        tv_ver="0.22.0"
+        cuda_ver="128"
     fi
-  else
-    echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
-    ${pip_command} "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
-  fi
+
+    local index="${base_index}/cu${cuda_ver}"
+    local want_torch="${torch_ver}+cu${cuda_ver}"
+
+    # check current torch version (may be empty)
+    local cur=""
+    cur="$(${python_exe} - <<'PY' 2>/dev/null || true
+try:
+    import torch
+except Exception:
+    pass
+else:
+    print(torch.__version__, end="")
+PY
+)"
+
+    # skip install if version is already satisfied
+    if [[ "$cur" == "$want_torch" ]]; then
+        return 0
+    fi
+
+    # clean install torch
+    echo "[INFO] Installing torch==${torch_ver} and torchvision==${tv_ver} (cu${cuda_ver}) from ${index}..."
+    ${pip_uninstall_command} torch torchvision torchaudio >/dev/null 2>&1 || true
+    ${pip_install_command} -U --index-url "${index}" "torch==${torch_ver}" "torchvision==${tv_ver}"
 }
 
 # extract isaac sim path
@@ -286,6 +309,26 @@ fi
 EOS
 }
 
+# Temporarily unset LD_PRELOAD (ARM only) for a block of commands
+begin_arm_install_sandbox() {
+    if is_arm && [[ -n "${LD_PRELOAD:-}" ]]; then
+        export _IL_SAVED_LD_PRELOAD="$LD_PRELOAD"
+        unset LD_PRELOAD
+        echo "[INFO] ARM install sandbox: temporarily unsetting LD_PRELOAD for installation."
+    fi
+    # ensure we restore even if a command fails (set -e)
+    trap 'end_arm_install_sandbox' EXIT
+}
+
+end_arm_install_sandbox() {
+    if [[ -n "${_IL_SAVED_LD_PRELOAD:-}" ]]; then
+        export LD_PRELOAD="$_IL_SAVED_LD_PRELOAD"
+        unset _IL_SAVED_LD_PRELOAD
+    fi
+    # remove trap so later exits don’t re-run restore
+    trap - EXIT
+}
+
 # setup anaconda environment for Isaac Lab
 setup_conda_env() {
     # get environment name from input
@@ -317,7 +360,7 @@ setup_conda_env() {
             echo "[INFO] Detected Isaac Sim 4.5 → forcing python=3.10"
             sed -i 's/^  - python=3\.11/  - python=3.10/' "${ISAACLAB_PATH}/environment.yml"
         else
-            echo "[INFO] Isaac Sim 5.0, installing python=3.11"
+            echo "[INFO] Isaac Sim >= 5.0 detected, installing python=3.11"
         fi
 
         conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
@@ -525,8 +568,11 @@ while [[ $# -gt 0 ]]; do
             pip_command=$(extract_pip_command)
             pip_uninstall_command=$(extract_pip_uninstall_command)
 
-            # check if pytorch is installed and its version
-            # install pytorch with cuda 12.8 for blackwell support
+            # if on ARM arch, temporarily clear LD_PRELOAD
+            # LD_PRELOAD is restored below, after installation
+            begin_arm_install_sandbox
+
+            # install pytorch (version based on arch)
             ensure_cuda_torch
             # recursively look into directories and install them
             # this does not check dependencies between extensions
@@ -558,6 +604,10 @@ while [[ $# -gt 0 ]]; do
             # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
             ensure_cuda_torch
+
+            # restore LD_PRELOAD if we cleared it
+            end_arm_install_sandbox
+
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then
@@ -628,11 +678,16 @@ while [[ $# -gt 0 ]]; do
             if [ -n "${CONDA_DEFAULT_ENV}" ] || [ -n "${VIRTUAL_ENV}" ]; then
                 export PYTHONPATH=${cache_pythonpath}
             fi
+
             shift # past argument
             # exit neatly
             break
             ;;
         -p|--python)
+            # ensures Kit loads Isaac Sim’s icon instead of a generic icon on aarch64
+            if is_arm; then
+                export RESOURCE_NAME="${RESOURCE_NAME:-IsaacSim}"
+            fi
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"

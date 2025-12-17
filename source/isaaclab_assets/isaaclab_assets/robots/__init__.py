@@ -7,11 +7,14 @@
 # Configuration for different assets.
 ##
 
+from .agibot import *
+from .agility import *
 from .allegro import *
 from .ant import *
 from .anymal import *
 from .cart_double_pendulum import *
 from .cartpole import *
+from .cassie import *
 from .fourier import *
 from .franka import *
 from .galbot import *
