@@ -66,7 +66,6 @@ CASSIE_CFG = ArticulationCfg(
                 "ankle_joint.*": 6.0,
             },
             armature=1e-3,
-            friction=1e-5,
         ),
         "toes": ImplicitActuatorCfg(
             joint_names_expr=["toe_.*"],
@@ -78,7 +77,6 @@ CASSIE_CFG = ArticulationCfg(
                 "toe_joint.*": 1.0,
             },
             armature=1e-3,
-            friction=1e-5,
         ),
     },
 )

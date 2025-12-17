@@ -31,7 +31,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=20,
                 nconmax=20,
-                ls_iterations=10,
+                ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
