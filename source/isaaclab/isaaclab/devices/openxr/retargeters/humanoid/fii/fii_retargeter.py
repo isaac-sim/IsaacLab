@@ -70,7 +70,6 @@ class FiiRetargeter(RetargeterBase):
         gripper_joint_value = (1.0 - t) * gripper_value_closed + t * gripper_value_open
 
         return torch.tensor([gripper_joint_value, gripper_joint_value], dtype=torch.float32, device=self._sim_device)
-    
 
     def _retarget_abs(self, wrist: np.ndarray, is_left: bool) -> np.ndarray:
         """Handle absolute pose retargeting.
@@ -85,23 +84,14 @@ class FiiRetargeter(RetargeterBase):
         wrist_pos = torch.tensor(wrist[:3], dtype=torch.float32)
         wrist_quat = torch.tensor(wrist[3:], dtype=torch.float32)
 
-
         openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
 
         if is_left:
             # Corresponds to a rotation of (0, 90, 90) in euler angles (x,y,z)
             combined_quat = torch.tensor([0, 0.7071, 0, 0.7071], dtype=torch.float32)
-            # combined_quat = torch.tensor([0, 0, 0, 1], dtype=torch.float32)
-            # combined_quat = torch.tensor([0.5, 0.5, 0.5, 0.5], dtype=torch.float32)
-            # combined_quat = torch.tensor([0., 1., 0., 0.], dtype=torch.float32)
-            # combined_quat = torch.tensor([0, -0.7071, 0, 0.7071], dtype=torch.float32)
         else:
             # Corresponds to a rotation of (0, -90, -90) in euler angles (x,y,z)
             combined_quat = torch.tensor([0, -0.7071, 0, 0.7071], dtype=torch.float32)
-            # combined_quat = torch.tensor([0, 0, 0, -1], dtype=torch.float32)
-            # combined_quat = torch.tensor([0.5, -0.5, -0.5, 0.5], dtype=torch.float32)
-            # combined_quat = torch.tensor([0., 1., 0., 0.], dtype=torch.float32)
-            # combined_quat = torch.tensor([0, 0.7071, 0, 0.7071], dtype=torch.float32)
 
         offset = torch.tensor([0.0, 0.25, -0.15])
         transform_pose = PoseUtils.make_pose(offset, PoseUtils.matrix_from_quat(combined_quat))

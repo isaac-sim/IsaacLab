@@ -12,13 +12,11 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.assets.articulation import Articulation, ArticulationCfg
+from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
 from isaaclab.controllers.pink_ik.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-
-#
 from isaaclab.devices.openxr.retargeters.humanoid.fii.fii_retargeter import FiiRetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.common import ViewerCfg
@@ -354,8 +352,13 @@ class FiibotEnvCfg(ManagerBasedRLEnvCfg):
 
         urdf_path = FII_URDF_PATH
 
+        # Get the USD path from the robot spawn configuration
+        robot_spawn = self.scene.robot.spawn
+        # Type checker doesn't recognize UsdFileCfg.usd_path, but it exists
+        usd_file_path = getattr(robot_spawn, "usd_path", FII_USD_PATH)
+
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, urdf_path, force_conversion=FORCE_URDF_BUILD
+            usd_file_path, urdf_path, force_conversion=FORCE_URDF_BUILD
         )
 
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
