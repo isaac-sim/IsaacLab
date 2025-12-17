@@ -22,10 +22,10 @@ import torch
 import types
 import warnings
 
-import isaaclab.sim.utils.prims as prim_utils
 import pytest
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import build_simulation_context
 
 from isaaclab_multirotor.assets import Multirotor, MultirotorCfg

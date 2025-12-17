@@ -15,7 +15,6 @@ import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
-
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
@@ -410,7 +409,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-    
+
     # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
     if get_metrics_assembler_interface is None:
         success_bool = prim.GetReferences().AddReference(usd_path)
