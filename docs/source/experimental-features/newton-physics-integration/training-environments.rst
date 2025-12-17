@@ -51,19 +51,22 @@ To run the same environment with random actions we can use a different script:
 To train the environment we provide hooks to different rl frameworks. See the `Reinforcement Learning Scripts documentation <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html>`_ for more information.
 
 Here are some examples on how to run training on several different RL frameworks. Note that we are explicitly setting the number of environments to
-4096 to benefit more from GPU parallelization. We also disable the Omniverse UI visualization to train the environment as quickly as possible by using the ``--headless`` option.
+4096 to benefit more from GPU parallelization.
+
+By default, environments will train in headless mode. If visualization is required, use ``--visualizer`` and specify the desired visualizer.
+Available options are ``newton``, ``rerun``, or ``omniverse`` (requires Isaac Sim installation).
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0 --num_envs 4096
 
 Once a policy is trained we can visualize it by using the play scripts. But first, we need to find the checkpoint of the trained policy. Typically, these are stored under:
 ``logs/NAME_OF_RL_FRAMEWORK/TASK_NAME/DATE``.
@@ -71,11 +74,11 @@ Once a policy is trained we can visualize it by using the play scripts. But firs
 For instance with our rsl_rl example it could look like this:
 ``logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt``
 
-To then run this policy we can use the following command, note that we reduced the number of environments and removed the ``--headless`` option so that we can see our policy in action!
+To then run this policy we can use the following command, note that we reduced the number of environments and added the ``--visualizer newton`` option so that we can see our policy in action!
 
 .. code-block:: shell
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --checkpoint logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --visualizer newton --checkpoint logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
 
 The same approach applies to all other frameworks.
 
