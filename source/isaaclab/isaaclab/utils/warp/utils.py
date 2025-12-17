@@ -1,13 +1,20 @@
-import torch
-import warp as wp
-from typing import Sequence
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import logging
+import torch
+from collections.abc import Sequence
+
+import warp as wp
 
 logger = logging.getLogger(__name__)
 
 ##
 # Frontend conversions - Torch to Warp.
 ##
+
 
 # TODO: Perf is atrocious. Need to improve.
 # Option 1: Pre-allocate the complete data buffer and fill it with the value.
@@ -37,10 +44,11 @@ def make_complete_data_from_torch_single_index(
         value = wp.from_torch(value, dtype=dtype)
     else:
         # Create a complete data buffer from scratch
-        complete = torch.zeros((N,*value.shape[1:]), dtype=torch.float32, device=device)
+        complete = torch.zeros((N, *value.shape[1:]), dtype=torch.float32, device=device)
         complete[ids] = value
         value = wp.from_torch(complete, dtype=dtype)
     return value
+
 
 def make_complete_data_from_torch_dual_index(
     value: torch.Tensor,
@@ -83,6 +91,7 @@ def make_complete_data_from_torch_dual_index(
         complete[first_ids, second_ids] = value
         value = wp.from_torch(complete, dtype=dtype)
     return value
+
 
 def make_masks_from_torch_ids(
     N: int,

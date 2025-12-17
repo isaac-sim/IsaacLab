@@ -55,7 +55,9 @@ def update_wrench_array_with_force(
 ):
     env_index, body_index = wp.tid()
     if env_ids[env_index] and body_ids[body_index]:
-        wrench[env_index, body_index] = update_wrench_with_force(wrench[env_index, body_index], forces[env_index, body_index])
+        wrench[env_index, body_index] = update_wrench_with_force(
+            wrench[env_index, body_index], forces[env_index, body_index]
+        )
 
 
 @wp.kernel
@@ -67,7 +69,9 @@ def update_wrench_array_with_torque(
 ):
     env_index, body_index = wp.tid()
     if env_ids[env_index] and body_ids[body_index]:
-        wrench[env_index, body_index] = update_wrench_with_torque(wrench[env_index, body_index], torques[env_index, body_index])
+        wrench[env_index, body_index] = update_wrench_with_torque(
+            wrench[env_index, body_index], torques[env_index, body_index]
+        )
 
 
 @wp.kernel

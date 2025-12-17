@@ -31,19 +31,20 @@ import numpy as np
 import time
 import torch
 import warnings
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.articulation.articulation import Articulation
+from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.kernels import vec13f
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # Import mock classes from shared module
 from mock_interface import MockNewtonArticulationView, MockNewtonModel
+
+from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # Initialize Warp
 wp.init()
@@ -667,10 +668,12 @@ def gen_joint_position_limit_warp(config: BenchmarkConfig) -> dict:
 def gen_joint_position_limit_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for write_joint_position_limit_to_sim."""
     return {
-        "lower_limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32)
-        * -3.14,
-        "upper_limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32)
-        * 3.14,
+        "lower_limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * -3.14
+        ),
+        "upper_limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 3.14
+        ),
         "env_ids": list(range(config.num_instances)),
         "joint_ids": list(range(config.num_joints)),
     }
@@ -692,10 +695,7 @@ def gen_joint_velocity_limit_warp(config: BenchmarkConfig) -> dict:
 def gen_joint_velocity_limit_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for write_joint_velocity_limit_to_sim."""
     return {
-        "limits": torch.rand(
-            config.num_instances, config.num_joints, device=config.device, dtype=torch.float32
-        )
-        * 10.0,
+        "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
         "env_ids": list(range(config.num_instances)),
         "joint_ids": list(range(config.num_joints)),
     }
@@ -717,10 +717,9 @@ def gen_joint_effort_limit_warp(config: BenchmarkConfig) -> dict:
 def gen_joint_effort_limit_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for write_joint_effort_limit_to_sim."""
     return {
-        "limits": torch.rand(
-            config.num_instances, config.num_joints, device=config.device, dtype=torch.float32
-        )
-        * 100.0,
+        "limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0
+        ),
         "env_ids": list(range(config.num_instances)),
         "joint_ids": list(range(config.num_joints)),
     }
@@ -742,8 +741,9 @@ def gen_joint_armature_warp(config: BenchmarkConfig) -> dict:
 def gen_joint_armature_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for write_joint_armature_to_sim."""
     return {
-        "armature": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32)
-        * 0.1,
+        "armature": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1
+        ),
         "env_ids": list(range(config.num_instances)),
         "joint_ids": list(range(config.num_joints)),
     }
@@ -765,10 +765,9 @@ def gen_joint_friction_coefficient_warp(config: BenchmarkConfig) -> dict:
 def gen_joint_friction_coefficient_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for write_joint_friction_coefficient_to_sim."""
     return {
-        "joint_friction_coeff": torch.rand(
-            config.num_instances, config.num_joints, device=config.device, dtype=torch.float32
-        )
-        * 0.5,
+        "joint_friction_coeff": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5
+        ),
         "env_ids": list(range(config.num_instances)),
         "joint_ids": list(range(config.num_joints)),
     }
@@ -1057,10 +1056,8 @@ def benchmark_method(
     # Warmup phase
     for _ in range(config.warmup_steps):
         inputs = input_generator(config)
-        try:
+        with contextlib.suppress(Exception):
             method(**inputs)
-        except Exception:
-            pass
         if config.device.startswith("cuda"):
             wp.synchronize()
 
@@ -1174,9 +1171,7 @@ def print_results(results: list[BenchmarkResult]):
         print("\n" + "-" * 100)
         print("COMPARISON: Warp (Best Case) vs Torch (Worst Case)")
         print("-" * 100)
-        print(
-            f"{'Method Name':<40} {'Warp (µs)':<15} {'Torch (µs)':<15} {'Overhead':<12} {'Slowdown':<10}"
-        )
+        print(f"{'Method Name':<40} {'Warp (µs)':<15} {'Torch (µs)':<15} {'Overhead':<12} {'Slowdown':<10}")
         print("-" * 100)
 
         warp_by_name = {r.name: r for r in warp_results}
@@ -1188,9 +1183,7 @@ def print_results(results: list[BenchmarkResult]):
                 torch_time = torch_by_name[name].mean_time_us
                 overhead = torch_time - warp_time
                 slowdown = torch_time / warp_time if warp_time > 0 else float("inf")
-                print(
-                    f"{name:<40} {warp_time:>12.2f}   {torch_time:>12.2f}   {overhead:>+9.2f}   {slowdown:>7.2f}x"
-                )
+                print(f"{name:<40} {warp_time:>12.2f}   {torch_time:>12.2f}   {overhead:>+9.2f}   {slowdown:>7.2f}x")
 
     # Print individual results
     for mode_name, mode_results in [("WARP (Best Case)", warp_results), ("TORCH (Worst Case)", torch_results)]:
@@ -1400,4 +1393,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

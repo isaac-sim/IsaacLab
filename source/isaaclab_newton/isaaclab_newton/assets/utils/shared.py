@@ -1,8 +1,15 @@
-from typing import Sequence
-import warp as wp
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import numpy as np
+from collections.abc import Sequence
+
+import warp as wp
 
 import isaaclab.utils.string as string_utils
+
 
 def find_bodies(
     body_names: list[str],
@@ -28,6 +35,7 @@ def find_bodies(
     mask[indices] = True
     mask = wp.array(mask, dtype=wp.bool, device=device)
     return mask, names, indices
+
 
 def find_joints(
     joint_names: list[str],

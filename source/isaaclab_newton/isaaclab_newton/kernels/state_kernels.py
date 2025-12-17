@@ -134,6 +134,7 @@ def split_state_to_velocity(
     """
     return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
 
+
 @wp.kernel
 def split_state_to_pose_and_velocity(
     state: wp.array(dtype=vec13f),
@@ -578,6 +579,7 @@ def update_spatial_vector_array_with_value(
 """
 Transform kernels
 """
+
 
 @wp.kernel
 def transform_CoM_pose_to_link_frame_masked_root(

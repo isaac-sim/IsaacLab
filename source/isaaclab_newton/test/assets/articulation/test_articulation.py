@@ -19,21 +19,20 @@ requiring full simulation integration.
 """
 
 from __future__ import annotations
-from enum import nonmember
 
 import torch
 from unittest.mock import MagicMock, patch
 
 import pytest
 import warp as wp
-from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.articulation.articulation import Articulation
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.actuators import ActuatorBaseCfg
-
-from isaaclab.utils.math import quat_apply, quat_inv, combine_frame_transforms
-
+from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.kernels import vec13f
+
+from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+
+# TODO: Move these functions to the test utils so they can't be changed in the future.
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
 
 # Import mock classes from shared module
 from .mock_interface import MockNewtonArticulationView, MockNewtonModel
@@ -238,12 +237,15 @@ class TestProperties:
         )
         assert articulation.body_names == custom_names
 
+
 ##
 # Test Cases -- Reset
 ##
 
+
 class TestReset:
     """Tests for reset method."""
+
     def test_reset(self):
         """Test that reset method works properly."""
         articulation, _, _ = create_test_articulation()
@@ -256,9 +258,14 @@ class TestReset:
             env_mask=None,
             is_global=False,
         )
-        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(torch.ones_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench)))
+        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(
+            torch.ones_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench))
+        )
         articulation.reset()
-        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(torch.zeros_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench)))
+        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(
+            torch.zeros_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench))
+        )
+
 
 ##
 # Test Cases -- Write Data to Sim. Skipped, this is mostly an integration test.
@@ -269,22 +276,29 @@ class TestReset:
 # Test Cases -- Update
 ##
 
+
 class TestUpdate:
     """Tests for update method."""
+
     def test_update(self):
         """Test that update method updates the simulation timestamp properly."""
         articulation, _, _ = create_test_articulation()
         articulation.update(dt=0.01)
         assert articulation.data._sim_timestamp == 0.01
 
+
 ##
 # Test Cases -- Finders
 ##
 
+
 class TestFinders:
     """Tests for finder methods."""
-    
-    @pytest.mark.parametrize("body_names", [["body_0", "body_1", "body_2"], ["body_3", "body_4", "body_5"], ["body_1", "body_3", "body_5"], "body_.*"])
+
+    @pytest.mark.parametrize(
+        "body_names",
+        [["body_0", "body_1", "body_2"], ["body_3", "body_4", "body_5"], ["body_1", "body_3", "body_5"], "body_.*"],
+    )
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_find_bodies(self, body_names: list[str], device: str):
         """Test that find_bodies method works properly."""
@@ -329,7 +343,15 @@ class TestFinders:
         mask_ref[5] = True
         assert wp.to_torch(mask).allclose(mask_ref)
 
-    @pytest.mark.parametrize("joint_names", [["joint_0", "joint_1", "joint_2"], ["joint_3", "joint_4", "joint_5"], ["joint_1", "joint_3", "joint_5"], "joint_.*"])
+    @pytest.mark.parametrize(
+        "joint_names",
+        [
+            ["joint_0", "joint_1", "joint_2"],
+            ["joint_3", "joint_4", "joint_5"],
+            ["joint_1", "joint_3", "joint_5"],
+            "joint_.*",
+        ],
+    )
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_find_joints(self, joint_names: list[str], device: str):
         """Test that find_joints method works properly."""
@@ -393,8 +415,10 @@ class TestFinders:
 # Test Cases -- State Writers
 ##
 
+
 class TestStateWriters:
     """Tests for state writing methods."""
+
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0], torch.tensor([0, 1, 2], dtype=torch.int32)])
     @pytest.mark.parametrize("num_instances", [1, 4])
@@ -437,7 +461,7 @@ class TestStateWriters:
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_state_w)[env_ids].allclose(data, atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 13), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
@@ -537,8 +561,12 @@ class TestStateWriters:
                 # Write to simulation
                 articulation.write_root_com_state_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
             elif isinstance(env_ids, slice):
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
@@ -547,15 +575,19 @@ class TestStateWriters:
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_com_vel_w).allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
                 assert wp.to_torch(articulation.data.root_com_pose_w).allclose(data[:, :7], atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 13), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
                 env_ids = env_ids.to(device=device)
                 articulation.write_root_com_state_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
@@ -597,8 +629,12 @@ class TestStateWriters:
                 # Write to simulation
                 articulation.write_root_com_state_to_sim(data_warp, env_mask=mask_warp)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
             else:
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
@@ -647,8 +683,12 @@ class TestStateWriters:
                 # Write to simulation
                 articulation.write_root_link_state_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
             elif isinstance(env_ids, slice):
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
@@ -657,16 +697,20 @@ class TestStateWriters:
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_link_vel_w).allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
                 assert wp.to_torch(articulation.data.root_link_pose_w).allclose(data[:, :7], atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 13), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
                 env_ids = env_ids.to(device=device)
                 articulation.write_root_link_state_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
-    
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
+
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
@@ -710,8 +754,12 @@ class TestStateWriters:
                 # Write to simulation
                 articulation.write_root_link_state_to_sim(data_warp, env_mask=mask_warp)
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, :].allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
-                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(data[:, :7], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, :].allclose(
+                    data[:, 7:13], atol=1e-6, rtol=1e-6
+                )
+                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids].allclose(
+                    data[:, :7], atol=1e-6, rtol=1e-6
+                )
             else:
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
@@ -725,6 +773,7 @@ class TestStateWriters:
                 assert wp.to_torch(articulation.data.root_link_vel_w).allclose(data[:, 7:13], atol=1e-6, rtol=1e-6)
                 assert wp.to_torch(articulation.data.root_link_pose_w).allclose(data[:, :7], atol=1e-6, rtol=1e-6)
 
+
 class TestVelocityWriters:
     """Tests for velocity writing methods.
 
@@ -732,6 +781,7 @@ class TestVelocityWriters:
     - write_root_link_velocity_to_sim
     - write_root_com_velocity_to_sim
     """
+
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
@@ -781,7 +831,9 @@ class TestVelocityWriters:
                 root_com_velocity[:, :3] += torch.linalg.cross(
                     root_com_velocity[:, 3:], quat_apply(quat, com_pos_b), dim=-1
                 )
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(root_com_velocity, atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(
+                    root_com_velocity, atol=1e-6, rtol=1e-6
+                )
             elif isinstance(env_ids, slice):
                 # Update all envs
                 data = torch.rand((num_instances, 6), device=device)
@@ -796,7 +848,7 @@ class TestVelocityWriters:
                     root_com_velocity[:, 3:], quat_apply(quat, com_pos_b), dim=-1
                 )
                 assert wp.to_torch(articulation.data.root_com_vel_w).allclose(root_com_velocity, atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 6), device=device)
                 env_ids = env_ids.to(device=device)
@@ -810,7 +862,9 @@ class TestVelocityWriters:
                 root_com_velocity[:, :3] += torch.linalg.cross(
                     root_com_velocity[:, 3:], quat_apply(quat, com_pos_b), dim=-1
                 )
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(root_com_velocity, atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(
+                    root_com_velocity, atol=1e-6, rtol=1e-6
+                )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
@@ -866,7 +920,9 @@ class TestVelocityWriters:
                 root_com_velocity[:, :3] += torch.linalg.cross(
                     root_com_velocity[:, 3:], quat_apply(quat, com_pos_b), dim=-1
                 )
-                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(root_com_velocity, atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(
+                    root_com_velocity, atol=1e-6, rtol=1e-6
+                )
             else:
                 # Update all envs
                 data = torch.rand((num_instances, 6), device=device)
@@ -922,7 +978,9 @@ class TestVelocityWriters:
                 articulation.write_root_com_velocity_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
                 assert torch.all(wp.to_torch(articulation.data.root_link_vel_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
                 assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
             elif isinstance(env_ids, slice):
                 # Update all envs
@@ -932,14 +990,16 @@ class TestVelocityWriters:
                 assert torch.all(wp.to_torch(articulation.data.root_link_vel_w)[:, :3] != data[:, :3])
                 assert wp.to_torch(articulation.data.root_link_vel_w)[:, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
                 assert wp.to_torch(articulation.data.root_com_vel_w).allclose(data, atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 6), device=device)
                 env_ids = env_ids.to(device=device)
                 articulation.write_root_com_velocity_to_sim(data, env_ids=env_ids)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
                 assert torch.all(wp.to_torch(articulation.data.root_link_vel_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
                 assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -983,7 +1043,9 @@ class TestVelocityWriters:
                 articulation.write_root_com_velocity_to_sim(data_warp, env_mask=mask_warp)
                 assert articulation.data._root_link_vel_w.timestamp == -1.0
                 assert torch.all(wp.to_torch(articulation.data.root_link_vel_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_vel_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
                 assert wp.to_torch(articulation.data.root_com_vel_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
             else:
                 # Update all envs
@@ -1006,6 +1068,7 @@ class TestPoseWriters:
     - write_root_link_pose_to_sim
     - write_root_com_pose_to_sim
     """
+
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
@@ -1044,7 +1107,9 @@ class TestPoseWriters:
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
                 assert torch.all(wp.to_torch(articulation.data.root_com_pose_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
             elif isinstance(env_ids, slice):
                 # Update all envs
                 data = torch.rand((num_instances, 7), device=device)
@@ -1054,7 +1119,7 @@ class TestPoseWriters:
                 assert wp.to_torch(articulation.data.root_link_pose_w).allclose(data, atol=1e-6, rtol=1e-6)
                 assert torch.all(wp.to_torch(articulation.data.root_com_pose_w)[:, :3] != data[:, :3])
                 assert wp.to_torch(articulation.data.root_com_pose_w)[:, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
-            else: 
+            else:
                 # Update envs 0, 1, 2
                 data = torch.rand((3, 7), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
@@ -1063,7 +1128,9 @@ class TestPoseWriters:
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
                 assert torch.all(wp.to_torch(articulation.data.root_com_pose_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
@@ -1108,7 +1175,9 @@ class TestPoseWriters:
                 assert articulation.data._root_com_pose_w.timestamp == -1.0
                 assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(data, atol=1e-6, rtol=1e-6)
                 assert torch.all(wp.to_torch(articulation.data.root_com_pose_w)[env_ids, :3] != data[:, :3])
-                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(data[:, 3:], atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_com_pose_w)[env_ids, 3:].allclose(
+                    data[:, 3:], atol=1e-6, rtol=1e-6
+                )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
@@ -1136,7 +1205,7 @@ class TestPoseWriters:
                 articulation.write_root_com_pose_to_sim(data, env_ids=env_ids)
                 assert wp.to_torch(articulation.data.root_com_pose_w).allclose(data, atol=1e-6, rtol=1e-6)
                 # get CoM pose in link frame
-                com_pos_b = wp.to_torch(articulation.data.body_com_pos_b)[: , 0, :]
+                com_pos_b = wp.to_torch(articulation.data.body_com_pos_b)[:, 0, :]
                 com_quat_b = wp.to_torch(articulation.data.body_com_quat_b)[:, 0, :]
                 # transform input CoM pose to link frame
                 root_link_pos, root_link_quat = combine_frame_transforms(
@@ -1167,7 +1236,9 @@ class TestPoseWriters:
                     quat_inv(com_quat_b),
                 )
                 root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(root_link_pose, atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(
+                    root_link_pose, atol=1e-6, rtol=1e-6
+                )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
@@ -1194,7 +1265,7 @@ class TestPoseWriters:
                 articulation.write_root_com_pose_to_sim(wp.from_torch(data, dtype=wp.transformf))
                 assert wp.to_torch(articulation.data.root_com_pose_w).allclose(data, atol=1e-6, rtol=1e-6)
                 # get CoM pose in link frame
-                com_pos_b = wp.to_torch(articulation.data.body_com_pos_b)[: , 0, :]
+                com_pos_b = wp.to_torch(articulation.data.body_com_pos_b)[:, 0, :]
                 com_quat_b = wp.to_torch(articulation.data.body_com_quat_b)[:, 0, :]
                 # transform input CoM pose to link frame
                 root_link_pos, root_link_quat = combine_frame_transforms(
@@ -1229,7 +1300,10 @@ class TestPoseWriters:
                     quat_inv(com_quat_b),
                 )
                 root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(root_link_pose, atol=1e-6, rtol=1e-6)
+                assert wp.to_torch(articulation.data.root_link_pose_w)[env_ids, :].allclose(
+                    root_link_pose, atol=1e-6, rtol=1e-6
+                )
+
 
 class TestJointState:
     """Tests for joint state writing methods.
@@ -1246,14 +1320,16 @@ class TestJointState:
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_write_joint_state_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (joint_ids is None) or (isinstance(joint_ids, slice)):
@@ -1285,8 +1361,12 @@ class TestJointState:
                     articulation.write_joint_state_to_sim(data1, data2, env_ids=env_ids, joint_ids=joint_ids)
                     env_ids_ = torch.tensor(env_ids, dtype=torch.int32, device=device)
                     env_ids_ = env_ids_[:, None]
-                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
-                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(data2, atol=1e-6, rtol=1e-6)
+                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
+                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(
+                        data2, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -1294,14 +1374,16 @@ class TestJointState:
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_write_joint_state_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if env_ids is None:
                 if joint_ids is None:
@@ -1312,7 +1394,8 @@ class TestJointState:
                         wp.from_torch(data1, dtype=wp.float32),
                         wp.from_torch(data2, dtype=wp.float32),
                         env_mask=None,
-                        joint_mask=None)
+                        joint_mask=None,
+                    )
                     assert wp.to_torch(articulation.data.joint_pos).allclose(data1, atol=1e-6, rtol=1e-6)
                     assert wp.to_torch(articulation.data.joint_vel).allclose(data2, atol=1e-6, rtol=1e-6)
                 else:
@@ -1328,11 +1411,7 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_state_to_sim(
-                        data1_warp,
-                        data2_warp,
-                        env_mask=None,
-                        joint_mask=joint_mask)
+                    articulation.write_joint_state_to_sim(data1_warp, data2_warp, env_mask=None, joint_mask=joint_mask)
                     assert wp.to_torch(articulation.data.joint_pos)[:, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
                     assert wp.to_torch(articulation.data.joint_vel)[:, joint_ids].allclose(data2, atol=1e-6, rtol=1e-6)
             else:
@@ -1353,7 +1432,8 @@ class TestJointState:
                         wp.from_torch(data1, dtype=wp.float32),
                         wp.from_torch(data2, dtype=wp.float32),
                         env_mask=env_mask,
-                        joint_mask=None)
+                        joint_mask=None,
+                    )
                     assert wp.to_torch(articulation.data.joint_pos)[env_ids, :].allclose(data1, atol=1e-6, rtol=1e-6)
                     assert wp.to_torch(articulation.data.joint_vel)[env_ids, :].allclose(data2, atol=1e-6, rtol=1e-6)
                 else:
@@ -1374,24 +1454,34 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_state_to_sim(data1_warp, data2_warp, env_mask=env_mask, joint_mask=joint_mask)
-                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
-                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(data2, atol=1e-6, rtol=1e-6)
+                    articulation.write_joint_state_to_sim(
+                        data1_warp, data2_warp, env_mask=env_mask, joint_mask=joint_mask
+                    )
+                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
+                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(
+                        data2, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_position_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def test_write_joint_position_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (joint_ids is None) or (isinstance(joint_ids, slice)):
@@ -1416,31 +1506,36 @@ class TestJointState:
                     articulation.write_joint_position_to_sim(data1, env_ids=env_ids, joint_ids=joint_ids)
                     env_ids_ = torch.tensor(env_ids, dtype=torch.int32, device=device)
                     env_ids_ = env_ids_[:, None]
-                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
+                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_position_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def test_write_joint_position_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if env_ids is None:
                 if joint_ids is None:
                     # All envs and joints
                     data1 = torch.rand((num_instances, num_joints), device=device)
                     articulation.write_joint_position_to_sim(
-                        wp.from_torch(data1, dtype=wp.float32),
-                        env_mask=None,
-                        joint_mask=None)
+                        wp.from_torch(data1, dtype=wp.float32), env_mask=None, joint_mask=None
+                    )
                     assert wp.to_torch(articulation.data.joint_pos).allclose(data1, atol=1e-6, rtol=1e-6)
                 else:
                     # All envs and selected joints
@@ -1451,10 +1546,7 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_position_to_sim(
-                        data1_warp,
-                        env_mask=None,
-                        joint_mask=joint_mask)
+                    articulation.write_joint_position_to_sim(data1_warp, env_mask=None, joint_mask=joint_mask)
                     assert wp.to_torch(articulation.data.joint_pos)[:, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
             else:
                 if joint_ids is None:
@@ -1466,10 +1558,7 @@ class TestJointState:
                     env_mask = torch.zeros((num_instances,), dtype=torch.bool, device=device)
                     env_mask[env_ids] = True
                     env_mask = wp.from_torch(env_mask, dtype=wp.bool)
-                    articulation.write_joint_position_to_sim(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=None)
+                    articulation.write_joint_position_to_sim(data1_warp, env_mask=env_mask, joint_mask=None)
                     assert wp.to_torch(articulation.data.joint_pos)[env_ids, :].allclose(data1, atol=1e-6, rtol=1e-6)
                 else:
                     # Selected envs and joints
@@ -1485,26 +1574,29 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_position_to_sim(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=joint_mask)
-                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
+                    articulation.write_joint_position_to_sim(data1_warp, env_mask=env_mask, joint_mask=joint_mask)
+                    assert wp.to_torch(articulation.data.joint_pos)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_velocity_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def test_write_joint_velocity_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (joint_ids is None) or (isinstance(joint_ids, slice)):
@@ -1529,31 +1621,36 @@ class TestJointState:
                     articulation.write_joint_velocity_to_sim(data1, env_ids=env_ids, joint_ids=joint_ids)
                     env_ids_ = torch.tensor(env_ids, dtype=torch.int32, device=device)
                     env_ids_ = env_ids_[:, None]
-                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
+                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_velocity_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def test_write_joint_velocity_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         if num_joints == 1:
             if (joint_ids is not None) and (not isinstance(joint_ids, slice)):
                 joint_ids = [0]
-        
+
         for _ in range(5):
             if env_ids is None:
                 if joint_ids is None:
                     # All envs and joints
                     data1 = torch.rand((num_instances, num_joints), device=device)
                     articulation.write_joint_velocity_to_sim(
-                        wp.from_torch(data1, dtype=wp.float32),
-                        env_mask=None,
-                        joint_mask=None)
+                        wp.from_torch(data1, dtype=wp.float32), env_mask=None, joint_mask=None
+                    )
                     assert wp.to_torch(articulation.data.joint_vel).allclose(data1, atol=1e-6, rtol=1e-6)
                 else:
                     # All envs and selected joints
@@ -1564,10 +1661,7 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_velocity_to_sim(
-                        data1_warp,
-                        env_mask=None,
-                        joint_mask=joint_mask)
+                    articulation.write_joint_velocity_to_sim(data1_warp, env_mask=None, joint_mask=joint_mask)
                     assert wp.to_torch(articulation.data.joint_vel)[:, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
             else:
                 if joint_ids is None:
@@ -1579,10 +1673,7 @@ class TestJointState:
                     env_mask = torch.zeros((num_instances,), dtype=torch.bool, device=device)
                     env_mask[env_ids] = True
                     env_mask = wp.from_torch(env_mask, dtype=wp.bool)
-                    articulation.write_joint_velocity_to_sim(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=None)
+                    articulation.write_joint_velocity_to_sim(data1_warp, env_mask=env_mask, joint_mask=None)
                     assert wp.to_torch(articulation.data.joint_vel)[env_ids, :].allclose(data1, atol=1e-6, rtol=1e-6)
                 else:
                     # Selected envs and joints
@@ -1598,11 +1689,12 @@ class TestJointState:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    articulation.write_joint_velocity_to_sim(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=joint_mask)
-                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(data1, atol=1e-6, rtol=1e-6)
+                    articulation.write_joint_velocity_to_sim(data1_warp, env_mask=env_mask, joint_mask=joint_mask)
+                    assert wp.to_torch(articulation.data.joint_vel)[env_ids_, joint_ids].allclose(
+                        data1, atol=1e-6, rtol=1e-6
+                    )
+
+
 ##
 # Test Cases -- Simulation Parameters Writers.
 ##
@@ -1610,7 +1702,7 @@ class TestJointState:
 
 class TestWriteJointPropertiesToSim:
     """Tests for writing joint properties to the simulation.
-    
+
     Tests methods:
     - write_joint_stiffness_to_sim
     - write_joint_damping_to_sim
@@ -1624,8 +1716,19 @@ class TestWriteJointPropertiesToSim:
     - write_joint_limits_to_sim
     """
 
-    def generic_test_property_writer_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int, writer_function_name: str, property_name: str):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def generic_test_property_writer_torch(
+        self,
+        device: str,
+        env_ids,
+        joint_ids,
+        num_instances: int,
+        num_joints: int,
+        writer_function_name: str,
+        property_name: str,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1634,7 +1737,7 @@ class TestWriteJointPropertiesToSim:
                 joint_ids = [0]
 
         writer_function = getattr(articulation, writer_function_name)
-        
+
         for i in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (joint_ids is None) or (isinstance(joint_ids, slice)):
@@ -1648,7 +1751,9 @@ class TestWriteJointPropertiesToSim:
                     if i % 2 == 0:
                         assert wp.to_torch(property_data).allclose(data1, atol=1e-6, rtol=1e-6)
                     else:
-                        assert wp.to_torch(property_data).allclose(data1 * torch.ones((num_instances, num_joints), device=device), atol=1e-6, rtol=1e-6)
+                        assert wp.to_torch(property_data).allclose(
+                            data1 * torch.ones((num_instances, num_joints), device=device), atol=1e-6, rtol=1e-6
+                        )
                 else:
                     # All envs and selected joints
                     if i % 2 == 0:
@@ -1686,8 +1791,19 @@ class TestWriteJointPropertiesToSim:
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
 
-    def generic_test_property_writer_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int, writer_function_name: str, property_name: str):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def generic_test_property_writer_warp(
+        self,
+        device: str,
+        env_ids,
+        joint_ids,
+        num_instances: int,
+        num_joints: int,
+        writer_function_name: str,
+        property_name: str,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1696,7 +1812,7 @@ class TestWriteJointPropertiesToSim:
                 joint_ids = [0]
 
         writer_function = getattr(articulation, writer_function_name)
-        
+
         for i in range(5):
             if env_ids is None:
                 if joint_ids is None:
@@ -1707,15 +1823,14 @@ class TestWriteJointPropertiesToSim:
                     else:
                         data1 = float(i)
                         data1_warp = data1
-                    writer_function(
-                        data1_warp,
-                        env_mask=None,
-                        joint_mask=None)
+                    writer_function(data1_warp, env_mask=None, joint_mask=None)
                     property_data = getattr(articulation.data, property_name)
                     if i % 2 == 0:
                         assert wp.to_torch(property_data).allclose(data1, atol=1e-6, rtol=1e-6)
                     else:
-                        assert wp.to_torch(property_data).allclose(data1 * torch.ones((num_instances, num_joints), device=device), atol=1e-6, rtol=1e-6)
+                        assert wp.to_torch(property_data).allclose(
+                            data1 * torch.ones((num_instances, num_joints), device=device), atol=1e-6, rtol=1e-6
+                        )
                 else:
                     # All envs and selected joints
                     if i % 2 == 0:
@@ -1731,10 +1846,7 @@ class TestWriteJointPropertiesToSim:
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
                     data_ref = torch.zeros((num_instances, num_joints), device=device)
                     data_ref[:, joint_ids] = data1
-                    writer_function(
-                        data1_warp,
-                        env_mask=None,
-                        joint_mask=joint_mask)
+                    writer_function(data1_warp, env_mask=None, joint_mask=joint_mask)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
             else:
@@ -1753,10 +1865,7 @@ class TestWriteJointPropertiesToSim:
                     env_mask = torch.zeros((num_instances,), dtype=torch.bool, device=device)
                     env_mask[env_ids] = True
                     env_mask = wp.from_torch(env_mask, dtype=wp.bool)
-                    writer_function(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=None)
+                    writer_function(data1_warp, env_mask=env_mask, joint_mask=None)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
                 else:
@@ -1779,15 +1888,23 @@ class TestWriteJointPropertiesToSim:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    writer_function(
-                        data1_warp,
-                        env_mask=env_mask,
-                        joint_mask=joint_mask)
+                    writer_function(data1_warp, env_mask=env_mask, joint_mask=joint_mask)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
 
-    def generic_test_property_writer_torch_dual(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int, writer_function_name: str, property_name: str):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def generic_test_property_writer_torch_dual(
+        self,
+        device: str,
+        env_ids,
+        joint_ids,
+        num_instances: int,
+        num_joints: int,
+        writer_function_name: str,
+        property_name: str,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1796,7 +1913,7 @@ class TestWriteJointPropertiesToSim:
                 joint_ids = [0]
 
         writer_function = getattr(articulation, writer_function_name)
-        
+
         for _ in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (joint_ids is None) or (isinstance(joint_ids, slice)):
@@ -1835,8 +1952,19 @@ class TestWriteJointPropertiesToSim:
                     data = torch.cat([data1.unsqueeze(-1), data2.unsqueeze(-1)], dim=-1)
                     assert wp.to_torch(property_data)[env_ids_, joint_ids].allclose(data, atol=1e-6, rtol=1e-6)
 
-    def generic_test_property_writer_warp_dual(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int, writer_function_name: str, property_name: str):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_joints=num_joints, device=device)
+    def generic_test_property_writer_warp_dual(
+        self,
+        device: str,
+        env_ids,
+        joint_ids,
+        num_instances: int,
+        num_joints: int,
+        writer_function_name: str,
+        property_name: str,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_joints=num_joints, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1845,7 +1973,7 @@ class TestWriteJointPropertiesToSim:
                 joint_ids = [0]
 
         writer_function = getattr(articulation, writer_function_name)
-        
+
         for _ in range(5):
             if env_ids is None:
                 if joint_ids is None:
@@ -1856,7 +1984,8 @@ class TestWriteJointPropertiesToSim:
                         wp.from_torch(data1, dtype=wp.float32),
                         wp.from_torch(data2, dtype=wp.float32),
                         env_mask=None,
-                        joint_mask=None)
+                        joint_mask=None,
+                    )
                     data = torch.cat([data1.unsqueeze(-1), data2.unsqueeze(-1)], dim=-1)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data, atol=2e-6, rtol=1e-6)
@@ -1923,11 +2052,7 @@ class TestWriteJointPropertiesToSim:
                     joint_mask = torch.zeros((num_joints,), dtype=torch.bool, device=device)
                     joint_mask[joint_ids] = True
                     joint_mask = wp.from_torch(joint_mask, dtype=wp.bool)
-                    writer_function(
-                        data1_warp,
-                        data2_warp,
-                        env_mask=env_mask,
-                        joint_mask=joint_mask)
+                    writer_function(data1_warp, data2_warp, env_mask=env_mask, joint_mask=joint_mask)
                     data = torch.cat([data1.unsqueeze(-1), data2.unsqueeze(-1)], dim=-1)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data)[env_ids_, joint_ids].allclose(data, atol=1e-6, rtol=1e-6)
@@ -1937,112 +2062,216 @@ class TestWriteJointPropertiesToSim:
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_stiffness_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_stiffness_to_sim", "joint_stiffness")
+    def test_write_joint_stiffness_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_stiffness_to_sim", "joint_stiffness"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_stiffness_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_stiffness_to_sim", "joint_stiffness")
+    def test_write_joint_stiffness_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_stiffness_to_sim", "joint_stiffness"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_damping_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_damping_to_sim", "joint_damping")
+    def test_write_joint_damping_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_damping_to_sim", "joint_damping"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_damping_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_damping_to_sim", "joint_damping")
+    def test_write_joint_damping_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_damping_to_sim", "joint_damping"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_velocity_limit_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_velocity_limit_to_sim", "joint_vel_limits")
+    def test_write_joint_velocity_limit_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_velocity_limit_to_sim",
+            "joint_vel_limits",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_velocity_limit_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_velocity_limit_to_sim", "joint_vel_limits")
+    def test_write_joint_velocity_limit_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_velocity_limit_to_sim",
+            "joint_vel_limits",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_effort_limit_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_effort_limit_to_sim", "joint_effort_limits")
+    def test_write_joint_effort_limit_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_effort_limit_to_sim",
+            "joint_effort_limits",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_effort_limit_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_effort_limit_to_sim", "joint_effort_limits")
+    def test_write_joint_effort_limit_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_effort_limit_to_sim",
+            "joint_effort_limits",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_armature_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_armature_to_sim", "joint_armature")
+    def test_write_joint_armature_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_armature_to_sim", "joint_armature"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_armature_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_armature_to_sim", "joint_armature")
+    def test_write_joint_armature_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_armature_to_sim", "joint_armature"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_friction_coefficient_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_coefficient_to_sim", "joint_friction_coeff")
+    def test_write_joint_friction_coefficient_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_friction_coefficient_to_sim",
+            "joint_friction_coeff",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_friction_coefficient_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_coefficient_to_sim", "joint_friction_coeff")
+    def test_write_joint_friction_coefficient_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_friction_coefficient_to_sim",
+            "joint_friction_coeff",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_dynamic_friction_coefficient_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_dynamic_friction_coefficient_to_sim", "joint_dynamic_friction_coeff")
+    def test_write_joint_dynamic_friction_coefficient_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_dynamic_friction_coefficient_to_sim",
+            "joint_dynamic_friction_coeff",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_dynamic_friction_coefficient_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_dynamic_friction_coefficient_to_sim", "joint_dynamic_friction_coeff")
+    def test_write_joint_dynamic_friction_coefficient_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_dynamic_friction_coefficient_to_sim",
+            "joint_dynamic_friction_coeff",
+        )
 
     # TODO: Remove once the deprecated function is removed.
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -2050,8 +2279,12 @@ class TestWriteJointPropertiesToSim:
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_friction_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_to_sim", "joint_friction_coeff")
+    def test_write_joint_friction_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_to_sim", "joint_friction_coeff"
+        )
 
     # TODO: Remove once the deprecated function is removed.
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -2059,24 +2292,48 @@ class TestWriteJointPropertiesToSim:
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_friction_to_sim_warp(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_to_sim", "joint_friction_coeff")
+    def test_write_joint_friction_to_sim_warp(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_friction_to_sim", "joint_friction_coeff"
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_position_limit_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch_dual(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_position_limit_to_sim", "joint_pos_limits")
+    def test_write_joint_position_limit_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch_dual(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_position_limit_to_sim",
+            "joint_pos_limits",
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_position_limit_to_sim_warp_dual(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp_dual(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_position_limit_to_sim", "joint_pos_limits")
+    def test_write_joint_position_limit_to_sim_warp_dual(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp_dual(
+            device,
+            env_ids,
+            joint_ids,
+            num_instances,
+            num_joints,
+            "write_joint_position_limit_to_sim",
+            "joint_pos_limits",
+        )
 
     # TODO: Remove once the deprecated function is removed.
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -2084,8 +2341,12 @@ class TestWriteJointPropertiesToSim:
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_limits_to_sim_torch(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_torch_dual(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_limits_to_sim", "joint_pos_limits")
+    def test_write_joint_limits_to_sim_torch(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_torch_dual(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_limits_to_sim", "joint_pos_limits"
+        )
 
     # TODO: Remove once the deprecated function is removed.
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -2093,12 +2354,18 @@ class TestWriteJointPropertiesToSim:
     @pytest.mark.parametrize("joint_ids", [None, [0, 1, 2], [0]])
     @pytest.mark.parametrize("num_joints", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_joint_limits_to_sim_warp_dual(self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int):
-        self.generic_test_property_writer_warp_dual(device, env_ids, joint_ids, num_instances, num_joints, "write_joint_limits_to_sim", "joint_pos_limits")
+    def test_write_joint_limits_to_sim_warp_dual(
+        self, device: str, env_ids, joint_ids, num_instances: int, num_joints: int
+    ):
+        self.generic_test_property_writer_warp_dual(
+            device, env_ids, joint_ids, num_instances, num_joints, "write_joint_limits_to_sim", "joint_pos_limits"
+        )
+
 
 ##
 # Test Cases - Setters.
 ##
+
 
 class TestSettersBodiesMassCoMInertia:
     """Tests for setter methods that set body mass, center of mass, and inertia.
@@ -2109,8 +2376,20 @@ class TestSettersBodiesMassCoMInertia:
     - set_inertias
     """
 
-    def generic_test_property_writer_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int, writer_function_name: str, property_name: str, dtype: type = wp.float32):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_bodies=num_bodies, device=device)
+    def generic_test_property_writer_torch(
+        self,
+        device: str,
+        env_ids,
+        body_ids,
+        num_instances: int,
+        num_bodies: int,
+        writer_function_name: str,
+        property_name: str,
+        dtype: type = wp.float32,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_bodies=num_bodies, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -2124,10 +2403,13 @@ class TestSettersBodiesMassCoMInertia:
         elif dtype == wp.vec3f:
             ndims = (3,)
         elif dtype == wp.mat33f:
-            ndims = (3,3,)
+            ndims = (
+                3,
+                3,
+            )
         else:
             raise ValueError(f"Unsupported dtype: {dtype}")
-        
+
         for _ in range(5):
             if (env_ids is None) or (isinstance(env_ids, slice)):
                 if (body_ids is None) or (isinstance(body_ids, slice)):
@@ -2164,8 +2446,20 @@ class TestSettersBodiesMassCoMInertia:
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
 
-    def generic_test_property_writer_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int, writer_function_name: str, property_name: str, dtype: type = wp.float32):
-        articulation, mock_view, _ = create_test_articulation(num_instances=num_instances, num_bodies=num_bodies, device=device)
+    def generic_test_property_writer_warp(
+        self,
+        device: str,
+        env_ids,
+        body_ids,
+        num_instances: int,
+        num_bodies: int,
+        writer_function_name: str,
+        property_name: str,
+        dtype: type = wp.float32,
+    ):
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances, num_bodies=num_bodies, device=device
+        )
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -2179,20 +2473,20 @@ class TestSettersBodiesMassCoMInertia:
         elif dtype == wp.vec3f:
             ndims = (3,)
         elif dtype == wp.mat33f:
-            ndims = (3,3,)
+            ndims = (
+                3,
+                3,
+            )
         else:
             raise ValueError(f"Unsupported dtype: {dtype}")
-        
+
         for _ in range(5):
             if env_ids is None:
                 if body_ids is None:
                     # All envs and joints
                     data1 = torch.rand((num_instances, num_bodies, *ndims), device=device)
                     data1_warp = wp.from_torch(data1, dtype=dtype)
-                    writer_function(
-                        data1_warp,
-                        env_mask=None,
-                        body_mask=None)
+                    writer_function(data1_warp, env_mask=None, body_mask=None)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data1, atol=1e-6, rtol=1e-6)
                 else:
@@ -2206,10 +2500,7 @@ class TestSettersBodiesMassCoMInertia:
                     body_mask = wp.from_torch(body_mask, dtype=wp.bool)
                     data_ref = torch.zeros((num_instances, num_bodies, *ndims), device=device)
                     data_ref[:, body_ids] = data1
-                    writer_function(
-                        data1_warp,
-                        env_mask=None,
-                        body_mask=body_mask)
+                    writer_function(data1_warp, env_mask=None, body_mask=body_mask)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
             else:
@@ -2224,10 +2515,7 @@ class TestSettersBodiesMassCoMInertia:
                     env_mask = torch.zeros((num_instances,), dtype=torch.bool, device=device)
                     env_mask[env_ids] = True
                     env_mask = wp.from_torch(env_mask, dtype=wp.bool)
-                    writer_function(
-                        data1_warp,
-                        env_mask=env_mask,
-                        body_mask=None)
+                    writer_function(data1_warp, env_mask=env_mask, body_mask=None)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
                 else:
@@ -2246,10 +2534,7 @@ class TestSettersBodiesMassCoMInertia:
                     body_mask = torch.zeros((num_bodies,), dtype=torch.bool, device=device)
                     body_mask[body_ids] = True
                     body_mask = wp.from_torch(body_mask, dtype=wp.bool)
-                    writer_function(
-                        data1_warp,
-                        env_mask=env_mask,
-                        body_mask=body_mask)
+                    writer_function(data1_warp, env_mask=env_mask, body_mask=body_mask)
                     property_data = getattr(articulation.data, property_name)
                     assert wp.to_torch(property_data).allclose(data_ref, atol=1e-6, rtol=1e-6)
 
@@ -2259,7 +2544,9 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_masses_to_sim_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_torch(device, env_ids, body_ids, num_instances, num_bodies, "set_masses", "body_mass", dtype=wp.float32)
+        self.generic_test_property_writer_torch(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_masses", "body_mass", dtype=wp.float32
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -2267,7 +2554,9 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_masses_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_warp(device, env_ids, body_ids, num_instances, num_bodies, "set_masses", "body_mass", dtype=wp.float32)
+        self.generic_test_property_writer_warp(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_masses", "body_mass", dtype=wp.float32
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -2275,7 +2564,9 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_coms_to_sim_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_torch(device, env_ids, body_ids, num_instances, num_bodies, "set_coms", "body_com_pos_b", dtype=wp.vec3f)
+        self.generic_test_property_writer_torch(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_coms", "body_com_pos_b", dtype=wp.vec3f
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -2283,7 +2574,9 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_coms_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_warp(device, env_ids, body_ids, num_instances, num_bodies, "set_coms", "body_com_pos_b", dtype=wp.vec3f)
+        self.generic_test_property_writer_warp(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_coms", "body_com_pos_b", dtype=wp.vec3f
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -2291,7 +2584,9 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_inertias_to_sim_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_torch(device, env_ids, body_ids, num_instances, num_bodies, "set_inertias", "body_inertia", dtype=wp.mat33f)
+        self.generic_test_property_writer_torch(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_inertias", "body_inertia", dtype=wp.mat33f
+        )
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], [0]])
@@ -2299,7 +2594,10 @@ class TestSettersBodiesMassCoMInertia:
     @pytest.mark.parametrize("num_bodies", [1, 6])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_set_inertias_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
-        self.generic_test_property_writer_warp(device, env_ids, body_ids, num_instances, num_bodies, "set_inertias", "body_inertia", dtype=wp.mat33f)
+        self.generic_test_property_writer_warp(
+            device, env_ids, body_ids, num_instances, num_bodies, "set_inertias", "body_inertia", dtype=wp.mat33f
+        )
+
 
 # TODO: Implement these tests once the Wrench Composers made it to main IsaacLab.
 class TestSettersExternalWrench:
@@ -2310,11 +2608,15 @@ class TestSettersExternalWrench:
     """
 
     @pytest.mark.skip(reason="Not implemented")
-    def test_external_force_and_torque_to_sim_torch(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
+    def test_external_force_and_torque_to_sim_torch(
+        self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int
+    ):
         raise NotImplementedError()
 
     @pytest.mark.skip(reason="Not implemented")
-    def test_external_force_and_torque_to_sim_warp(self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int):
+    def test_external_force_and_torque_to_sim_warp(
+        self, device: str, env_ids, body_ids, num_instances: int, num_bodies: int
+    ):
         raise NotImplementedError()
 
 
@@ -2432,6 +2734,7 @@ class TestSpatialTendonsSetters:
         articulation, _, _ = create_test_articulation()
         with pytest.raises(NotImplementedError):
             articulation.write_spatial_tendon_properties_to_sim()
+
 
 class TestCreateBuffers:
     """Tests for _create_buffers method.
@@ -2988,11 +3291,14 @@ class TestProcessCfg:
         # Instance 0: (5.0, 6.0, 0.0)
         # Instance 1: (10.0, 20.0, 0.0)
         # Instance 2: (-3.0, -4.0, 0.0)
-        spawned_transforms = torch.tensor([
-            [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],    # pos (x,y,z), quat (x,y,z,w)
-            [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            [-3.0, -4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        ], device=device)
+        spawned_transforms = torch.tensor(
+            [
+                [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # pos (x,y,z), quat (x,y,z,w)
+                [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                [-3.0, -4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            device=device,
+        )
         mock_view.set_mock_data(
             root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
         )
@@ -3006,11 +3312,14 @@ class TestProcessCfg:
         # Instance 1: (10.0 + 1.0, 20.0 + 2.0, 3.0) = (11.0, 22.0, 3.0)
         # Instance 2: (-3.0 + 1.0, -4.0 + 2.0, 3.0) = (-2.0, -2.0, 3.0)
         result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor([
-            [6.0, 8.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-            [11.0, 22.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-            [-2.0, -2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-        ], device=device)
+        expected_transforms = torch.tensor(
+            [
+                [6.0, 8.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+                [11.0, 22.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+                [-2.0, -2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            device=device,
+        )
         torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -3029,10 +3338,13 @@ class TestProcessCfg:
         articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)
 
         # Set up initial spawned positions
-        spawned_transforms = torch.tensor([
-            [5.0, 6.0, 7.0, 0.0, 0.0, 0.0, 1.0],
-            [10.0, 20.0, 30.0, 0.0, 0.0, 0.0, 1.0],
-        ], device=device)
+        spawned_transforms = torch.tensor(
+            [
+                [5.0, 6.0, 7.0, 0.0, 0.0, 0.0, 1.0],
+                [10.0, 20.0, 30.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            device=device,
+        )
         mock_view.set_mock_data(
             root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
         )
@@ -3042,10 +3354,13 @@ class TestProcessCfg:
 
         # With zero default position, x,y should stay the same, z comes from default (0.0)
         result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor([
-            [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        ], device=device)
+        expected_transforms = torch.tensor(
+            [
+                [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            device=device,
+        )
         torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -3065,10 +3380,13 @@ class TestProcessCfg:
         articulation.cfg.init_state.rot = (0.707, 0.0, 0.0, 0.707)  # w, x, y, z
 
         # Set up initial spawned positions
-        spawned_transforms = torch.tensor([
-            [3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            [6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        ], device=device)
+        spawned_transforms = torch.tensor(
+            [
+                [3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+                [6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            ],
+            device=device,
+        )
         mock_view.set_mock_data(
             root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
         )
@@ -3080,10 +3398,13 @@ class TestProcessCfg:
         # Position: spawned[:2] + default[:2], z from default
         # Rotation: from default (converted to x,y,z,w format)
         result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor([
-            [4.0, 6.0, 5.0, 0.0, 0.0, 0.707, 0.707],  # x,y,z, qx,qy,qz,qw
-            [7.0, 10.0, 5.0, 0.0, 0.0, 0.707, 0.707],
-        ], device=device)
+        expected_transforms = torch.tensor(
+            [
+                [4.0, 6.0, 5.0, 0.0, 0.0, 0.707, 0.707],  # x,y,z, qx,qy,qz,qw
+                [7.0, 10.0, 5.0, 0.0, 0.0, 0.707, 0.707],
+            ],
+            device=device,
+        )
         torch.testing.assert_close(result, expected_transforms, atol=1e-3, rtol=1e-3)
 
 
@@ -3203,7 +3524,7 @@ class TestValidateCfg:
         # Set multiple joints out of limits
         default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
         default_joint_pos[:, 0] = -2.0  # Below lower limit
-        default_joint_pos[:, 3] = 2.0   # Above upper limit
+        default_joint_pos[:, 3] = 2.0  # Above upper limit
         default_joint_pos[:, 5] = -1.5  # Below lower limit
         articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
 
@@ -3493,137 +3814,16 @@ class TestProcessActuatorsCfg:
 
         # Should not warn when there are no joints to actuate
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             # This should not raise a warning
             articulation._process_actuators_cfg()
 
 
-#
-#class TestSetters:
-#    """Tests for setter methods.
-#
-#    Tests methods like:
-#    - set_joint_position_target
-#    - set_joint_velocity_target
-#    - set_joint_effort_target
-#    """
-#
-#    def test_set_joint_position_target(self):
-#        """Test setting joint position targets."""
-#        num_instances = 4
-#        num_joints = 6
-#        device = "cuda:0"
-#        articulation, _, _ = create_test_articulation(
-#            num_instances=num_instances,
-#            num_joints=num_joints,
-#            device=device,
-#        )
-#
-#        # Create test targets
-#        targets = torch.rand(num_instances, num_joints, device=device)
-#
-#        # Set targets (accepts torch.Tensor despite type hint saying wp.array)
-#        articulation.set_joint_position_target(targets)  # type: ignore[arg-type]
-#
-#        # Verify
-#        result = wp.to_torch(articulation.data.actuator_position_target)
-#        torch.testing.assert_close(result, targets, atol=1e-5, rtol=1e-5)
-#
-#    def test_set_joint_velocity_target(self):
-#        """Test setting joint velocity targets."""
-#        num_instances = 4
-#        num_joints = 6
-#        device = "cuda:0"
-#        articulation, _, _ = create_test_articulation(
-#            num_instances=num_instances,
-#            num_joints=num_joints,
-#            device=device,
-#        )
-#
-#        # Create test targets
-#        targets = torch.rand(num_instances, num_joints, device=device)
-#
-#        # Set targets (accepts torch.Tensor despite type hint saying wp.array)
-#        articulation.set_joint_velocity_target(targets)  # type: ignore[arg-type]
-#
-#        # Verify
-#        result = wp.to_torch(articulation.data.actuator_velocity_target)
-#        torch.testing.assert_close(result, targets, atol=1e-5, rtol=1e-5)
-#
-#    def test_set_joint_effort_target(self):
-#        """Test setting joint effort targets."""
-#        num_instances = 4
-#        num_joints = 6
-#        device = "cuda:0"
-#        articulation, _, _ = create_test_articulation(
-#            num_instances=num_instances,
-#            num_joints=num_joints,
-#            device=device,
-#        )
-#
-#        # Create test targets
-#        targets = torch.rand(num_instances, num_joints, device=device)
-#
-#        # Set targets (accepts torch.Tensor despite type hint saying wp.array)
-#        articulation.set_joint_effort_target(targets)  # type: ignore[arg-type]
-#
-#        # Verify
-#        result = wp.to_torch(articulation.data.actuator_effort_target)
-#        torch.testing.assert_close(result, targets, atol=1e-5, rtol=1e-5)
-#
-#
-###
-## Test Cases -- Finders
-###
-#
-#
-#class TestFinders:
-#    """Tests for finder methods.
-#
-#    Tests methods like:
-#    - find_joints
-#    - find_bodies
-#    """
-#
-#    def test_find_joints_by_regex(self):
-#        """Test finding joints using regex patterns."""
-#        joint_names = ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"]
-#        articulation, _, _ = create_test_articulation(
-#            num_joints=6,
-#            joint_names=joint_names,
-#        )
-#
-#        # Find all wrist joints
-#        mask, names, indices = articulation.find_joints("wrist_.*")
-#
-#        assert names == ["wrist_1", "wrist_2", "wrist_3"]
-#        assert indices == [3, 4, 5]
-#
-#    def test_find_joints_by_list(self):
-#        """Test finding specific joints by name list."""
-#        joint_names = ["joint_a", "joint_b", "joint_c", "joint_d"]
-#        articulation, _, _ = create_test_articulation(
-#            num_joints=4,
-#            joint_names=joint_names,
-#        )
-#
-#        # Find specific joints
-#        mask, names, indices = articulation.find_joints(["joint_b", "joint_d"])
-#
-#        assert set(names) == {"joint_b", "joint_d"}
-#        assert set(indices) == {1, 3}
-#
-#    def test_find_bodies_by_regex(self):
-#        """Test finding bodies using regex patterns."""
-#        body_names = ["base_link", "link_1", "link_2", "gripper_base", "gripper_finger"]
-#        articulation, _, _ = create_test_articulation(
-#            num_bodies=5,
-#            body_names=body_names,
-#        )
-#
-#        # Find all gripper bodies
-#        mask, names, indices = articulation.find_bodies("gripper_.*")
-#
-#        assert names == ["gripper_base", "gripper_finger"]
-#        assert indices == [3, 4]
+##
+# Main
+##
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
