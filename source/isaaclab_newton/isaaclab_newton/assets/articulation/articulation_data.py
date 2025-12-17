@@ -609,7 +609,6 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_state_w is None:
             self._root_state_w = wp.zeros((self._root_view.count), dtype=vec13f, device=self.device)
-
         wp.launch(
             combine_pose_and_velocity_to_state,
             dim=(self._root_view.count,),

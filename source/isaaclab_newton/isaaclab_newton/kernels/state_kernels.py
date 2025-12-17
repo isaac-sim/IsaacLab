@@ -135,6 +135,20 @@ def split_state_to_velocity(
     return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
 
 
+@wp.kernel
+def split_state_to_pose_and_velocity(
+    state: wp.array(dtype=vec13f),
+    pose: wp.array(dtype=wp.transformf),
+    velocity: wp.array(dtype=wp.spatial_vectorf),
+):
+    """
+    Split a state into a pose and a velocity.
+    """
+    index = wp.tid()
+    pose[index] = split_state_to_pose(state[index])
+    velocity[index] = split_state_to_velocity(state[index])
+
+
 @wp.func
 def combine_state(
     pose: wp.transformf,
@@ -568,34 +582,6 @@ Transform kernels
 
 
 @wp.kernel
-def transform_CoM_pose_to_link_frame_masked(
-    com_pose_w: wp.array(dtype=wp.transformf),
-    com_pose_link_frame: wp.array(dtype=wp.transformf),
-    link_pose_w: wp.array(dtype=wp.transformf),
-    env_mask: wp.array(dtype=wp.bool),
-):
-    """
-    Transform a CoM pose to a link frame.
-
-
-
-    Args:
-        com_pose_w: The CoM pose in the world frame. Shape is (num_instances, 7).
-        com_pose_link_frame: The CoM pose in the link frame. Shape is (num_instances, 7).
-        link_pose_w: The link pose in the world frame. Shape is (num_instances, 7). (modified)
-        env_mask: The mask of the environments to transform the CoM pose to the link frame for. Shape is (num_instances,).
-    """
-    index = wp.tid()
-    if env_mask[index]:
-        link_pose_w[index] = combine_transforms(
-            wp.transform_get_translation(com_pose_w[index]),
-            wp.transform_get_rotation(com_pose_w[index]),
-            wp.transform_get_translation(com_pose_link_frame[index]),
-            wp.quatf(0.0, 0.0, 0.0, 1.0),
-        )
-
-
-@wp.kernel
 def transform_CoM_pose_to_link_frame_masked_root(
     com_pose_w: wp.array(dtype=wp.transformf),
     com_pos_link_frame: wp.array2d(dtype=wp.vec3f),
@@ -618,6 +604,6 @@ def transform_CoM_pose_to_link_frame_masked_root(
         link_pose_w[index] = combine_transforms(
             wp.transform_get_translation(com_pose_w[index]),
             wp.transform_get_rotation(com_pose_w[index]),
-            com_pos_link_frame[index][0],
+            -com_pos_link_frame[index][0],
             wp.quatf(0.0, 0.0, 0.0, 1.0),
         )
