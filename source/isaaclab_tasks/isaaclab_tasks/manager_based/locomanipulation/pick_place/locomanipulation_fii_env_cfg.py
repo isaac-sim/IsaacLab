@@ -30,12 +30,14 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+# Import Fiibot robot configuration from assets
+from isaaclab_assets.robots.fiibot import FIIBOT_CFG, FIIBOT_USD_PATH
+
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 
 from .swerve_ik import swerve_isosceles_ik
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-FII_USD_PATH = os.path.join(CURRENT_DIR, "Fiibot_W_1_V2_251016_Modified.usd")
 FII_URDF_PATH = os.path.join(CURRENT_DIR, "Fiibot_W_1_V2_251016_Modified_urdf")  # will be created if it doesn't exit
 OBJECT_USD_PATH = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd"
 FORCE_URDF_BUILD = True
@@ -68,45 +70,9 @@ class FiibotSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    robot = ArticulationCfg(
+    # Placeholder - will be replaced in __post_init__ with Fiibot config from isaaclab_assets
+    robot: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-            rot=(0.7071068, 0.0, 0.0, 0.7071068),
-            joint_pos={
-                "jack_joint": 0.7,
-                "left_1_joint": 0.0,
-                "left_2_joint": 0.785398,
-                "left_3_joint": 0.0,
-                "left_4_joint": 1.570796,
-                "left_5_joint": 0.0,
-                "left_6_joint": -0.785398,
-                "left_7_joint": 0.0,
-                "right_1_joint": 0.0,
-                "right_2_joint": 0.785398,
-                "right_3_joint": 0.0,
-                "right_4_joint": 1.570796,
-                "right_5_joint": 0.0,
-                "right_6_joint": -0.785398,
-                "right_7_joint": 0.0,
-            },
-        ),
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=FII_USD_PATH,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                retain_accelerations=False,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1.0,
-            ),
-        ),
-        actuators={
-            "actuators": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=None, stiffness=None),
-            "jack_joint": ImplicitActuatorCfg(joint_names_expr=["jack_joint"], damping=5000.0, stiffness=500000.0),
-        },
     )
 
 
@@ -349,12 +315,15 @@ class FiibotEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120  # 200Hz
         self.sim.render_interval = 4
 
+        # Use the Fiibot robot configuration from isaaclab_assets
+        self.scene.robot = FIIBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")  # type: ignore[attr-defined]
+
         urdf_path = FII_URDF_PATH
 
         # Get the USD path from the robot spawn configuration
         robot_spawn = self.scene.robot.spawn
         # Type checker doesn't recognize UsdFileCfg.usd_path, but it exists
-        usd_file_path = getattr(robot_spawn, "usd_path", FII_USD_PATH)
+        usd_file_path = getattr(robot_spawn, "usd_path", FIIBOT_USD_PATH)
 
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
             usd_file_path, urdf_path, force_conversion=FORCE_URDF_BUILD
