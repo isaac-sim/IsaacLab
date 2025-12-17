@@ -22,7 +22,7 @@ import torch
 import types
 import warnings
 
-import isaacsim.core.utils.prims as prim_utils
+import isaaclab.sim.utils.prims as prim_utils
 import pytest
 
 import isaaclab.sim as sim_utils
