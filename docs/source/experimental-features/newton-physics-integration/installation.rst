@@ -14,7 +14,7 @@ you can proceed further.
 
 Next, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.
 
-Make sure you are on the ``feature/newton`` branch by running the following command:
+Make sure we are on the ``feature/newton`` branch by running the following command:
 
 .. code-block:: bash
 
