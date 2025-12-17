@@ -112,6 +112,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
+   source/features/visualization
    source/features/hydra
    source/features/multi_gpu
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
