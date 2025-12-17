@@ -3,13 +3,9 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab provides several visualizers for monitoring simulations. Unlike renderers (which
-handle sensor data), visualizers are designed for lightweight real-time monitoring and debugging workflows.
+Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
 
-.. note::
-
-    Visualizers are separate from rendering backends. You can use any visualizer regardless of your chosen
-    physics engine or rendering backend.
+Visualizers are separate from rendering backends. You can use any visualizer regardless of your chosen physics engine or rendering backend.
 
 
 Overview
@@ -24,19 +20,15 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
    * - Visualizer
      - Best For
      - Key Features
-     - Dependencies
    * - **Omniverse**
      - High-fidelity, Isaac Sim tools
-     - USD integration, markers, live plots
-     - ``Isaac Sim``
-   * - **Newton OpenGL**
+     - USD integration, visual markers, live plots
+   * - **Newton**
      - Lightweight, fast iteration
-     - Real-time controls, low overhead
-     - ``pyglet``, ``imgui_bundle``
+     - Low overhead, visual markers
    * - **Rerun**
      - Remote viewing, recording, analysis
      - Webviewer interface, time scrubbing, recording export
-     - ``rerun-sdk``
 
 
 .. list-table::
@@ -60,7 +52,7 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
 Quick Start
 -----------
 
-Launch visualizers from the command line with ``--visualizer``.
+Launch visualizers from the command line with ``--visualizer``:
 
 .. code-block:: bash
 
@@ -71,7 +63,7 @@ Launch visualizers from the command line with ``--visualizer``.
     python source/scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
 
 
-Note, if ``--headless`` is given, no visualizers will be launched.
+If ``--headless`` is given, no visualizers will be launched.
 
 .. note::
 
@@ -82,15 +74,15 @@ Note, if ``--headless`` is given, no visualizers will be launched.
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Default visualizer configuration can be edited by changing values in the visualizer configuration classes which can be found in ``source/isaaclab/isaaclab/visualizers``.
+Launching visualizers with the command line will use default visualizer configurations. Default configs can be found in ``source/isaaclab/isaaclab/visualizers``.
 
-You can also add and edit custom visualizers in the code by adding new ``VisualizerCfg`` classes to the ``SimulationCfg``:
+You can also add and edit custom visualizers in the code, by adding new ``VisualizerCfg`` classes to the ``SimulationCfg``:
 
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
     from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
-    
+
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
             OVVisualizerCfg(
@@ -122,14 +114,14 @@ Visualizer Backends
 Omniverse Visualizer
 ~~~~~~~~~~~~~~~~~~~~
 
-**Key Features:**
+**Features:**
 
 - Native USD stage integration
 - Visualization markers for debugging (arrows, frames, points, etc.)
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 
-**Configuration:**
+**Core Configuration:**
 
 .. code-block:: python
 
@@ -142,11 +134,11 @@ Omniverse Visualizer
         dock_position="SAME",                     # Docking: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'
         window_width=1280,                        # Viewport width in pixels
         window_height=720,                        # Viewport height in pixels
-        
+
         # Camera settings
         camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
         camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
-        
+
         # Feature toggles
         enable_markers=True,                      # Enable visualization markers
         enable_live_plots=True,                   # Enable live plots (auto-expands frames)
@@ -156,7 +148,7 @@ Omniverse Visualizer
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key Features:**
+**Features:**
 
 - Lightweight OpenGL rendering with low overhead
 - Physics debug visualization (joints, contacts, springs, COM)
@@ -174,9 +166,9 @@ Newton Visualizer
    * - Key/Input
      - Action
    * - **W, A, S, D** or **Arrow Keys**
-     - Move camera (with mouse drag for look)
+     - Forward / Left / Back / Right
    * - **Q, E**
-     - Move camera down/up
+     - Down / Up
    * - **Left Click + Drag**
      - Look around
    * - **Mouse Scroll**
@@ -188,7 +180,7 @@ Newton Visualizer
    * - **ESC**
      - Exit viewer
 
-**Configuration:**
+**Core Configuration:**
 
 .. code-block:: python
 
@@ -198,25 +190,25 @@ Newton Visualizer
         # Window settings
         window_width=1920,                        # Window width in pixels
         window_height=1080,                       # Window height in pixels
-        
+
         # Camera settings
         camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
         camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
-        
+
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
-        
+
         # Physics debug visualization
         show_joints=False,                        # Show joint visualizations
         show_contacts=False,                      # Show contact points and normals
         show_springs=False,                       # Show spring constraints
         show_com=False,                           # Show center of mass markers
-        
+
         # Rendering options
         enable_shadows=True,                      # Enable shadow rendering
         enable_sky=True,                          # Enable sky rendering
         enable_wireframe=False,                   # Enable wireframe mode
-        
+
         # Color customization
         background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
         ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
@@ -227,14 +219,14 @@ Newton Visualizer
 Rerun Visualizer
 ~~~~~~~~~~~~~~~~
 
-**Key Features:**
+**Main Features:**
 
 - Web-based interface accessible from local or remote browser
 - Metadata logging and filtering
 - Recording to .rrd files for offline replay
 - Timeline scrubbing and playback controls of recordings
 
-**Configuration:**
+**Core Configuration:**
 
 .. code-block:: python
 
@@ -244,15 +236,15 @@ Rerun Visualizer
         # Server settings
         app_id="isaaclab-simulation",             # Application identifier for viewer
         web_port=9090,                            # Port for local web viewer (launched in browser)
-        
+
         # Camera settings
         camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
         camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
-        
+
         # History settings
         keep_historical_data=False,               # Keep transforms for time scrubbing
         keep_scalar_history=False,                # Keep scalar/plot history
-        
+
         # Recording
         record_to_rrd="recording.rrd",            # Path to save .rrd file (None = no recording)
     )
@@ -266,8 +258,7 @@ To reduce overhead when visualizing large-scale environments, consider:
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
 - Higher update frequencies
-- Pausing visualizers when not being used
-- Disabling visualizers when monitoring is not needed
+- Pausing visualizers while they are not being used
 
 
 Limitations
@@ -275,9 +266,9 @@ Limitations
 
 **Rerun Web Viewer Performance**
 
-The Rerun web-based visualizer may experience performance issues or crashes when visualizing large-scale 
-environments. For large-scale simulations, the Newton visualizer is recommended. Alternative, to reduce the complex of environments,
-the num of environments can be overwritten using ``--num_envs``:
+The Rerun web-based visualizer may experience performance issues or crashes when visualizing large-scale
+environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
+the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
@@ -288,4 +279,3 @@ the num of environments can be overwritten using ``--num_envs``:
 
     A future feature will support visualizing only a subset of environments, which will improve visualization performance
     and reduce resource usage while maintaining full-scale training in the background.
-
