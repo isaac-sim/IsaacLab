@@ -18,7 +18,7 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=50,
                 nconmax=15,
-                ls_iterations=15,
+                ls_iterations=40,
                 cone="elliptic",
                 impratio=100,
                 ls_parallel=True,

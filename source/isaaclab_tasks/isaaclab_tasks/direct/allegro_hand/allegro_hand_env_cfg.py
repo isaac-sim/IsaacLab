@@ -39,7 +39,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         cone="elliptic",
         update_data_interval=2,
         iterations=100,
-        ls_iterations=15,
+        ls_iterations=25,
         ls_parallel=True,
         # save_to_mjcf="AllegroHand.xml",
     )

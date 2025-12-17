@@ -6,14 +6,6 @@
 """Launch Isaac Sim Simulator first."""
 
 import sys
-
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
 """Rest everything follows."""
 
 import functools
