@@ -37,24 +37,3 @@ class ArticulationActions:
     If the joint indices are a slice, this indicates that the indices are continuous and correspond
     to all the joints of the articulation. We use a slice to make the indexing more efficient.
     """
-
-
-@dataclass
-class ArticulationThrustActions:
-    """Data container to store articulation's thruster actions.
-
-    This class is used to store the actions of the thrusters of an articulation.
-    It is used to store the thrust values and indices.
-
-    If the actions are not provided, the values are set to None.
-    """
-
-    thrusts: torch.Tensor | None = None
-    """The thrusts of the articulation. Defaults to None."""
-
-    thruster_indices: torch.Tensor | Sequence[int] | slice | None = None
-    """The thruster indices of the articulation. Defaults to None.
-
-    If the thruster indices are a slice, this indicates that the indices are continuous and correspond
-    to all the thrusters of the articulation. We use a slice to make the indexing more efficient.
-    """
