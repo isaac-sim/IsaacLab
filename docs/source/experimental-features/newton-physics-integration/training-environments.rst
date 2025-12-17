@@ -6,8 +6,8 @@ To run training, we follow the standard Isaac Lab workflow. If you are new to Is
 The currently supported tasks are as follows:
 
 * Isaac-Cartpole-Direct-v0
-* Isaac-Cartpole-RGB-Camera-Direct-v0 (requires ``--enable_cameras``)
-* Isaac-Cartpole-Depth-Camera-Direct-v0 (requires ``--enable_cameras``)
+* Isaac-Cartpole-RGB-Camera-Direct-v0
+* Isaac-Cartpole-Depth-Camera-Direct-v0
 * Isaac-Cartpole-v0
 * Isaac-Ant-Direct-v0
 * Isaac-Ant-v0
