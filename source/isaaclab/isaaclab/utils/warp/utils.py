@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 # Frontend conversions - Torch to Warp.
 ##
 
+# TODO: Perf is atrocious. Need to improve.
+# Option 1: Pre-allocate the complete data buffer and fill it with the value.
+# Option 2: Create a torch pointer to the warp array and by pass these methods using torch indexing to update
+# the warp array. This would save the memory allocation and the generation of the masks.
 def make_complete_data_from_torch_single_index(
     value: torch.Tensor,
     N: int,

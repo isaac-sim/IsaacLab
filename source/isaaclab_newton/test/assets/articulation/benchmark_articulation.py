@@ -1321,7 +1321,7 @@ def main():
     parser.add_argument(
         "--num_iterations",
         type=int,
-        default=1000,
+        default=10000,
         help="Number of iterations to run each method.",
     )
     parser.add_argument(
@@ -1333,7 +1333,7 @@ def main():
     parser.add_argument(
         "--num_instances",
         type=int,
-        default=4096,
+        default=16384,
         help="Number of articulation instances.",
     )
     parser.add_argument(

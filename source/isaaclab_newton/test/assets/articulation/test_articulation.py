@@ -120,6 +120,9 @@ def create_test_articulation(
     # Create ArticulationData with the mock view
     with patch("isaaclab_newton.assets.articulation.articulation_data.NewtonManager", mock_newton_manager):
         data = ArticulationData(mock_view, device)
+        # Set the names on the data object (normally done by Articulation._initialize_impl)
+        data.joint_names = joint_names
+        data.body_names = body_names
         object.__setattr__(articulation, "_data", data)
 
     return articulation, mock_view, mock_newton_manager
@@ -2429,6 +2432,952 @@ class TestSpatialTendonsSetters:
         articulation, _, _ = create_test_articulation()
         with pytest.raises(NotImplementedError):
             articulation.write_spatial_tendon_properties_to_sim()
+
+class TestCreateBuffers:
+    """Tests for _create_buffers method.
+
+    Tests that the buffers are created correctly:
+    - _ALL_INDICES tensor contains correct indices for varying number of environments
+    - soft_joint_pos_limits are correctly computed based on soft_joint_pos_limit_factor
+    """
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    @pytest.mark.parametrize("num_instances", [1, 2, 4, 10, 100])
+    def test_create_buffers_all_indices(self, device: str, num_instances: int):
+        """Test that _ALL_INDICES contains correct indices for varying number of environments."""
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up joint limits (required for _create_buffers)
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Verify _ALL_INDICES
+        expected_indices = torch.arange(num_instances, dtype=torch.long, device=device)
+        assert articulation._ALL_INDICES.shape == (num_instances,)
+        assert articulation._ALL_INDICES.dtype == torch.long
+        assert articulation._ALL_INDICES.device.type == device.split(":")[0]
+        torch.testing.assert_close(articulation._ALL_INDICES, expected_indices)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_soft_joint_limits_factor_1(self, device: str):
+        """Test soft_joint_pos_limits with factor=1.0 (limits unchanged)."""
+        num_instances = 2
+        num_joints = 4
+        soft_joint_pos_limit_factor = 1.0
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            soft_joint_pos_limit_factor=soft_joint_pos_limit_factor,
+            device=device,
+        )
+
+        # Set up joint limits: [-2.0, 2.0] for all joints
+        joint_limit_lower = torch.full((num_instances, num_joints), -2.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 2.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # With factor=1.0, soft limits should equal hard limits
+        # soft_joint_pos_limits is wp.vec2f (lower, upper)
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        # Shape is (num_instances, num_joints, 2) after conversion
+        expected_lower = torch.full((num_instances, num_joints), -2.0, device=device)
+        expected_upper = torch.full((num_instances, num_joints), 2.0, device=device)
+        torch.testing.assert_close(soft_limits[:, :, 0], expected_lower, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(soft_limits[:, :, 1], expected_upper, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_soft_joint_limits_factor_half(self, device: str):
+        """Test soft_joint_pos_limits with factor=0.5 (limits halved around mean)."""
+        num_instances = 2
+        num_joints = 4
+        soft_joint_pos_limit_factor = 0.5
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            soft_joint_pos_limit_factor=soft_joint_pos_limit_factor,
+            device=device,
+        )
+
+        # Set up joint limits: [-2.0, 2.0] for all joints
+        # mean = 0.0, range = 4.0
+        # soft_lower = 0.0 - 0.5 * 4.0 * 0.5 = -1.0
+        # soft_upper = 0.0 + 0.5 * 4.0 * 0.5 = 1.0
+        joint_limit_lower = torch.full((num_instances, num_joints), -2.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 2.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Verify soft limits are halved
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        expected_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        expected_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        torch.testing.assert_close(soft_limits[:, :, 0], expected_lower, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(soft_limits[:, :, 1], expected_upper, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_soft_joint_limits_asymmetric(self, device: str):
+        """Test soft_joint_pos_limits with asymmetric joint limits."""
+        num_instances = 2
+        num_joints = 3
+        soft_joint_pos_limit_factor = 0.8
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            soft_joint_pos_limit_factor=soft_joint_pos_limit_factor,
+            device=device,
+        )
+
+        # Set up asymmetric joint limits
+        # Joint 0: [-3.14, 3.14] -> mean=0, range=6.28 -> soft: [-2.512, 2.512]
+        # Joint 1: [-1.0, 2.0]   -> mean=0.5, range=3.0 -> soft: [0.5-1.2, 0.5+1.2] = [-0.7, 1.7]
+        # Joint 2: [0.0, 1.0]    -> mean=0.5, range=1.0 -> soft: [0.5-0.4, 0.5+0.4] = [0.1, 0.9]
+        joint_limit_lower = torch.tensor([[-3.14, -1.0, 0.0]] * num_instances, device=device)
+        joint_limit_upper = torch.tensor([[3.14, 2.0, 1.0]] * num_instances, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Calculate expected soft limits
+        # soft_lower = mean - 0.5 * range * factor
+        # soft_upper = mean + 0.5 * range * factor
+        expected_lower = torch.tensor([[-2.512, -0.7, 0.1]] * num_instances, device=device)
+        expected_upper = torch.tensor([[2.512, 1.7, 0.9]] * num_instances, device=device)
+
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        torch.testing.assert_close(soft_limits[:, :, 0], expected_lower, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(soft_limits[:, :, 1], expected_upper, atol=1e-3, rtol=1e-3)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_soft_joint_limits_factor_zero(self, device: str):
+        """Test soft_joint_pos_limits with factor=0.0 (limits collapse to mean)."""
+        num_instances = 2
+        num_joints = 4
+        soft_joint_pos_limit_factor = 0.0
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            soft_joint_pos_limit_factor=soft_joint_pos_limit_factor,
+            device=device,
+        )
+
+        # Set up joint limits: [-2.0, 2.0]
+        # mean = 0.0, with factor=0.0, soft limits collapse to [0, 0]
+        joint_limit_lower = torch.full((num_instances, num_joints), -2.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 2.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # With factor=0.0, soft limits should collapse to the mean
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        expected_lower = torch.full((num_instances, num_joints), 0.0, device=device)
+        expected_upper = torch.full((num_instances, num_joints), 0.0, device=device)
+        torch.testing.assert_close(soft_limits[:, :, 0], expected_lower, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(soft_limits[:, :, 1], expected_upper, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_soft_joint_limits_per_joint_different(self, device: str):
+        """Test soft_joint_pos_limits with different limits per joint."""
+        num_instances = 3
+        num_joints = 4
+        soft_joint_pos_limit_factor = 0.9
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            soft_joint_pos_limit_factor=soft_joint_pos_limit_factor,
+            device=device,
+        )
+
+        # Each joint has different limits
+        joint_limit_lower = torch.tensor([[-1.0, -2.0, -0.5, -3.0]] * num_instances, device=device)
+        joint_limit_upper = torch.tensor([[1.0, 2.0, 0.5, 3.0]] * num_instances, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Calculate expected: soft_lower/upper = mean ± 0.5 * range * factor
+        # Joint 0: mean=0, range=2 -> [0 - 0.9, 0 + 0.9] = [-0.9, 0.9]
+        # Joint 1: mean=0, range=4 -> [0 - 1.8, 0 + 1.8] = [-1.8, 1.8]
+        # Joint 2: mean=0, range=1 -> [0 - 0.45, 0 + 0.45] = [-0.45, 0.45]
+        # Joint 3: mean=0, range=6 -> [0 - 2.7, 0 + 2.7] = [-2.7, 2.7]
+        expected_lower = torch.tensor([[-0.9, -1.8, -0.45, -2.7]] * num_instances, device=device)
+        expected_upper = torch.tensor([[0.9, 1.8, 0.45, 2.7]] * num_instances, device=device)
+
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        torch.testing.assert_close(soft_limits[:, :, 0], expected_lower, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(soft_limits[:, :, 1], expected_upper, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_single_environment(self, device: str):
+        """Test _create_buffers with a single environment."""
+        num_instances = 1
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Verify _ALL_INDICES has single element
+        assert articulation._ALL_INDICES.shape == (1,)
+        assert articulation._ALL_INDICES[0].item() == 0
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_create_buffers_large_number_of_environments(self, device: str):
+        """Test _create_buffers with a large number of environments."""
+        num_instances = 1024
+        num_joints = 12
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Call _create_buffers
+        articulation._create_buffers()
+
+        # Verify _ALL_INDICES
+        expected_indices = torch.arange(num_instances, dtype=torch.long, device=device)
+        assert articulation._ALL_INDICES.shape == (num_instances,)
+        torch.testing.assert_close(articulation._ALL_INDICES, expected_indices)
+
+        # Verify soft limits shape
+        soft_limits = wp.to_torch(articulation.data.soft_joint_pos_limits)
+        assert soft_limits.shape == (num_instances, num_joints, 2)
+
+
+class TestProcessCfg:
+    """Tests for _process_cfg method.
+
+    Tests that the configuration processing correctly:
+    - Converts quaternion from (w, x, y, z) to (x, y, z, w) format for default root pose
+    - Sets default root velocity from lin_vel and ang_vel
+    - Sets default joint positions from joint_pos dict with pattern matching
+    - Sets default joint velocities from joint_vel dict with pattern matching
+    """
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_root_pose(self, device: str):
+        """Test that _process_cfg correctly converts quaternion format for root pose."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up init_state with specific position and rotation
+        # Rotation is in (w, x, y, z) format in the config
+        articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
+        articulation.cfg.init_state.rot = (0.707, 0.0, 0.707, 0.0)  # w, x, y, z
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default root pose
+        # Expected: position (1, 2, 3) + quaternion converted to (x, y, z, w) = (0, 0.707, 0, 0.707)
+        expected_pose = torch.tensor(
+            [[1.0, 2.0, 3.0, 0.0, 0.707, 0.0, 0.707]] * num_instances,
+            device=device,
+        )
+        result = wp.to_torch(articulation.data.default_root_pose)
+        assert result.allclose(expected_pose, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_root_velocity(self, device: str):
+        """Test that _process_cfg correctly sets default root velocity."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up init_state with specific velocities
+        articulation.cfg.init_state.lin_vel = (1.0, 2.0, 3.0)
+        articulation.cfg.init_state.ang_vel = (0.1, 0.2, 0.3)
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default root velocity
+        # Expected: lin_vel + ang_vel = (1, 2, 3, 0.1, 0.2, 0.3)
+        expected_vel = torch.tensor(
+            [[1.0, 2.0, 3.0, 0.1, 0.2, 0.3]] * num_instances,
+            device=device,
+        )
+        result = wp.to_torch(articulation.data.default_root_vel)
+        assert result.allclose(expected_vel, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_joint_positions_all_joints(self, device: str):
+        """Test that _process_cfg correctly sets default joint positions for all joints."""
+        num_instances = 2
+        num_joints = 4
+        joint_names = ["joint_0", "joint_1", "joint_2", "joint_3"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set up init_state with joint positions using wildcard pattern
+        articulation.cfg.init_state.joint_pos = {".*": 0.5}
+        articulation.cfg.init_state.joint_vel = {".*": 0.0}
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default joint positions
+        expected_pos = torch.full((num_instances, num_joints), 0.5, device=device)
+        result = wp.to_torch(articulation.data.default_joint_pos)
+        assert result.allclose(expected_pos, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_joint_positions_specific_joints(self, device: str):
+        """Test that _process_cfg correctly sets default joint positions for specific joints."""
+        num_instances = 2
+        num_joints = 4
+        joint_names = ["shoulder", "elbow", "wrist", "gripper"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set up init_state with specific joint positions
+        articulation.cfg.init_state.joint_pos = {
+            "shoulder": 1.0,
+            "elbow": 2.0,
+            "wrist": 3.0,
+            "gripper": 4.0,
+        }
+        articulation.cfg.init_state.joint_vel = {".*": 0.0}
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default joint positions
+        expected_pos = torch.tensor([[1.0, 2.0, 3.0, 4.0]] * num_instances, device=device)
+        result = wp.to_torch(articulation.data.default_joint_pos)
+        assert result.allclose(expected_pos, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_joint_positions_regex_pattern(self, device: str):
+        """Test that _process_cfg correctly handles regex patterns for joint positions."""
+        num_instances = 2
+        num_joints = 6
+        joint_names = ["arm_joint_1", "arm_joint_2", "arm_joint_3", "hand_joint_1", "hand_joint_2", "hand_joint_3"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set up init_state with regex patterns
+        articulation.cfg.init_state.joint_pos = {
+            "arm_joint_.*": 1.5,
+            "hand_joint_.*": 0.5,
+        }
+        articulation.cfg.init_state.joint_vel = {".*": 0.0}
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default joint positions
+        # arm joints (indices 0-2) should be 1.5, hand joints (indices 3-5) should be 0.5
+        expected_pos = torch.tensor([[1.5, 1.5, 1.5, 0.5, 0.5, 0.5]] * num_instances, device=device)
+        result = wp.to_torch(articulation.data.default_joint_pos)
+        assert result.allclose(expected_pos, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_default_joint_velocities(self, device: str):
+        """Test that _process_cfg correctly sets default joint velocities."""
+        num_instances = 2
+        num_joints = 4
+        joint_names = ["joint_0", "joint_1", "joint_2", "joint_3"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set up init_state with joint velocities
+        articulation.cfg.init_state.joint_pos = {".*": 0.0}
+        articulation.cfg.init_state.joint_vel = {
+            "joint_0": 0.1,
+            "joint_1": 0.2,
+            "joint_2": 0.3,
+            "joint_3": 0.4,
+        }
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default joint velocities
+        expected_vel = torch.tensor([[0.1, 0.2, 0.3, 0.4]] * num_instances, device=device)
+        result = wp.to_torch(articulation.data.default_joint_vel)
+        assert result.allclose(expected_vel, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_identity_quaternion(self, device: str):
+        """Test that _process_cfg correctly handles identity quaternion."""
+        num_instances = 2
+        num_joints = 2
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up init_state with identity quaternion (w=1, x=0, y=0, z=0)
+        articulation.cfg.init_state.pos = (0.0, 0.0, 0.0)
+        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)  # Identity: w, x, y, z
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default root pose
+        # Expected: position (0, 0, 0) + quaternion converted to (x, y, z, w) = (0, 0, 0, 1)
+        expected_pose = torch.tensor(
+            [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * num_instances,
+            device=device,
+        )
+        result = wp.to_torch(articulation.data.default_root_pose)
+        assert result.allclose(expected_pose, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_zero_joints(self, device: str):
+        """Test that _process_cfg handles articulation with no joints."""
+        num_instances = 2
+        num_joints = 0
+        num_bodies = 1
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=num_bodies,
+            device=device,
+        )
+
+        # Set up init_state
+        articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
+        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)
+        articulation.cfg.init_state.lin_vel = (0.5, 0.5, 0.5)
+        articulation.cfg.init_state.ang_vel = (0.1, 0.1, 0.1)
+        articulation.cfg.init_state.joint_pos = {}
+        articulation.cfg.init_state.joint_vel = {}
+
+        # Call _process_cfg - should not raise any exception
+        articulation._process_cfg()
+
+        # Verify root pose and velocity are still set correctly
+        expected_pose = torch.tensor(
+            [[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]] * num_instances,
+            device=device,
+        )
+        expected_vel = torch.tensor(
+            [[0.5, 0.5, 0.5, 0.1, 0.1, 0.1]] * num_instances,
+            device=device,
+        )
+        assert wp.to_torch(articulation.data.default_root_pose).allclose(expected_pose, atol=1e-5, rtol=1e-5)
+        assert wp.to_torch(articulation.data.default_root_vel).allclose(expected_vel, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_mixed_joint_patterns(self, device: str):
+        """Test that _process_cfg handles mixed specific and pattern-based joint settings."""
+        num_instances = 2
+        num_joints = 5
+        joint_names = ["base_joint", "arm_1", "arm_2", "hand_1", "hand_2"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set up init_state with mixed patterns
+        articulation.cfg.init_state.joint_pos = {
+            "base_joint": 0.0,
+            "arm_.*": 1.0,
+            "hand_.*": 2.0,
+        }
+        articulation.cfg.init_state.joint_vel = {".*": 0.0}
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify the default joint positions
+        expected_pos = torch.tensor([[0.0, 1.0, 1.0, 2.0, 2.0]] * num_instances, device=device)
+        result = wp.to_torch(articulation.data.default_joint_pos)
+        assert result.allclose(expected_pos, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_offsets_spawned_pose(self, device: str):
+        """Test that _process_cfg offsets the spawned position by the default root pose."""
+        num_instances = 3
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up default root pose in config: position (1.0, 2.0, 3.0), identity quaternion
+        articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
+        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity)
+
+        # Set up initial spawned positions for each instance
+        # Instance 0: (5.0, 6.0, 0.0)
+        # Instance 1: (10.0, 20.0, 0.0)
+        # Instance 2: (-3.0, -4.0, 0.0)
+        spawned_transforms = torch.tensor([
+            [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],    # pos (x,y,z), quat (x,y,z,w)
+            [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [-3.0, -4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ], device=device)
+        mock_view.set_mock_data(
+            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
+        )
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify that the root transforms are offset by default pose's x,y
+        # Expected: spawned_pose[:, :2] + default_pose[:2]
+        # Instance 0: (5.0 + 1.0, 6.0 + 2.0, 3.0) = (6.0, 8.0, 3.0)
+        # Instance 1: (10.0 + 1.0, 20.0 + 2.0, 3.0) = (11.0, 22.0, 3.0)
+        # Instance 2: (-3.0 + 1.0, -4.0 + 2.0, 3.0) = (-2.0, -2.0, 3.0)
+        result = wp.to_torch(mock_view.get_root_transforms(None))
+        expected_transforms = torch.tensor([
+            [6.0, 8.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+            [11.0, 22.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+            [-2.0, -2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+        ], device=device)
+        torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_offsets_spawned_pose_zero_offset(self, device: str):
+        """Test that _process_cfg with zero default position keeps spawned position unchanged in x,y."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up default root pose with zero position
+        articulation.cfg.init_state.pos = (0.0, 0.0, 0.0)
+        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)
+
+        # Set up initial spawned positions
+        spawned_transforms = torch.tensor([
+            [5.0, 6.0, 7.0, 0.0, 0.0, 0.0, 1.0],
+            [10.0, 20.0, 30.0, 0.0, 0.0, 0.0, 1.0],
+        ], device=device)
+        mock_view.set_mock_data(
+            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
+        )
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # With zero default position, x,y should stay the same, z comes from default (0.0)
+        result = wp.to_torch(mock_view.get_root_transforms(None))
+        expected_transforms = torch.tensor([
+            [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ], device=device)
+        torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_cfg_offsets_spawned_pose_with_rotation(self, device: str):
+        """Test that _process_cfg correctly sets rotation while offsetting position."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set up default root pose with specific rotation (90 degrees around z-axis)
+        # Quaternion for 90 degrees around z: (w=0.707, x=0, y=0, z=0.707)
+        articulation.cfg.init_state.pos = (1.0, 2.0, 5.0)
+        articulation.cfg.init_state.rot = (0.707, 0.0, 0.0, 0.707)  # w, x, y, z
+
+        # Set up initial spawned positions
+        spawned_transforms = torch.tensor([
+            [3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ], device=device)
+        mock_view.set_mock_data(
+            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
+        )
+
+        # Call _process_cfg
+        articulation._process_cfg()
+
+        # Verify position offset and rotation is set correctly
+        # Position: spawned[:2] + default[:2], z from default
+        # Rotation: from default (converted to x,y,z,w format)
+        result = wp.to_torch(mock_view.get_root_transforms(None))
+        expected_transforms = torch.tensor([
+            [4.0, 6.0, 5.0, 0.0, 0.0, 0.707, 0.707],  # x,y,z, qx,qy,qz,qw
+            [7.0, 10.0, 5.0, 0.0, 0.0, 0.707, 0.707],
+        ], device=device)
+        torch.testing.assert_close(result, expected_transforms, atol=1e-3, rtol=1e-3)
+
+
+class TestValidateCfg:
+    """Tests for _validate_cfg method.
+
+    Tests that the configuration validation correctly catches:
+    - Default joint positions outside of joint limits (lower and upper bounds)
+    - Various edge cases with joint limits
+    """
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_positions_within_limits(self, device: str):
+        """Test that _validate_cfg passes when all default positions are within limits."""
+        num_instances = 2
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set joint limits: [-1.0, 1.0] for all joints
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set default joint positions within limits
+        default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should not raise any exception
+        articulation._validate_cfg()
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_position_below_lower_limit(self, device: str):
+        """Test that _validate_cfg raises ValueError when a position is below the lower limit."""
+        num_instances = 2
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set joint limits: [-1.0, 1.0] for all joints
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set default joint position for joint 2 below the lower limit
+        default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
+        default_joint_pos[:, 2] = -1.5  # Below -1.0 lower limit
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        assert "joint_2" in str(exc_info.value)
+        assert "-1.500" in str(exc_info.value)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_position_above_upper_limit(self, device: str):
+        """Test that _validate_cfg raises ValueError when a position is above the upper limit."""
+        num_instances = 2
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set joint limits: [-1.0, 1.0] for all joints
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set default joint position for joint 4 above the upper limit
+        default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
+        default_joint_pos[:, 4] = 1.5  # Above 1.0 upper limit
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        assert "joint_4" in str(exc_info.value)
+        assert "1.500" in str(exc_info.value)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_multiple_positions_out_of_limits(self, device: str):
+        """Test that _validate_cfg reports all joints with positions outside limits."""
+        num_instances = 2
+        num_joints = 6
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set joint limits: [-1.0, 1.0] for all joints
+        joint_limit_lower = torch.full((num_instances, num_joints), -1.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 1.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set multiple joints out of limits
+        default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
+        default_joint_pos[:, 0] = -2.0  # Below lower limit
+        default_joint_pos[:, 3] = 2.0   # Above upper limit
+        default_joint_pos[:, 5] = -1.5  # Below lower limit
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError mentioning all violated joints
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        error_msg = str(exc_info.value)
+        assert "joint_0" in error_msg
+        assert "joint_3" in error_msg
+        assert "joint_5" in error_msg
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_asymmetric_limits(self, device: str):
+        """Test that _validate_cfg works with asymmetric joint limits."""
+        num_instances = 2
+        num_joints = 4
+        joint_names = ["shoulder", "elbow", "wrist", "gripper"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set asymmetric joint limits for each joint
+        joint_limit_lower = torch.tensor([[-3.14, -2.0, -1.5, 0.0]] * num_instances, device=device)
+        joint_limit_upper = torch.tensor([[3.14, 0.5, 1.5, 0.1]] * num_instances, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set positions within asymmetric limits
+        default_joint_pos = torch.tensor([[0.0, -1.0, 0.0, 0.05]] * num_instances, device=device)
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should not raise any exception
+        articulation._validate_cfg()
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_asymmetric_limits_violated(self, device: str):
+        """Test that _validate_cfg catches violations with asymmetric limits."""
+        num_instances = 2
+        num_joints = 4
+        joint_names = ["shoulder", "elbow", "wrist", "gripper"]
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            joint_names=joint_names,
+            device=device,
+        )
+
+        # Set asymmetric joint limits: elbow has range [-2.0, 0.5]
+        joint_limit_lower = torch.tensor([[-3.14, -2.0, -1.5, 0.0]] * num_instances, device=device)
+        joint_limit_upper = torch.tensor([[3.14, 0.5, 1.5, 0.1]] * num_instances, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set elbow position above its upper limit (0.5)
+        default_joint_pos = torch.tensor([[0.0, 1.0, 0.0, 0.05]] * num_instances, device=device)
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError for elbow
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        assert "elbow" in str(exc_info.value)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_single_joint(self, device: str):
+        """Test _validate_cfg with a single joint articulation."""
+        num_instances = 2
+        num_joints = 1
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set joint limits
+        joint_limit_lower = torch.full((num_instances, num_joints), -0.5, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), 0.5, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set position outside limits
+        default_joint_pos = torch.full((num_instances, num_joints), 1.0, device=device)
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        assert "joint_0" in str(exc_info.value)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_validate_cfg_negative_range_limits(self, device: str):
+        """Test _validate_cfg with limits entirely in the negative range."""
+        num_instances = 2
+        num_joints = 2
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Set limits entirely in negative range
+        joint_limit_lower = torch.full((num_instances, num_joints), -5.0, device=device)
+        joint_limit_upper = torch.full((num_instances, num_joints), -2.0, device=device)
+        mock_view.set_mock_data(
+            joint_limit_lower=wp.from_torch(joint_limit_lower, dtype=wp.float32),
+            joint_limit_upper=wp.from_torch(joint_limit_upper, dtype=wp.float32),
+        )
+
+        # Set position at zero (outside negative-only limits)
+        default_joint_pos = torch.zeros((num_instances, num_joints), device=device)
+        articulation.data._default_joint_pos = wp.from_torch(default_joint_pos, dtype=wp.float32)
+
+        # Should raise ValueError
+        with pytest.raises(ValueError) as exc_info:
+            articulation._validate_cfg()
+        # Both joints should be reported as violated
+        assert "joint_0" in str(exc_info.value)
+        assert "joint_1" in str(exc_info.value)
+
+
+# TODO: Expand these tests when tendons are available in Newton.
+#       Currently, tendons are not implemented and _process_tendons only initializes empty lists.
+#       When tendon support is added, tests should verify:
+#       - Fixed tendon properties are correctly parsed and stored
+#       - Spatial tendon properties are correctly parsed and stored
+#       - Tendon limits and stiffness values are correctly set
+class TestProcessTendons:
+    """Tests for _process_tendons method.
+
+    Note: Tendons are not yet implemented in Newton. These tests verify the current
+    placeholder behavior. When tendons are implemented, these tests should be expanded.
+    """
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_tendons_initializes_empty_lists(self, device: str):
+        """Test that _process_tendons initializes empty tendon name lists."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Call _process_tendons
+        articulation._process_tendons()
+
+        # Verify empty lists are created
+        assert articulation._fixed_tendon_names == []
+        assert articulation._spatial_tendon_names == []
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_process_tendons_returns_none(self, device: str):
+        """Test that _process_tendons returns None (no tendons implemented)."""
+        num_instances = 2
+        num_joints = 4
+        articulation, mock_view, _ = create_test_articulation(
+            num_instances=num_instances,
+            num_joints=num_joints,
+            device=device,
+        )
+
+        # Call _process_tendons and verify return value
+        result = articulation._process_tendons()
+        assert result is None
+
 
 #
 #class TestSetters:

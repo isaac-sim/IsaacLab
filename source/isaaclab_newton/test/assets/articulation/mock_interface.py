@@ -171,6 +171,14 @@ class MockNewtonArticulationView:
     def get_attribute(self, name: str, model_or_state) -> wp.array:
         return self._attributes[name]
 
+    def set_root_transforms(self, state, transforms: wp.array):
+        print(f"Setting root transforms: {transforms}")
+        print(f"Root transforms: {self._root_transforms}")
+        self._root_transforms.assign(transforms)
+
+    def set_root_velocities(self, state, velocities: wp.array):
+        self._root_velocities.assign(velocities)
+
     def set_mock_data(
         self,
         root_transforms: wp.array | None = None,
@@ -182,6 +190,8 @@ class MockNewtonArticulationView:
         dof_velocities: wp.array | None = None,
         body_mass: wp.array | None = None,
         body_inertia: wp.array | None = None,
+        joint_limit_lower: wp.array | None = None,
+        joint_limit_upper: wp.array | None = None,
     ):
         """Set mock simulation data."""
         if root_transforms is None:
@@ -241,6 +251,12 @@ class MockNewtonArticulationView:
             )
         else:
             self._attributes["body_inertia"].assign(body_inertia)
+
+        if joint_limit_lower is not None:
+            self._attributes["joint_limit_lower"].assign(joint_limit_lower)
+
+        if joint_limit_upper is not None:
+            self._attributes["joint_limit_upper"].assign(joint_limit_upper)
 
     def set_random_mock_data(self):
         """Set randomized mock simulation data for benchmarking."""

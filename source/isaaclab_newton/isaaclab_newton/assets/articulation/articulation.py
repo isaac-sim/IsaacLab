@@ -1802,20 +1802,13 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self._data.is_primed = True
 
-        # Offsets the spawned pose by the default root pose prior to initializing the solver. This ensures that the
-        # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
-        # constraints or contact required to run the simulation.
-        # TODO: Do this is warp directly?
-        generated_pose = wp.to_torch(self._data._default_root_pose).clone()
-        generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[:, :2]
-        self._root_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
-        self._root_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
     def _create_buffers(self, *args, **kwargs):
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
         wp.launch(
             update_soft_joint_pos_limits,
             dim=(self.num_instances, self.num_joints),
+            device=self.device,
             inputs=[
                 self._data.joint_pos_limits_lower,
                 self._data.joint_pos_limits_upper,
@@ -1853,6 +1846,7 @@ class Articulation(BaseArticulation):
             wp.launch(
                 update_array2D_with_array1D_indexed,
                 dim=(self.num_instances, len(indices_list)),
+                device=self.device,
                 inputs=[
                     wp.array(values_list, dtype=wp.float32, device=self.device),
                     self._data.default_joint_pos,
@@ -1867,6 +1861,7 @@ class Articulation(BaseArticulation):
             wp.launch(
                 update_array2D_with_array1D_indexed,
                 dim=(self.num_instances, len(indices_list)),
+                device=self.device,
                 inputs=[
                     wp.array(values_list, dtype=wp.float32, device=self.device),
                     self._data.default_joint_vel,
@@ -1874,6 +1869,15 @@ class Articulation(BaseArticulation):
                     wp.array(indices_list, dtype=wp.int32, device=self.device),
                 ],
             )
+
+        # Offsets the spawned pose by the default root pose prior to initializing the solver. This ensures that the
+        # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
+        # constraints or contact required to run the simulation.
+        # TODO: Do this is warp directly?
+        generated_pose = wp.to_torch(self._data._default_root_pose).clone()
+        generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[:, :2]
+        self._root_view.set_root_transforms(NewtonManager.get_state_0(), wp.from_torch(generated_pose, dtype=wp.transformf))
+        self._root_view.set_root_transforms(NewtonManager.get_model(), wp.from_torch(generated_pose, dtype=wp.transformf))
 
     """
     Internal simulation callbacks.
@@ -1905,7 +1909,7 @@ class Articulation(BaseArticulation):
             # type annotation for type checkers
             actuator_cfg: ActuatorBaseCfg
             # create actuator group
-            joint_mask, joint_names, joint_indices = self._find_joints(actuator_cfg.joint_names_expr)
+            joint_mask, joint_names, joint_indices = self.find_joints(actuator_cfg.joint_names_expr)
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
@@ -2032,10 +2036,11 @@ class Articulation(BaseArticulation):
         if len(violated_indices) > 0:
             # prepare message for violated joints
             msg = "The following joints have default positions out of the limits: \n"
+            default_joint_pos = wp.to_torch(self._data._default_joint_pos)
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = joint_pos_limits[idx]
-                joint_pos = self.data.default_joint_pos[0, idx]
+                joint_pos = default_joint_pos[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
