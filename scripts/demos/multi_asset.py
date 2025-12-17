@@ -122,7 +122,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
                 ),
             ],
-            random_choice=True,
+            choice_method="random_choice",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 solver_position_iteration_count=4, solver_velocity_iteration_count=0
             ),
@@ -186,7 +186,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
             ],
-            random_choice=True,
+            choice_method="random_choice",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
                 retain_accelerations=False,
