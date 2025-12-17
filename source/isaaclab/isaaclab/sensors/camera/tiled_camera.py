@@ -12,7 +12,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+# import carb
 import warp as wp
 from pxr import UsdGeom
 
@@ -140,6 +140,8 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
+        import carb
+
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(

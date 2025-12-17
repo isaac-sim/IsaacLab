@@ -35,27 +35,22 @@ class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
 
     def __init__(
         self,
-        server: bool = True,
-        address: str = "127.0.0.1:9876",
-        launch_viewer: bool = True,
         app_id: str | None = None,
+        web_port: int | None = None,
         keep_historical_data: bool = False,
         keep_scalar_history: bool = True,
         record_to_rrd: str | None = None,
         metadata: dict | None = None,
     ):
         """Initialize Newton ViewerRerun wrapper."""
-        # Call parent with only Newton parameters
+        # Call parent with Newton parameters
         super().__init__(
-            server=server,
-            address=address,
-            launch_viewer=launch_viewer,
             app_id=app_id,
-            # Note: The current Newton version with IsaacLab does not support these recording flags.
-            # Support is available in the top of tree Newton version when we eventually upgrade.
-            # keep_historical_data=keep_historical_data,
-            # keep_scalar_history=keep_scalar_history,
-            # record_to_rrd=record_to_rrd,
+            web_port=web_port,
+            serve_web_viewer=True,  # always launch local web viewer in browser
+            keep_historical_data=keep_historical_data,
+            keep_scalar_history=keep_scalar_history,
+            record_to_rrd=record_to_rrd,
         )
 
         # Isaac Lab state
@@ -151,10 +146,8 @@ class RerunVisualizer(Visualizer):
                 logger.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
 
             self._viewer = NewtonViewerRerun(
-                server=self.cfg.server_mode,
-                address=self.cfg.server_address,
-                launch_viewer=self.cfg.launch_viewer,
                 app_id=self.cfg.app_id,
+                web_port=self.cfg.web_port,
                 keep_historical_data=self.cfg.keep_historical_data,
                 keep_scalar_history=self.cfg.keep_scalar_history,
                 record_to_rrd=self.cfg.record_to_rrd,
@@ -164,9 +157,12 @@ class RerunVisualizer(Visualizer):
             # Set the model
             self._viewer.set_model(self._model)
 
+            # Disable auto world spacing in Newton Viewer to display envs at actual world positions
+            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+
             # Set initial camera view using Rerun's blueprint system
             try:
-                # Calculate camera direction vector (from position to target)
+                # Get camera configuration
                 cam_pos = self.cfg.camera_position
                 cam_target = self.cfg.camera_target
 
@@ -175,6 +171,10 @@ class RerunVisualizer(Visualizer):
                     rrb.Spatial3DView(
                         name="3D View",
                         origin="/",
+                        eye_controls=rrb.EyeControls3D(
+                            position=cam_pos,
+                            look_target=cam_target,
+                        ),
                     ),
                     collapse_panels=True,
                 )

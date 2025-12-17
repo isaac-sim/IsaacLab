@@ -25,7 +25,7 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     "toml",
     "fast_simplification",
-    "tqdm",
+    "tqdm==4.67.1",  # previous version was causing sys errors
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
@@ -36,25 +36,21 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang>=1.11.0.dev20251123",
+    "warp-lang==1.11.0.dev20251205",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
     # livestream
     "starlette==0.45.3",
+    # assets
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
-    # newton
-    "usd-core==25.05.0",
-    "mujoco>=3.3.8.dev832233427",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@57153866a9018b53cf01b800354b83bc18c4ac97",
-    "newton @ git+https://github.com/newton-physics/newton.git@5047e6307d3a4702b2e6711151588260151a3e02",
+    # visualizers
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
-    # Note, this older version of rerun causes the view to flash dark & light
-    # for numpy < 2, use 0.23
     "rerun-sdk==0.27",
 ]
 

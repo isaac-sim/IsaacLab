@@ -17,7 +17,8 @@ tabs 4
 
 # get source directory
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-export PIP_FIND_LINKS=https://py.mujoco.org/
+export PIP_EXTRA_INDEX_URL="https://pypi.nvidia.com"
+export PIP_FIND_LINKS="https://py.mujoco.org/"
 
 #==
 # Helper functions
@@ -90,11 +91,9 @@ PY
 
 # check if running in docker
 is_docker() {
-    [ -f /.dockerenv ] || \
-    grep -q docker /proc/1/cgroup || \
-    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
-    grep -q docker /proc/mounts || \
-    [[ "$(hostname)" == *"."* ]]
+    [ -f /.dockerenv ] || [ -f /run/.containerenv ] || \
+    grep -qaE '(docker|containerd|kubepods|podman)' /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]]
 }
 
 # check if running on ARM architecture
@@ -575,10 +574,12 @@ while [[ $# -gt 0 ]]; do
             # LD_PRELOAD is restored below, after installation
             begin_arm_install_sandbox
 
+            # remove any Isaac Sim bundled numpy 1.X as we need numpy 2.X
+            ${python_exe} -m pip uninstall -y numpy
+
             # install pytorch (version based on arch)
             ensure_cuda_torch
-            # install omni.client via packman helper
-            ${python_exe} "${ISAACLAB_PATH}/tools/installation/install_omni_client_packman.py"
+
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
             if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then

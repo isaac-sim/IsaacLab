@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
 import warp as wp
+
+from isaaclab.utils.warp.update_kernels import update_array2D_with_array2D_masked
 
 from .actuator_base import ActuatorBase
 from .kernels import clip_efforts_dc_motor, compute_pd_actuator
@@ -23,6 +25,9 @@ if TYPE_CHECKING:
         IdealPDActuatorCfg,
         ImplicitActuatorCfg,
     )
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 """
@@ -56,7 +61,7 @@ class ImplicitActuator(ActuatorBase):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
                 " This parameter will be removed in the future."
                 " To set the effort limit, please use 'effort_limit_sim' instead."
@@ -78,7 +83,7 @@ class ImplicitActuator(ActuatorBase):
         if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
             # throw a warning that previously this was not set
             # it leads to different simulation behavior so we want to remain backwards compatible
-            omni.log.warn(
+            logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
                 " Previously, although this value was specified, it was not getting used by implicit"
                 " actuators. Since this parameter affects the simulation behavior, we continue to not"
@@ -145,6 +150,17 @@ class ImplicitActuator(ActuatorBase):
             ],
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
+        # update the joint effort
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim=(self._num_envs, self.num_joints),
+            inputs=[
+                self.data._actuator_effort_target,
+                self.data.joint_effort,
+                self._env_mask,
+                self._joint_mask,
+            ],
+        )
 
 
 """
@@ -206,6 +222,17 @@ class IdealPDActuator(ActuatorBase):
             ],
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
+        # update the joint effort
+        wp.launch(
+            update_array2D_with_array2D_masked,
+            dim=(self._num_envs, self.num_joints),
+            inputs=[
+                self.data._applied_effort,
+                self.data.joint_effort,
+                self._env_mask,
+                self._joint_mask,
+            ],
+        )
 
 
 class DCMotor(IdealPDActuator):

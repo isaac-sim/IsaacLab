@@ -910,7 +910,8 @@ class AppLauncher:
         self._sim_experience_file = launcher_args.pop("experience", "")
 
         # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # Note: EXP_PATH may not exist if Omniverse is not installed
+        kit_app_exp_path = os.environ.get("EXP_PATH", "")
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
 
         if self._sim_experience_file == "":
@@ -935,18 +936,22 @@ class AppLauncher:
             else:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.kit")
         elif not os.path.isabs(self._sim_experience_file):
-            option_1_app_exp_path = os.path.join(kit_app_exp_path, self._sim_experience_file)
+            option_1_app_exp_path = (
+                os.path.join(kit_app_exp_path, self._sim_experience_file) if kit_app_exp_path else ""
+            )
             option_2_app_exp_path = os.path.join(isaaclab_app_exp_path, self._sim_experience_file)
-            if os.path.exists(option_1_app_exp_path):
+            if option_1_app_exp_path and os.path.exists(option_1_app_exp_path):
                 self._sim_experience_file = option_1_app_exp_path
             elif os.path.exists(option_2_app_exp_path):
                 self._sim_experience_file = option_2_app_exp_path
             else:
+                checked_paths = f"\n\t [1]: {option_2_app_exp_path}"
+                if option_1_app_exp_path:
+                    checked_paths = f"\n\t [1]: {option_1_app_exp_path}\n\t [2]: {option_2_app_exp_path}"
                 raise FileNotFoundError(
                     f"Invalid value for input keyword argument `experience`: {self._sim_experience_file}."
-                    "\n No such file exists in either the Kit or Isaac Lab experience paths. Checked paths:"
-                    f"\n\t [1]: {option_1_app_exp_path}"
-                    f"\n\t [2]: {option_2_app_exp_path}"
+                    "\n No such file exists in the experience paths. Checked paths:"
+                    f"{checked_paths}"
                 )
         elif not os.path.exists(self._sim_experience_file):
             raise FileNotFoundError(

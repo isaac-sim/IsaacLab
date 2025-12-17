@@ -47,7 +47,6 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             effort_limit_sim=87.0,
             stiffness=80.0,
             damping=4.0,
-            friction=1e-5,
             armature=1e-3,
         ),
         "panda_forearm": ImplicitActuatorCfg(
@@ -55,7 +54,6 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             effort_limit_sim=12.0,
             stiffness=80.0,
             damping=4.0,
-            friction=1e-5,
             armature=1e-3,
         ),
         "panda_hand": ImplicitActuatorCfg(
@@ -63,7 +61,6 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             effort_limit_sim=3.0,
             stiffness=20.0,
             damping=2.0,
-            friction=1e-5,
             armature=1e-3,
         ),
     },

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import re
 import torch
 from collections.abc import Sequence
 
@@ -108,36 +107,20 @@ class XFormPrim:
         Returns:
             List of resolved prim paths.
         """
-        resolved_paths = []
+        from isaaclab.sim.utils.prims import find_matching_prim_paths
 
+        resolved_paths: list[str] = []
+        seen: set[str] = set()
+
+        # Deduplicate as we collect matches to avoid an extra pass and large intermediates
         for pattern in patterns:
-            # Check if pattern contains regex characters
-            if re.search(r"[\[\]\*\?\|]", pattern):
-                # Convert USD-style regex to Python regex
-                # [1-5] stays as is, .* for wildcard
-                regex_pattern = pattern.replace(".", r"\.")  # Escape dots
-                regex_pattern = regex_pattern.replace("*", ".*")  # * becomes .*
-                regex_pattern = f"^{regex_pattern}$"
-
-                # Search through all prims
-                for prim in self._stage.Traverse():
-                    prim_path = str(prim.GetPath())
-                    if re.match(regex_pattern, prim_path):
-                        if prim.IsA(UsdGeom.Xformable) or prim.IsA(UsdGeom.Xform):
-                            resolved_paths.append(prim_path)
-            else:
-                # Direct path, just add it
-                resolved_paths.append(pattern)
-
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_paths = []
-        for path in resolved_paths:
-            if path not in seen:
+            for path in find_matching_prim_paths(pattern, self._stage):
+                if path in seen:
+                    continue
                 seen.add(path)
-                unique_paths.append(path)
+                resolved_paths.append(path)
 
-        return unique_paths
+        return resolved_paths
 
     @property
     def count(self) -> int:
