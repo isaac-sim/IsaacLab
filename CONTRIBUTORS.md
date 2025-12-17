@@ -165,6 +165,7 @@ Guidelines for modifications:
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Weihua Zhang
 
 ## Acknowledgements
 
