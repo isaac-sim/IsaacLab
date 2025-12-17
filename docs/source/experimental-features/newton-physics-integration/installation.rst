@@ -14,7 +14,7 @@ you can proceed further.
 
 Next, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.
 
-Make sure you are on the ``feature/newton`` branch by running the following command:
+Make sure we are on the ``feature/newton`` branch by running the following command:
 
 .. code-block:: bash
 
@@ -29,8 +29,6 @@ Pip Installation
 We recommend using conda for managing your python environments. Conda can be downloaded and installed from `here <https://docs.conda.io/en/latest/miniconda.html>`_.
 
 If you previously already have a virtual environment for Isaac Lab, please ensure to start from a fresh environment to avoid any dependency conflicts.
-If you have installed earlier versions of mujoco, mujoco-warp, or newton packages through pip, we recommend first
-cleaning your pip cache with ``pip cache purge`` to remove any cache of earlier versions that may be conflicting with the latest.
 
 Create a new conda environment:
 
@@ -44,7 +42,13 @@ Activate the environment:
 
     conda activate env_isaaclab
 
-[Optional] Install Isaac Sim 5.1 for Omniverse support:
+Install the correct version of torch and torchvision:
+
+.. code-block:: bash
+
+    pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+[Optional] Install Isaac Sim 5.1:
 
 .. code-block:: bash
 
