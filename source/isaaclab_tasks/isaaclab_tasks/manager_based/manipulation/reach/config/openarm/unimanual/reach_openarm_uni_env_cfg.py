@@ -109,9 +109,7 @@ class ObservationsCfg:
             params={
                 "asset_cfg": SceneEntityCfg(
                     "robot",
-                    joint_names=[
-                        "openarm_joint.*"
-                    ],
+                    joint_names=["openarm_joint.*"],
                 )
             },
             noise=Unoise(n_min=-0.01, n_max=0.01),
@@ -121,9 +119,7 @@ class ObservationsCfg:
             params={
                 "asset_cfg": SceneEntityCfg(
                     "robot",
-                    joint_names=[
-                        "openarm_joint.*"
-                    ],
+                    joint_names=["openarm_joint.*"],
                 )
             },
             noise=Unoise(n_min=-0.01, n_max=0.01),
@@ -192,9 +188,7 @@ class RewardsCfg:
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
-                joint_names=[
-                    "openarm_joint.*"
-                ],
+                joint_names=["openarm_joint.*"],
             )
         },
     )
