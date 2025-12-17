@@ -93,9 +93,9 @@ import contextlib
 import os
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.app
 
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path

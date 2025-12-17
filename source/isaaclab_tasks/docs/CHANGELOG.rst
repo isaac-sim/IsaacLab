@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.11.10 (2025-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added obs_groups to the RSL-RL PPO agent configuration for the ``Isaac-Reach-UR10e-v0`` environment.
+* Changed self.state_space to 19 in the ``Isaac-Reach-UR10e-ROS-Inference-v0`` environment.
+
+
 0.11.9 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -72,7 +72,7 @@ def get_camera_position():
     try:
         from pxr import UsdGeom
 
-        from isaaclab.sim.utils import stage as stage_utils
+        import isaaclab.sim.utils.stage as stage_utils
 
         stage = stage_utils.get_current_stage()
         if stage is not None:
