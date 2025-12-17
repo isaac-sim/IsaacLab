@@ -16,7 +16,6 @@ from . import (
     non_holonomic_actions,
     surface_gripper_actions,
     task_space_actions,
-    thrust_actions,
 )
 
 ##
@@ -375,38 +374,3 @@ class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     """The command value to close the gripper. Defaults to 1.0."""
 
     class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
-
-
-##
-# Drone actions.
-##
-
-
-@configclass
-class ThrustActionCfg(ActionTermCfg):
-    """Configuration for the thrust action term.
-
-    See :class:`ThrustAction` for more details.
-    """
-
-    class_type: type[ActionTerm] = thrust_actions.ThrustAction
-
-    asset_name: str = MISSING
-    """Name or regex expression of the asset that the action will be mapped to."""
-
-    scale: float | dict[str, float] = 1.0
-    """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-
-    offset: float | dict[str, float] = 0.0
-    """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-
-    preserve_order: bool = False
-    """Whether to preserve the order of the asset names in the action output. Defaults to False."""
-
-    use_default_offset: bool = True
-    """Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.
-    Defaults to True.
-
-    If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
-    from the articulation asset.
-    """

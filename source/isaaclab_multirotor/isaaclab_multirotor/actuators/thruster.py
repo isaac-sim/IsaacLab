@@ -10,10 +10,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
-from isaaclab.utils.types import ArticulationThrustActions
+
+from isaaclab_multirotor.utils.types import ArticulationThrustActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ThrusterCfg
+    from .thruster_cfg import ThrusterCfg
 
 
 class Thruster:

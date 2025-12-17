@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for rigid articulated assets."""
+"""Sub-module for multi rotor assets."""
 
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
+from .multirotor import Multirotor
+from .multirotor_cfg import MultirotorCfg
+from .multirotor_data import MultirotorData

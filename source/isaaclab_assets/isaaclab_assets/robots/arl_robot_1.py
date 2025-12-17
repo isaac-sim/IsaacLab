@@ -12,8 +12,9 @@ The following configuration parameters are available:
 
 import isaaclab.sim as sim_utils
 from isaaclab import ISAACLAB_EXT_DIR
-from isaaclab.actuators import ThrusterCfg
-from isaaclab.assets.articulation import MultirotorCfg
+
+from isaaclab_multirotor.actuators import ThrusterCfg
+from isaaclab_multirotor.assets import MultirotorCfg
 
 ##
 # Configuration - Actuators.

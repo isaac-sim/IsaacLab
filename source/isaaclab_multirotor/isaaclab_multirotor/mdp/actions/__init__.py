@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for rigid articulated assets."""
-
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
+from .thrust_actions_cfg import *  # noqa: F401, F403

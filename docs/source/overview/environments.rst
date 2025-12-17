@@ -451,7 +451,7 @@ Multirotor
 ~~~~~~
 
 .. note::
-    The multirotor entry provides an environment configuration for flying the ARL robot. 
+    The multirotor entry provides an environment configuration for flying the ARL robot.
     See the `drone_arl` folder and the ARL robot config
     (`ARL_ROBOT_1_CFG`) in the codebase for details.
 

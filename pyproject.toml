@@ -58,6 +58,7 @@ known_assets_firstparty = "isaaclab_assets"
 known_extra_firstparty = [
     "isaaclab_rl",
     "isaaclab_mimic",
+    "isaaclab_multirotor",
 ]
 known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder

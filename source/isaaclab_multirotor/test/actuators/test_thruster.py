@@ -13,9 +13,6 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 """Rest of imports follows"""
 
 import torch
-
-import pytest
-import isaaclab.utils.math as math_utils
 from types import SimpleNamespace
 
 
@@ -38,7 +35,7 @@ def make_thruster_cfg(num_motors: int):
 
 def test_zero_thrust_const_is_handled():
     """When thrust_const_range contains zeros, Thruster clamps values and compute returns finite outputs."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 2
     num_motors = 2
@@ -61,7 +58,7 @@ def test_zero_thrust_const_is_handled():
 
 def test_negative_thrust_range_results_finite():
     """Negative configured thrust ranges are clamped and yield finite outputs after hardening."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 2
     num_motors = 2
@@ -85,7 +82,7 @@ def test_negative_thrust_range_results_finite():
 
 def test_tensor_vs_slice_indices_and_subset_reset():
     """Compute should accept tensor or slice thruster indices, and reset_idx should affect only specified envs."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 3
     num_motors = 4
@@ -116,7 +113,7 @@ def test_tensor_vs_slice_indices_and_subset_reset():
 
 def test_mixing_and_integration_modes():
     """Verify mixing factor selection and integration kernel choice reflect the config."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 1
     num_motors = 1
@@ -140,7 +137,7 @@ def test_mixing_and_integration_modes():
 
 def test_thruster_compute_clamps_and_shapes():
     """Thruster.compute should return thrusts with correct shape and within clamp bounds."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 4
     num_motors = 3
@@ -166,7 +163,7 @@ def test_thruster_compute_clamps_and_shapes():
 
 def test_thruster_reset_idx_changes_state():
     """reset_idx should re-sample parameters for specific env indices."""
-    from isaaclab.actuators import Thruster
+    from isaaclab_multirotor.actuators import Thruster
 
     num_envs = 3
     num_motors = 2

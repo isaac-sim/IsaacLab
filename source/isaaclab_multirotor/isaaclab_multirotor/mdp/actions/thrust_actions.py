@@ -12,20 +12,21 @@ from typing import TYPE_CHECKING
 import omni.log
 
 import isaaclab.utils.string as string_utils
-from isaaclab.assets.articulation import Multirotor
 from isaaclab.managers.action_manager import ActionTerm
+
+from isaaclab_multirotor.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
-    from . import actions_cfg
+    from . import thrust_actions_cfg
 
 
 class ThrustAction(ActionTerm):
     """Thrust action term that applies the processed actions as thrust commands."""
 
-    cfg: actions_cfg.ThrustActionCfg
+    cfg: thrust_actions_cfg.ThrustActionCfg
     """The configuration of the action term."""
     _asset: Multirotor
     """The articulation asset on which the action term is applied."""
@@ -36,7 +37,7 @@ class ThrustAction(ActionTerm):
     _clip: torch.Tensor
     """The clip applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.ThrustActionCfg, env: ManagerBasedEnv) -> None:
+    def __init__(self, cfg: thrust_actions_cfg.ThrustActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 

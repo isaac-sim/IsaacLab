@@ -16,8 +16,10 @@ import torch.jit
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, Multirotor
+from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
+
+from isaaclab_multirotor.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv

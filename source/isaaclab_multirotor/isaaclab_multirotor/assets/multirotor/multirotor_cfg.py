@@ -5,10 +5,11 @@
 
 from dataclasses import MISSING
 
-from isaaclab.actuators import ThrusterCfg
+from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
-from .articulation_cfg import ArticulationCfg
+from isaaclab_multirotor.actuators import ThrusterCfg
+
 from .multirotor import Multirotor
 
 

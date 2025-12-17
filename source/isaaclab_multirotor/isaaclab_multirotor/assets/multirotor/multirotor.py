@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING
 import omni.log
 
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import Thruster
-from isaaclab.assets.articulation.multirotor_data import MultirotorData
-from isaaclab.utils.types import ArticulationThrustActions
+from isaaclab.assets.articulation import Articulation
 
-from .articulation import Articulation
+from isaaclab_multirotor.actuators import Thruster
+from isaaclab_multirotor.utils.types import ArticulationThrustActions
+
+from .multirotor_data import MultirotorData
 
 if TYPE_CHECKING:
     from .multirotor_cfg import MultirotorCfg
