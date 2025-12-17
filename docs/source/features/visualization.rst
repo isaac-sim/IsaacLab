@@ -5,7 +5,7 @@ Visualization
 
 Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
 
-Visualizers are separate from rendering backends. You can use any visualizer regardless of your chosen physics engine or rendering backend.
+You can use any visualizer regardless of your chosen physics engine or rendering backend.
 
 
 Overview
@@ -14,21 +14,21 @@ Overview
 Isaac Lab supports three visualizer backends, each optimized for different use cases:
 
 .. list-table:: Visualizer Comparison
-   :widths: 30 40 40
+   :widths: 20 40 40
    :header-rows: 1
 
    * - Visualizer
      - Best For
      - Key Features
    * - **Omniverse**
-     - High-fidelity, Isaac Sim tools
-     - USD integration, visual markers, live plots
+     - High-fidelity, Isaac Sim integration
+     - USD, visual markers, live plots
    * - **Newton**
      - Lightweight, fast iteration
      - Low overhead, visual markers
    * - **Rerun**
-     - Remote viewing, recording, analysis
-     - Webviewer interface, time scrubbing, recording export
+     - Remote viewing, replay
+     - Webviewer, time scrubbing, recording export
 
 
 .. list-table::
@@ -76,7 +76,7 @@ Configuration
 
 Launching visualizers with the command line will use default visualizer configurations. Default configs can be found in ``source/isaaclab/isaaclab/visualizers``.
 
-You can also add and edit custom visualizers in the code, by adding new ``VisualizerCfg`` classes to the ``SimulationCfg``:
+You can also add custom visualizers in the code, by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``:
 
 .. code-block:: python
 
@@ -114,7 +114,7 @@ Visualizer Backends
 Omniverse Visualizer
 ~~~~~~~~~~~~~~~~~~~~
 
-**Features:**
+**Main Features:**
 
 - Native USD stage integration
 - Visualization markers for debugging (arrows, frames, points, etc.)
@@ -148,7 +148,7 @@ Omniverse Visualizer
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Features:**
+**Main Features:**
 
 - Lightweight OpenGL rendering with low overhead
 - Physics debug visualization (joints, contacts, springs, COM)
