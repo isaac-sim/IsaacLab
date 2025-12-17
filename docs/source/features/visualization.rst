@@ -11,24 +11,7 @@ You can use any visualizer regardless of your chosen physics engine or rendering
 Overview
 --------
 
-Isaac Lab supports three visualizer backends, each optimized for different use cases.
-
-.. list-table::
-   :widths: 33 33 33
-
-   * - .. image:: ../_static/visualizers/ov_viz.jpg
-          :width: 100%
-          :alt: Omniverse Visualizer
-
-     - .. image:: ../_static/visualizers/newton_viz.jpg
-          :width: 100%
-          :alt: Newton OpenGL Visualizer
-
-     - .. image:: ../_static/visualizers/rerun_viz.jpg
-          :width: 100%
-          :alt: Rerun Visualizer
-
-.. centered:: *Omniverse, Newton, and Rerun visualizers training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+Isaac Lab supports three visualizer backends, each optimized for different use cases:
 
 .. list-table:: Visualizer Comparison
    :widths: 15 35 50
@@ -46,6 +29,24 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export
+
+
+.. list-table::
+   :widths: 33 33 33
+
+   * - .. image:: ../_static/visualizers/ov_viz.jpg
+          :width: 100%
+          :alt: Omniverse Visualizer
+
+     - .. image:: ../_static/visualizers/newton_viz.jpg
+          :width: 100%
+          :alt: Newton OpenGL Visualizer
+
+     - .. image:: ../_static/visualizers/rerun_viz.jpg
+          :width: 100%
+          :alt: Rerun Visualizer
+
+.. centered:: *Omniverse, Newton, and Rerun visualizers training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
 
 
 Quick Start
