@@ -1934,6 +1934,8 @@ class Articulation(BaseArticulation):
         self.update(0.0)
         # log joint information
         self._log_articulation_info()
+        # Let the articulation data know that it is fully instantiated and ready to use.
+        self._data.is_primed = True
 
         # Offsets the spawned pose by the default root pose prior to initializing the solver. This ensures that the
         # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
