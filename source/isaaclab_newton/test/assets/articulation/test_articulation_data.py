@@ -14,11 +14,11 @@ import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 
+# TODO: Remove this import
+from isaaclab.utils import math as math_utils
+
 # Import mock classes from shared module
 from .mock_interface import MockNewtonArticulationView, MockNewtonModel
-
-#TODO: Remove this import
-from isaaclab.utils import math as math_utils
 
 # Initialize Warp
 wp.init()
@@ -493,12 +493,12 @@ class TestJointPropertiesSetIntoSimulation:
         # joint_pos_limits should be (0, 0) for each joint since both lower and upper are 0
         joint_pos_limits = wp.to_torch(articulation_data.joint_pos_limits)
         assert torch.all(joint_pos_limits == torch.zeros((num_instances, num_dofs, 2), device=device))
-        # vel_limits and effort_limits are initialized to ones in the mock
+        # vel_limits and effort_limits are initialized to zeros in the mock
         assert torch.all(
-            wp.to_torch(articulation_data.joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device)
+            wp.to_torch(articulation_data.joint_vel_limits) == torch.zeros((num_instances, num_dofs), device=device)
         )
         assert torch.all(
-            wp.to_torch(articulation_data.joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device)
+            wp.to_torch(articulation_data.joint_effort_limits) == torch.zeros((num_instances, num_dofs), device=device)
         )
 
     @pytest.mark.parametrize("num_instances", [1, 2])
@@ -529,8 +529,8 @@ class TestJointPropertiesSetIntoSimulation:
         assert torch.all(wp.to_torch(joint_friction_coeff) == torch.zeros((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_pos_limits_lower) == torch.zeros((num_instances, num_dofs), device=device))
         assert torch.all(wp.to_torch(joint_pos_limits_upper) == torch.zeros((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(joint_vel_limits) == torch.ones((num_instances, num_dofs), device=device))
-        assert torch.all(wp.to_torch(joint_effort_limits) == torch.ones((num_instances, num_dofs), device=device))
+        assert torch.all(wp.to_torch(joint_vel_limits) == torch.zeros((num_instances, num_dofs), device=device))
+        assert torch.all(wp.to_torch(joint_effort_limits) == torch.zeros((num_instances, num_dofs), device=device))
 
         # Assign a different value to the internal data
         articulation_data.joint_stiffness.fill_(1.0)
@@ -1337,7 +1337,7 @@ class TestBodyMassInertia:
 
         # Mock data initializes body_mass to ones
         assert torch.all(
-            wp.to_torch(articulation_data.body_mass) == torch.ones((num_instances, num_bodies), device=device)
+            wp.to_torch(articulation_data.body_mass) == torch.zeros((num_instances, num_bodies), device=device)
         )
 
         # Get the property reference

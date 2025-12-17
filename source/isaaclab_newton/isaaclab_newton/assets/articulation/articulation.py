@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 from isaaclab_newton.kernels import (
+    project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose_and_velocity,
     transform_CoM_pose_to_link_frame_masked_root,
-    update_joint_limits,
     update_soft_joint_pos_limits,
     update_wrench_array_with_force,
     update_wrench_array_with_torque,
     vec13f,
-    project_link_velocity_to_com_frame_masked_root,
 )
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
@@ -37,7 +37,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
     update_array1D_with_value,
@@ -47,11 +47,10 @@ from isaaclab.utils.warp.update_kernels import (
     update_array2D_with_value_masked,
 )
 from isaaclab.utils.warp.utils import (
-    make_complete_data_from_torch_single_index,
     make_complete_data_from_torch_dual_index,
+    make_complete_data_from_torch_single_index,
     make_masks_from_torch_ids,
 )
-from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 
 if TYPE_CHECKING:
     from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
@@ -222,7 +221,7 @@ class Articulation(BaseArticulation):
         """Newton model for the asset."""
         return self._root_view.model
 
-    #TODO: Plug-in the Wrench code from Isaac Lab once the PR gets in.
+    # TODO: Plug-in the Wrench code from Isaac Lab once the PR gets in.
 
     """
     Operations.
@@ -615,7 +614,9 @@ class Articulation(BaseArticulation):
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # update the root link velocity
-        self._update_array_with_array_masked(root_velocity, self._data._root_link_vel_w.data, env_mask, self.num_instances)
+        self._update_array_with_array_masked(
+            root_velocity, self._data._root_link_vel_w.data, env_mask, self.num_instances
+        )
         # set into simulation
         wp.launch(
             project_link_velocity_to_com_frame_masked_root,
@@ -824,7 +825,13 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(damping, torch.Tensor):
             damping = make_complete_data_from_torch_dual_index(
-                damping, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device,
+                damping,
+                self.num_instances,
+                self.num_joints,
+                env_ids,
+                joint_ids,
+                dtype=wp.float32,
+                device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
@@ -918,7 +925,13 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(limits, torch.Tensor):
             limits = make_complete_data_from_torch_dual_index(
-                limits, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device,
+                limits,
+                self.num_instances,
+                self.num_joints,
+                env_ids,
+                joint_ids,
+                dtype=wp.float32,
+                device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
@@ -958,7 +971,13 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(limits, torch.Tensor):
             limits = make_complete_data_from_torch_dual_index(
-                limits, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device,
+                limits,
+                self.num_instances,
+                self.num_joints,
+                env_ids,
+                joint_ids,
+                dtype=wp.float32,
+                device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
@@ -998,7 +1017,13 @@ class Articulation(BaseArticulation):
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(armature, torch.Tensor):
             armature = make_complete_data_from_torch_dual_index(
-                armature, self.num_instances, self.num_joints, env_ids, joint_ids, dtype=wp.float32, device=self.device,
+                armature,
+                self.num_instances,
+                self.num_joints,
+                env_ids,
+                joint_ids,
+                dtype=wp.float32,
+                device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
@@ -1802,7 +1827,6 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self._data.is_primed = True
 
-
     def _create_buffers(self, *args, **kwargs):
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
         wp.launch(
@@ -1876,8 +1900,12 @@ class Articulation(BaseArticulation):
         # TODO: Do this is warp directly?
         generated_pose = wp.to_torch(self._data._default_root_pose).clone()
         generated_pose[:, :2] += wp.to_torch(self._root_view.get_root_transforms(NewtonManager.get_model()))[:, :2]
-        self._root_view.set_root_transforms(NewtonManager.get_state_0(), wp.from_torch(generated_pose, dtype=wp.transformf))
-        self._root_view.set_root_transforms(NewtonManager.get_model(), wp.from_torch(generated_pose, dtype=wp.transformf))
+        self._root_view.set_root_transforms(
+            NewtonManager.get_state_0(), wp.from_torch(generated_pose, dtype=wp.transformf)
+        )
+        self._root_view.set_root_transforms(
+            NewtonManager.get_model(), wp.from_torch(generated_pose, dtype=wp.transformf)
+        )
 
     """
     Internal simulation callbacks.
