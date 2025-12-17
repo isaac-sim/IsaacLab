@@ -10,13 +10,13 @@ The following configuration parameters are available:
 * :obj:`FIIBOT_CFG`: The Fiibot humanoid robot with wheeled base.
 """
 
+# For local debugging, use the local data directory
+from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
-# For local debugging, use the local data directory
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 ##
 # Configuration
@@ -102,4 +102,3 @@ The Fiibot is a wheeled humanoid robot featuring:
 - Height-adjustable jack mechanism for variable working height
 - Suitable for locomanipulation and pick-and-place tasks
 """
-

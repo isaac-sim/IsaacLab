@@ -6,10 +6,12 @@
 import os
 import torch
 
+# Import Fiibot robot configuration from assets
+from isaaclab_assets.robots.fiibot import FIIBOT_CFG, FIIBOT_USD_PATH
+
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
@@ -29,9 +31,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-# Import Fiibot robot configuration from assets
-from isaaclab_assets.robots.fiibot import FIIBOT_CFG, FIIBOT_USD_PATH
 
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 
