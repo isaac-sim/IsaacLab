@@ -125,6 +125,12 @@ class MockNewtonArticulationView:
         self._attributes["joint_target_vel"] = wp.zeros(
             (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
+        self._attributes["joint_limit_ke"] = wp.zeros(
+            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+        )
+        self._attributes["joint_limit_kd"] = wp.zeros(
+            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+        )
 
     @property
     def count(self) -> int:
