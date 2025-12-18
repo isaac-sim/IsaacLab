@@ -18,7 +18,7 @@ This branch is a feature branch for Isaac Sim 6.0, which is currently only avail
 For installation, please refer to the Isaac Sim GitHub repo to build the latest Isaac Sim branch, and follow the binary installation method in the 
 Isaac Lab documentation for Isaac Lab installation.
 
-Note that this branch is currently under active development and may experience breaking changes.
+Note that this branch is currently under active development and may experience breaking changes or error messages.
 Performance issues and regressions may also be observed in some use cases. 
 
 
