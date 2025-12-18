@@ -41,7 +41,7 @@ INSTALL_REQUIRES = [
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
-SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
+SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
