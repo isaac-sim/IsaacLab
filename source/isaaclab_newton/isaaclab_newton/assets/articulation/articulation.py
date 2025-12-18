@@ -1809,6 +1809,7 @@ class Articulation(BaseArticulation):
         self._root_view = NewtonArticulationView(
             NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
+        NewtonManager.add_view(self._root_view)
 
         # container for data access
         self._data = ArticulationData(self._root_view, self.device)

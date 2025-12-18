@@ -1187,13 +1187,13 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     targets to default values, especially when the targets should be handled by action terms and not event terms.
     """
     # rigid bodies
-    # for rigid_object in env.scene.rigid_objects.values():
-    #    # obtain default and deal with the offset for env origins
-    #    default_root_state = rigid_object.data.default_root_state[env_ids].clone()
-    #    default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
-    #    # set into the physics simulation
-    #    rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
-    #    rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
+    for rigid_object in env.scene.rigid_objects.values():
+        # obtain default and deal with the offset for env origins
+        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
+        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+        # set into the physics simulation
+        rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins

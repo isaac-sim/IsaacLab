@@ -29,13 +29,12 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=90,
-                ncon_per_env=100,
-                ls_iterations=10,
+                nconmax=100,
+                ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
                 integrator="implicit",
-                # save_to_mjcf="FrankaCabinetEnv.xml",
             ),
             num_substeps=1,
             debug_mode=False,
