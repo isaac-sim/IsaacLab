@@ -303,7 +303,7 @@ class InteractiveScene:
     @property
     def rigid_objects(self) -> dict:
         """A dictionary of rigid objects in the scene."""
-        raise NotImplementedError("Rigid objects are not supported in IsaacLab for Newton.")
+        return self._rigid_objects
 
     @property
     def rigid_object_collections(self) -> dict:
