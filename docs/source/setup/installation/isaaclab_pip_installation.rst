@@ -62,7 +62,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
    .. code-block:: bash
 
-      pip install git+https://github.com/kellyguo11/rl_games.git@python3.11
+      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
