@@ -139,11 +139,7 @@ Changed
   to properly propagate the Isaac Sim stage context.
 
 
-<<<<<<< HEAD
-=======
 
-
->>>>>>> 3bbabca35c431544b6ea9588e3c3772f887181bb
 0.48.6 (2025-11-18)
 ~~~~~~~~~~~~~~~~~~~
 
