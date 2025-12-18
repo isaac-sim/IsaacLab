@@ -88,6 +88,7 @@ Guidelines for modifications:
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
+* Jinyeob Kim
 * Johnson Sun
 * Kaixi Bao
 * Kris Wilson
