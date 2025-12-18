@@ -344,17 +344,17 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
         )
     )
 
-    # we produce the desired quaternion multiplied by each of i, j, k, r
+    # we produce the desired quaternion multiplied by each of r, i, j, k
     quat_by_rijk = torch.stack(
         [
+            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
+            torch.stack([q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
             torch.stack([m21 - m12, q_abs[..., 1] ** 2, m10 + m01, m02 + m20], dim=-1),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
             torch.stack([m02 - m20, m10 + m01, q_abs[..., 2] ** 2, m12 + m21], dim=-1),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
             torch.stack([m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3] ** 2], dim=-1),
-            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
-            torch.stack([q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1),
         ],
         dim=-2,
     )
@@ -366,9 +366,12 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
 
     # if not for numerical problems, quat_candidates[i] should be same (up to a sign),
     # forall i; we pick the best-conditioned one (with the largest denominator)
-    return quat_candidates[torch.nn.functional.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :].reshape(
+    wxyz = quat_candidates[torch.nn.functional.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :].reshape(
         batch_dim + (4,)
     )
+
+    out_xyzw = torch.stack((wxyz[..., 1], wxyz[..., 2], wxyz[..., 3], wxyz[..., 0]), dim=-1) # this is not optimum but works
+    return out_xyzw
 
 
 def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> torch.Tensor:
