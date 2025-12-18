@@ -1161,7 +1161,9 @@ class TestRootComVelW:
     Checks that the returned value is a pointer to the internal data.
     """
 
-    def _setup_method(self, num_instances: int, device: str, is_fixed_base: bool = False) -> tuple[ArticulationData, MockNewtonArticulationView]:
+    def _setup_method(
+        self, num_instances: int, device: str, is_fixed_base: bool = False
+    ) -> tuple[ArticulationData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device, is_fixed_base=is_fixed_base)
         mock_view.set_mock_data()
 
