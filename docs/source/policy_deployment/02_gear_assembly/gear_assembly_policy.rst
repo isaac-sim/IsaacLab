@@ -600,5 +600,4 @@ Further Resources
 - Sim-to-Real Policy Transfer for Whole Body Controllers: :ref:`sim2real` - Shows how to train and deploy a whole body controller for legged robots using Isaac Lab with the Newton backend
 - `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
 - `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/tutorial_gear_assembly.html>`_
-- Isaac Lab API Documentation: :ref:`api_lab`
-- RL Training Tutorial: :ref:`tutorial_03_envs_rl_training`
+- RL Training Tutorial: :ref:`tutorial-run-rl-training`
