@@ -23,7 +23,24 @@ if TYPE_CHECKING:
 class GearShaftPosW(ManagerTermBase):
     """Gear shaft position in world frame with offset applied.
 
-    This class-based term caches gear offset tensors and identity quaternions.
+    This class-based term caches gear offset tensors and identity quaternions for efficient computation
+    across all environments. It transforms the gear base position by the appropriate offset based on the
+    active gear type in each environment.
+
+    Args:
+        asset_cfg: The asset configuration for the gear base. Defaults to SceneEntityCfg("factory_gear_base").
+        gear_offsets: A dictionary mapping gear type names to their shaft offsets in the gear base frame.
+            Required keys are "gear_small", "gear_medium", and "gear_large", each mapping to a 3D offset
+            list [x, y, z]. This parameter is required and must be provided in the configuration.
+
+    Returns:
+        Gear shaft position tensor in the environment frame with shape (num_envs, 3).
+
+    Raises:
+        ValueError: If the 'gear_offsets' parameter is not provided in the configuration.
+        TypeError: If the 'gear_offsets' parameter is not a dictionary.
+        ValueError: If any of the required gear type keys are missing from 'gear_offsets'.
+        RuntimeError: If the gear type manager is not initialized in the environment.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -125,7 +142,15 @@ class GearShaftPosW(ManagerTermBase):
 class GearShaftQuatW(ManagerTermBase):
     """Gear shaft orientation in world frame.
 
-    This class-based term caches the asset reference.
+    This class-based term returns the orientation of the gear base (which is the same as the gear shaft
+    orientation). The quaternion is canonicalized to ensure the w component is positive, reducing
+    observation variation for the policy.
+
+    Args:
+        asset_cfg: The asset configuration for the gear base. Defaults to SceneEntityCfg("factory_gear_base").
+
+    Returns:
+        Gear shaft orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -170,7 +195,15 @@ class GearShaftQuatW(ManagerTermBase):
 class GearPosW(ManagerTermBase):
     """Gear position in world frame.
 
-    This class-based term caches gear type mapping and index tensors.
+    This class-based term returns the position of the active gear in each environment. It uses
+    vectorized indexing to efficiently select the correct gear position based on the gear type
+    (small, medium, or large) active in each environment.
+
+    Returns:
+        Gear position tensor in the environment frame with shape (num_envs, 3).
+
+    Raises:
+        RuntimeError: If the gear type manager is not initialized in the environment.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -233,7 +266,16 @@ class GearPosW(ManagerTermBase):
 class GearQuatW(ManagerTermBase):
     """Gear orientation in world frame.
 
-    This class-based term caches gear type mapping and index tensors.
+    This class-based term returns the orientation of the active gear in each environment. It uses
+    vectorized indexing to efficiently select the correct gear orientation based on the gear type
+    (small, medium, or large) active in each environment. The quaternion is canonicalized to ensure
+    the w component is positive, reducing observation variation for the policy.
+
+    Returns:
+        Gear orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
+
+    Raises:
+        RuntimeError: If the gear type manager is not initialized in the environment.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):

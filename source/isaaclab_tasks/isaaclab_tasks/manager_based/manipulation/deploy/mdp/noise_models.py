@@ -27,6 +27,10 @@ class ResetSampledConstantNoiseModel(NoiseModel):
     The noise is sampled from the configured distribution ONLY during reset and applied consistently
     until the next reset. Unlike regular noise that generates new random values every step,
     this model maintains the same noise values throughout an episode.
+
+    Note:
+        This noise model was used since the noise randimization should only be done at reset time.
+        Other noise models(Eg: GaussianNoise) were not used since this randomizes the noise at every time-step.
     """
 
     def __init__(self, noise_model_cfg: NoiseModelCfg, num_envs: int, device: str):
