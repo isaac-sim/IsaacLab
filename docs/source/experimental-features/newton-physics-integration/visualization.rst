@@ -24,7 +24,7 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
      - High-fidelity, Isaac Sim integration
      - USD, visual markers, live plots
    * - **Newton**
-     - Lightweight, fast iteration
+     - Fast iteration
      - Low overhead, visual markers
    * - **Rerun**
      - Remote viewing, replay
@@ -34,15 +34,15 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
 .. list-table::
    :widths: 33 33 33
 
-   * - .. image:: ../_static/visualizers/ov_viz.jpg
+   * - .. image:: ../../_static/visualizers/ov_viz.jpg
           :width: 100%
           :alt: Omniverse Visualizer
 
-     - .. image:: ../_static/visualizers/newton_viz.jpg
+     - .. image:: ../../_static/visualizers/newton_viz.jpg
           :width: 100%
           :alt: Newton OpenGL Visualizer
 
-     - .. image:: ../_static/visualizers/rerun_viz.jpg
+     - .. image:: ../../_static/visualizers/rerun_viz.jpg
           :width: 100%
           :alt: Rerun Visualizer
 
@@ -74,9 +74,9 @@ If ``--headless`` is given, no visualizers will be launched.
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Default configs can be found in ``source/isaaclab/isaaclab/visualizers``.
+Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and editted in ``source/isaaclab/isaaclab/visualizers``.
 
-You can also add custom visualizers in the code, by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``:
+You can also configure custom visualizers in the code by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
 
 .. code-block:: python
 
@@ -151,8 +151,8 @@ Newton Visualizer
 **Main Features:**
 
 - Lightweight OpenGL rendering with low overhead
-- Physics debug visualization (joints, contacts, springs, COM)
-- Training pause and rendering pause controls
+- Visualization markers (joints, contacts, springs, COM)
+- Training and rendering pause controls
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 
@@ -221,9 +221,9 @@ Rerun Visualizer
 
 **Main Features:**
 
-- Web-based interface accessible from local or remote browser
+- Web viewer interface accessible from local or remote browser
 - Metadata logging and filtering
-- Recording to .rrd files for offline replay
+- Recording to .rrd files for offline replay (.rrd files can be opened with ctrl+O from the web viewer)
 - Timeline scrubbing and playback controls of recordings
 
 **Core Configuration:**
@@ -264,7 +264,7 @@ To reduce overhead when visualizing large-scale environments, consider:
 Limitations
 -----------
 
-**Rerun Web Viewer Performance**
+**Rerun Visualizer Performance**
 
 The Rerun web-based visualizer may experience performance issues or crashes when visualizing large-scale
 environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
@@ -279,3 +279,24 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
     A future feature will support visualizing only a subset of environments, which will improve visualization performance
     and reduce resource usage while maintaining full-scale training in the background.
+
+
+**Newton Visualizer Contact and Center of Mass Markers**
+
+Contact and center of mass markers are not yet supported in the Newton visualizer. This will be addressed in a future release.
+
+
+**Newton Visualizer CUDA/OpenGL Interoperability Warnings**
+
+On some system configurations, the Newton visualizer may display warnings about CUDA/OpenGL interoperability:
+
+.. code-block:: text
+
+    Warning: Could not get MSAA config, falling back to non-AA.
+    Warp CUDA error 999: unknown error (in function wp_cuda_graphics_register_gl_buffer)
+    Warp UserWarning: Could not register GL buffer since CUDA/OpenGL interoperability
+    is not available. Falling back to copy operations between the Warp array and the
+    OpenGL buffer.
+
+The visualizer will still function correctly but may experience reduced performance due to falling back to
+CPU copy operations instead of direct GPU memory sharing.
