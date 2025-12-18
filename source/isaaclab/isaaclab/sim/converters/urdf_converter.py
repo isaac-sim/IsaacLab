@@ -47,8 +47,8 @@ class UrdfConverter(AssetConverterBase):
             cfg: The configuration instance for URDF to USD conversion.
         """
         manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf-2.4.31"):
-            enable_extension("isaacsim.asset.importer.urdf-2.4.31")
+        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf-2.4.36"):
+            enable_extension("isaacsim.asset.importer.urdf-2.4.36")
         from isaacsim.asset.importer.urdf._urdf import acquire_urdf_interface
 
         self._urdf_interface = acquire_urdf_interface()
