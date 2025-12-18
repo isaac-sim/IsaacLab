@@ -12,17 +12,14 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
-import carb
-import isaacsim.core.utils.stage as stage_utils
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.prims import XFormPrim
-
 # from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.sim.prims import XFormPrim
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -33,6 +30,10 @@ from isaaclab.utils.math import (
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
+
+# import omni.usd
+# from isaacsim.core.prims import XFormPrim
+
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -116,8 +117,8 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings_manager = get_settings_manager()
+        settings_manager.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -260,6 +261,8 @@ class Camera(SensorBase):
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest
                 #   way to set the property on the right layer.
+                import omni.usd
+
                 omni.usd.set_prop_val(param_attr(), param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
@@ -375,8 +378,8 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        settings_manager = get_settings_manager()
+        if not settings_manager.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."

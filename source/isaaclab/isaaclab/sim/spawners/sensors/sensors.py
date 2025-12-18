@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.kit.commands
-import omni.log
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim.utils import clone
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -27,6 +26,7 @@ CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
 The dictionary maps the attribute name in the configuration to the attribute name in the USD prim.
 """
 
+logger = logging.getLogger(__name__)
 
 CUSTOM_FISHEYE_CAMERA_ATTRIBUTES = {
     "projection_type": ("cameraProjectionType", Sdf.ValueTypeNames.Token),
@@ -90,17 +90,13 @@ def spawn_camera(
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
-        # early attach stage to usd context if stage is in memory
-        # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-        attach_stage_to_usd_context(attaching_early=True)
-
-        omni.kit.commands.execute(
-            "ChangePropertyCommand",
-            prop_path=Sdf.Path(f"{prim_path}.omni:kit:cameraLock"),
-            value=True,
-            prev=None,
-            type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-        )
+        # Set camera lock attribute using USD core API
+        prim = prim_utils.get_prim_at_path(prim_path)
+        if prim.IsValid():
+            lock_attr = prim.GetAttribute("omni:kit:cameraLock")
+            if not lock_attr:
+                lock_attr = prim.CreateAttribute("omni:kit:cameraLock", Sdf.ValueTypeNames.Bool)
+            lock_attr.Set(True)
     # decide the custom attributes to add
     if cfg.projection_type == "pinhole":
         attribute_types = CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
@@ -110,7 +106,7 @@ def spawn_camera(
     # TODO: Adjust to handle aperture offsets once supported by omniverse
     #   Internal ticket from rendering team: OM-42611
     if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+        logger.warning("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
 
     # custom attributes in the config that are not USD Camera parameters
     non_usd_cfg_param_names = [

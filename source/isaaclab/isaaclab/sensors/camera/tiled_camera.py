@@ -12,11 +12,12 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+# import carb
 import warp as wp
-from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom
 
+# from isaacsim.core.prims import XFormPrim
+from isaaclab.sim.utils.prims import XFormPrim
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
@@ -139,6 +140,8 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
+        import carb
+
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(

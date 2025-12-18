@@ -41,3 +41,4 @@ the corresponding actuator torques.
 from .articulation import Articulation, ArticulationCfg, ArticulationData
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
+from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData

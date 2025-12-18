@@ -32,10 +32,11 @@ class AntEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         njmax=38,
-        ncon_per_env=15,
-        ls_iterations=10,
+        nconmax=15,
+        ls_iterations=20,
         cone="pyramidal",
         ls_parallel=True,
+        integrator="implicit",
         impratio=1,
     )
     newton_cfg = NewtonCfg(

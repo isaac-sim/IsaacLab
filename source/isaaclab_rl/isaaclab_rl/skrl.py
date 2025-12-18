@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from isaaclab_experimental.envs import DirectRLEnvWarp
+
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
@@ -62,7 +64,11 @@ def SkrlVecEnvWrapper(
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
-    if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+    if (
+        not isinstance(env.unwrapped, ManagerBasedRLEnv)
+        and not isinstance(env.unwrapped, DirectRLEnv)
+        and not isinstance(env.unwrapped, DirectRLEnvWarp)
+    ):
         raise ValueError(
             f"The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: {type(env)}"
         )

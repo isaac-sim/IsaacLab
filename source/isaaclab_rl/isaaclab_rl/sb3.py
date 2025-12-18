@@ -25,6 +25,7 @@ import torch.nn as nn  # noqa: F401
 import warnings
 from typing import Any
 
+from isaaclab_experimental.envs import DirectRLEnvWarp
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
@@ -53,14 +54,15 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
         https://github.com/DLR-RM/rl-baselines3-zoo/blob/0e5eb145faefa33e7d79c7f8c179788574b20da5/utils/exp_manager.py#L358
     """
 
-    def update_dict(hyperparams: dict[str, Any]) -> dict[str, Any]:
+    def update_dict(hyperparams: dict[str, Any], depth: int) -> dict[str, Any]:
         for key, value in hyperparams.items():
             if isinstance(value, dict):
-                update_dict(value)
-            else:
-                if key in ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]:
-                    hyperparams[key] = eval(value)
-                elif key in ["learning_rate", "clip_range", "clip_range_vf"]:
+                update_dict(value, depth + 1)
+            if isinstance(value, str):
+                if value.startswith("nn."):
+                    hyperparams[key] = getattr(nn, value[3:])
+            if depth == 0:
+                if key in ["learning_rate", "clip_range", "clip_range_vf"]:
                     if isinstance(value, str):
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
@@ -81,7 +83,7 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
         return hyperparams
 
     # parse agent configuration and convert to classes
-    return update_dict(cfg)
+    return update_dict(cfg, depth=0)
 
 
 """
@@ -145,7 +147,11 @@ class Sb3VecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        if (
+            not isinstance(env.unwrapped, ManagerBasedRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnvWarp)
+        ):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

@@ -92,7 +92,7 @@ keywords = ["experience", "app", "usd"]
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
 "omni.usd.schema.metrics.assembler" = {}
-"omni.warp.core" = { version = "1.9.0-rc.1", exact = true }
+"omni.warp.core" = { version = "1.11.0-rc.1", exact = true }
 
 ########################
 # Isaac Lab Extensions #
@@ -131,6 +131,10 @@ metricsAssembler.changeListenerEnabled = false
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+# warp.core has this as a dependency, which forces numpy 1.26 to be pulled in
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 # Disable for base application
 [settings."filter:platform"."windows-x86_64"]
 isaac.startup.ros_bridge_extension = ""
@@ -159,7 +163,7 @@ show_menu_titles = true
 
 [settings.app]
 name = "Isaac-Sim"
-version = "5.0.0"
+version = "5.1.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true

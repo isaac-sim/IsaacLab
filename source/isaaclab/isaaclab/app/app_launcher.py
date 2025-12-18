@@ -14,19 +14,29 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
 import sys
-import toml
 from typing import Any, Literal
 
-import flatdict
+# Import the settings manager for non-Omniverse mode
+from .settings_manager import get_settings_manager, initialize_carb_settings
+
+# Conditionally import SimulationApp only when needed (for omniverse visualizer)
+# This allows running Isaac Lab with Rerun/Newton visualizers without the full Omniverse stack
+_SIMULATION_APP_AVAILABLE = False
+_SimulationApp = None
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
+    from isaacsim import SimulationApp as _SimulationApp
 
-from isaacsim import SimulationApp
+    _SIMULATION_APP_AVAILABLE = True
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -114,6 +124,9 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._visualizer: (
+            list[str] | None
+        )  # Visualizer backends to use: None or list of ["rerun", "newton", "omniverse"]
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -123,38 +136,72 @@ class AppLauncher:
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
 
-        # Internal: Override SimulationApp._start_app method to apply patches after app has started.
-        self.__patch_simulation_start_app(launcher_args)
+        # Determine if SimulationApp (Omniverse) is needed
+        # Only launch SimulationApp if:
+        # 1. Omniverse visualizer is explicitly requested OR
+        # 2. No specific visualizers are requested but livestreaming is enabled OR
+        # 3. No specific visualizers are requested and GUI is needed (not headless)
+        self._omniverse_required = self._check_if_omniverse_required()
 
-        # Create SimulationApp, passing the resolved self._config to it for initialization
-        self._create_app()
-        # Load IsaacSim extensions
-        self._load_extensions()
-        # Hide the stop button in the toolbar
-        self._hide_stop_button()
-        # Set settings from the given rendering mode
-        self._set_rendering_mode_settings(launcher_args)
-        # Set animation recording settings
-        self._set_animation_recording_settings(launcher_args)
+        # Get the global settings manager
+        self._settings_manager = get_settings_manager()
 
-        # Hide play button callback if the timeline is stopped
-        import omni.timeline
+        if self._omniverse_required:
+            if not _SIMULATION_APP_AVAILABLE:
+                raise RuntimeError(
+                    "SimulationApp is required for the requested configuration but isaacsim module is not available. "
+                    "Please ensure Isaac Sim is properly installed."
+                )
 
-        self._hide_play_button_callback = (
-            omni.timeline.get_timeline_interface()
-            .get_timeline_event_stream()
-            .create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.STOP), lambda e: self._hide_play_button(True)
+            print("[INFO][AppLauncher]: Omniverse mode - Launching SimulationApp...")
+
+            # Internal: Override SimulationApp._start_app method to apply patches after app has started.
+            self.__patch_simulation_start_app(launcher_args)
+
+            # Create SimulationApp, passing the resolved self._config to it for initialization
+            self._create_app()
+
+            # Initialize carb.settings integration in the settings manager
+            initialize_carb_settings()
+
+            # Load IsaacSim extensions
+            self._load_extensions()
+            # Hide the stop button in the toolbar
+            self._hide_stop_button()
+            # Set settings from the given rendering mode
+            self._set_rendering_mode_settings(launcher_args)
+            # Set animation recording settings
+            self._set_animation_recording_settings(launcher_args)
+
+            # Hide play button callback if the timeline is stopped
+            import omni.timeline
+
+            self._hide_play_button_callback = (
+                omni.timeline.get_timeline_interface()
+                .get_timeline_event_stream()
+                .create_subscription_to_pop_by_type(
+                    int(omni.timeline.TimelineEventType.STOP), lambda e: self._hide_play_button(True)
+                )
             )
-        )
-        self._unhide_play_button_callback = (
-            omni.timeline.get_timeline_interface()
-            .get_timeline_event_stream()
-            .create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
+            self._unhide_play_button_callback = (
+                omni.timeline.get_timeline_interface()
+                .get_timeline_event_stream()
+                .create_subscription_to_pop_by_type(
+                    int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
+                )
             )
-        )
+        else:
+            print(
+                "[INFO][AppLauncher]: Standalone mode - Running without SimulationApp (Rerun/Newton visualizers"
+                " only)..."
+            )
+            self._app = None
+            # Store settings in the standalone settings manager
+            self._store_settings_standalone()
+
         # Set up signal handlers for graceful shutdown
+        # -- during keyboard interrupt (Ctrl+C)
+        signal.signal(signal.SIGINT, self._interrupt_signal_handle_callback)
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during segfaults
@@ -166,12 +213,30 @@ class AppLauncher:
     """
 
     @property
-    def app(self) -> SimulationApp:
-        """The launched SimulationApp."""
-        if self._app is not None:
-            return self._app
+    def app(self) -> Any:
+        """The launched SimulationApp (or None if running in standalone mode).
+
+        Returns:
+            SimulationApp instance if Omniverse mode is active, None if running in standalone mode.
+        """
+        if self._omniverse_required:
+            if self._app is not None:
+                return self._app
+            else:
+                raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
         else:
-            raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
+            # Standalone mode - no SimulationApp
+            return None
+
+    @property
+    def visualizer(self) -> list[str] | None:
+        """The visualizer backend(s) to use.
+
+        Returns:
+            List of visualizer backend names (e.g., ["rerun", "newton"]) or None if no visualizers specified.
+            Empty list means no visualizers should be initialized.
+        """
+        return self._visualizer
 
     """
     Operations.
@@ -224,6 +289,21 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
+        * ``visualizer`` (list[str]): The visualizer backend(s) to use for the simulation.
+          Valid options are:
+
+          - ``rerun``: Use Rerun visualizer.
+          - ``newton``: Use Newton visualizer.
+          - ``omniverse``: Use Omniverse visualizer.
+          - Multiple visualizers can be specified: ``--visualizer rerun newton``
+          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
+
+          Note: If visualizer configs are not defined in the simulation config, default configs will be
+          automatically created with all default parameters.
+          If --headless is specified, it takes precedence and NO visualizers will be initialized.
+          When omniverse visualizer is specified, the app will launch in non-headless mode automatically.
+          When only non-GUI visualizers (rerun, newton) are specified, headless mode is auto-enabled.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -361,6 +441,19 @@ class AppLauncher:
                 " exceeded, then the animation is not recorded."
             ),
         )
+        arg_group.add_argument(
+            "--visualizer",
+            type=str,
+            nargs="*",
+            default=None,
+            help=(
+                "The visualizer backend(s) to use for the simulation."
+                ' Can be one or more of: "rerun", "newton", "omniverse".'
+                " Multiple visualizers can be specified: --visualizer rerun newton."
+                " If not specified (default), NO visualizers will be created and headless mode is auto-enabled."
+                " If no visualizer configs are defined in sim config, default configs will be created automatically."
+            ),
+        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -381,6 +474,7 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
+        "visualizer": ([list, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -469,6 +563,63 @@ class AppLauncher:
                 # Print out values which will be used
                 print(f"[INFO][AppLauncher]: The argument '{key}' will be used to configure the SimulationApp.")
 
+    def _check_if_omniverse_required(self) -> bool:
+        """Check if SimulationApp (Omniverse) needs to be launched.
+
+        TODO: this will also need to check RTX renderer and kit app renderer in the future.
+
+        Returns:
+            True if SimulationApp is required, False if can run in standalone mode.
+        """
+        # Omniverse is required if:
+        # 1. LAUNCH_OV_APP environment variable is set (e.g., for testing)
+        # 2. Omniverse visualizer is explicitly requested
+        # 3. Livestreaming is enabled (requires Omniverse)
+        # 4. Cameras are enabled (requires Omniverse for rendering)
+
+        # Check LAUNCH_OV_APP environment variable (useful for tests that need Omniverse)
+        launch_app_env = int(os.environ.get("LAUNCH_OV_APP") or 0)
+        if launch_app_env == 1:
+            print("[INFO][AppLauncher]: LAUNCH_OV_APP environment variable set, forcing Omniverse mode.")
+            return True
+
+        # Omniverse visualizer explicitly requested
+        if self._visualizer is not None and "omniverse" in self._visualizer:
+            return True
+
+        # Livestreaming requires Omniverse
+        if self._livestream >= 1:
+            return True
+
+        # Cameras enabled requires Omniverse for RTX rendering
+        if self._enable_cameras:
+            return True
+
+        # Otherwise, we can run in standalone mode (headless with rerun/newton, or just headless)
+        # If no visualizer is specified and not headless, we still assume headless mode (standalone)
+        return False
+
+    def _store_settings_standalone(self):
+        """Store settings in the standalone settings manager (non-Omniverse mode).
+
+        This replicates the settings that would normally be stored via carb.settings.
+        """
+        # Store render settings
+        self._settings_manager.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
+        self._settings_manager.set_bool("/isaaclab/render/active_viewport", getattr(self, "_render_viewport", False))
+        self._settings_manager.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # Store visualizer settings
+        if self._visualizer is not None:
+            self._settings_manager.set_string("/isaaclab/visualizer", ",".join(self._visualizer))
+        else:
+            self._settings_manager.set_string("/isaaclab/visualizer", "")
+
+        print("[INFO][AppLauncher]: Standalone settings stored:")
+        print(f"  - visualizer: {self._visualizer}")
+        print(f"  - offscreen_render: {self._offscreen_render}")
+        # print(f"  - headless: {self._headless}")
+
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
 
@@ -478,6 +629,7 @@ class AppLauncher:
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
+        self._resolve_visualizer_settings(launcher_args)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
@@ -569,9 +721,20 @@ class AppLauncher:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
+
+        # Check if visualizers are requested and if omniverse visualizer is among them
+        visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
+        visualizers_requested = visualizers is not None and len(visualizers) > 0
+        omniverse_visualizer_requested = visualizers_requested and "omniverse" in visualizers
+
+        # Track if headless was explicitly requested (via --headless flag or HEADLESS=1 env var)
+        # This is used to determine if visualizers should be disabled
+        self._headless_explicit = headless_arg is True or headless_env == 1
+
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
+            # User explicitly requested headless mode
             self._headless = headless_arg
         elif self._livestream in {1, 2}:
             # we are always headless on the host machine
@@ -587,11 +750,57 @@ class AppLauncher:
                     f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly"
                     f" overridden the environment variable `HEADLESS={headless_env}` to True."
                 )
+        elif omniverse_visualizer_requested and headless_env == 0:
+            # Omniverse visualizer requires non-headless mode (needs Isaac Sim viewport)
+            self._headless = False
+            print(
+                "[INFO][AppLauncher]: Omniverse visualizer requested via --visualizer flag. "
+                "Launching in non-headless mode to enable viewport visualization."
+            )
+        elif visualizers_requested and not omniverse_visualizer_requested and headless_env == 0:
+            # Newton and Rerun don't need Isaac Sim viewport (they create their own windows or are web-based)
+            self._headless = True
+            print(
+                f"[INFO][AppLauncher]: Visualizer(s) {visualizers} requested. "
+                "Enabling headless mode (Isaac Sim viewport disabled)."
+            )
+        elif not visualizers_requested and headless_env == 0:
+            # No visualizers requested and headless not explicitly set -> enable headless mode
+            self._headless = True
+            print(
+                "[INFO][AppLauncher]: No visualizers specified via --visualizer flag. "
+                "Automatically enabling headless mode. Use --visualizer <type> to enable GUI."
+            )
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
+
+    def _resolve_visualizer_settings(self, launcher_args: dict):
+        """Resolve visualizer related settings."""
+        # Get visualizer setting from launcher_args
+        visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
+
+        # Validate visualizer names
+        valid_visualizers = ["rerun", "newton", "omniverse"]
+        if visualizers is not None and len(visualizers) > 0:
+            invalid = [v for v in visualizers if v not in valid_visualizers]
+            if invalid:
+                raise ValueError(f"Invalid visualizer(s) specified: {invalid}. Valid options are: {valid_visualizers}")
+
+        # Store visualizer setting for later use
+        # Convert empty list to None for consistency
+        self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
+
+        # Explicit --headless flag (or HEADLESS=1 env var) takes precedence over --visualizer
+        # This only applies when user explicitly requested headless, not when auto-enabled for non-GUI visualizers
+        if self._headless_explicit and self._visualizer is not None:
+            print(
+                f"[INFO][AppLauncher]: Explicit headless mode takes precedence over --visualizer {self._visualizer}."
+                " No visualizers will be initialized."
+            )
+            self._visualizer = None
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -701,7 +910,8 @@ class AppLauncher:
         self._sim_experience_file = launcher_args.pop("experience", "")
 
         # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # Note: EXP_PATH may not exist if Omniverse is not installed
+        kit_app_exp_path = os.environ.get("EXP_PATH", "")
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
 
         if self._sim_experience_file == "":
@@ -726,18 +936,22 @@ class AppLauncher:
             else:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.kit")
         elif not os.path.isabs(self._sim_experience_file):
-            option_1_app_exp_path = os.path.join(kit_app_exp_path, self._sim_experience_file)
+            option_1_app_exp_path = (
+                os.path.join(kit_app_exp_path, self._sim_experience_file) if kit_app_exp_path else ""
+            )
             option_2_app_exp_path = os.path.join(isaaclab_app_exp_path, self._sim_experience_file)
-            if os.path.exists(option_1_app_exp_path):
+            if option_1_app_exp_path and os.path.exists(option_1_app_exp_path):
                 self._sim_experience_file = option_1_app_exp_path
             elif os.path.exists(option_2_app_exp_path):
                 self._sim_experience_file = option_2_app_exp_path
             else:
+                checked_paths = f"\n\t [1]: {option_2_app_exp_path}"
+                if option_1_app_exp_path:
+                    checked_paths = f"\n\t [1]: {option_1_app_exp_path}\n\t [2]: {option_2_app_exp_path}"
                 raise FileNotFoundError(
                     f"Invalid value for input keyword argument `experience`: {self._sim_experience_file}."
-                    "\n No such file exists in either the Kit or Isaac Lab experience paths. Checked paths:"
-                    f"\n\t [1]: {option_1_app_exp_path}"
-                    f"\n\t [2]: {option_2_app_exp_path}"
+                    "\n No such file exists in the experience paths. Checked paths:"
+                    f"{checked_paths}"
                 )
         elif not os.path.exists(self._sim_experience_file):
             raise FileNotFoundError(
@@ -785,7 +999,7 @@ class AppLauncher:
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
         # launch simulation app
-        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        self._app = _SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
 
@@ -809,33 +1023,41 @@ class AppLauncher:
 
     def _load_extensions(self):
         """Load correct extensions based on AppLauncher's resolved config member variables."""
-        # These have to be loaded after SimulationApp is initialized
-        import carb
+        # These have to be loaded after SimulationApp is initialized (if in Omniverse mode)
+        # In standalone mode, we just store settings
 
-        # Retrieve carb settings for modification
-        carb_settings_iface = carb.settings.get_settings()
-
-        # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
+        # Store settings using the settings manager (works in both Omniverse and standalone mode)
+        # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
+        self._settings_manager.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
-        # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
+        # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the render_viewport pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
+        self._settings_manager.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
-        # set carb setting to indicate no RTX sensors are used
+        # set setting to indicate no RTX sensors are used
         # this flag is set to True when an RTX-rendering related sensor is created
         # for example: the `Camera` sensor class
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
+        self._settings_manager.set_bool("/isaaclab/render/rtx_sensors", False)
 
-        # set fabric update flag to disable updating transforms when rendering is disabled
-        carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
+        # set setting to store the visualizer backend(s) specified via command-line
+        # this allows SimulationContext to filter visualizers based on the --visualizer flag
+        # Store as comma-separated string for settings compatibility
+        if self._visualizer is not None:
+            self._settings_manager.set_string("/isaaclab/visualizer", ",".join(self._visualizer))
+        else:
+            self._settings_manager.set_string("/isaaclab/visualizer", "")
 
-        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
-        # for now, we use the custom loop runner from Isaac Sim to achieve this
-        carb_settings_iface.set_bool("/app/player/useFixedTimeStepping", False)
+        # Only set Omniverse-specific settings if running in Omniverse mode
+        if self._settings_manager.is_omniverse_mode:
+            # set fabric update flag to disable updating transforms when rendering is disabled
+            self._settings_manager.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
+
+            # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
+            # for now, we use the custom loop runner from Isaac Sim to achieve this
+            self._settings_manager.set_bool("/app/player/useFixedTimeStepping", False)
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
@@ -859,35 +1081,22 @@ class AppLauncher:
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
         """Set RTX rendering settings to the values from the selected preset."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         rendering_mode = launcher_args.get("rendering_mode")
 
-        # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-        if not self._enable_cameras and rendering_mode is None:
-            return
-
-        # default to balanced mode
         if rendering_mode is None:
-            rendering_mode = "balanced"
+            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
+            if not self._enable_cameras:
+                return
+            rendering_mode = ""
 
-        # parse preset file
-        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-        preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename) as file:
-            preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-        # set presets
-        carb_setting = carb.settings.get_settings()
-        for key, value in preset_dict.items():
-            key = "/" + key.replace(".", "/")  # convert to carb setting format
-            set_carb_setting(carb_setting, key, value)
+        # store rendering mode in carb settings
+        carb_settings = carb.settings.get_settings()
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Set animation recording settings."""
         import carb
-        from isaacsim.core.utils.carb import set_carb_setting
 
         # check if recording is enabled
         recording_enabled = launcher_args.get("anim_recording_enabled", False)
@@ -907,16 +1116,18 @@ class AppLauncher:
 
         # store config in carb settings
         carb_settings = carb.settings.get_settings()
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
-        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+        carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
+        carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
+        carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
-        # close the app
-        self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
+        # close the app (if running in Omniverse mode)
+        if self._app is not None:
+            self._app.close()
+        # exit immediately without raising SystemExit exception
+        # using os._exit() avoids tracebacks from other cleanup handlers (e.g., PyTorch compile workers)
+        os._exit(0)
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.
@@ -937,8 +1148,9 @@ class AppLauncher:
 
     def _abort_signal_handle_callback(self, signal, frame):
         """Handle the abort/segmentation/kill signals."""
-        # close the app
-        self._app.close()
+        # close the app (if running in Omniverse mode)
+        if self._app is not None:
+            self._app.close()
 
     def __patch_simulation_start_app(self, launcher_args: dict):
         if not launcher_args.get("enable_pinocchio", False):
@@ -947,21 +1159,20 @@ class AppLauncher:
         if launcher_args.get("disable_pinocchio_patch", False):
             return
 
-        original_start_app = SimulationApp._start_app
+        original_start_app = _SimulationApp._start_app
 
         def _start_app_patch(sim_app_instance, *args, **kwargs):
             original_start_app(sim_app_instance, *args, **kwargs)
             self.__patch_pxr_gf_matrix4d(launcher_args)
 
-        SimulationApp._start_app = _start_app_patch
+        _SimulationApp._start_app = _start_app_patch
 
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1023,13 +1234,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 

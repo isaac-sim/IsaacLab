@@ -11,13 +11,9 @@ import weakref
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import isaacsim
-import omni.kit.app
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.utils.stage import get_current_stage
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
@@ -50,6 +46,8 @@ class BaseEnvWindow:
             env: The environment object.
             window_name: The name of the window. Defaults to "IsaacLab".
         """
+        import omni.ui
+
         # store inputs
         self.env = env
         # prepare the list of assets that can be followed by the viewport camera
@@ -65,6 +63,9 @@ class BaseEnvWindow:
 
         # Listeners for environment selection changes
         self._ui_listeners: list[ManagerLiveVisualizer] = []
+
+        # Check if any visualizer has live plots enabled
+        self._enable_live_plots = self._check_live_plots_enabled()
 
         print("Creating window for environment.")
         # create window for UI
@@ -103,11 +104,37 @@ class BaseEnvWindow:
             self.ui_window = None
 
     """
+    Helper methods.
+    """
+
+    def _check_live_plots_enabled(self) -> bool:
+        """Check if any visualizer has live plots enabled.
+
+        Returns:
+            True if any visualizer supports and has live plots enabled, False otherwise.
+        """
+        # Check if simulation has visualizers
+        if not hasattr(self.env.sim, "_visualizers"):
+            return False
+
+        # Check each visualizer
+        for visualizer in self.env.sim._visualizers:
+            # Check if visualizer supports live plots and has it enabled
+            if hasattr(visualizer, "cfg") and hasattr(visualizer.cfg, "enable_live_plots"):
+                if visualizer.supports_live_plots() and visualizer.cfg.enable_live_plots:
+                    return True
+
+        return False
+
+    """
     Build sub-sections of the UI.
     """
 
     def _build_sim_frame(self):
         """Builds the sim-related controls frame for the UI."""
+        import isaacsim
+        import omni.ui
+
         # create collapsable frame for controls
         self.ui_window_elements["sim_frame"] = omni.ui.CollapsableFrame(
             title="Simulation Settings",
@@ -152,6 +179,9 @@ class BaseEnvWindow:
 
     def _build_viewer_frame(self):
         """Build the viewer-related control frame for the UI."""
+        import isaacsim
+        import omni.ui
+
         # create collapsable frame for viewer
         self.ui_window_elements["viewer_frame"] = omni.ui.CollapsableFrame(
             title="Viewer Settings",
@@ -219,6 +249,9 @@ class BaseEnvWindow:
         that has it implemented. If the element does not have a debug visualization implemented,
         a label is created instead.
         """
+        import isaacsim
+        import omni.ui
+
         # create collapsable frame for debug visualization
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
             title="Scene Debug Visualization",
@@ -274,6 +307,9 @@ class BaseEnvWindow:
 
     def _toggle_recording_animation_fn(self, value: bool):
         """Toggles the animation recording."""
+        import omni.kit.commands
+        import omni.usd
+
         if value:
             # log directory to save the recording
             if not hasattr(self, "animation_log_dir"):
@@ -326,11 +362,11 @@ class BaseEnvWindow:
                 # if prim has articulation then disable it
                 if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                     prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                    prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                    prim.RemoveAppliedSchema("PhysxArticulationAPI")
                 # if prim has rigid body then disable it
                 if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                    prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                    prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
                 # if prim is a joint type then disable it
                 if prim.IsA(UsdPhysics.Joint):
                     prim.GetAttribute("physics:jointEnabled").Set(False)
@@ -400,6 +436,8 @@ class BaseEnvWindow:
 
     def _create_debug_vis_ui_element(self, name: str, elem: object):
         """Create a checkbox for toggling debug visualization for the given element."""
+        import isaacsim
+        import omni.ui
         from omni.kit.window.extensions import SimpleCheckBox
 
         with omni.ui.HStack():
@@ -421,6 +459,11 @@ class BaseEnvWindow:
                 is_checked = (hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis) or (
                     hasattr(elem, "debug_vis") and elem.debug_vis
                 )
+
+            # Auto-enable live plots for ManagerLiveVisualizer if visualizer has enable_live_plots=True
+            if isinstance(elem, ManagerLiveVisualizer) and self._enable_live_plots:
+                is_checked = True
+
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
@@ -435,12 +478,17 @@ class BaseEnvWindow:
             if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
                 print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
 
+            # Pass the enable_live_plots flag to the visualizer
+            elem._auto_expand_frames = self._enable_live_plots
+
         # Add listener for environment selection changes
         if isinstance(elem, ManagerLiveVisualizer):
             self._ui_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""
+        import omni.ui
+
         # wait for the window to be created
         for _ in range(5):
             if omni.ui.Workspace.get_window(window_title):

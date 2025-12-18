@@ -14,8 +14,9 @@ class UnitreeA1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "unitree_a1_rough"
-    empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],

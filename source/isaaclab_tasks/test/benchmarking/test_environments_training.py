@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
+# import torch here to avoid GLIBCXX_3.4.30 error in conda
+import torch  # noqa: F401
 
 from isaaclab.app import AppLauncher
 
@@ -18,8 +20,8 @@ import sys
 import time
 
 import carb
+import env_test_utils as utils
 import pytest
-import test_utils as utils
 
 from isaaclab.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 
@@ -76,7 +78,7 @@ def train_job(workflow, task, env_config, num_gpus):
 
 
 @pytest.mark.parametrize("task_spec", setup_environment())
-def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kpi_store):
+def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kpi_store, disable_duration_check):
     """Train environments provided in the config file, save KPIs, and evaluate against thresholds"""
     # Skip if workflow not supported for this task
     if workflow + "_cfg_entry_point" not in task_spec.kwargs:
@@ -103,7 +105,7 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kp
 
     print(f">>> Evaluating trained: {job_name}")
     # Check if training logs were output and all thresholds passed
-    kpi_payload = utils.evaluate_job(workflow, task, env_config, duration)
+    kpi_payload = utils.evaluate_job(workflow, task, env_config, duration, disable_duration_check)
 
     success_flag = kpi_payload["success"]
     print(f">>> Trained {job_name} success flag: {success_flag}.")

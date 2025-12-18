@@ -12,7 +12,7 @@ from .solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
 class NewtonCfg:
     """Configuration for Newton-related parameters.
 
-    These parameters are used to configure the Newton simulation.
+    These parameters are used to configure the Newton physics simulation.
     """
 
     num_substeps: int = 1
@@ -26,11 +26,5 @@ class NewtonCfg:
 
     If set to False, the simulation performance will be severely degraded.
     """
-
-    newton_viewer_update_frequency: int = 1
-    """Frequency of updates to the Newton viewer."""
-
-    newton_viewer_camera_pos: tuple[float, float, float] = (10.0, 0.0, 3.0)
-    """Position of the camera in the Newton viewer."""
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()

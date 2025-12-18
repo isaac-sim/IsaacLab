@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
@@ -18,8 +17,12 @@ from isaaclab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class NonHolonomicAction(ActionTerm):
@@ -69,21 +72,21 @@ class NonHolonomicAction(ActionTerm):
 
         # parse the joint information
         # -- x joint
-        x_joint_id, x_joint_name = self._asset.find_joints(self.cfg.x_joint_name)
+        _, x_joint_name, x_joint_id = self._asset.find_joints(self.cfg.x_joint_name)
         if len(x_joint_id) != 1:
             raise ValueError(
                 f"Expected a single joint match for the x joint name: {self.cfg.x_joint_name}, got {len(x_joint_id)}"
             )
         # -- y joint
-        y_joint_id, y_joint_name = self._asset.find_joints(self.cfg.y_joint_name)
+        _, y_joint_name, y_joint_id = self._asset.find_joints(self.cfg.y_joint_name)
         if len(y_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the y joint name: {self.cfg.y_joint_name}")
         # -- yaw joint
-        yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name)
+        _, yaw_joint_name, yaw_joint_id = self._asset.find_joints(self.cfg.yaw_joint_name)
         if len(yaw_joint_id) != 1:
             raise ValueError(f"Found more than one joint match for the yaw joint name: {self.cfg.yaw_joint_name}")
         # parse the body index
-        self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name)
+        _, self._body_name, self._body_idx = self._asset.find_bodies(self.cfg.body_name)
         if len(self._body_idx) != 1:
             raise ValueError(f"Found more than one body match for the body name: {self.cfg.body_name}")
 
@@ -91,11 +94,11 @@ class NonHolonomicAction(ActionTerm):
         self._joint_ids = [x_joint_id[0], y_joint_id[0], yaw_joint_id[0]]
         self._joint_names = [x_joint_name[0], y_joint_name[0], yaw_joint_name[0]]
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
 
@@ -133,6 +136,36 @@ class NonHolonomicAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the non-holonomic action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - body_name: The name of the body.
+        - x_joint_name: The name of the x joint.
+        - y_joint_name: The name of the y joint.
+        - yaw_joint_name: The name of the yaw joint.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "non holonomic actions"
+        self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
+        self._IO_descriptor.clip = self._clip
+        self._IO_descriptor.body_name = self._body_name
+        self._IO_descriptor.x_joint_name = self._joint_names[0]
+        self._IO_descriptor.y_joint_name = self._joint_names[1]
+        self._IO_descriptor.yaw_joint_name = self._joint_names[2]
+        return self._IO_descriptor
 
     """
     Operations.

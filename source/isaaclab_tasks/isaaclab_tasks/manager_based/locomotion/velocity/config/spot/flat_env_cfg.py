@@ -126,15 +126,16 @@ class SpotEventCfg:
     #    },
     # )
 
-    add_base_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
-            "mass_distribution_params": (-2.5, 2.5),
-            "operation": "add",
-        },
-    )
+    # TODO: TEMPORARILY DISABLED - adding this causes NaNs in the simulation
+    # add_base_mass = EventTerm(
+    #     func=mdp.randomize_rigid_body_mass,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names="body"),
+    #         "mass_distribution_params": (-2.5, 2.5),
+    #         "operation": "add",
+    #     },
+    # )
 
     # reset
     base_external_force_torque = EventTerm(
@@ -302,7 +303,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=45,
-                ncon_per_env=30,
+                nconmax=30,
                 ls_iterations=10,
                 cone="pyramidal",
                 impratio=1,

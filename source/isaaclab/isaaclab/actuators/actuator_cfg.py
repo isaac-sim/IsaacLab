@@ -10,14 +10,13 @@ from typing import Literal
 from isaaclab.utils import configclass
 
 from . import actuator_net, actuator_pd
-from .actuator_base import ActuatorBase
 
 
 @configclass
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
 
-    class_type: type[ActuatorBase] = MISSING
+    class_type: type = MISSING
     """The associated actuator class.
 
     The class should inherit from :class:`isaaclab.actuators.ActuatorBase`.
@@ -109,16 +108,6 @@ class ActuatorBaseCfg:
 
     """
 
-    control_mode: Literal["position", "velocity", "none"] = "position"
-    """Control mode of the actuator. Defaults to "position".
-
-    The control mode can be one of the following:
-
-    * ``"position"``: Position control
-    * ``"velocity"``: Velocity control
-    * ``"none"``: No control (used for explicit actuators or direct effort control)
-    """
-
     stiffness: dict[str, float] | float | None = MISSING
     """Stiffness gains (also known as p-gain) of the joints in the group.
 
@@ -151,18 +140,26 @@ class ActuatorBaseCfg:
     """
 
     friction: dict[str, float] | float | None = None
-    r"""The friction coefficient of the joints in the group. Defaults to None.
+    r"""The static friction coefficient of the joints in the group. Defaults to None.
 
-    The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-    from the parent body to the child body to the maximal friction force that may be applied by the solver
+    The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+    from the parent body to the child body to the maximal static friction force that may be applied by the solver
     to resist the joint motion.
 
     Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
     is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-    transmitted from the parent body to the child body. The simulated friction effect is therefore
-    similar to static and Coulomb friction.
+    transmitted from the parent body to the child body. The simulated static friction effect is therefore
+    similar to static and Coulomb static friction.
 
-    If None, the joint friction is set to the value from the USD joint prim.
+    If None, the joint static friction is set to the value from the USD joint prim.
+    """
+
+    dynamic_friction: dict[str, float] | float | None = None
+    """The dynamic friction coefficient of the joints in the group. Defaults to None.
+    """
+
+    viscous_friction: dict[str, float] | float | None = None
+    """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
 
 
@@ -192,6 +189,8 @@ class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
 
     class_type: type = actuator_pd.IdealPDActuator
+
+    control_mode = "position"  # THIS IS HACK
 
 
 @configclass

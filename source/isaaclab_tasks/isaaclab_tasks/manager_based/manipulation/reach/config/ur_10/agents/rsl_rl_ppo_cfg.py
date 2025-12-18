@@ -16,9 +16,10 @@ class UR10ReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     experiment_name = "reach_ur10"
     run_name = ""
     resume = False
-    empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
         actor_hidden_dims=[64, 64],
         critic_hidden_dims=[64, 64],
         activation="elu",

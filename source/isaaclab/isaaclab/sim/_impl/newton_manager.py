@@ -6,16 +6,15 @@
 import numpy as np
 import re
 
-import usdrt
 import warp as wp
-from isaacsim.core.utils.stage import get_current_stage
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.examples import create_collision_pipeline
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
+from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
 
 
@@ -34,18 +33,6 @@ def flipped_match(x: str, y: str) -> re.Match | None:
     return re.match(y, x)
 
 
-@wp.kernel(enable_backward=False)
-def set_vec3d_array(
-    fabric_vals: wp.fabricarray(dtype=wp.mat44d),
-    indices: wp.fabricarray(dtype=wp.uint32),
-    newton_vals: wp.array(ndim=1, dtype=wp.transformf),
-):
-    i = int(wp.tid())
-    idx = int(indices[i])
-    new_val = newton_vals[idx]
-    fabric_vals[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(new_val)))
-
-
 class NewtonManager:
     _builder: ModelBuilder = None
     _model: Model = None
@@ -61,11 +48,12 @@ class NewtonManager:
     _on_init_callbacks: dict = {}
     _on_start_callbacks: dict = {}
     _contacts: Contacts = None
+    _needs_collision_pipeline: bool = False
+    _collision_pipeline = None
     _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
     _report_contacts: bool = False
     _graph = None
     _newton_stage_path = None
-    _renderer = None
     _sim_time = 0.0
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
@@ -75,8 +63,7 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
-    _visualizer_update_counter: int = 0
-    _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
+    _model_changes: set[int] = set()
     _views: list[str] = []
 
     @classmethod
@@ -89,20 +76,24 @@ class NewtonManager:
         NewtonManager._state_temp = None
         NewtonManager._control = None
         NewtonManager._contacts = None
+        NewtonManager._needs_collision_pipeline = False
+        NewtonManager._collision_pipeline = None
         NewtonManager._newton_contact_sensor = None
         NewtonManager._report_contacts = False
         NewtonManager._graph = None
         NewtonManager._newton_stage_path = None
-        NewtonManager._renderer = None
         NewtonManager._sim_time = 0.0
         NewtonManager._on_init_callbacks = {}
         NewtonManager._on_start_callbacks = {}
         NewtonManager._usdrt_stage = None
-        NewtonManager._cfg = NewtonCfg()
+        # Only create new config if not during Python shutdown
+        try:
+            NewtonManager._cfg = NewtonCfg()
+        except (ImportError, AttributeError, TypeError):
+            NewtonManager._cfg = None
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
-        NewtonManager._visualizer_update_counter = 0
-        NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
+        NewtonManager._model_changes = set()
         NewtonManager._views = []
 
     @classmethod
@@ -130,6 +121,10 @@ class NewtonManager:
         return NewtonManager._views
 
     @classmethod
+    def add_model_change(cls, change: SolverNotifyFlags) -> None:
+        NewtonManager._model_changes.add(change)
+
+    @classmethod
     def start_simulation(cls) -> None:
         """Starts the simulation.
 
@@ -144,21 +139,30 @@ class NewtonManager:
             for callback in NewtonManager._on_init_callbacks[priority]:
                 callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
-        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
+        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+            NewtonManager._model.num_envs = NewtonManager._num_envs
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        NewtonManager._contacts = Contacts(0, 0)
         NewtonManager.forward_kinematics()
+        if NewtonManager._needs_collision_pipeline:
+            NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
+            NewtonManager._contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
+        else:
+            NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
         for priority in sorted(NewtonManager._on_start_callbacks.keys()):
             for callback in NewtonManager._on_start_callbacks[priority]:
                 callback()
         if not NewtonManager._clone_physics_only:
+            import usdrt
+
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             for i, prim_path in enumerate(NewtonManager._model.body_key):
                 prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
@@ -170,10 +174,9 @@ class NewtonManager:
 
     @classmethod
     def instantiate_builder_from_stage(cls):
-        import omni.usd
         from pxr import UsdGeom
 
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
         builder.add_usd(stage)
@@ -199,7 +202,14 @@ class NewtonManager:
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
+            print(NewtonManager._model.gravity)
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
+            if isinstance(NewtonManager._solver, SolverMuJoCo):
+                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
+                    "use_mujoco_contacts", False
+                )
+            else:
+                NewtonManager._needs_collision_pipeline = True
 
         # Ensure we are using a CUDA enabled device
         assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
@@ -225,8 +235,10 @@ class NewtonManager:
         contacts = None
 
         # MJWarp computes its own collisions.
-        if NewtonManager._solver_type != "mujoco_warp":
-            contacts = NewtonManager._model.collide(NewtonManager._state_0)
+        if NewtonManager._needs_collision_pipeline:
+            contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):
@@ -283,6 +295,11 @@ class NewtonManager:
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
+        if NewtonManager._model_changes:
+            for change in NewtonManager._model_changes:
+                NewtonManager._solver.notify_model_changed(change)
+            NewtonManager._model_changes = set()
+
         if NewtonManager._cfg.use_cuda_graph:
             wp.capture_launch(NewtonManager._graph)
         else:
@@ -290,7 +307,7 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            print(f"solver niter: {convergence_data}")
+            # print(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 
@@ -315,62 +332,6 @@ class NewtonManager:
         NewtonManager._dt = dt
 
     @classmethod
-    def render(cls) -> None:
-        """Renders the simulation.
-
-        This function renders the simulation using the OpenGL renderer.
-        """
-
-        if NewtonManager._renderer is None:
-            NewtonManager._renderer = NewtonViewerGL(width=1280, height=720)
-            NewtonManager._renderer.set_model(NewtonManager._model)
-            NewtonManager._renderer.camera.pos = wp.vec3(*NewtonManager._cfg.newton_viewer_camera_pos)
-            NewtonManager._renderer.up_axis = NewtonManager._up_axis
-            NewtonManager._renderer.scaling = 1.0
-            NewtonManager._renderer._paused = False
-        else:
-            # Keep updating the renderer until the training is resumed
-            while NewtonManager._renderer.is_training_paused():
-                NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-                NewtonManager._renderer.log_state(NewtonManager._state_0)
-                NewtonManager._renderer.end_frame()
-
-            # Use configurable frequency for both paused and unpaused rendering
-            NewtonManager._visualizer_update_counter += 1
-            if NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency:
-                if not NewtonManager._renderer.is_paused():
-                    # Render the frame normally when not paused
-                    NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-                    NewtonManager._renderer.log_state(NewtonManager._state_0)
-                    NewtonManager._renderer.end_frame()
-                else:
-                    # Just update the renderer when paused (no actual rendering)
-                    NewtonManager._renderer._update()
-                NewtonManager._visualizer_update_counter = 0
-
-    @classmethod
-    def sync_fabric_transforms(cls) -> None:
-        """Syncs the fabric transforms with the Newton state.
-
-        This function syncs the fabric transforms with the Newton state.
-        """
-        selection = NewtonManager._usdrt_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
-                (usdrt.Sdf.ValueTypeNames.UInt, NewtonManager._newton_index_attr, usdrt.Usd.Access.Read),
-            ],
-            device="cuda:0",
-        )
-        fabric_newton_indices = wp.fabricarray(selection, NewtonManager._newton_index_attr)
-        current_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
-        wp.launch(
-            set_vec3d_array,
-            dim=(fabric_newton_indices.shape[0]),
-            inputs=[current_transforms, fabric_newton_indices, NewtonManager._state_0.body_q],
-            device="cuda:0",
-        )
-
-    @classmethod
     def get_model(cls):
         return NewtonManager._model
 
@@ -385,6 +346,14 @@ class NewtonManager:
     @classmethod
     def get_control(cls):
         return NewtonManager._control
+
+    @classmethod
+    def get_dt(cls):
+        return NewtonManager._dt
+
+    @classmethod
+    def get_solver_dt(cls):
+        return NewtonManager._solver_dt
 
     @classmethod
     def forward_kinematics(cls, mask: wp.array | None = None) -> None:

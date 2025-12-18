@@ -12,31 +12,32 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 @pytest.fixture
 def sim():
     """Create a simulation context for testing."""
-    # Create a new stage
-    stage_utils.create_new_stage()
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, device="cuda:0")
+    sim_cfg = SimulationCfg(dt=dt, device="cuda:0")
+    sim = SimulationContext(sim_cfg)
+    # Clear the stage to ensure a clean state for each test
+    stage_utils.clear_stage()
     # Wait for spawning
     stage_utils.update_stage()
     yield sim
     # Cleanup
     sim.stop()
-    sim.clear()
+    stage_utils.clear_stage()
     sim.clear_all_callbacks()
-    sim.clear_instance()
+    SimulationContext.clear_instance()
 
 
 """
@@ -138,6 +139,7 @@ def test_spawn_cone_with_deformable_props(sim):
     assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() == cfg.deformable_props.deformable_enabled
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_deformable_and_mass_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API."""
     # Spawn cone
@@ -161,6 +163,7 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_deformable_and_density_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API.
 
@@ -189,6 +192,7 @@ def test_spawn_cone_with_deformable_and_density_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_all_deformable_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with all deformable properties."""
     # Spawn cone
@@ -216,6 +220,7 @@ def test_spawn_cone_with_all_deformable_props(sim):
         sim.step()
 
 
+@pytest.mark.skip(reason="Test requires SimulationContext.device which is None without Newton")
 def test_spawn_cone_with_all_rigid_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with all rigid properties."""
     # Spawn cone

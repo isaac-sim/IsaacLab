@@ -38,7 +38,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     njmax: int = 300
     """Number of constraints per environment (world)."""
 
-    ncon_per_env: int | None = None
+    nconmax: int | None = None
     """Number of contact points per environment (world)."""
 
     iterations: int = 100
@@ -77,13 +77,6 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     If None, the MJCF model is not saved.
     """
 
-    contact_stiffness_time_const: float = 0.02
-    """Time constant for contact stiffness in MuJoCo's solver reference model.
-
-    Can be set to match the simulation timestep for tighter coupling.
-    If 0, the contact stiffness is not time-dependent.
-    """
-
     impratio: float = 1.0
     """Frictional-to-normal constraint impedance ratio."""
 
@@ -92,6 +85,9 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     ls_parallel: bool = False
     """Whether to use parallel line search."""
+
+    use_mujoco_contacts: bool = True
+    """Whether to use MuJoCo's contact solver."""
 
 
 @configclass
