@@ -7,6 +7,8 @@ The currently supported tasks are as follows:
 
 * Isaac-Cartpole-Direct-v0
 * Isaac-Cartpole-v0
+* Isaac-Cartpole-RGB-Camera-Direct-v0
+* Isaac-Cartpole-Depth-Camera-Direct-v0
 * Isaac-Ant-Direct-v0
 * Isaac-Ant-v0
 * Isaac-Humanoid-Direct-v0
