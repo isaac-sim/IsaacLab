@@ -18,12 +18,6 @@ from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
-# omni.metrics is only available in Isaac Sim 5.0 and above
-if float(".".join(get_version()[2])) < 5:
-    get_metrics_assembler_interface = None
-else:
-    from omni.metrics.assembler.core import get_metrics_assembler_interface
-
 # import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
@@ -410,8 +404,10 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
 
+    # get isaac sim version
+    isaac_sim_version = float(".".join(get_version()[2]))
     # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
-    if get_metrics_assembler_interface is None:
+    if isaac_sim_version < 5:
         success_bool = prim.GetReferences().AddReference(usd_path)
         if not success_bool:
             raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
@@ -424,6 +420,8 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
         pass
         # logger.info(f"Could not get Sdf layer for {usd_path}")
     else:
+        from omni.metrics.assembler.core import get_metrics_assembler_interface
+
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         ret_val = get_metrics_assembler_interface().check_layers(
             stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
