@@ -46,7 +46,7 @@ SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"usd-core==25.05.0 ; ({SUPPORTED_ARCHS})",
-    f"usd-exchange>=2.1.0a3 ; ({SUPPORTED_ARCHS_ARM})",
+    f"usd-exchange>=2.1 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
 # Installation operation
