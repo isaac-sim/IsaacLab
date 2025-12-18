@@ -492,47 +492,48 @@ class FrameTransformer(SensorBase):
                 ],
             )
 
-    def _set_debug_vis_impl(self, debug_vis: bool):
-        # set visibility of markers
-        # note: parent only deals with callbacks. not their visibility
-        if debug_vis:
-            if not hasattr(self, "frame_visualizer"):
-                self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+    #def _set_debug_vis_impl(self, debug_vis: bool):
+    #    # set visibility of markers
+    #    # note: parent only deals with callbacks. not their visibility
+    #    if debug_vis:
+    #        if not hasattr(self, "frame_visualizer"):
+    #            self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
 
-            # set their visibility to true
-            self.frame_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "frame_visualizer"):
-                self.frame_visualizer.set_visibility(False)
+    #        # set their visibility to true
+    #        self.frame_visualizer.set_visibility(True)
+    #    else:
+    #        if hasattr(self, "frame_visualizer"):
+    #            self.frame_visualizer.set_visibility(False)
 
-    def _debug_vis_callback(self, event):
-        # Get the all frames pose
-        frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
-        frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
+    #def _debug_vis_callback(self, event):
+    #    return
+    #    # Get the all frames pose
+    #    frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
+    #    frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
 
-        # Get the all connecting lines between frames pose
-        lines_pos, lines_quat, lines_length = self._get_connecting_lines(
-            start_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
-            end_pos=self._data.target_pos_w.view(-1, 3),
-        )
+    #    # Get the all connecting lines between frames pose
+    #    lines_pos, lines_quat, lines_length = self._get_connecting_lines(
+    #        start_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
+    #        end_pos=self._data.target_pos_w.view(-1, 3),
+    #    )
 
-        # Initialize default (identity) scales and marker indices for all markers (frames + lines)
-        marker_scales = torch.ones(frames_pos.size(0) + lines_pos.size(0), 3)
-        marker_indices = torch.zeros(marker_scales.size(0))
+    #    # Initialize default (identity) scales and marker indices for all markers (frames + lines)
+    #    marker_scales = torch.ones(frames_pos.size(0) + lines_pos.size(0), 3)
+    #    marker_indices = torch.zeros(marker_scales.size(0))
 
-        # Set the z-scale of line markers to represent their actual length
-        marker_scales[-lines_length.size(0) :, -1] = lines_length
+    #    # Set the z-scale of line markers to represent their actual length
+    #    marker_scales[-lines_length.size(0) :, -1] = lines_length
 
-        # Assign marker config index 1 to line markers
-        marker_indices[-lines_length.size(0) :] = 1
+    #    # Assign marker config index 1 to line markers
+    #    marker_indices[-lines_length.size(0) :] = 1
 
-        # Update the frame and the connecting line visualizer
-        self.frame_visualizer.visualize(
-            translations=torch.cat((frames_pos, lines_pos), dim=0),
-            orientations=torch.cat((frames_quat, lines_quat), dim=0),
-            scales=marker_scales,
-            marker_indices=marker_indices,
-        )
+    #    # Update the frame and the connecting line visualizer
+    #    self.frame_visualizer.visualize(
+    #        translations=torch.cat((frames_pos, lines_pos), dim=0),
+    #        orientations=torch.cat((frames_quat, lines_quat), dim=0),
+    #        scales=marker_scales,
+    #        marker_indices=marker_indices,
+    #    )
 
     """
     Internal simulation callbacks.
