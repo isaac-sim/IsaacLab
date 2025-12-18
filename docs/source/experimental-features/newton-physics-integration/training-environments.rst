@@ -6,8 +6,6 @@ To run training, we follow the standard Isaac Lab workflow. If you are new to Is
 The currently supported tasks are as follows:
 
 * Isaac-Cartpole-Direct-v0
-* Isaac-Cartpole-RGB-Camera-Direct-v0
-* Isaac-Cartpole-Depth-Camera-Direct-v0
 * Isaac-Cartpole-v0
 * Isaac-Ant-Direct-v0
 * Isaac-Ant-v0
@@ -23,7 +21,6 @@ The currently supported tasks are as follows:
 * Isaac-Velocity-Flat-Unitree-A1-v0
 * Isaac-Velocity-Flat-Unitree-Go1-v0
 * Isaac-Velocity-Flat-Unitree-Go2-v0
-* Isaac-Velocity-Flat-Spot-v0
 * Isaac-Reach-Franka-v0
 * Isaac-Reach-UR10-v0
 * Isaac-Repose-Cube-Allegro-Direct-v0
