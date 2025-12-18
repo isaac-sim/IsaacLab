@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.11.10 (2025-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added obs_groups to the RSL-RL PPO agent configuration for the ``Isaac-Reach-UR10e-v0`` environment.
+* Changed self.state_space to 19 in the ``Isaac-Reach-UR10e-ROS-Inference-v0`` environment.
+
+
+0.11.9 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXR motion controller support for the G1 robot locomanipulation environment
+  ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``. This enables teleoperation using XR motion controllers
+  in addition to hand tracking.
+* Added :class:`OpenXRDeviceMotionController` for motion controller-based teleoperation with headset anchoring control.
+* Added motion controller-specific retargeters:
+  * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
+  * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
+
 0.11.8 (2025-11-06)
 ~~~~~~~~~~~~~~~~~~~
 

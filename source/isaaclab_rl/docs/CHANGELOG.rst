@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.4.6 (2025-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added support for decoupling RL device from simulation device in for RL games wrapper.
+  This allows users to run simulation on one device (e.g., CPU) while running RL training/inference on another device.
+
+
+0.4.5 (2025-12-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added state_dependent_std rsl_rl param to RSL-RL wrapper.
+
+
 0.4.4 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~
 

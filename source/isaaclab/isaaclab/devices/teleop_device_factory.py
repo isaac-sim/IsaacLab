@@ -83,5 +83,5 @@ def create_teleop_device(
     for key, callback in callbacks.items():
         device.add_callback(key, callback)
 
-    logger.info(f"Created teleoperation device: {device_name}")
+    logging.info(f"Created teleoperation device: {device_name}")
     return device
