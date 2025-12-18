@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import json
 import math
-import numpy as np
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -16,9 +14,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 from pxr import UsdGeom
 
-# from isaacsim.core.prims import XFormPrim
 from isaaclab.sim.utils.prims import XFormPrim
-from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -153,8 +149,6 @@ class TiledCamera(Camera):
                 " rendering."
             )
 
-        import omni.replicator.core as rep
-
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
@@ -168,9 +162,6 @@ class TiledCamera(Camera):
             )
 
         if self.cfg.renderer_type == "newton_warp":
-
-            from isaaclab.sim._impl.newton_manager import NewtonManager
-
             renderer_cfg = NewtonWarpRendererCfg(
                 width=self.cfg.width, height=self.cfg.height, num_cameras=self._view.count, num_envs=self._num_envs
             )

@@ -370,7 +370,9 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
         batch_dim + (4,)
     )
 
-    out_xyzw = torch.stack((wxyz[..., 1], wxyz[..., 2], wxyz[..., 3], wxyz[..., 0]), dim=-1) # this is not optimum but works
+    out_xyzw = torch.stack(
+        (wxyz[..., 1], wxyz[..., 2], wxyz[..., 3], wxyz[..., 0]), dim=-1
+    )  # this is not optimum but works
     return out_xyzw
 
 

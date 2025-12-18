@@ -9,6 +9,8 @@ import math
 import torch
 from collections.abc import Sequence
 
+import warp as wp
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
@@ -19,8 +21,6 @@ from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
-
-import warp as wp
 
 
 @configclass
@@ -256,7 +256,7 @@ class CartpoleCameraEnv(DirectRLEnv):
 
         default_root_state = wp.to_torch(self._cartpole.data.default_root_state)[env_ids]
         default_root_state[:, :3] += self.scene.env_origins[env_ids]
-        
+
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 

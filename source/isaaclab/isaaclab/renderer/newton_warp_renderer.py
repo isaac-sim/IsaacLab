@@ -34,6 +34,7 @@ def _create_camera_transforms_kernel(
     i = wp.tid()
     transforms[i, 0] = wp.transformf(positions[i], orientations[i])
 
+
 @wp.kernel
 def _convert_raw_rgb_tiled(
     raw_buffer: wp.array(dtype=wp.uint32, ndim=3),
@@ -248,7 +249,9 @@ class NewtonWarpRenderer(RendererBase):
 
         # Convert uint32 to uint8 RGBA
         reshape_rgba = self._raw_output_rgb_buffer.reshape((self._num_envs, self._height, self._width))
-        self._output_data_buffers["rgba"] = wp.array(ptr=reshape_rgba.ptr,shape=(*reshape_rgba.shape, 4), dtype=wp.uint8)
+        self._output_data_buffers["rgba"] = wp.array(
+            ptr=reshape_rgba.ptr, shape=(*reshape_rgba.shape, 4), dtype=wp.uint8
+        )
 
         self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
 

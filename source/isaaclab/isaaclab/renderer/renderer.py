@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from abc import ABC
-from typing import TYPE_CHECKING
 
 from .renderer_cfg import RendererCfg
 
@@ -23,7 +22,7 @@ class RendererBase(ABC):
         # List of data types to use for rendering, e.g. ["rgb", "depth", "semantic_segmentation"]
         self._data_types = []
 
-        # output buffer format is a ditc, where the keys is the data type and the value is a list of buffers for each camera
+        # output buffer format is a dict, where the keys is the data type and the value is a list of buffers for each camera
         # TODO: Document the standard format of the output data buffers. Need discussion.
         self._output_data_buffers = dict()
 
@@ -49,10 +48,6 @@ class RendererBase(ABC):
 
     def get_output(self):
         return self._output_data_buffers
-
-    def close(self):
-        """Close the renderer."""
-        raise NotImplementedError("close() is not implemented.")
 
     def clone(self, cameras):
         """TODO: Clone the camera in renderer."""

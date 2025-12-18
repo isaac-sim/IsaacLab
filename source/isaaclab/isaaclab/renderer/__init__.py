@@ -58,7 +58,7 @@ __all__ = [
 
 
 # Register only selected renderers to reduce unnecessary imports
-def get_renderer_class(name: str) -> type[Renderer] | None:
+def get_renderer_class(name: str) -> type[RendererBase] | None:
     """Get a renderer class by name (lazy-loaded).
     Renderer classes are imported only when requested to avoid loading
     unnecessary dependencies.
