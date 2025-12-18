@@ -41,11 +41,14 @@ INSTALL_REQUIRES = [
     "pillow==11.2.1",
     # livestream
     "starlette==0.45.3",
+    # assets
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
+    # visualizers
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     "rerun-sdk==0.27",

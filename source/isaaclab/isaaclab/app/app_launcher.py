@@ -618,7 +618,7 @@ class AppLauncher:
         print("[INFO][AppLauncher]: Standalone settings stored:")
         print(f"  - visualizer: {self._visualizer}")
         print(f"  - offscreen_render: {self._offscreen_render}")
-        print(f"  - headless: {self._headless}")
+        # print(f"  - headless: {self._headless}")
 
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
