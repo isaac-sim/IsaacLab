@@ -31,6 +31,9 @@ class RendererCfg:
 
     num_envs: int = 1
     """Number of environments to use for rendering. Defaults to 1."""
+    
+    num_cameras: int = 1
+    """Number of cameras to use for rendering. Defaults to 1."""
 
     data_types: list[str] = MISSING
     """List of data types to use for rendering."""
@@ -54,6 +57,10 @@ class RendererCfg:
     def get_data_types(self) -> list[str]:
         """Get the list of data types to use for rendering."""
         return self.data_types
+    
+    def get_num_cameras(self) -> int:
+        """Get the number of cameras to use for rendering."""
+        return self.num_cameras
 
     def create_renderer(self) -> RendererBase:
         """Create a renderer instance from this config."""
