@@ -114,7 +114,7 @@ class TiledCamera(Camera):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
         if not self._is_initialized:
             raise RuntimeError(
-                "TiledCamera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
+                "TiledCamera could not be initialized. Please check that the renderer is properly configured."
             )
         # reset the timestamps
         SensorBase.reset(self, env_ids)
@@ -140,15 +140,6 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        import carb
-
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
-            raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
-                " rendering."
-            )
-
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
