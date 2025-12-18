@@ -591,7 +591,8 @@ def test_sensor_print(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_frame_transformer_duplicate_body_names(sim):
+@pytest.mark.parametrize("source_robot", ["Robot", "Robot_1"])
+def test_frame_transformer_duplicate_body_names(sim, source_robot):
     """Test tracking bodies with same leaf name at different hierarchy levels.
 
     This test verifies that bodies with the same leaf name but different paths
@@ -611,6 +612,11 @@ def test_frame_transformer_duplicate_body_names(sim):
         `idx = target_frame_names.index("RF_SHANK")`. However, when multiple bodies share
         the same leaf name, this results in duplicate frame names. The transforms are
         still distinct because internal body tracking uses full relative paths.
+
+    Args:
+        source_robot: The robot to use as the source frame ("Robot" or "Robot_1").
+                      This tests that both source frames work correctly when there are
+                      duplicate body names.
     """
 
     # Create a custom scene config with two robots
@@ -629,31 +635,35 @@ def test_frame_transformer_duplicate_body_names(sim):
             init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
         )
 
-        # Frame transformer tracking same-named bodies from both robots
-        frame_transformer: FrameTransformerCfg = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/base",
-            target_frames=[
-                # Explicit frame names (recommended when bodies share the same leaf name)
-                FrameTransformerCfg.FrameCfg(
-                    name="Robot_LF_SHANK",
-                    prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK",
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    name="Robot_1_LF_SHANK",
-                    prim_path="{ENV_REGEX_NS}/Robot_1/LF_SHANK",
-                ),
-                # Implicit frame names (backward compatibility)
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/RF_SHANK",
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot_1/RF_SHANK",
-                ),
-            ],
-        )
+        # Frame transformer will be set after config creation (needs source_robot parameter)
+        frame_transformer: FrameTransformerCfg = None  # type: ignore
 
     # Spawn things into stage
     scene_cfg = MultiRobotSceneCfg(num_envs=2, env_spacing=10.0, lazy_sensor_update=False)
+
+    # Frame transformer tracking same-named bodies from both robots
+    # Source frame is parametrized to test both Robot/base and Robot_1/base
+    scene_cfg.frame_transformer = FrameTransformerCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/{source_robot}/base",
+        target_frames=[
+            # Explicit frame names (recommended when bodies share the same leaf name)
+            FrameTransformerCfg.FrameCfg(
+                name="Robot_LF_SHANK",
+                prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK",
+            ),
+            FrameTransformerCfg.FrameCfg(
+                name="Robot_1_LF_SHANK",
+                prim_path="{ENV_REGEX_NS}/Robot_1/LF_SHANK",
+            ),
+            # Implicit frame names (backward compatibility)
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/RF_SHANK",
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot_1/RF_SHANK",
+            ),
+        ],
+    )
     scene = InteractiveScene(scene_cfg)
 
     # Play the simulator
@@ -680,10 +690,16 @@ def test_frame_transformer_duplicate_body_names(sim):
     assert len(rf_shank_indices) == 2, f"Expected 2 RF_SHANK indices, got {rf_shank_indices}"
 
     # Acquire ground truth body indices
+    robot_base_body_idx = scene.articulations["robot"].find_bodies("base")[0][0]
+    robot_1_base_body_idx = scene.articulations["robot_1"].find_bodies("base")[0][0]
     robot_lf_shank_body_idx = scene.articulations["robot"].find_bodies("LF_SHANK")[0][0]
     robot_1_lf_shank_body_idx = scene.articulations["robot_1"].find_bodies("LF_SHANK")[0][0]
     robot_rf_shank_body_idx = scene.articulations["robot"].find_bodies("RF_SHANK")[0][0]
     robot_1_rf_shank_body_idx = scene.articulations["robot_1"].find_bodies("RF_SHANK")[0][0]
+
+    # Determine expected source frame based on parameter
+    expected_source_robot = "robot" if source_robot == "Robot" else "robot_1"
+    expected_source_base_body_idx = robot_base_body_idx if source_robot == "Robot" else robot_1_base_body_idx
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -720,15 +736,31 @@ def test_frame_transformer_duplicate_body_names(sim):
         scene.update(sim_dt)
 
         # Get frame transformer data
-        target_pos_w = scene.sensors["frame_transformer"].data.target_pos_w
+        frame_transformer_data = scene.sensors["frame_transformer"].data
+        source_pos_w = frame_transformer_data.source_pos_w
+        source_quat_w = frame_transformer_data.source_quat_w
+        target_pos_w = frame_transformer_data.target_pos_w
 
-        # Get ground truth positions
+        # Get ground truth positions and orientations (after scene.update() so they're current)
         robot_lf_pos_w = scene.articulations["robot"].data.body_pos_w[:, robot_lf_shank_body_idx]
         robot_1_lf_pos_w = scene.articulations["robot_1"].data.body_pos_w[:, robot_1_lf_shank_body_idx]
         robot_rf_pos_w = scene.articulations["robot"].data.body_pos_w[:, robot_rf_shank_body_idx]
         robot_1_rf_pos_w = scene.articulations["robot_1"].data.body_pos_w[:, robot_1_rf_shank_body_idx]
 
-        # TEST 1: Explicit named frames (LF_SHANK) should have DIFFERENT positions
+        # Get expected source frame positions and orientations (after scene.update() so they're current)
+        expected_source_base_pos_w = scene.articulations[expected_source_robot].data.body_pos_w[
+            :, expected_source_base_body_idx
+        ]
+        expected_source_base_quat_w = scene.articulations[expected_source_robot].data.body_quat_w[
+            :, expected_source_base_body_idx
+        ]
+
+        # TEST 1: Verify source frame is correctly resolved
+        # The source_pos_w should match the expected source robot's base world position
+        torch.testing.assert_close(source_pos_w, expected_source_base_pos_w, rtol=1e-5, atol=1e-5)
+        torch.testing.assert_close(source_quat_w, expected_source_base_quat_w, rtol=1e-5, atol=1e-5)
+
+        # TEST 2: Explicit named frames (LF_SHANK) should have DIFFERENT world positions
         lf_pos_difference = torch.norm(target_pos_w[:, robot_lf_idx] - target_pos_w[:, robot_1_lf_idx], dim=-1)
         assert torch.all(lf_pos_difference > 1.0), (
             f"Robot_LF_SHANK and Robot_1_LF_SHANK should have different positions (got diff={lf_pos_difference}). "
@@ -739,7 +771,7 @@ def test_frame_transformer_duplicate_body_names(sim):
         torch.testing.assert_close(target_pos_w[:, robot_lf_idx], robot_lf_pos_w)
         torch.testing.assert_close(target_pos_w[:, robot_1_lf_idx], robot_1_lf_pos_w)
 
-        # TEST 2: Implicit named frames (RF_SHANK) should also have DIFFERENT positions
+        # TEST 3: Implicit named frames (RF_SHANK) should also have DIFFERENT world positions
         # Even though they have the same frame name, internal body tracking uses full paths
         rf_pos_difference = torch.norm(
             target_pos_w[:, rf_shank_indices[0]] - target_pos_w[:, rf_shank_indices[1]], dim=-1
