@@ -88,6 +88,7 @@ Guidelines for modifications:
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
+* Jinyeob Kim
 * Johnson Sun
 * Kaixi Bao
 * Kris Wilson
@@ -164,6 +165,7 @@ Guidelines for modifications:
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Weihua Zhang
 
 ## Acknowledgements
 
