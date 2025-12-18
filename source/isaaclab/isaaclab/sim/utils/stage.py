@@ -15,6 +15,13 @@ import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
+
+# Try importing experimental utils impl module (available in Isaac Sim 5.0+)
+# We need to import the impl module directly to access _context, since it's not re-exported
+try:
+    from isaacsim.core.experimental.utils.impl import stage as experimental_stage_impl
+except ImportError:
+    experimental_stage_impl = None
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
@@ -27,6 +34,9 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
 sim_stage._context = _context
+# Also sync with the experimental utils impl module (Isaac Sim 5.0+) which is used by SimulationManager
+if experimental_stage_impl is not None:
+    experimental_stage_impl._context = _context
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -159,8 +169,6 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...    pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-
     # check stage
     assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
     # store previous context value if it exists
@@ -168,13 +176,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     # set new context value
     try:
         _context.stage = stage
-        # Import both stage utils modules for Isaac Sim 6.0+
-        if isaac_sim_version >= 6:
-            # Set context in both modules to ensure all Isaac Sim subsystems see the correct stage
-            import isaacsim.core.experimental.utils.stage as experimental_stage_utils
-
-            with experimental_stage_utils.use_stage(stage):
-                yield
+        yield
     # remove context value or restore previous one if it exists
     finally:
         if previous_stage is None:
