@@ -1287,14 +1287,14 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
+        default_root_state = wp.to_torch(articulation_asset.data.default_root_state)[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         articulation_asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
         articulation_asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
         # obtain default joint positions
-        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
-        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
+        default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
         # reset joint targets if required

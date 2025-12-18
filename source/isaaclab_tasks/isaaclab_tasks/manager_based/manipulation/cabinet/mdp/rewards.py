@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import SceneEntityCfg
@@ -127,7 +128,7 @@ def grasp_handle(
     """
     ee_tcp_pos = env.scene["ee_frame"].data.target_pos_w[..., 0, :]
     handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
-    gripper_joint_pos = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids]
+    gripper_joint_pos = wp.to_torch(env.scene[asset_cfg.name].data.joint_pos)[:, asset_cfg.joint_ids]
 
     distance = torch.norm(handle_pos - ee_tcp_pos, dim=-1, p=2)
     is_close = distance <= threshold
@@ -140,7 +141,7 @@ def open_drawer_bonus(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torc
 
     The bonus is given when the drawer is open. If the grasp is around the handle, the bonus is doubled.
     """
-    drawer_pos = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids[0]]
+    drawer_pos = wp.to_torch(env.scene[asset_cfg.name].data.joint_pos)[:, asset_cfg.joint_ids[0]]
     is_graspable = align_grasp_around_handle(env).float()
 
     return (is_graspable + 1.0) * drawer_pos
@@ -152,7 +153,7 @@ def multi_stage_open_drawer(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -
     Depending on the drawer's position, the reward is given in three stages: easy, medium, and hard.
     This helps the agent to learn to open the drawer in a controlled manner.
     """
-    drawer_pos = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids[0]]
+    drawer_pos = wp.to_torch(env.scene[asset_cfg.name].data.joint_pos)[:, asset_cfg.joint_ids[0]]
     is_graspable = align_grasp_around_handle(env).float()
 
     open_easy = (drawer_pos > 0.01) * 0.5
