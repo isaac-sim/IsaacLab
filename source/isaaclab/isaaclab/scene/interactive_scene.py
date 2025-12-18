@@ -16,7 +16,7 @@ from pxr import Sdf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
-from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -303,7 +303,7 @@ class InteractiveScene:
     @property
     def rigid_objects(self) -> dict:
         """A dictionary of rigid objects in the scene."""
-        raise NotImplementedError("Rigid objects are not supported in IsaacLab for Newton.")
+        return self._rigid_objects
 
     @property
     def rigid_object_collections(self) -> dict:
@@ -605,7 +605,10 @@ class InteractiveScene:
                                 contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
                             )
                         asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
-
+                elif isinstance(asset_cfg, FrameTransformerCfg):
+                    if asset_cfg.target_frames is not None:
+                        for target_frame in asset_cfg.target_frames:
+                            target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset

@@ -45,8 +45,8 @@ class NewtonManager:
     _state_1: State = None
     _state_temp: State = None
     _control: Control = None
-    _on_init_callbacks: list = []
-    _on_start_callbacks: list = []
+    _on_init_callbacks: dict = {}
+    _on_start_callbacks: dict = {}
     _contacts: Contacts = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
@@ -64,6 +64,7 @@ class NewtonManager:
     _up_axis: str = "Z"
     _num_envs: int = None
     _model_changes: set[int] = set()
+    _views: list[str] = []
 
     @classmethod
     def clear(cls):
@@ -82,8 +83,8 @@ class NewtonManager:
         NewtonManager._graph = None
         NewtonManager._newton_stage_path = None
         NewtonManager._sim_time = 0.0
-        NewtonManager._on_init_callbacks = []
-        NewtonManager._on_start_callbacks = []
+        NewtonManager._on_init_callbacks = {}
+        NewtonManager._on_start_callbacks = {}
         NewtonManager._usdrt_stage = None
         # Only create new config if not during Python shutdown
         try:
@@ -93,18 +94,31 @@ class NewtonManager:
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
         NewtonManager._model_changes = set()
+        NewtonManager._views = []
 
     @classmethod
     def set_builder(cls, builder):
         NewtonManager._builder = builder
 
     @classmethod
-    def add_on_init_callback(cls, callback) -> None:
-        NewtonManager._on_init_callbacks.append(callback)
+    def add_on_init_callback(cls, callback, priority: int = 0) -> None:
+        if priority not in NewtonManager._on_init_callbacks:
+            NewtonManager._on_init_callbacks[priority] = []
+        NewtonManager._on_init_callbacks[priority].append(callback)
 
     @classmethod
-    def add_on_start_callback(cls, callback) -> None:
-        NewtonManager._on_start_callbacks.append(callback)
+    def add_on_start_callback(cls, callback, priority: int = 0) -> None:
+        if priority not in NewtonManager._on_start_callbacks:
+            NewtonManager._on_start_callbacks[priority] = []
+        NewtonManager._on_start_callbacks[priority].append(callback)
+
+    @classmethod
+    def add_view(cls, view) -> None:
+        NewtonManager._views.append(view)
+
+    @classmethod
+    def get_views(cls) -> list:
+        return NewtonManager._views
 
     @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
@@ -121,8 +135,9 @@ class NewtonManager:
         if NewtonManager._builder is None:
             NewtonManager.instantiate_builder_from_stage()
         print("[INFO] Running on init callbacks")
-        for callback in NewtonManager._on_init_callbacks:
-            callback()
+        for priority in sorted(NewtonManager._on_init_callbacks.keys()):
+            for callback in NewtonManager._on_init_callbacks[priority]:
+                callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
@@ -142,8 +157,9 @@ class NewtonManager:
         else:
             NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
-        for callback in NewtonManager._on_start_callbacks:
-            callback()
+        for priority in sorted(NewtonManager._on_start_callbacks.keys()):
+            for callback in NewtonManager._on_start_callbacks[priority]:
+                callback()
         if not NewtonManager._clone_physics_only:
             import usdrt
 
