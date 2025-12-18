@@ -17,10 +17,10 @@ from isaaclab.utils.math import combine_frame_transforms
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from .events import RandomizeGearType
+    from .events import randomize_gear_type
 
 
-class GearShaftPosW(ManagerTermBase):
+class gear_shaft_pos_w(ManagerTermBase):
     """Gear shaft position in world frame with offset applied.
 
     This class-based term caches gear offset tensors and identity quaternions for efficient computation
@@ -59,7 +59,7 @@ class GearShaftPosW(ManagerTermBase):
         # Pre-cache gear offset tensors (required parameter)
         if "gear_offsets" not in cfg.params:
             raise ValueError(
-                "'gear_offsets' parameter is required in GearShaftPosW configuration. "
+                "'gear_offsets' parameter is required in gear_shaft_pos_w configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
             )
         gear_offsets = cfg.params["gear_offsets"]
@@ -118,11 +118,11 @@ class GearShaftPosW(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this observation term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         # Get gear type indices directly as tensor (no Python loops!)
         gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
@@ -139,7 +139,7 @@ class GearShaftPosW(ManagerTermBase):
         return shaft_pos - env.scene.env_origins
 
 
-class GearShaftQuatW(ManagerTermBase):
+class gear_shaft_quat_w(ManagerTermBase):
     """Gear shaft orientation in world frame.
 
     This class-based term returns the orientation of the gear base (which is the same as the gear shaft
@@ -192,7 +192,7 @@ class GearShaftQuatW(ManagerTermBase):
         return positive_quat
 
 
-class GearPosW(ManagerTermBase):
+class gear_pos_w(ManagerTermBase):
     """Gear position in world frame.
 
     This class-based term returns the position of the active gear in each environment. It uses
@@ -239,11 +239,11 @@ class GearPosW(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this observation term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         # Get gear type indices directly as tensor (no Python loops!)
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
@@ -263,7 +263,7 @@ class GearPosW(ManagerTermBase):
         return gear_positions - env.scene.env_origins
 
 
-class GearQuatW(ManagerTermBase):
+class gear_quat_w(ManagerTermBase):
     """Gear orientation in world frame.
 
     This class-based term returns the orientation of the active gear in each environment. It uses
@@ -311,11 +311,11 @@ class GearQuatW(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this observation term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         # Get gear type indices directly as tensor (no Python loops!)
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 

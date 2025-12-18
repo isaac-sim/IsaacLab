@@ -19,10 +19,10 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCf
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-    from .events import RandomizeGearType
+    from .events import randomize_gear_type
 
 
-class ResetWhenGearDropped(ManagerTermBase):
+class reset_when_gear_dropped(ManagerTermBase):
     """Check if the gear has fallen out of the gripper and return reset flags.
 
     This class-based term pre-caches all required tensors and gear offsets.
@@ -44,12 +44,12 @@ class ResetWhenGearDropped(ManagerTermBase):
         # Validate required parameters
         if "end_effector_body_name" not in cfg.params:
             raise ValueError(
-                "'end_effector_body_name' parameter is required in ResetWhenGearDropped configuration. "
+                "'end_effector_body_name' parameter is required in reset_when_gear_dropped configuration. "
                 "Example: 'wrist_3_link'"
             )
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
-                "'grasp_rot_offset' parameter is required in ResetWhenGearDropped configuration. "
+                "'grasp_rot_offset' parameter is required in reset_when_gear_dropped configuration. "
                 "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
             )
 
@@ -58,7 +58,7 @@ class ResetWhenGearDropped(ManagerTermBase):
         # Pre-cache gear grasp offsets as tensors (required parameter)
         if "gear_offsets_grasp" not in cfg.params:
             raise ValueError(
-                "'gear_offsets_grasp' parameter is required in ResetWhenGearDropped configuration. "
+                "'gear_offsets_grasp' parameter is required in reset_when_gear_dropped configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
             )
         gear_offsets_grasp = cfg.params["gear_offsets_grasp"]
@@ -150,11 +150,11 @@ class ResetWhenGearDropped(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this termination term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         # Get gear type indices directly as tensor (no Python loops!)
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
@@ -192,7 +192,7 @@ class ResetWhenGearDropped(ManagerTermBase):
         return self.reset_flags
 
 
-class ResetWhenGearOrientationExceedsThreshold(ManagerTermBase):
+class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
     """Check if the gear's orientation relative to the gripper exceeds thresholds.
 
     This class-based term pre-caches all required tensors and thresholds.
@@ -214,13 +214,13 @@ class ResetWhenGearOrientationExceedsThreshold(ManagerTermBase):
         # Validate required parameters
         if "end_effector_body_name" not in cfg.params:
             raise ValueError(
-                "'end_effector_body_name' parameter is required in ResetWhenGearOrientationExceedsThreshold"
+                "'end_effector_body_name' parameter is required in reset_when_gear_orientation_exceeds_threshold"
                 " configuration. Example: 'wrist_3_link'"
             )
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
-                "'grasp_rot_offset' parameter is required in ResetWhenGearOrientationExceedsThreshold configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "'grasp_rot_offset' parameter is required in reset_when_gear_orientation_exceeds_threshold"
+                " configuration. It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -286,11 +286,11 @@ class ResetWhenGearOrientationExceedsThreshold(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this termination term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         # Get gear type indices directly as tensor (no Python loops!)
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 

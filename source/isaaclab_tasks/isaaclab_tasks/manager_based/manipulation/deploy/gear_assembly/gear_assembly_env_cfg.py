@@ -186,13 +186,13 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         joint_vel = ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         gear_shaft_pos = ObsTerm(
-            func=mdp.GearShaftPosW,
+            func=mdp.gear_shaft_pos_w,
             params={},  # Will be populated in __post_init__
             noise=ResetSampledConstantNoiseModelCfg(
                 noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
             ),
         )
-        gear_shaft_quat = ObsTerm(func=mdp.GearShaftQuatW)
+        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -205,11 +205,11 @@ class ObservationsCfg:
         # observation terms (order preserved)
         joint_pos = ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         joint_vel = ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
-        gear_shaft_pos = ObsTerm(func=mdp.GearShaftPosW, params={})  # Will be populated in __post_init__
-        gear_shaft_quat = ObsTerm(func=mdp.GearShaftQuatW)
+        gear_shaft_pos = ObsTerm(func=mdp.gear_shaft_pos_w, params={})  # Will be populated in __post_init__
+        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
-        gear_pos = ObsTerm(func=mdp.GearPosW)
-        gear_quat = ObsTerm(func=mdp.GearQuatW)
+        gear_pos = ObsTerm(func=mdp.gear_pos_w)
+        gear_quat = ObsTerm(func=mdp.gear_quat_w)
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -242,7 +242,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     end_effector_gear_keypoint_tracking = RewTerm(
-        func=mdp.KeypointEntityError,
+        func=mdp.keypoint_entity_error,
         weight=-1.5,
         params={
             "asset_cfg_1": SceneEntityCfg("factory_gear_base"),
@@ -251,7 +251,7 @@ class RewardsCfg:
     )
 
     end_effector_gear_keypoint_tracking_exp = RewTerm(
-        func=mdp.KeypointEntityErrorExp,
+        func=mdp.keypoint_entity_error_exp,
         weight=1.5,
         params={
             "asset_cfg_1": SceneEntityCfg("factory_gear_base"),
@@ -271,7 +271,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
     gear_dropped = DoneTerm(
-        func=gear_assembly_terminations.ResetWhenGearDropped,
+        func=gear_assembly_terminations.reset_when_gear_dropped,
         params={
             "distance_threshold": 0.15,  # 15cm from gripper
             "robot_asset_cfg": SceneEntityCfg("robot"),
@@ -279,7 +279,7 @@ class TerminationsCfg:
     )
 
     gear_orientation_exceeded = DoneTerm(
-        func=gear_assembly_terminations.ResetWhenGearOrientationExceedsThreshold,
+        func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
         params={
             "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
             "pitch_threshold_deg": 7.0,  # Maximum pitch deviation in degrees

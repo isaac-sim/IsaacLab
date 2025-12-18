@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-class RandomizeGearType(ManagerTermBase):
+class randomize_gear_type(ManagerTermBase):
     """Randomize and manage the gear type being used for each environment.
 
     This class stores the current gear type for each environment and provides a mapping
@@ -41,7 +41,7 @@ class RandomizeGearType(ManagerTermBase):
 
         # Extract gear types from config (required parameter)
         if "gear_types" not in cfg.params:
-            raise ValueError("'gear_types' parameter is required in RandomizeGearType configuration")
+            raise ValueError("'gear_types' parameter is required in randomize_gear_type configuration")
         self.gear_types: list[str] = cfg.params["gear_types"]
 
         # Create gear type mapping (shared across all terms)
@@ -98,7 +98,7 @@ class RandomizeGearType(ManagerTermBase):
         return self._current_gear_type_indices
 
 
-class SetRobotToGraspPose(ManagerTermBase):
+class set_robot_to_grasp_pose(ManagerTermBase):
     """Set robot to grasp pose using IK with pre-cached tensors.
 
     This class-based term caches all required tensors and gear offsets during initialization,
@@ -122,21 +122,21 @@ class SetRobotToGraspPose(ManagerTermBase):
         # Validate required parameters
         if "end_effector_body_name" not in cfg.params:
             raise ValueError(
-                "'end_effector_body_name' parameter is required in SetRobotToGraspPose configuration. "
+                "'end_effector_body_name' parameter is required in set_robot_to_grasp_pose configuration. "
                 "Example: 'wrist_3_link'"
             )
         if "num_arm_joints" not in cfg.params:
             raise ValueError(
-                "'num_arm_joints' parameter is required in SetRobotToGraspPose configuration. Example: 6 for UR10e"
+                "'num_arm_joints' parameter is required in set_robot_to_grasp_pose configuration. Example: 6 for UR10e"
             )
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
-                "'grasp_rot_offset' parameter is required in SetRobotToGraspPose configuration. "
+                "'grasp_rot_offset' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
             )
         if "gripper_joint_setter_func" not in cfg.params:
             raise ValueError(
-                "'gripper_joint_setter_func' parameter is required in SetRobotToGraspPose configuration. "
+                "'gripper_joint_setter_func' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a function to set gripper joint positions."
             )
 
@@ -147,7 +147,7 @@ class SetRobotToGraspPose(ManagerTermBase):
         # Pre-cache gear grasp offsets as tensors (required parameter)
         if "gear_offsets_grasp" not in cfg.params:
             raise ValueError(
-                "'gear_offsets_grasp' parameter is required in SetRobotToGraspPose configuration. "
+                "'gear_offsets_grasp' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
             )
         gear_offsets_grasp = cfg.params["gear_offsets_grasp"]
@@ -237,11 +237,11 @@ class SetRobotToGraspPose(ManagerTermBase):
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this event term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
 
         # Slice buffers for current batch size
         num_reset_envs = len(env_ids)
@@ -368,7 +368,7 @@ class SetRobotToGraspPose(ManagerTermBase):
         self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
 
 
-class RandomizeGearsAndBasePose(ManagerTermBase):
+class randomize_gears_and_base_pose(ManagerTermBase):
     """Randomize both the gear base pose and individual gear poses.
 
     This class-based term pre-caches all tensors needed for randomization.
@@ -410,11 +410,11 @@ class RandomizeGearsAndBasePose(ManagerTermBase):
         """
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
-                "Gear type manager not initialized. Ensure RandomizeGearType event is configured "
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
                 "in your environment's event configuration before this event term is used."
             )
 
-        gear_type_manager: RandomizeGearType = env._gear_type_manager
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
         device = env.device
 
         # Shared pose samples for all assets

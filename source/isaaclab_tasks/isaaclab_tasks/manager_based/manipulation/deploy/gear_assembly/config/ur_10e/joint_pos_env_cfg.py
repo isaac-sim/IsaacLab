@@ -188,7 +188,7 @@ class EventCfg:
     )
 
     randomize_gear_type = EventTerm(
-        func=gear_assembly_events.RandomizeGearType,
+        func=gear_assembly_events.randomize_gear_type,
         mode="reset",
         params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
     )
@@ -196,7 +196,7 @@ class EventCfg:
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
     randomize_gears_and_base_pose = EventTerm(
-        func=gear_assembly_events.RandomizeGearsAndBasePose,
+        func=gear_assembly_events.randomize_gears_and_base_pose,
         mode="reset",
         params={
             "pose_range": {
@@ -217,7 +217,7 @@ class EventCfg:
     )
 
     set_robot_to_grasp_pose = EventTerm(
-        func=gear_assembly_events.SetRobotToGraspPose,
+        func=gear_assembly_events.set_robot_to_grasp_pose,
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
