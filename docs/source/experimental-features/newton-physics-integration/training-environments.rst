@@ -25,6 +25,11 @@ The currently supported tasks are as follows:
 * Isaac-Reach-UR10-v0
 * Isaac-Repose-Cube-Allegro-Direct-v0
 
+New experimental warp-based enviromnets:
+
+* Isaac-Cartpole-Direct-Warp-v0
+* Isaac-Ant-Direct-Warp-v0
+* Isaac-Humanoid-Direct-Warp-v0
 
 To launch an environment and check that it loads as expected, we can start by trying it out with zero actions sent to its actuators.
 This can be done as follows, where ``TASK_NAME`` is the name of the task you’d like to run, and ``NUM_ENVS`` is the number of instances of the task that you’d like to create.
