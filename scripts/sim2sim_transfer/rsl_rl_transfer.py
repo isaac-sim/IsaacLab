@@ -8,10 +8,13 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
+import sys
 
 from isaaclab.app import AppLauncher
 
 # local imports
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from scripts.reinforcement_learning.rsl_rl import cli_args  # isort: skip
 
 # add argparse arguments
