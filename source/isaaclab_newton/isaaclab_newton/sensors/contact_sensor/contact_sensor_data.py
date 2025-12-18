@@ -10,6 +10,7 @@ import torch
 
 from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
 
+
 class ContactSensorData(BaseContactSensorData):
     """Data container for the contact reporting sensor."""
 
@@ -24,7 +25,6 @@ class ContactSensorData(BaseContactSensorData):
             If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.
         """
         return self._pos_w
-
 
     @property
     def quat_w(self) -> torch.Tensor | None:
@@ -143,15 +143,16 @@ class ContactSensorData(BaseContactSensorData):
         """
         return self._current_contact_time
 
-    def create_buffers(self,
-                       num_envs: int,
-                       num_bodies: int,
-                       num_filters: int,
-                       history_length: int,
-                       generate_force_matrix: bool,
-                       track_air_time: bool,
-                       track_pose: bool,
-                       device: str,
+    def create_buffers(
+        self,
+        num_envs: int,
+        num_bodies: int,
+        num_filters: int,
+        history_length: int,
+        generate_force_matrix: bool,
+        track_air_time: bool,
+        track_pose: bool,
+        device: str,
     ) -> None:
         """Creates the buffers for the contact sensor data.
 
@@ -165,7 +166,11 @@ class ContactSensorData(BaseContactSensorData):
             track_pose: Whether to track the pose.
             device: The device to use.
         """
-        print(f"[INFO] Creating buffers for contact sensor data with num_envs: {num_envs}, num_bodies: {num_bodies}, num_filters: {num_filters}, history_length: {history_length}, generate_force_matrix: {generate_force_matrix}, track_air_time: {track_air_time}, track_pose: {track_pose}, device: {device}")
+        print(
+            f"[INFO] Creating buffers for contact sensor data with num_envs: {num_envs}, num_bodies: {num_bodies},"
+            f" num_filters: {num_filters}, history_length: {history_length}, generate_force_matrix:"
+            f" {generate_force_matrix}, track_air_time: {track_air_time}, track_pose: {track_pose}, device: {device}"
+        )
         # Track pose if requested
         if track_pose:
             self._pos_w = torch.zeros((num_envs, 3), dtype=torch.float32, device=device)
@@ -177,15 +182,19 @@ class ContactSensorData(BaseContactSensorData):
         self._net_forces_w = torch.zeros((num_envs, num_bodies, 3), dtype=torch.float32, device=device)
         # Track net forces history if requested
         if history_length > 0:
-            self._net_forces_w_history = torch.zeros((num_envs, history_length, num_bodies, 3), dtype=torch.float32, device=device)
-            #self._force_matrix_w_history = torch.zeros((num_envs, history_length, num_bodies, num_filter_bodies, 3), dtype=torch.float32, device=device)
+            self._net_forces_w_history = torch.zeros(
+                (num_envs, history_length, num_bodies, 3), dtype=torch.float32, device=device
+            )
+            # self._force_matrix_w_history = torch.zeros((num_envs, history_length, num_bodies, num_filter_bodies, 3), dtype=torch.float32, device=device)
             self._force_matrix_w_history = None
         else:
             self._net_forces_w_history = None
             self._force_matrix_w_history = None
         # Track force matrix if requested
         if generate_force_matrix:
-            self._force_matrix_w = torch.zeros((num_envs, num_bodies, num_filters, 3), dtype=torch.float32, device=device)
+            self._force_matrix_w = torch.zeros(
+                (num_envs, num_bodies, num_filters, 3), dtype=torch.float32, device=device
+            )
         else:
             self._force_matrix_w = None
         # Track air time if requested

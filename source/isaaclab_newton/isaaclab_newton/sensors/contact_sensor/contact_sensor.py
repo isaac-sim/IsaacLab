@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-import torch
 import logging
+import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -19,15 +19,16 @@ from newton.sensors import MatchKind
 
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
 from isaaclab.sim._impl.newton_manager import NewtonManager
 
-from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
 from .contact_sensor_data import ContactSensorData
 
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
 
 logger = logging.getLogger(__name__)
+
 
 class ContactSensor(BaseContactSensor):
     """A contact reporting sensor.
@@ -293,10 +294,15 @@ class ContactSensor(BaseContactSensor):
         self._contact_partner_names = [get_name(idx, kind) for idx, kind in self.contact_view.counterparts]
 
         # Number of filtered bodies
-        num_filters = max(self.contact_view.shape[1] -1, 0)
+        num_filters = max(self.contact_view.shape[1] - 1, 0)
 
         # prepare data buffers
-        logger.info(f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_bodies: {self._num_bodies}, num_filters: {num_filters}, history_length: {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix}, track_air_time: {self.cfg.track_air_time}, track_pose: {self.cfg.track_pose}, device: {self._device}")
+        logger.info(
+            f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_bodies: {self._num_bodies},"
+            f" num_filters: {num_filters}, history_length: {self.cfg.history_length}, generate_force_matrix:"
+            f" {self._generate_force_matrix}, track_air_time: {self.cfg.track_air_time}, track_pose:"
+            f" {self.cfg.track_pose}, device: {self._device}"
+        )
         self._data.create_buffers(
             self._num_envs,
             self._num_bodies,
@@ -307,30 +313,6 @@ class ContactSensor(BaseContactSensor):
             self.cfg.track_pose,
             self._device,
         )
-        #self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
-        # optional buffers
-        # -- history of net forces
-        #if self.cfg.history_length > 0:
-        #    self._data.net_forces_w_history = torch.zeros(
-        #        self._num_envs, self.cfg.history_length, self._num_bodies, 3, device=self._device
-        #    )
-        #else:
-        #    self._data.net_forces_w_history = self._data.net_forces_w.unsqueeze(1)
-        # -- pose of sensor origins
-        #if self.cfg.track_pose:
-        #    self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
-        #    self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
-        # -- air/contact time between contacts
-        #if self.cfg.track_air_time:
-        #    self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        #    self._data.current_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        #    self._data.last_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        #    self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-        #if self._generate_force_matrix:
-        #    self._data.force_matrix_w = torch.zeros(
-        #        self._num_envs, self._num_bodies, num_filters, 3, device=self._device
-        #    )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""

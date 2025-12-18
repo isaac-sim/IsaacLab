@@ -6,8 +6,10 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
-import warp as wp
 from abc import ABC, abstractmethod
+
+import warp as wp
+
 
 class BaseContactSensorData(ABC):
     """Data container for the contact reporting sensor."""
@@ -24,7 +26,6 @@ class BaseContactSensorData(ABC):
             If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.
         """
         raise NotImplementedError
-
 
     @property
     @abstractmethod

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from isaaclab_newton.sensors.contact_sensor import ContactSensor as NewtonContactSensor
     from isaaclab_newton.sensors.contact_sensor import ContactSensorData as NewtonContactSensorData
 
+
 class ContactSensor(FactoryBase):
     """Factory for creating contact sensor instances."""
 

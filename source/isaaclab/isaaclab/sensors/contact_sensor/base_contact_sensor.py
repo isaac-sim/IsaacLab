@@ -7,10 +7,11 @@
 # pyright: reportOptionalSubscript=false
 
 from __future__ import annotations
-from abc import abstractmethod
 
+from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
 import warp as wp
 
 from isaaclab.markers import VisualizationMarkers
@@ -66,7 +67,6 @@ class BaseContactSensor(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
@@ -114,7 +114,7 @@ class BaseContactSensor(SensorBase):
     @abstractmethod
     def contact_view(self) -> None:
         """View for the contact forces captured.
-        
+
         Note:
             None if there is no view associated with the sensor.
         """
@@ -123,10 +123,11 @@ class BaseContactSensor(SensorBase):
     """
     Operations
     """
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None, masks: wp.array(dtype=wp.bool) | None = None):
         """Resets the sensor.
-        
+
         Args:
             env_ids: The indices of the environments to reset. Defaults to None: all the environments are reset.
             masks: The masks of the environments to reset. Defaults to None: all the environments are reset.
@@ -135,7 +136,9 @@ class BaseContactSensor(SensorBase):
         super().reset(env_ids)
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[wp.array, list[int], list[str]]:
+    def find_bodies(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[wp.array, list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Args:
@@ -201,6 +204,7 @@ class BaseContactSensor(SensorBase):
             RuntimeError: If the sensor is not configured to track contact time.
         """
         raise NotImplementedError(f"Compute first air is not implemented for {self.__class__.__name__}.")
+
     """
     Implementation.
     """
@@ -208,7 +212,6 @@ class BaseContactSensor(SensorBase):
     @abstractmethod
     def _initialize_impl(self):
         super()._initialize_impl()
-
 
     @abstractmethod
     def _create_buffers(self):
@@ -218,13 +221,12 @@ class BaseContactSensor(SensorBase):
     @abstractmethod
     def _update_buffers_impl(self, env_ids: Sequence[int], masks: wp.array(dtype=wp.bool) | None = None):
         """Fills the buffers of the sensor data.
-        
+
         Args:
             env_ids: The indices of the environments to update. Defaults to None: all the environments are updated.
             masks: The masks of the environments to update. Defaults to None: all the environments are updated.
         """
         raise NotImplementedError(f"Update buffers is not implemented for {self.__class__.__name__}.")
-
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
