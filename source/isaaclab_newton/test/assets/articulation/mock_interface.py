@@ -208,7 +208,7 @@ class MockNewtonArticulationView:
             self._root_transforms.assign(wp.zeros((self._count,), dtype=wp.transformf, device=self._device))
         else:
             self._root_transforms.assign(root_transforms)
-        if (root_velocities is None):
+        if root_velocities is None:
             if self._root_velocities is not None:
                 self._root_velocities.assign(wp.zeros((self._count,), dtype=wp.spatial_vectorf, device=self._device))
             else:
@@ -224,7 +224,7 @@ class MockNewtonArticulationView:
             )
         else:
             self._link_transforms.assign(link_transforms)
-        if (link_velocities is None):
+        if link_velocities is None:
             if self._link_velocities is not None:
                 self._link_velocities.assign(
                     wp.zeros((self._count, self._link_count), dtype=wp.spatial_vectorf, device=self._device)

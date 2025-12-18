@@ -1210,6 +1210,7 @@ class TestRootComVelW:
         # Check that the root center of mass velocity is zero.
         assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.zeros((1, 6), device=device))
 
+
 class TestRootState:
     """Tests the root state properties
 
