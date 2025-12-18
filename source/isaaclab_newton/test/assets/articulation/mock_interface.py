@@ -76,9 +76,13 @@ class MockNewtonArticulationView:
         # Storage for mock data
         # Note: These are set via set_mock_data() before any property access in tests
         self._root_transforms = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
-        self._root_velocities = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         self._link_transforms = wp.zeros((num_instances, num_bodies), dtype=wp.transformf, device=device)
-        self._link_velocities = wp.zeros((num_instances, num_bodies), dtype=wp.spatial_vectorf, device=device)
+        if is_fixed_base:
+            self._root_velocities = None
+            self._link_velocities = None
+        else:
+            self._root_velocities = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
+            self._link_velocities = wp.zeros((num_instances, num_bodies), dtype=wp.spatial_vectorf, device=device)
         self._dof_positions = wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
         self._dof_velocities = wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
 
@@ -205,9 +209,15 @@ class MockNewtonArticulationView:
         else:
             self._root_transforms.assign(root_transforms)
         if root_velocities is None:
-            self._root_velocities.assign(wp.zeros((self._count,), dtype=wp.spatial_vectorf, device=self._device))
+            if self._root_velocities is not None:
+                self._root_velocities.assign(wp.zeros((self._count,), dtype=wp.spatial_vectorf, device=self._device))
+            else:
+                self._root_velocities = root_velocities
         else:
-            self._root_velocities.assign(root_velocities)
+            if self._root_velocities is not None:
+                self._root_velocities.assign(root_velocities)
+            else:
+                self._root_velocities = root_velocities
         if link_transforms is None:
             self._link_transforms.assign(
                 wp.zeros((self._count, self._link_count), dtype=wp.transformf, device=self._device)
@@ -215,11 +225,17 @@ class MockNewtonArticulationView:
         else:
             self._link_transforms.assign(link_transforms)
         if link_velocities is None:
-            self._link_velocities.assign(
-                wp.zeros((self._count, self._link_count), dtype=wp.spatial_vectorf, device=self._device)
-            )
+            if self._link_velocities is not None:
+                self._link_velocities.assign(
+                    wp.zeros((self._count, self._link_count), dtype=wp.spatial_vectorf, device=self._device)
+                )
+            else:
+                self._link_velocities = link_velocities
         else:
-            self._link_velocities.assign(link_velocities)
+            if self._link_velocities is not None:
+                self._link_velocities.assign(link_velocities)
+            else:
+                self._link_velocities = link_velocities
 
         # Set attributes that ArticulationData expects
         if body_com_pos is None:

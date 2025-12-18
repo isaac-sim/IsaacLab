@@ -2227,13 +2227,14 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
-        try:
+        if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
             self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))
-        except Exception as e:
-            logger.warning(f"Failed to get root com velocity: {e}. If the articulation is fixed, this is expected.")
+        else:
+            logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
             logger.warning("Setting root com velocity to zeros.")
-            self._sim_bind_root_com_vel_w = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+            self._sim_bind_root_com_vel_w = wp.zeros((n_view), dtype=wp.spatial_vectorf, device=self.device)
+            self._sim_bind_body_com_vel_w = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((n_view,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((n_view,), dtype=wp.spatial_vectorf, device=self.device)
@@ -2260,7 +2261,7 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing
         self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(NewtonManager.get_state_0()))
-        self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(NewtonManager.get_state_0()))
+        self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
