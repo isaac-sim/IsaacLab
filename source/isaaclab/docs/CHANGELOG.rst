@@ -10,7 +10,7 @@ Fixed
 * Fixed FrameTransformer body name collision when tracking bodies with the same name but different hierarchical paths
   (e.g., Robot/left_hand vs Robot_1/left_hand). The sensor now uses the relative prim path as the unique body identifier
   instead of body name.
-  
+
 
 0.50.5 (2025-12-15)
 ~~~~~~~~~~~~~~~~~~~
