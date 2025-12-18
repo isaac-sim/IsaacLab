@@ -118,6 +118,12 @@ parser.add_argument(
     help="An offset distance added to the destination to allow a buffer zone for reliably approaching the goal.",
 )
 parser.add_argument(
+    "--occupancy_map_buffer",
+    type=float,
+    default=0.15,
+    help="The buffer distance in meters to add to the occupancy map before path planning to ensure safe navigation.",
+)
+parser.add_argument(
     "--randomize_placement",
     type=bool,
     default=True,
@@ -280,6 +286,7 @@ def setup_navigation_scene(
     env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     approach_distance: float,
+    occupancy_map_buffer: float = 0.15,
     randomize_placement: bool = True,
 ) -> tuple[OccupancyMap, ParameterizedPath, RelativePose, RelativePose]:
     """Set up the navigation scene with occupancy map and path planning.
@@ -288,6 +295,7 @@ def setup_navigation_scene(
         env: The locomanipulation SDG environment
         input_episode_data: Input episode data
         approach_distance: Buffer distance from final goal
+        occupancy_map_buffer: Buffer distance to add to occupancy map for path planning
         randomize_placement: Whether to randomize fixture placement
 
     Returns:
@@ -318,7 +326,7 @@ def setup_navigation_scene(
 
     # Plan navigation path
     base_path = plan_path(
-        start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(0.15)
+        start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(occupancy_map_buffer)
     )
     base_path_helper = ParameterizedPath(base_path)
 
@@ -673,6 +681,7 @@ def replay(
     following_offset: float = 0.6,
     angle_threshold: float = 0.2,
     approach_distance: float = 1.0,
+    occupancy_map_buffer: float = 0.15,
     randomize_placement: bool = True,
     grasp_left_hand_relative_to: str = "object",
     grasp_right_hand_relative_to: str = "object",
@@ -701,6 +710,7 @@ def replay(
         following_offset: Look-ahead distance for path following (m)
         angle_threshold: Angular threshold for orientation control (rad)
         approach_distance: Buffer distance from final goal (m)
+        occupancy_map_buffer: Buffer distance to add to occupancy map for path planning (m)
         randomize_placement: Whether to randomize obstacle placement
         grasp_left_hand_relative_to: During grasp, whether left hand moves relative to 'object' or 'base'
         grasp_right_hand_relative_to: During grasp, whether right hand moves relative to 'object' or 'base'
@@ -724,7 +734,7 @@ def replay(
 
     # Set up navigation scene and path planning
     occupancy_map, base_path_helper, base_goal, base_goal_approach = setup_navigation_scene(
-        env, input_episode_data, approach_distance, randomize_placement
+        env, input_episode_data, approach_distance, occupancy_map_buffer, randomize_placement
     )
 
     # Visualize occupancy map and path if requested
@@ -849,6 +859,7 @@ if __name__ == "__main__":
                 following_offset=args_cli.following_offset,
                 angle_threshold=args_cli.angle_threshold,
                 approach_distance=args_cli.approach_distance,
+                occupancy_map_buffer=args_cli.occupancy_map_buffer,
                 randomize_placement=args_cli.randomize_placement,
                 grasp_left_hand_relative_to=args_cli.grasp_left_hand_relative_to,
                 grasp_right_hand_relative_to=args_cli.grasp_right_hand_relative_to,
