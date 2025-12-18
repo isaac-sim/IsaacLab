@@ -22,13 +22,14 @@ from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, 
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_fii_env_cfg import (
     FiibotEnvCfg,
-    FiibotSceneCfg,
     FiibotObservationsCfg,
-    manip_mdp
+    FiibotSceneCfg,
+    manip_mdp,
 )
 
 from .locomanipulation_sdg_env import LocomanipulationSDGEnv
 from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
+
 
 @configclass
 class FiibotLocomanipSceneCfg(FiibotSceneCfg):
@@ -47,7 +48,7 @@ class FiibotLocomanipSceneCfg(FiibotSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(-17.5, 10.8, 0.0),
             # rot=[0, 0, 0, 1]),
-            rot=(1., 0., 0., 0.),
+            rot=(1.0, 0.0, 0.0, 0.0),
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
@@ -64,6 +65,7 @@ class FiibotLocomanipSceneCfg(FiibotSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
         offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
     )
+
 
 @configclass
 class FiibotLocomanipObservationsCfg(FiibotObservationsCfg):
@@ -91,9 +93,7 @@ class FiibotLocomanipEnvCfg(FiibotEnvCfg, LocomanipulationSDGEnvCfg):
     )
 
     # Scene settings
-    scene: FiibotLocomanipSceneCfg = FiibotLocomanipSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
-    )
+    scene: FiibotLocomanipSceneCfg = FiibotLocomanipSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: FiibotLocomanipObservationsCfg = FiibotLocomanipObservationsCfg()
 
@@ -128,9 +128,7 @@ class FiibotLocomanipEnv(LocomanipulationSDGEnv):
             right_hand_joint_positions_target=dataset_action[16:18],
             base_pose=episode_data.get_initial_state()["articulation"]["robot"]["root_pose"],
             object_pose=object_pose,
-            fixture_pose=torch.tensor(
-                [0.0, 0.85, 0.0, 1.0, 0.0, 0.0, 0.0]
-            ),  # Table pose is not recorded for this env.
+            fixture_pose=torch.tensor([0.0, 0.85, 0.0, 1.0, 0.0, 0.0, 0.0]),  # Table pose is not recorded for this env.
         )
 
         return data
