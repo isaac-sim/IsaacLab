@@ -39,7 +39,7 @@ until the framework has reached an official release. We appreciate your understa
 
   installation
   training-environments
-  newton-visualizer
+  visualization
   limitations-and-known-bugs
   solver-transitioning
   sim-to-sim
