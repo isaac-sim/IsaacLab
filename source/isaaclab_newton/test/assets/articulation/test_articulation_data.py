@@ -1203,6 +1203,12 @@ class TestRootComVelW:
             wp.to_torch(articulation_data.root_com_vel_w) == torch.ones((num_instances, 6), device=device) * 2.0
         )
 
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_fixed_articulation_zero_velocity(self, mock_newton_manager, device: str):
+        """Test that the root center of mass velocity is zero for a fixed articulation."""
+        articulation_data, mock_view = self._setup_method(1, device)
+        # Check that the root center of mass velocity is zero.
+        assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.zeros((1, 6), device=device))
 
 class TestRootState:
     """Tests the root state properties
@@ -1698,6 +1704,13 @@ class TestBodyComVelW:
         # Check that the internal data has been updated
         expected_twos = torch.ones((num_instances, num_bodies, 6), device=device) * 2.0
         assert torch.all(wp.to_torch(articulation_data.body_com_vel_w) == expected_twos)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_fixed_articulation_zero_velocity(self, mock_newton_manager, device: str):
+        """Test that the body center of mass velocity is zero for a fixed articulation."""
+        articulation_data, mock_view = self._setup_method(1, 1, device)
+        # Check that the root center of mass velocity is zero.
+        assert torch.all(wp.to_torch(articulation_data.root_com_vel_w) == torch.zeros((1, 1, 6), device=device))
 
 
 class TestBodyState:
