@@ -15,3 +15,12 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+gym.register(
+    id="Isaac-Fii-Locomanipulation",
+    entry_point=f"{__name__}.fii_locomanipulation_sdg_env:FiibotLocomanipEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.fii_locomanipulation_sdg_env:FiibotLocomanipEnvCfg",
+    },
+    disable_env_checker=True,
+)
