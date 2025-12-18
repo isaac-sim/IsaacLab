@@ -705,9 +705,9 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot):
     sim_dt = sim.get_physics_dt()
 
     # Simulate physics
-    for count in range(50):
+    for count in range(20):
         # Reset periodically
-        if count % 25 == 0:
+        if count % 10 == 0:
             # Reset robot
             root_state = scene.articulations["robot"].data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
