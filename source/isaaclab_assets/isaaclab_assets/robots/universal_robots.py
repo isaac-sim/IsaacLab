@@ -163,9 +163,9 @@ UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_passive"] = ImplicitActuatorCfg(
     armature=0.0,
 )
 
-"""Configuration of UR-10E arm with Robotiq_2f_140 gripper."""
 
 UR10e_ROBOTIQ_2F_85_CFG = UR10e_CFG.copy()
+"""Configuration of UR-10E arm with Robotiq_2f_140 gripper."""
 UR10e_ROBOTIQ_2F_85_CFG.spawn.variants = {"Gripper": "Robotiq_2f_85"}
 UR10e_ROBOTIQ_2F_85_CFG.spawn.rigid_props.disable_gravity = True
 UR10e_ROBOTIQ_2F_85_CFG.init_state.joint_pos["finger_joint"] = 0.0
