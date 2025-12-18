@@ -34,6 +34,7 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==12.0.0",
     "packaging<24",
+    "tqdm==4.67.1",  # previous version was causing sys errors
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
