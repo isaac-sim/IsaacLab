@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 17, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 18, 2025"/>
   </head>
   
   
@@ -893,6 +893,22 @@ a Galbot humanoid robot</p></td>
 <tr class="row-odd"><td><p><img alt="agibot_place_toy" src="../../_images/agibot_place_toy.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py">Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0</a></p></td>
 <td><p>Pick up and place an object in a box with a Agibot A2D humanoid robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="reach_openarm_bi" src="../../_images/openarm_bi_reach.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/bimanual/joint_pos_env_cfg.py">Isaac-Reach-OpenArm-Bi-v0</a></p></td>
+<td><p>Move the end-effector to sampled target poses with the OpenArm robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="reach_openarm_uni" src="../../_images/openarm_uni_reach.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/unimanual/joint_pos_env_cfg.py">Isaac-Reach-OpenArm-v0</a></p></td>
+<td><p>Move the end-effector to a sampled target pose with the OpenArm robot</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="lift_openarm_uni" src="../../_images/openarm_uni_lift.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/openarm/joint_pos_env_cfg.py">Isaac-Lift-Cube-OpenArm-v0</a></p></td>
+<td><p>Pick a cube and bring it to a sampled target position with the OpenArm robot</p></td>
+</tr>
+<tr class="row-odd"><td><p><img alt="cabi_openarm_uni" src="../../_images/openarm_uni_open_drawer.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/openarm/joint_pos_env_cfg.py">Isaac-Open-Drawer-OpenArm-v0</a></p></td>
+<td><p>Grasp the handle of a cabinet’s drawer and open it with the OpenArm robot</p></td>
 </tr>
 </tbody>
 </table>
@@ -1962,6 +1978,26 @@ inferencing, including reading from an already trained checkpoint and disabling 
 <td><p>Manager Based</p></td>
 <td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
 </tr>
+<tr class="row-odd"><td><p>Isaac-Reach-OpenArm-Bi-v0</p></td>
+<td><p>Isaac-Reach-OpenArm-Bi-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Reach-OpenArm-v0</p></td>
+<td><p>Isaac-Reach-OpenArm-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Lift-Cube-OpenArm-v0</p></td>
+<td><p>Isaac-Lift-Cube-OpenArm-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Open-Drawer-OpenArm-v0</p></td>
+<td><p>Isaac-Open-Drawer-OpenArm-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO)</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2068,7 +2104,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 17, 2025.
+  Last updated on Dec 18, 2025.
   <br/>
 </p>
   </div>
