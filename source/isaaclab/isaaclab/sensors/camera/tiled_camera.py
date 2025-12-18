@@ -202,9 +202,7 @@ class TiledCamera(Camera):
                 )
                 self._annotators[annotator_type] = annotator
             elif annotator_type == "normals":
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "normals", device=self.device, do_array_copy=False
-                )
+                annotator = rep.AnnotatorRegistry.get_annotator("normals", device=self.device, do_array_copy=False)
                 # annotator returns 4-channel data, store as normals_padded
                 # we will extract first 3 channels to "normals"
                 self._annotators["normals_padded"] = annotator
@@ -293,12 +291,12 @@ class TiledCamera(Camera):
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
-                
+
             if data_type == "normals_padded":
                 if "normals" not in self.cfg.data_types:
                     raise ValueError(
-                        f"TiledCamera: 'normals_padded' annotator was created but 'normals' is not in cfg.data_types: {self.cfg.data_types}. "
-                        "This indicates an internal inconsistency in the sensor configuration."
+                        "TiledCamera: 'normals_padded' annotator was created but 'normals' is not in cfg.data_types:"
+                        f" {self.cfg.data_types}. This indicates an internal inconsistency in the sensor configuration."
                     )
                 self._data.output["normals"] = self._data.output["normals_padded"][..., :3]
 
