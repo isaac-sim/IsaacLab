@@ -139,11 +139,18 @@ class SceneFixture(SceneAsset, HasOccupancyMap):
         SceneAsset.__init__(self, scene, entity_name)
         self.occupancy_map_boundary = occupancy_map_boundary
         self.occupancy_map_resolution = occupancy_map_resolution
+        self.local_occupancy_map = None
+
+    def set_local_occupancy_map(self, local_occupancy_map: OccupancyMap):
+        self.local_occupancy_map = local_occupancy_map
 
     def get_occupancy_map(self):
-        local_occupancy_map = OccupancyMap.from_occupancy_boundary(
-            boundary=self.occupancy_map_boundary, resolution=self.occupancy_map_resolution
-        )
+
+        if self.local_occupancy_map is None:
+            local_occupancy_map = OccupancyMap.from_occupancy_boundary(
+                boundary=self.occupancy_map_boundary, resolution=self.occupancy_map_resolution)
+        else:
+            local_occupancy_map = self.local_occupancy_map
 
         transform = self.get_transform_2d().detach().cpu().numpy()
 
