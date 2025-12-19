@@ -72,5 +72,5 @@ To verify that the installation was successful, run the following command from t
 
 
 Note that since Newton requires a more recent version of warp than Isaac Sim 5.1, there may be some incompatibility issues
-that could result in errors such as ``ModuleNotFoundError: No module named 'warp.sim'``. This are ok to ignore and should not
+that could result in errors such as ``ModuleNotFoundError: No module named 'warp.sim'``. These are ok to ignore and should not
 impact usability.
