@@ -56,7 +56,7 @@ Here are some examples on how to run training on several different RL frameworks
 4096 to benefit more from GPU parallelization.
 
 By default, environments will train in headless mode. If visualization is required, use ``--visualizer`` and specify the desired visualizer.
-Available options are ``newton``, ``rerun``, or ``omniverse`` (requires Isaac Sim installation).
+Available options are ``newton``, ``rerun``, and ``omniverse`` (requires Isaac Sim installation). Note, multiple visualizers can be selected and launched.
 
 .. code-block:: shell
 
