@@ -34,6 +34,9 @@ from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
+
 
 @configclass
 class ActionsCfg:

@@ -150,8 +150,152 @@ jobs:
           exit 1
         fi
 
+  test-general-windows:
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Setup Isaac Sim and Isaac Lab Environment
+      shell: powershell
+      run: |
+        Write-Host "Setting up Isaac Sim and Isaac Lab environment for Windows..."
+
+        # Check if virtual environment exists, create if not
+        if (-not (Test-Path "env_isaaclab")) {
+          Write-Host "Creating Python 3.11 virtual environment..."
+
+          # Use the pre-installed Python 3.11 on the self-hosted runner
+          $python311Path = "C:\Python311\python.exe"
+
+          if (Test-Path $python311Path) {
+            Write-Host "Using Python 3.11 from: $python311Path"
+            & $python311Path -m venv env_isaaclab
+          } elseif (Get-Command py -ErrorAction SilentlyContinue) {
+            Write-Host "Using Python launcher (py -3.11) to create virtual environment..."
+            py -3.11 -m venv env_isaaclab
+          } else {
+            Write-Host "WARNING: Python 3.11 not found at expected location. Using default python..."
+            python -m venv env_isaaclab
+          }
+        } else {
+          Write-Host "Virtual environment already exists"
+        }
+
+        # Activate virtual environment
+        Write-Host "Activating virtual environment..."
+        & "env_isaaclab\Scripts\Activate.ps1"
+
+        # Upgrade pip
+        Write-Host "Upgrading pip..."
+        python -m pip install --upgrade pip
+
+        # Check if Isaac Sim is installed
+        Write-Host "Checking if Isaac Sim is already installed..."
+        $isaacsimCheck = python -c "try:`n    import isaacsim`n    print('installed')`nexcept:`n    print('not_installed')" 2>&1
+
+        if ($isaacsimCheck -match "installed") {
+          Write-Host "Isaac Sim already installed"
+        } else {
+          Write-Host "Installing Isaac Sim from NVIDIA PyPI..."
+          pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+        }
+
+        python -m pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+
+        # Install/update PyTorch with CUDA support
+        Write-Host "Installing PyTorch with CUDA 12.8..."
+        python -m pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+        # Accept Isaac Sim pip EULA
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
+
+        # Install Isaac Lab dependencies
+        Write-Host "Installing Isaac Lab..."
+        & ".\isaaclab.bat" -i
+
+        # Verify pytest is available
+        Write-Host "Verifying pytest installation..."
+        python -m pip show pytest
+
+    - name: Run General Tests on Windows
+      id: run-general-tests-windows
+      shell: powershell
+      continue-on-error: true
+      run: |
+        Write-Host "Running general tests on Windows..."
+
+        # Activate virtual environment
+        & "env_isaaclab\Scripts\Activate.ps1"
+
+        # Create reports directory
+        New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+        # Set environment variables for headless mode
+        $env:OMNI_KIT_ACCEPT_EULA = "yes"
+        $env:ACCEPT_EULA = "Y"
+        $env:ISAACSIM_ACCEPT_EULA = "YES"
+        $env:ISAAC_SIM_HEADLESS = "1"
+        $env:ISAAC_SIM_LOW_MEMORY = "1"
+        $env:PYTHONUNBUFFERED = "1"
+        $env:PYTHONIOENCODING = "utf-8"
+        $env:WINDOWS_PLATFORM = "true"
+
+        python -m pip show isaacsim
+
+        # Run tests using isaaclab.bat with pytest
+        # Run pytest directly with filter to exclude isaaclab_tasks
+        & python -m pytest tools `
+          --ignore=tools/conftest.py `
+          -k "not isaaclab_tasks" `
+          -v `
+          --junitxml=reports/general-tests-windows-report.xml
+
+        $testExitCode = $LASTEXITCODE
+        Write-Host "Tests completed with exit code: $testExitCode"
+
+        # Check if report was generated
+        if (Test-Path "reports/general-tests-windows-report.xml") {
+          Write-Host "Test report generated successfully"
+        } else {
+          Write-Host "Warning: Test report not found"
+          # Create a fallback report
+          $fallbackReport = '<?xml version="1.0" encoding="utf-8"?><testsuite name="windows-general-tests" tests="0" failures="0" errors="1" time="0"><testcase classname="setup" name="no_results_found"><error message="No test results found">Tests may have failed to generate results</error></testcase></testsuite>'
+          Set-Content -Path "reports/general-tests-windows-report.xml" -Value $fallbackReport
+        }
+
+    - name: Upload Windows General Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-test-results-windows
+        path: reports/general-tests-windows-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      shell: powershell
+      run: |
+        if (Test-Path "reports/general-tests-windows-report.xml") {
+          # Read the XML and check for failures
+          $xmlContent = Get-Content "reports/general-tests-windows-report.xml" -Raw
+          if ($xmlContent -match 'failures="[1-9]' -or $xmlContent -match 'errors="[1-9]') {
+            Write-Host "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          }
+        } else {
+          Write-Host "No test results file found. This might indicate test execution failed."
+          exit 1
+        }
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-general, test-general-windows]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -178,6 +322,14 @@ jobs:
       with:
         name: general-test-results
         path: reports/
+      continue-on-error: true
+
+    - name: Download Windows General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: general-test-results-windows
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results

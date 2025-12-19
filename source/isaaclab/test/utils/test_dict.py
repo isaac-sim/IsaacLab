@@ -16,7 +16,12 @@ simulation_app = AppLauncher(headless=True).app
 
 import random
 
+import pytest
+
 import isaaclab.utils.dict as dict_utils
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
 
 
 def _test_function(x):

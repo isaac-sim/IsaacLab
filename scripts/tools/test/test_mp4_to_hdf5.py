@@ -20,6 +20,8 @@ from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_a
 def temp_hdf5_file():
     """Create temporary HDF5 file with test data."""
     temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)
+    temp_file.close()  # Close file handle before opening with h5py
+
     with h5py.File(temp_file.name, "w") as h5f:
         # Create test data structure for 2 demos
         for demo_id in range(2):
@@ -49,7 +51,14 @@ def temp_hdf5_file():
 
     yield temp_file.name
     # Cleanup
-    os.remove(temp_file.name)
+    try:
+        os.remove(temp_file.name)
+    except PermissionError:
+        # On Windows, wait a bit and retry
+        import time
+
+        time.sleep(0.1)
+        os.remove(temp_file.name)
 
 
 @pytest.fixture(scope="class")
@@ -84,9 +93,17 @@ def temp_videos_dir():
 def temp_output_file():
     """Create temporary output file."""
     temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)
+    temp_file.close()  # Close file handle immediately
     yield temp_file.name
     # Cleanup
-    os.remove(temp_file.name)
+    try:
+        os.remove(temp_file.name)
+    except PermissionError:
+        # On Windows, wait a bit and retry
+        import time
+
+        time.sleep(0.1)
+        os.remove(temp_file.name)
 
 
 class TestMP4ToHDF5:
@@ -159,7 +176,9 @@ class TestMP4ToHDF5:
             main()
 
             # Check if output file was created with correct data
-            with h5py.File(temp_output_file, "r") as f:
+            # Use explicit close() to ensure file is closed on Windows before cleanup
+            f = h5py.File(temp_output_file, "r")
+            try:
                 # Check if original demos were copied
                 assert "data/demo_0" in f
                 assert "data/demo_1" in f
@@ -176,6 +195,8 @@ class TestMP4ToHDF5:
                     assert f"data/demo_{demo_id}/obs/gripper_pos" in f
                     assert f"data/demo_{demo_id}/obs/table_cam" in f
                     assert f"data/demo_{demo_id}/obs/wrist_cam" in f
+            finally:
+                f.close()
         finally:
             # Restore original argv
             sys.argv = original_argv

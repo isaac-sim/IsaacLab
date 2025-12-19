@@ -10,9 +10,13 @@
 from __future__ import annotations
 
 import random
+import sys
 from typing import Any
 
 import pytest
+
+# Skip all tests in this module on Windows - MUST be before AppLauncher
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Test not supported on Windows")
 
 SEED: int = 42
 random.seed(SEED)
@@ -27,14 +31,17 @@ import gymnasium as gym
 import torch
 from collections.abc import Generator
 
+import pytest
+
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
 
-from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
-from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
-from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+if sys.platform != "win32":
+    from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
+    from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
+    from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
 GRIPPER_OPEN_CMD: float = 1.0
 GRIPPER_CLOSE_CMD: float = -1.0

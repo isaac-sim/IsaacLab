@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import random
+import tempfile
 from datetime import datetime
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
@@ -64,9 +65,9 @@ class AssetConverterBase(abc.ABC):
 
         # resolve USD directory name
         if cfg.usd_dir is None:
-            # a folder in "/tmp/IsaacLab" by the name: usd_{date}_{time}_{random}
+            # a folder in the system temp directory by the name: IsaacLab/usd_{date}_{time}_{random}
             time_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self._usd_dir = f"/tmp/IsaacLab/usd_{time_tag}_{random.randrange(10000)}"
+            self._usd_dir = os.path.join(tempfile.gettempdir(), "IsaacLab", f"usd_{time_tag}_{random.randrange(10000)}")
         else:
             self._usd_dir = cfg.usd_dir
 
