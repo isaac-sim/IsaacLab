@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.4 (2025-11-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Configuration for OpenArm robots used for manipulation tasks.
+
 0.2.3 (2025-08-11)
 ~~~~~~~~~~~~~~~~~~
 

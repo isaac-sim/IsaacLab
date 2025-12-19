@@ -14,8 +14,14 @@ import carb
 import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.version import get_version
+
+# Try importing experimental utils impl module (available in Isaac Sim 5.0+)
+# We need to import the impl module directly to access _context, since it's not re-exported
+try:
+    from isaacsim.core.experimental.utils.impl import stage as experimental_stage_impl
+except ImportError:
+    experimental_stage_impl = None
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
@@ -28,6 +34,9 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
 sim_stage._context = _context
+# Also sync with the experimental utils impl module (Isaac Sim 5.0+) which is used by SimulationManager
+if experimental_stage_impl is not None:
+    experimental_stage_impl._context = _context
 
 AXES_TOKEN = {
     "X": UsdGeom.Tokens.x,
@@ -81,7 +90,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     # this carb flag is equivalent to if rendering is enabled
     carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it
     if not is_rendering_enabled:
@@ -152,7 +161,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     .. code-block:: python
 
         >>> from pxr import Usd
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
         >>> with stage_utils.use_stage(stage_in_memory):
@@ -160,8 +169,6 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...    pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-
     # check stage
     assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
     # store previous context value if it exists
@@ -169,13 +176,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     # set new context value
     try:
         _context.stage = stage
-        # Import both stage utils modules for Isaac Sim 6.0+
-        if isaac_sim_version >= 6:
-            # Set context in both modules to ensure all Isaac Sim subsystems see the correct stage
-            import isaacsim.core.experimental.utils.stage as experimental_stage_utils
-
-            with experimental_stage_utils.use_stage(stage):
-                yield
+        yield
     # remove context value or restore previous one if it exists
     finally:
         if previous_stage is None:
@@ -197,7 +198,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_current_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
@@ -218,7 +219,7 @@ def get_current_stage_id() -> int:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_current_stage_id()
         1234567890
@@ -238,7 +239,7 @@ def update_stage() -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.update_stage()
     """
@@ -256,7 +257,7 @@ def set_stage_up_axis(axis: str = "z") -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # set stage up axis to Y-up
         >>> stage_utils.set_stage_up_axis("y")
@@ -280,7 +281,7 @@ def get_stage_up_axis() -> str:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_stage_up_axis()
         Z
@@ -300,49 +301,44 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # clear the whole stage
         >>> stage_utils.clear_stage()
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> # Delete only the prims of type Cube
-        >>> predicate = lambda path: prims_utils.get_prim_type_name(path) == "Cube"
+        >>> predicate = lambda path: prims_utils.from_prim_path_get_type_name(path) == "Cube"
         >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    from isaacsim.core.utils.prims import (  # isaaclab.utils.prims import (
-        get_all_matching_child_prims,
-        get_prim_path,
-        is_prim_ancestral,
-        is_prim_hidden_in_stage,
-        is_prim_no_delete,
-    )
+    from .prims import get_all_matching_child_prims
 
-    def default_predicate(prim_path: str):
-        # prim = get_prim_at_path(prim_path)
-        # skip prims that we cannot delete
-        if is_prim_no_delete(prim_path):
-            return False
-        if is_prim_hidden_in_stage(prim_path):
-            return False
-        if is_prim_ancestral(prim_path):
-            return False
+    def default_predicate(prim: Usd.Prim) -> bool:
+        prim_path = prim.GetPath().pathString
         if prim_path == "/":
             return False
         if prim_path.startswith("/Render"):
             return False
+        if prim.GetMetadata("no_delete"):
+            return False
+        if prim.GetMetadata("hide_in_stage_window"):
+            return False
+        if omni.usd.check_ancestral(prim):
+            return False
         return True
+
+    def predicate_from_path(prim: Usd.Prim) -> bool:
+        if predicate is None:
+            return default_predicate(prim)
+        return predicate(prim.GetPath().pathString)
 
     if predicate is None:
         prims = get_all_matching_child_prims("/", default_predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
     else:
-        prims = get_all_matching_child_prims("/", predicate)
-        prim_paths_to_delete = [get_prim_path(prim) for prim in prims]
-        DeletePrimsCommand(prim_paths_to_delete).do()
+        prims = get_all_matching_child_prims("/", predicate_from_path)
+    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    DeletePrimsCommand(prim_paths_to_delete).do()
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
         omni.kit.app.get_app_interface().update()
@@ -355,7 +351,7 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> stage_utils.print_stage_prim_paths()
@@ -370,9 +366,7 @@ def print_stage_prim_paths(fabric: bool = False) -> None:
         /OmniverseKit_Right
     """
     # Note: Need to import this here to prevent circular dependencies.
-    # TODO(Octi): uncomment and remove sim import below after prim_utils replacement merged
-    # from isaaclab.utils.prims import get_prim_path
-    from isaacsim.core.utils.prims import get_prim_path
+    from .prims import get_prim_path
 
     for prim in traverse_stage(fabric=fabric):
         prim_path = get_prim_path(prim)
@@ -401,7 +395,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # load an USD file (franka.usd) to the stage under the path /World/panda
         >>> prim = stage_utils.add_reference_to_stage(
@@ -454,7 +448,7 @@ def create_new_stage() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.create_new_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
@@ -474,7 +468,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.create_new_stage_in_memory()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
@@ -508,7 +502,7 @@ def open_stage(usd_path: str) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
         True
@@ -539,7 +533,7 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
         True
@@ -575,14 +569,14 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.close_stage()
         True
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
@@ -610,7 +604,7 @@ def traverse_stage(fabric=False) -> typing.Iterable:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> # Traverse through prims in the stage
@@ -639,7 +633,7 @@ def is_stage_loading() -> bool:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.is_stage_loading()
         False
@@ -678,7 +672,7 @@ def set_stage_units(stage_units_in_meters: float) -> None:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.set_stage_units(1.0)
     """
@@ -714,7 +708,7 @@ def get_stage_units() -> float:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> stage_utils.get_stage_units()
         1.0
@@ -736,7 +730,7 @@ def get_next_free_path(path: str, parent: str = None) -> str:
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01.
         >>> # Get the next available path for /World/Cube
@@ -764,7 +758,7 @@ def remove_deleted_references():
 
     .. code-block:: python
 
-        >>> from isaaclab.sim.utils import stage as stage_utils
+        >>> import isaaclab.sim.utils.stage as stage_utils
         >>> stage_utils.remove_deleted_references()
         Removed 2 deleted payload items from </World/Robot>
         Removed 1 deleted reference items from </World/Scene>

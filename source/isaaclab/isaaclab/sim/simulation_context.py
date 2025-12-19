@@ -32,11 +32,14 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-from isaaclab.sim.utils import stage as stage_utils
+import isaaclab.sim.utils.stage as stage_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class SimulationContext(_SimulationContext):
@@ -539,7 +542,7 @@ class SimulationContext(_SimulationContext):
         if self._anim_recording_enabled:
             is_anim_recording_finished = self._update_anim_recording()
             if is_anim_recording_finished:
-                carb.log_warn("[INFO][SimulationContext]: Animation recording finished. Closing app.")
+                logger.warning("[INFO][SimulationContext]: Animation recording finished. Closing app.")
                 self._app.shutdown()
 
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
@@ -627,8 +630,8 @@ class SimulationContext(_SimulationContext):
     """
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
+        _ = super()._init_stage(*args, **kwargs)
         with stage_utils.use_stage(self.get_initial_stage()):
-            _ = super()._init_stage(*args, **kwargs)
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
@@ -818,6 +821,19 @@ class SimulationContext(_SimulationContext):
         physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             self.cfg.physx.solve_articulation_contact_last
         )
+        # -- Enable external forces every iteration, helps improve the accuracy of velocity updates.
+
+        if self.cfg.physx.solver_type == 1:
+            if not self.cfg.physx.enable_external_forces_every_iteration:
+                logger.warning(
+                    "The `enable_external_forces_every_iteration` parameter in the PhysxCfg is set to False. If you are"
+                    " experiencing noisy velocities, consider enabling this flag. You may need to slightly increase the"
+                    " number of velocity iterations (setting it to 1 or 2 rather than 0), together with this flag, to"
+                    " improve the accuracy of velocity updates."
+                )
+            physx_scene_api.CreateEnableExternalForcesEveryIterationAttr(
+                self.cfg.physx.enable_external_forces_every_iteration
+            )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
@@ -938,7 +954,7 @@ class SimulationContext(_SimulationContext):
     def _finish_anim_recording(self):
         """Finishes the animation recording and outputs the baked animation recording."""
 
-        carb.log_warn(
+        logger.warning(
             "[INFO][SimulationContext]: Finishing animation recording. Stage must be saved. Might take a few minutes."
         )
 

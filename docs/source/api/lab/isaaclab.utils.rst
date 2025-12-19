@@ -14,6 +14,7 @@
       dict
       interpolation
       math
+      mesh
       modifiers
       noise
       string
@@ -87,6 +88,14 @@ Math operations
 .. automodule:: isaaclab.utils.math
    :members:
    :inherited-members:
+   :show-inheritance:
+
+Mesh operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.mesh
+   :members:
+   :imported-members:
    :show-inheritance:
 
 Modifier operations
