@@ -275,7 +275,7 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
-    python source/scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer rerun --num_envs 512
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer rerun --num_envs 512
 
 
 .. note::
