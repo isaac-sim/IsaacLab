@@ -220,6 +220,9 @@ class SensorBase(ABC):
         self._is_outdated[env_ids] = True
 
     def update(self, dt: float, force_recompute: bool = False):
+        # Skip update if sensor is not initialized
+        if not self._is_initialized:
+            return
         # Update the timestamp for the sensors
         self._timestamp += dt
         self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
@@ -294,10 +297,10 @@ class SensorBase(ABC):
         if not self._is_initialized:
             try:
                 self._initialize_impl()
+                self._is_initialized = True
             except Exception as e:
                 if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
                     builtins.ISAACLAB_CALLBACK_EXCEPTION = e
-            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
