@@ -71,6 +71,6 @@ To verify that the installation was successful, run the following command from t
     ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128
 
 
-Note that since Newton requires a more recent version of warp than Isaac Sim 5.1, there may be some incompatibility issues
+Note that since Newton requires a more recent version of Warp than Isaac Sim 5.1, there may be some incompatibility issues
 that could result in errors such as ``ModuleNotFoundError: No module named 'warp.sim'``. These are ok to ignore and should not
 impact usability.
