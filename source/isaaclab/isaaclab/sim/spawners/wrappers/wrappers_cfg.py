@@ -35,10 +35,15 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """List of asset configurations to spawn."""
 
     enable_clone: bool = False
-    """This is enables the cloning of spawned assets from first instance to all other instances that has the
-    same prefix path pattern, for example, given /World/env_.*/asset_.*, multi-asset spawner will spawn asset_0,
-    asset_1, asset_n under /World/env_0. Then if enable_clone is set to True, env_0 is cloned to env_1, env_2, etc.
-    If False, .* is not allowed in the prefix path of the prim_path, an safety check error will be raised."""
+    """Enables the cloning of spawned assets from first instance to all other instances.
+
+    For example, given ``/World/env_.*/asset_.*``, multi-asset spawner will spawn ``asset_0``,
+    ``asset_1``, ``asset_n`` under ``/World/env_0``. Then if enable_clone is set to True, ``env_0``
+    is cloned to ``env_1``, ``env_2``, etc.
+
+    If False, ``.*`` is not allowed in the prefix path of the prim_path, and a safety check error
+    will be raised.
+    """
 
     random_choice: bool = True
     """ This parameter is ignored.

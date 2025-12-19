@@ -108,11 +108,14 @@ class RenderCfg:
 
     carb_settings: dict | None = None
     """Provides a general dictionary for users to supply all carb rendering settings with native names.
-        - Name strings can be formatted like a carb setting, .kit file setting, or python variable.
-        - For instance, a key value pair can be
-            /rtx/translucency/enabled: False # carb
-             rtx.translucency.enabled: False # .kit
-             rtx_translucency_enabled: False # python"""
+
+    Name strings can be formatted like a carb setting, .kit file setting, or python variable.
+    For instance, a key value pair can be:
+
+    * ``/rtx/translucency/enabled: False`` (carb format)
+    * ``rtx.translucency.enabled: False`` (.kit format)
+    * ``rtx_translucency_enabled: False`` (python format)
+    """
 
     rendering_mode: Literal["performance", "balanced", "quality"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
@@ -203,16 +206,19 @@ class SimulationCfg:
     Visualizers are separate from Renderers and intended for light-weight monitoring and debugging.
 
     This field can support multiple visualizer backends. It accepts:
-    - A single VisualizerCfg: One visualizer will be created
-    - A list of VisualizerCfg: Multiple visualizers will be created
-    - None or empty list: No visualizers will be created
+
+    * A single VisualizerCfg: One visualizer will be created
+    * A list of VisualizerCfg: Multiple visualizers will be created
+    * None or empty list: No visualizers will be created
 
     Supported visualizer backends:
-    - NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
-    - OVVisualizerCfg: Omniverse-based high-fidelity visualizer
-    - RerunVisualizerCfg: Web-based Rerun visualizer with recording and replay
 
-    Examples:
+    * NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
+    * OVVisualizerCfg: Omniverse-based high-fidelity visualizer
+    * RerunVisualizerCfg: Web-based Rerun visualizer with recording and replay
+
+    Example usage::
+
         # Disable all visualizers
         cfg.sim.visualizer_cfgs = []
 
