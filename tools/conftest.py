@@ -31,77 +31,155 @@ def capture_test_output_with_timeout(cmd, timeout, env):
     stdout_data = b""
     stderr_data = b""
 
+    # Ensure UTF-8 encoding for console output on Windows
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            # Python < 3.7, ignore
+            pass
+
+    print(f"DEBUG: Platform detected: {sys.platform}")
+    print(f"DEBUG: Command to execute: {cmd}")
+    print(f"DEBUG: Timeout: {timeout}s")
+
     try:
         # Use Popen to capture output in real-time
+        print("DEBUG: Starting subprocess.Popen...")
         process = subprocess.Popen(
             cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0, universal_newlines=False
         )
+        print(f"DEBUG: Process started with PID: {process.pid}")
 
-        # Set up file descriptors for non-blocking reads
-        stdout_fd = process.stdout.fileno()
-        stderr_fd = process.stderr.fileno()
+        # Platform detection
+        is_windows = sys.platform == "win32"
+        print(f"DEBUG: is_windows={is_windows}")
 
-        # Set non-blocking mode (Unix systems only)
-        try:
+        if is_windows:
+            # Windows: Use threading to read stdout/stderr concurrently
+            import queue
+            import threading
+
+            stdout_queue = queue.Queue()
+            stderr_queue = queue.Queue()
+
+            def read_output(pipe, queue_obj, output_stream):
+                """Read from pipe and put in queue while streaming to console."""
+                with contextlib.suppress(Exception):
+                    while True:
+                        chunk = pipe.read(1024)
+                        if not chunk:
+                            break
+                        queue_obj.put(chunk)
+                        # Stream to console in real-time
+                        output_stream.buffer.write(chunk)
+                        output_stream.buffer.flush()
+
+            # Start threads for reading stdout and stderr
+            stdout_thread = threading.Thread(target=read_output, args=(process.stdout, stdout_queue, sys.stdout))
+            stderr_thread = threading.Thread(target=read_output, args=(process.stderr, stderr_queue, sys.stderr))
+            stdout_thread.daemon = True
+            stderr_thread.daemon = True
+            stdout_thread.start()
+            stderr_thread.start()
+
+            start_time = time.time()
+
+            # Wait for process to complete or timeout
+            while process.poll() is None:
+                if time.time() - start_time > timeout:
+                    process.kill()
+                    # Give threads time to finish reading
+                    stdout_thread.join(timeout=2)
+                    stderr_thread.join(timeout=2)
+                    # Collect remaining data from queues
+                    while not stdout_queue.empty():
+                        stdout_data += stdout_queue.get_nowait()
+                    while not stderr_queue.empty():
+                        stderr_data += stderr_queue.get_nowait()
+                    return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+                time.sleep(0.1)
+
+            # Process finished, wait for threads to complete reading
+            stdout_thread.join(timeout=5)
+            stderr_thread.join(timeout=5)
+
+            # Collect all data from queues
+            while not stdout_queue.empty():
+                stdout_data += stdout_queue.get_nowait()
+            while not stderr_queue.empty():
+                stderr_data += stderr_queue.get_nowait()
+
+            return process.returncode, stdout_data, stderr_data, False
+
+        else:
+            # Unix/Linux: Use select for non-blocking I/O
+            stdout_fd = process.stdout.fileno()
+            stderr_fd = process.stderr.fileno()
+
+            # Set non-blocking mode
             import fcntl
 
             for fd in [stdout_fd, stderr_fd]:
                 flags = fcntl.fcntl(fd, fcntl.F_GETFL)
                 fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-        except ImportError:
-            # fcntl not available on Windows, use a simpler approach
-            pass
 
-        start_time = time.time()
+            start_time = time.time()
 
-        while process.poll() is None:
-            # Check for timeout
-            if time.time() - start_time > timeout:
-                process.kill()
+            while process.poll() is None:
+                # Check for timeout
+                if time.time() - start_time > timeout:
+                    process.kill()
+                    try:
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=5)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        remaining_stdout, remaining_stderr = process.communicate(timeout=1)
+                        stdout_data += remaining_stdout
+                        stderr_data += remaining_stderr
+                    return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+
+                # Check for available output using select
                 try:
-                    remaining_stdout, remaining_stderr = process.communicate(timeout=5)
-                    stdout_data += remaining_stdout
-                    stderr_data += remaining_stderr
-                except subprocess.TimeoutExpired:
-                    process.terminate()
-                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
-                    stdout_data += remaining_stdout
-                    stderr_data += remaining_stderr
-                return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+                    ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
 
-            # Check for available output
-            try:
-                ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
+                    for fd in ready_fds:
+                        with contextlib.suppress(OSError):
+                            if fd == stdout_fd:
+                                chunk = process.stdout.read(1024)
+                                if chunk:
+                                    stdout_data += chunk
+                                    # Print to stdout in real-time
+                                    sys.stdout.buffer.write(chunk)
+                                    sys.stdout.buffer.flush()
+                            elif fd == stderr_fd:
+                                chunk = process.stderr.read(1024)
+                                if chunk:
+                                    stderr_data += chunk
+                                    # Print to stderr in real-time
+                                    sys.stderr.buffer.write(chunk)
+                                    sys.stderr.buffer.flush()
+                except OSError:
+                    # select failed, fall back to simple polling
+                    time.sleep(0.1)
+                    continue
 
-                for fd in ready_fds:
-                    with contextlib.suppress(OSError):
-                        if fd == stdout_fd:
-                            chunk = process.stdout.read(1024)
-                            if chunk:
-                                stdout_data += chunk
-                                # Print to stdout in real-time
-                                sys.stdout.buffer.write(chunk)
-                                sys.stdout.buffer.flush()
-                        elif fd == stderr_fd:
-                            chunk = process.stderr.read(1024)
-                            if chunk:
-                                stderr_data += chunk
-                                # Print to stderr in real-time
-                                sys.stderr.buffer.write(chunk)
-                                sys.stderr.buffer.flush()
-            except OSError:
-                # select failed, fall back to simple polling
-                time.sleep(0.1)
-                continue
+            # Get any remaining output
+            remaining_stdout, remaining_stderr = process.communicate()
+            stdout_data += remaining_stdout
+            stderr_data += remaining_stderr
 
-        # Get any remaining output
-        remaining_stdout, remaining_stderr = process.communicate()
-        stdout_data += remaining_stdout
-        stderr_data += remaining_stderr
-
-        return process.returncode, stdout_data, stderr_data, False
+            return process.returncode, stdout_data, stderr_data, False
 
     except Exception as e:
+        error_msg = f"[ERROR] EXCEPTION in capture_test_output_with_timeout: {type(e).__name__}: {str(e)}"
+        print(error_msg)
+        import traceback
+
+        traceback.print_exc()
         return -1, str(e).encode(), b"", False
 
 
@@ -132,16 +210,25 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     return test_suite
 
 
-def run_individual_tests(test_files, workspace_root, isaacsim_ci):
+def run_individual_tests(test_files, workspace_root, isaacsim_ci, windows_platform=False, arm_platform=False):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
 
+    # Ensure tests directory exists for reports
+    os.makedirs("tests", exist_ok=True)
+
     for test_file in test_files:
-        print(f"\n\n🚀 Running {test_file} independently...\n")
+        print(f"\n\n[RUN] Running {test_file} independently...\n")
         # get file name from path
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
+
+        # Log critical environment variables for debugging
+        print("[CHECK] Critical environment variables:")
+        for key in ["ISAAC_PATH", "CARB_APP_PATH", "EXP_PATH", "HEADLESS", "WINDOWS_PLATFORM"]:
+            value = env.get(key, "NOT SET")
+            print(f"  {key}={value}")
 
         # Determine timeout for this test
         timeout = (
@@ -149,6 +236,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             if file_name in test_settings.PER_TEST_TIMEOUTS
             else test_settings.DEFAULT_TIMEOUT
         )
+        print(f"[TIME]  Timeout set to: {timeout} seconds")
 
         # Prepare command
         cmd = [
@@ -157,7 +245,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "pytest",
             "--no-header",
             "-c",
-            f"{workspace_root}/pytest.ini",
+            os.path.join(workspace_root, "pytest.ini"),
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
             "--tb=short",
         ]
@@ -165,15 +253,29 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         if isaacsim_ci:
             cmd.append("-m")
             cmd.append("isaacsim_ci")
+        elif windows_platform:
+            cmd.append("-m")
+            cmd.append("windows")
+            print("[WIN] Adding Windows marker filter to command")
+        elif arm_platform:
+            cmd.append("-m")
+            cmd.append("arm")
 
         # Add the test file path last
         cmd.append(str(test_file))
 
+        print(f"[CMD] Command: {' '.join(cmd)}")
+        print(f"[DIR] Working directory: {os.getcwd()}")
+        print(f"[TOOL] Python executable: {sys.executable}")
+        print("[WAIT] Starting test execution...\n")
+
         # Run test with timeout and capture output
         returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
 
+        print(f"\n[OK] Test execution completed. Return code: {returncode}, Timed out: {timed_out}")
+
         if timed_out:
-            print(f"Test {test_file} timed out after {timeout} seconds...")
+            print(f"[TIME] TIMEOUT: Test {test_file} timed out after {timeout} seconds...")
             failed_tests.append(test_file)
 
             # Create a special XML report for timeout tests with captured logs
@@ -184,6 +286,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             # Write timeout report
             report_file = f"tests/test-reports-{str(file_name)}.xml"
             timeout_report.write(report_file)
+            print(f"[FILE] Timeout report written to: {report_file}")
 
             test_status[test_file] = {
                 "errors": 1,
@@ -196,12 +299,28 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             continue
 
         if returncode != 0:
+            print(f"[ERROR] Test returned non-zero exit code: {returncode}")
+            print(f"[OUT] STDOUT ({len(stdout_data)} bytes):")
+            if stdout_data:
+                print(stdout_data.decode("utf-8", errors="replace"))
+            print(f"[OUT] STDERR ({len(stderr_data)} bytes):")
+            if stderr_data:
+                print(stderr_data.decode("utf-8", errors="replace"))
             failed_tests.append(test_file)
+        else:
+            print("[OK] Test returned exit code 0")
 
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
+        print(f"[CHECK] Checking for report file: {report_file}")
+        print(f"[CHECK] Current working directory: {os.getcwd()}")
+        print(f"[CHECK] tests/ directory exists: {os.path.exists('tests/')}")
+        if os.path.exists("tests/"):
+            print(f"[CHECK] Contents of tests/ directory: {os.listdir('tests/')}")
+
         if not os.path.exists(report_file):
-            print(f"Warning: Test report not found at {report_file}")
+            print(f"[ERROR] WARNING: Test report not found at {report_file}")
+            print("[ERROR] This usually means pytest failed to run or crashed")
             failed_tests.append(test_file)
             test_status[test_file] = {
                 "errors": 1,  # Assume error since we can't read the report
@@ -213,8 +332,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             }
             continue
 
+        print(f"[OK] Report file found at {report_file}")
+
         try:
+            print(f"[READ] Parsing report file: {report_file}")
             report = JUnitXml.fromfile(report_file)
+            print("[STATS] Report parsed successfully")
 
             # Rename test suites to be more descriptive
             for suite in report:
@@ -225,6 +348,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
             # Write the updated report back
             report.write(report_file)
+            print(f"[SAVE] Updated report written back to: {report_file}")
 
             # Parse the integer values with None handling
             errors = int(report.errors) if report.errors is not None else 0
@@ -232,8 +356,16 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             skipped = int(report.skipped) if report.skipped is not None else 0
             tests = int(report.tests) if report.tests is not None else 0
             time_elapsed = float(report.time) if report.time is not None else 0.0
+
+            print(
+                f"[STATS] Test results: errors={errors}, failures={failures}, skipped={skipped}, tests={tests},"
+                f" time={time_elapsed}s"
+            )
         except Exception as e:
-            print(f"Error reading test report {report_file}: {e}")
+            print(f"[ERROR] ERROR reading test report {report_file}: {type(e).__name__}: {e}")
+            import traceback
+
+            traceback.print_exc()
             failed_tests.append(test_file)
             test_status[test_file] = {
                 "errors": 1,
@@ -265,18 +397,27 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
+    print("\n" + "=" * 80)
+    print("[RUN] PYTEST SESSION START - Custom Test Runner")
+    print("=" * 80)
+
     # Get the workspace root directory (one level up from tools)
     workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    print(f"[DIR] Workspace root: {workspace_root}")
+
     source_dirs = [
         os.path.join(workspace_root, "scripts"),
         os.path.join(workspace_root, "source"),
     ]
+    print(f"📁 Source directories to scan: {source_dirs}")
 
     # Get filter pattern from environment variable or command line
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+    windows_platform = os.environ.get("WINDOWS_PLATFORM", "false") == "true"
+    arm_platform = os.environ.get("ARM_PLATFORM", "false") == "true"
 
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
@@ -291,6 +432,9 @@ def pytest_sessionstart(session):
     print(f"Exclude pattern: '{exclude_pattern}'")
     print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    print(f"IsaacSim CI mode: {isaacsim_ci}")
+    print(f"Windows platform: {windows_platform}")
+    print(f"ARM platform: {arm_platform}")
     print("=" * 50)
 
     # Get all test files in the source directories
@@ -326,8 +470,30 @@ def pytest_sessionstart(session):
     if isaacsim_ci:
         new_test_files = []
         for test_file in test_files:
-            with open(test_file) as f:
-                if "@pytest.mark.isaacsim_ci" in f.read():
+            with open(test_file, encoding="utf-8") as f:
+                content = f.read()
+                if "@pytest.mark.isaacsim_ci" in content or "pytest.mark.isaacsim_ci" in content:
+                    new_test_files.append(test_file)
+        test_files = new_test_files
+    elif windows_platform:
+        print("[WIN] Filtering tests for Windows platform...")
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file, encoding="utf-8") as f:
+                content = f.read()
+                if "@pytest.mark.windows" in content or "pytest.mark.windows" in content:
+                    new_test_files.append(test_file)
+                    print(f"  + Including: {test_file}")
+                else:
+                    print(f"  - Excluding (no windows marker): {test_file}")
+        test_files = new_test_files
+        print(f"[WIN] Windows filtering complete: {len(test_files)} tests selected")
+    elif arm_platform:
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file, encoding="utf-8") as f:
+                content = f.read()
+                if "@pytest.mark.arm" in content or "pytest.mark.arm" in content:
                     new_test_files.append(test_file)
         test_files = new_test_files
 
@@ -340,7 +506,9 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    failed_tests, test_status = run_individual_tests(
+        test_files, workspace_root, isaacsim_ci, windows_platform, arm_platform
+    )
 
     print("failed tests:", failed_tests)
 
@@ -350,6 +518,8 @@ def pytest_sessionstart(session):
     # create new full report
     full_report = JUnitXml()
     # read all reports and merge them
+    # Ensure tests directory exists
+    os.makedirs("tests", exist_ok=True)
     for report in os.listdir("tests"):
         if report.endswith(".xml"):
             print(report)

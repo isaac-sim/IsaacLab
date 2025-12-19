@@ -21,7 +21,12 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
+import pytest
+
 from isaaclab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
+
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
 
 
 def test_spec_to_gym_space():

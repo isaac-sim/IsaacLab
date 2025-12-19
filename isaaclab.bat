@@ -364,7 +364,7 @@ if "%arg%"=="-i" (
     call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
-        set ext_folder="%%d"
+        set "ext_folder=%%d"
         call :install_isaaclab_extension
     )
     rem install the python packages for supported reinforcement learning frameworks
@@ -400,7 +400,7 @@ if "%arg%"=="-i" (
     call :ensure_cuda_torch
 
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
-        set ext_folder="%%d"
+        set "ext_folder=%%d"
         call :install_isaaclab_extension
     )
     rem install the python packages for supported reinforcement learning frameworks

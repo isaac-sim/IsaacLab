@@ -13,6 +13,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy as np
 import scipy.interpolate as interpolate
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.mark.isaacsim_ci
 def test_interpolation():

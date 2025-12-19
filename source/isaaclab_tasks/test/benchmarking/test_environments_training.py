@@ -5,6 +5,13 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
+import pytest
+
+# Skip all benchmarking tests on Windows - these are resource-intensive training tests
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Benchmarking tests not supported on Windows")
+
 from isaaclab.app import AppLauncher
 
 # Launch omniverse app

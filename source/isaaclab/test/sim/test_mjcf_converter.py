@@ -22,6 +22,9 @@ import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
+# Add markers for Windows and ARM platform support
+pytestmark = [pytest.mark.windows, pytest.mark.arm]
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
