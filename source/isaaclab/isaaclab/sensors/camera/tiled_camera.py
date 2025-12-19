@@ -88,9 +88,9 @@ class TiledCamera(Camera):
         """Unsubscribes from callbacks and detach from the replicator registry."""
         # unsubscribe from callbacks
         SensorBase.__del__(self)
-        # detach from the replicator registry
-        for annotator in self._annotators.values():
-            annotator.detach(self.render_product_paths)
+        # # detach from the replicator registry
+        # for annotator in self._annotators.values():
+        #     annotator.detach(self.render_product_paths)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
