@@ -125,7 +125,6 @@ Here are examples for different robots:
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_g1.yaml \
-       --visualizer newton
 
 
 2. Unitree H1
@@ -137,7 +136,6 @@ Here are examples for different robots:
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_h1.yaml \
-       --visualizer newton
 
 
 3. Unitree Go2
@@ -149,7 +147,6 @@ Here are examples for different robots:
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_go2.yaml \
-       --visualizer newton
 
 
 4. ANYmal-D
@@ -161,7 +158,6 @@ Here are examples for different robots:
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_anymal_d.yaml \
-       --visualizer newton
 
 The key difference is using the ``newton_to_physx_*.yaml`` mapping files instead of ``physx_to_newton_*.yaml`` files. Also note that you need to checkout a PhysX-based IsaacLab branch such as ``main``.
 

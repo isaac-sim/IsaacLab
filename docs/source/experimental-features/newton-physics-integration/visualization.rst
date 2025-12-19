@@ -60,10 +60,10 @@ Launch visualizers from the command line with ``--visualizer``:
 .. code-block:: bash
 
     # Launch all visualizers
-    python source/scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer omniverse newton rerun
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer omniverse newton rerun
 
     # Launch just newton visualizer
-    python source/scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
 
 
 If ``--headless`` is given, no visualizers will be launched.
