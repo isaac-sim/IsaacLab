@@ -17,7 +17,7 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=65,
-                ncon_per_env=15,
+                nconmax=15,
                 ls_iterations=10,
                 cone="pyramidal",
                 impratio=1,

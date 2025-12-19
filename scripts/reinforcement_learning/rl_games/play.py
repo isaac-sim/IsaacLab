@@ -32,7 +32,6 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -58,10 +57,13 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from isaaclab.utils import close_simulation, is_simulation_running
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
+
+import isaaclab_tasks_experimental  # noqa: F401
 
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -80,12 +82,9 @@ def main():
     task_name = args_cli.task.split(":")[-1]
     # parse env configuration
     env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=args_cli.num_envs,
-        use_fabric=not args_cli.disable_fabric,
-        newton_visualizer=args_cli.newton_visualizer,
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
+
     agent_cfg = load_cfg_from_registry(args_cli.task, "rl_games_cfg_entry_point")
 
     # specify directory for logging experiments
@@ -174,7 +173,7 @@ def main():
     # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
     #   attempt to have complete control over environment stepping. However, this removes other
     #   operations such as masking that is used for multi-agent learning by RL-Games.
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
@@ -210,4 +209,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    close_simulation(simulation_app)

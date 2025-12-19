@@ -11,7 +11,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 @configclass
 class AllegroHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
-    max_iterations = 10000
+    max_iterations = 5000
     save_interval = 250
     experiment_name = "allegro_hand"
     policy = RslRlPpoActorCriticCfg(

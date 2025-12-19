@@ -80,10 +80,10 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         physics_material: The physics material to apply. Defaults to None.
     """
     # need to import these here to prevent isaacsim launching when importing this module
-    import isaacsim.core.utils.prims as prim_utils
     from pxr import UsdGeom
 
     import isaaclab.sim as sim_utils
+    import isaaclab.sim.utils.prims as prim_utils
 
     # create parent prim
     prim_utils.create_prim(prim_path, "Xform")
@@ -121,9 +121,11 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     # create visual material
     if kwargs.get("visual_material") is not None:
         visual_material_cfg: sim_utils.VisualMaterialCfg = kwargs.get("visual_material")
-        # spawn the material
-        visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
-        sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
+        # spawn the material (returns None if omni.kit is not available)
+        visual_material_prim = visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
+        # only bind the material if it was successfully created
+        if visual_material_prim is not None:
+            sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
     # create physics material
     if kwargs.get("physics_material") is not None:
         physics_material_cfg: sim_utils.RigidBodyMaterialCfg = kwargs.get("physics_material")

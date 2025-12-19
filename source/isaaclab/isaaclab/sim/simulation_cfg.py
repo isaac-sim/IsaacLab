@@ -12,6 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
@@ -107,11 +108,14 @@ class RenderCfg:
 
     carb_settings: dict | None = None
     """Provides a general dictionary for users to supply all carb rendering settings with native names.
-        - Name strings can be formatted like a carb setting, .kit file setting, or python variable.
-        - For instance, a key value pair can be
-            /rtx/translucency/enabled: False # carb
-             rtx.translucency.enabled: False # .kit
-             rtx_translucency_enabled: False # python"""
+
+    Name strings can be formatted like a carb setting, .kit file setting, or python variable.
+    For instance, a key value pair can be:
+
+    * ``/rtx/translucency/enabled: False`` (carb format)
+    * ``rtx.translucency.enabled: False`` (.kit format)
+    * ``rtx_translucency_enabled: False`` (python format)
+    """
 
     rendering_mode: Literal["performance", "balanced", "quality"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
@@ -193,14 +197,44 @@ class SimulationCfg:
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
-    render: RenderCfg = RenderCfg()
+    render_cfg: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
 
-    enable_newton_rendering: bool = False
-    """Enable/disable rendering using Newton. Default is False.
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    """Visualizer settings. Default is no visualizer.
 
-    When enabled, the Newton to renderer will be called every time the simulation is rendered. If Isaac Sim's
-    renderer is also enabled, both will be called.
+    Visualizers are separate from Renderers and intended for light-weight monitoring and debugging.
+
+    This field can support multiple visualizer backends. It accepts:
+
+    * A single VisualizerCfg: One visualizer will be created
+    * A list of VisualizerCfg: Multiple visualizers will be created
+    * None or empty list: No visualizers will be created
+
+    Supported visualizer backends:
+
+    * NewtonVisualizerCfg: Lightweight OpenGL-based visualizer
+    * OVVisualizerCfg: Omniverse-based high-fidelity visualizer
+    * RerunVisualizerCfg: Web-based Rerun visualizer with recording and replay
+
+    Example usage::
+
+        # Disable all visualizers
+        cfg.sim.visualizer_cfgs = []
+
+        # No visualizers (default behavior)
+        cfg = SimulationCfg()
+
+        # Single custom visualizer
+        from isaaclab.visualizers import OVVisualizerCfg
+        cfg = SimulationCfg(visualizer_cfgs=OVVisualizerCfg())
+
+        # Multiple visualizers with custom configuration
+        from isaaclab.visualizers import NewtonVisualizerCfg, RerunVisualizerCfg
+        cfg = SimulationCfg(visualizer_cfgs=[
+            NewtonVisualizerCfg(camera_position=(10.0, 0.0, 3.0)),
+            RerunVisualizerCfg(server_address="127.0.0.1:9876")
+        ])
     """
 
     create_stage_in_memory: bool = False

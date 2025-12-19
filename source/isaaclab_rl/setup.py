@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>=2",
     "torch>=2.7",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
@@ -33,19 +33,18 @@ INSTALL_REQUIRES = [
     "moviepy",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
+    "packaging<24",
 ]
-
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
     "skrl": ["skrl>=1.4.2"],
     "rl-games": [
-        "rl-games @ git+https://github.com/kellyguo11/rl_games.git@python3.11",
+        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
     ],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==3.0.1"],
+    "rsl-rl": ["rsl-rl-lib==3.0.1", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
@@ -68,7 +67,6 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_rl"],
     classifiers=[
@@ -76,7 +74,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
-        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

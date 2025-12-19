@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
-import builtins
+import contextlib
 import gymnasium as gym
 import inspect
+import logging
 import math
 import numpy as np
 import torch
@@ -17,24 +18,26 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import isaacsim.core.utils.torch as torch_utils
-import omni.kit.app
-import omni.log
-import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+# import omni.physx
+# from isaacsim.core.simulation_manager import SimulationManager
+# from isaacsim.core.version import get_version
+
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DirectRLEnv(gym.Env):
@@ -66,7 +69,7 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
+        # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -95,7 +98,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -121,7 +124,7 @@ class DirectRLEnv(gym.Env):
                 f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            omni.log.warn(msg)
+            logger.warning(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -129,7 +132,7 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.get_initial_stage()):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                attach_stage_to_usd_context()
+                # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -154,17 +157,17 @@ class DirectRLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.get_initial_stage()):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
+        # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.get_initial_stage()):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -224,7 +227,11 @@ class DirectRLEnv(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        # Suppress errors during Python shutdown to avoid noisy tracebacks
+        # Note: contextlib may be None during interpreter shutdown
+        if contextlib is not None:
+            with contextlib.suppress(ImportError, AttributeError, TypeError):
+                self.close()
 
     """
     Properties.
@@ -302,9 +309,10 @@ class DirectRLEnv(gym.Env):
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        # TODO: Fix this
+        # if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+        #     while SimulationManager.assets_loading():
+        #         self.sim.render()
 
         # return observations
         return self._get_observations(), self.extras
@@ -350,9 +358,10 @@ class DirectRLEnv(gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._apply_action()
-            # set actions into simulator
-            self.scene.write_data_to_sim()
+            with Timer(name="apply_action", msg="Action processing step took:", enable=True, format="us"):
+                self._apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
                 self.sim.step(render=False)
@@ -364,39 +373,40 @@ class DirectRLEnv(gym.Env):
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
-        self.common_step_counter += 1  # total step (common for all envs)
+        with Timer(name="post_processing", msg="Post-Processing step took:", enable=True, format="us"):
+            # post-step:
+            # -- update env counters (used for curriculum generation)
+            self.episode_length_buf += 1  # step in current episode (per env)
+            self.common_step_counter += 1  # total step (common for all envs)
 
-        self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
-        self.reset_buf = self.reset_terminated | self.reset_time_outs
-        self.reward_buf = self._get_rewards()
+            self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
+            self.reset_buf = self.reset_terminated | self.reset_time_outs
+            self.reward_buf = self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            # -- reset envs that terminated/timed-out and log the episode information
+            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+            if len(reset_env_ids) > 0:
+                self._reset_idx(reset_env_ids)
+                # update articulation kinematics
+                self.scene.write_data_to_sim()
+                # if sensors are added to the scene, make sure we render to reflect changes in reset
+                if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+                    self.sim.render()
 
-        # post-step: step interval event
-        if self.cfg.events:
-            if "interval" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="interval", dt=self.step_dt)
+            # post-step: step interval event
+            if self.cfg.events:
+                if "interval" in self.event_manager.available_modes:
+                    self.event_manager.apply(mode="interval", dt=self.step_dt)
 
-        # update observations
-        self.obs_buf = self._get_observations()
+            # update observations
+            self.obs_buf = self._get_observations()
 
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
+            # add observation noise
+            # note: we apply no noise to the state space (since it is used for critic networks)
+            if self.cfg.observation_noise_model:
+                self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
-        # return observations, rewards, resets and extras
+            # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     @staticmethod
@@ -417,7 +427,7 @@ class DirectRLEnv(gym.Env):
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
@@ -494,15 +504,15 @@ class DirectRLEnv(gym.Env):
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
 
-            # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
-                    self.sim.clear()
+            # # clear callbacks and instance
+            # if float(".".join(get_version()[2])) >= 5:
+            #     if self.cfg.sim.create_stage_in_memory:
+            #         # detach physx stage
+            #         omni.physx.get_physx_simulation_interface().detach_stage()
+            #         self.sim.stop()
+            #         self.sim.clear()
 
-            self.sim.clear_all_callbacks()
+            # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window
@@ -525,6 +535,8 @@ class DirectRLEnv(gym.Env):
             Whether the debug visualization was successfully set. False if the environment
             does not support debug visualization.
         """
+        import omni.kit.app
+
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False
@@ -554,17 +566,17 @@ class DirectRLEnv(gym.Env):
         """Configure the action and observation spaces for the Gym environment."""
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
-            omni.log.warn("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
+            logger.warning("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
             if isinstance(self.cfg.action_space, type(MISSING)):
                 self.cfg.action_space = self.cfg.num_actions
         if self.cfg.num_observations is not None:
-            omni.log.warn(
+            logger.warning(
                 "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
             )
             if isinstance(self.cfg.observation_space, type(MISSING)):
                 self.cfg.observation_space = self.cfg.num_observations
         if self.cfg.num_states is not None:
-            omni.log.warn("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
+            logger.warning("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 

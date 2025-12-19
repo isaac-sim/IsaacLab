@@ -12,17 +12,14 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
-import carb
-import isaacsim.core.utils.stage as stage_utils
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.prims import XFormPrim
-
 # from isaacsim.core.version import get_version
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.sim.prims import XFormPrim
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -116,8 +113,8 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings_manager = get_settings_manager()
+        settings_manager.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -167,6 +164,7 @@ class Camera(SensorBase):
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
+            f"\trenderer type : {self.cfg.renderer_type}"
         )
 
     """
@@ -260,6 +258,8 @@ class Camera(SensorBase):
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest
                 #   way to set the property on the right layer.
+                import omni.usd
+
                 omni.usd.set_prop_val(param_attr(), param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
@@ -361,6 +361,9 @@ class Camera(SensorBase):
         # Reset the frame count
         self._frame[env_ids] = 0
 
+        # Reset the renderer
+        self._renderer.reset()
+
     """
     Implementation.
     """
@@ -375,8 +378,8 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        settings_manager = get_settings_manager()
+        if not settings_manager.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -491,7 +494,7 @@ class Camera(SensorBase):
         else:
             # iterate over all the data types
             for name, annotators in self._rep_registry.items():
-                # iterate over all the annotators
+                # iterate over all the cameras
                 for index in env_ids:
                     # get the output
                     output = annotators[index].get_data()
@@ -501,6 +504,7 @@ class Camera(SensorBase):
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
+
                 # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
                 #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
                 #       larger than the clipping range in the output. We apply an additional clipping to ensure values
@@ -602,9 +606,9 @@ class Camera(SensorBase):
 
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        self._data.pos_w[env_ids] = torch.from_numpy(poses).to(device=self._device)
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            torch.from_numpy(quat).to(device=self._device), origin="opengl", target="world"
         )
 
     def _create_annotator_data(self):

@@ -6,7 +6,6 @@
 """Installation script for the 'isaaclab' python package."""
 
 import os
-import platform
 import toml
 
 from setuptools import setup
@@ -19,13 +18,13 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
+    "numpy>=2",
     "torch>=2.7",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
     "fast_simplification",
-    "tqdm",
+    "tqdm==4.67.1",  # previous version was causing sys errors
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
@@ -36,34 +35,34 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang>=1.9.0.dev20250825",
+    "warp-lang==1.11.0.dev20251205",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
     # livestream
     "starlette==0.45.3",
+    # assets
+    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
-    # newton
-    "usd-core==25.05.0",
-    "mujoco>=3.3.6.dev802089588",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@64bb938f87b6aaf840753ef9ddc198db655020c0",
-    "newton @ git+https://github.com/newton-physics/newton.git@beta-1-1",
+    # visualizers
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
+    "rerun-sdk==0.27",
 ]
 
-
-# Additional dependencies that are only available on Linux platforms
-if platform.system() == "Linux":
-    INSTALL_REQUIRES += [
-        "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-    ]
-
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+# Append Linux x86_64 and ARM64 deps via PEP 508 markers
+SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
+SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
+INSTALL_REQUIRES += [
+    # required by isaaclab.isaaclab.controllers.pink_ik
+    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+    f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+]
 
 # Installation operation
 setup(
@@ -78,13 +77,12 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

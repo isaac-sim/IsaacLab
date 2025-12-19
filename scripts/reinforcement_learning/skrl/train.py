@@ -44,7 +44,6 @@ parser.add_argument(
     choices=["AMP", "PPO", "IPPO", "MAPPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -90,6 +89,8 @@ if args_cli.ml_framework.startswith("torch"):
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -113,7 +114,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
 
     # multi-gpu training config
     if args_cli.distributed:
@@ -198,4 +198,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app:
+        simulation_app.close()

@@ -9,17 +9,12 @@ import glob
 import json
 import os
 
-import carb.settings
-
+import isaaclab.utils.assets as assets_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
-from .assets import retrieve_file_path
-
-PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR = carb.settings.get_settings().get(
-    "/persistent/isaaclab/asset_root/pretrained_checkpoints"
-)
+PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR = f"{assets_utils.NUCLEUS_ASSET_ROOT_DIR}"
 """Path to the root directory on the Nucleus Server."""
 
 WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl"]
@@ -124,7 +119,7 @@ def get_published_pretrained_checkpoint(workflow: str, task_name: str) -> str | 
     if not os.path.exists(resume_path):
         print(f"Fetching pre-trained checkpoint : {ov_path}")
         try:
-            resume_path = retrieve_file_path(ov_path, download_dir)
+            resume_path = assets_utils.retrieve_file_path(ov_path, download_dir)
         except Exception:
             print("A pre-trained checkpoint is currently unavailable for this task.")
             return None

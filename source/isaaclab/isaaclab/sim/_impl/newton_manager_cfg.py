@@ -12,7 +12,7 @@ from .solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
 class NewtonCfg:
     """Configuration for Newton-related parameters.
 
-    These parameters are used to configure the Newton simulation.
+    These parameters are used to configure the Newton physics simulation.
     """
 
     num_substeps: int = 1

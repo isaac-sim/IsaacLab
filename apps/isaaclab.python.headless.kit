@@ -15,7 +15,7 @@ keywords = ["experience", "app", "isaaclab", "python", "headless"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "5.0.0"
+app.version = "5.1.0"
 
 ##################################
 # Omniverse related dependencies #
@@ -24,7 +24,7 @@ app.version = "5.0.0"
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
-"omni.warp.core" = { version = "1.9.0-rc.1", exact = true }
+"omni.warp.core" = { version = "1.11.0-rc.1", exact = true }
 
 "usdrt.scenegraph" = {}
 "omni.kit.telemetry" = {}
@@ -98,6 +98,10 @@ isaac.startup.ros_bridge_extension = ""
 
 # disable the metrics assembler change listener, we don't want to do any runtime changes
 metricsAssembler.changeListenerEnabled = false
+
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+# warp.core has this as a dependency, which forces numpy 1.26 to be pulled in
+app.extensions.excluded = ["omni.kit.pip_archive"]
 
 # Extensions
 ###############################
@@ -209,6 +213,6 @@ enabled=true # Enable this for DLSS
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"

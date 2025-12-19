@@ -13,11 +13,8 @@ import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-from isaacsim.core.version import get_version
-
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -58,7 +55,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
+        # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -152,7 +149,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
-    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -189,8 +185,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
-                self.sim.step(render=False)
+            self.sim.step(render=False)
+            self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -222,12 +218,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
@@ -250,7 +245,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -335,10 +330,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict({
-                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_dim)
-                })
+                group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                term_dict = {}
+                for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
+                    high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
+                    term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
+                self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
@@ -347,7 +345,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    @Timer(name="reset_idx", msg="Reset idx took:", enable=True, format="us")
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
 

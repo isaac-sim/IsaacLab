@@ -5,32 +5,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.kit.commands
-import omni.log
-from pxr import Gf, Sdf, Usd
+from pxr import Gf, Sdf, Usd, UsdGeom
 
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
-
-from isaacsim.core.utils.stage import get_current_stage
-
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import (
-    bind_physics_material,
-    bind_visual_material,
-    clone,
-    is_current_stage_in_memory,
-    select_usd_variants,
-)
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
+
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -179,43 +168,47 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
-        # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
-        # is not supported in stage in memory
-        if is_current_stage_in_memory():
-            omni.log.warn(
-                "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
-            )
+        # change the color using USD core API
+        stage = get_current_stage()
+        shader_prim = stage.GetPrimAtPath(f"{prim_path}/Looks/theGrid/Shader")
+        if shader_prim.IsValid():
+            diffuse_attr = shader_prim.GetAttribute("inputs:diffuse_tint")
+            if not diffuse_attr:
+                diffuse_attr = shader_prim.CreateAttribute("inputs:diffuse_tint", Sdf.ValueTypeNames.Color3f)
+            diffuse_attr.Set(Gf.Vec3f(*cfg.color))
 
-        else:
-            prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
-
-            # change the color
-            omni.kit.commands.execute(
-                "ChangePropertyCommand",
-                prop_path=Sdf.Path(prop_path),
-                value=Gf.Vec3f(*cfg.color),
-                prev=None,
-                type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
-            )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
     stage = get_current_stage()
-    omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)
+    light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
+    if light_prim.IsValid():
+        imageable = UsdGeom.Imageable(light_prim)
+        imageable.MakeInvisible()
 
     prim = prim_utils.get_prim_at_path(prim_path)
-    # Apply semantic tags
-    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-        # note: taken from replicator scripts.utils.utils.py
-        for semantic_type, semantic_value in cfg.semantic_tags:
-            # deal with spaces by replacing them with underscores
-            semantic_type_sanitized = semantic_type.replace(" ", "_")
-            semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # set the semantic API for the instance
-            instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-            # create semantic type and data attributes
-            sem.CreateSemanticTypeAttr().Set(semantic_type)
-            sem.CreateSemanticDataAttr().Set(semantic_value)
+    # # Apply semantic tags using USD core APIs
+    # TODO: need to verify this implementation
+    # if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+    #     for semantic_type, semantic_value in cfg.semantic_tags:
+    #         # deal with spaces by replacing them with underscores
+    #         semantic_type_sanitized = semantic_type.replace(" ", "_")
+    #         semantic_value_sanitized = semantic_value.replace(" ", "_")
+    #         # create custom attributes for semantic labeling using USD core API
+    #         instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
+
+    #         # Create semantic type attribute
+    #         type_attr_name = f"semantic:{instance_name}:semantic:type"
+    #         type_attr = prim.GetAttribute(type_attr_name)
+    #         if not type_attr:
+    #             type_attr = prim.CreateAttribute(type_attr_name, Sdf.ValueTypeNames.String)
+    #         type_attr.Set(semantic_type)
+
+    #         # Create semantic data attribute
+    #         data_attr_name = f"semantic:{instance_name}:semantic:data"
+    #         data_attr = prim.GetAttribute(data_attr_name)
+    #         if not data_attr:
+    #             data_attr = prim.CreateAttribute(data_attr_name, Sdf.ValueTypeNames.String)
+    #         data_attr.Set(semantic_value)
     # return the prim
     return prim
 
@@ -256,20 +249,16 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # get stage handle
-    stage = get_current_stage()
+    # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
+    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
-    # check file path exists
-    if not stage.ResolveIdentifierToEditTarget(usd_path):
-        if "4.5" in usd_path:
-            usd_5_0_path = (
-                usd_path.replace("http", "https").replace("-production.", "-staging.").replace("/4.5", "/5.0")
-            )
-            if not stage.ResolveIdentifierToEditTarget(usd_5_0_path):
-                raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
-            usd_path = usd_5_0_path
-        else:
-            raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
+    # Download remote files (S3, HTTP, HTTPS) to local cache
+    # This also downloads all USD dependencies to maintain references
+    if file_status == 2:
+        usd_path = retrieve_file_path(usd_path)
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
@@ -281,7 +270,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
+        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
@@ -321,10 +310,11 @@ def _spawn_from_usd_file(
             material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
             material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(prim_path, material_path)
+        # create material (returns None if omni.kit is not available)
+        visual_material_prim = cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material only if it was successfully created
+        if visual_material_prim is not None:
+            bind_visual_material(prim_path, material_path)
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)

@@ -50,7 +50,6 @@ CASSIE_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=["hip_.*", "thigh_.*", "ankle_.*"],
-            control_mode="position",
             effort_limit_sim=200.0,
             stiffness={
                 "hip_abduction.*": 100.0,
@@ -67,11 +66,9 @@ CASSIE_CFG = ArticulationCfg(
                 "ankle_joint.*": 6.0,
             },
             armature=1e-3,
-            friction=1e-5,
         ),
         "toes": ImplicitActuatorCfg(
             joint_names_expr=["toe_.*"],
-            control_mode="position",
             effort_limit_sim=20.0,
             stiffness={
                 "toe_joint.*": 20.0,
@@ -80,7 +77,6 @@ CASSIE_CFG = ArticulationCfg(
                 "toe_joint.*": 1.0,
             },
             armature=1e-3,
-            friction=1e-5,
         ),
     },
 )

@@ -74,12 +74,11 @@ UNITREE_A1_CFG = ArticulationCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
             effort_limit=33.5,
             saturation_effort=33.5,
-            # effort_limit_sim=33.5,
+            effort_limit_sim=33.5,
             velocity_limit=21.0,
             stiffness=25.0,
             damping=0.5,
-            friction=1e3,
-            # armature=1e-3,
+            friction=1e-3,
         ),
     },
 )
@@ -173,7 +172,6 @@ H1_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
-            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -190,20 +188,16 @@ H1_CFG = ArticulationCfg(
                 ".*_knee": 5.0,
                 "torso": 5.0,
             },
-            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle"],
-            control_mode="position",
             effort_limit=100,
             velocity_limit=100.0,
             stiffness={".*_ankle": 20.0},
             damping={".*_ankle": 4.0},
-            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
-            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -218,7 +212,6 @@ H1_CFG = ArticulationCfg(
                 ".*_shoulder_yaw": 10.0,
                 ".*_elbow": 10.0,
             },
-            friction=0.00001,
         ),
     },
 )
@@ -241,7 +234,7 @@ G1_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
             collision_enabled=True,
         ),
     ),
@@ -273,7 +266,6 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint",
                 "torso_joint",
             ],
-            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -295,16 +287,13 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint": 0.1,
                 "torso_joint": 0.1,
             },
-            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
-            control_mode="position",
-            effort_limit=20,
+            effort_limit=20.0,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
             damping=2.0,
             armature=0.1,
-            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -321,7 +310,6 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint",
                 ".*_two_joint",
             ],
-            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness=40.0,
@@ -337,7 +325,6 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint": 0.1,
                 ".*_two_joint": 0.1,
             },
-            friction=0.00001,
         ),
     },
 )
@@ -358,7 +345,7 @@ G1_29_DOF_CFG = ArticulationCfg(
             enabled_self_collisions=False,
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(
-            approximation="boundingCube",
+            mesh_collision_property=sim_utils.BoundingCubePropertiesCfg(),
         ),
     ),
     soft_joint_pos_limit_factor=0.9,
@@ -408,7 +395,6 @@ G1_29_DOF_CFG = ArticulationCfg(
                 ".*_hip_.*": 0.01,
                 ".*_knee_joint": 0.01,
             },
-            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
             effort_limit=50,
@@ -416,7 +402,6 @@ G1_29_DOF_CFG = ArticulationCfg(
             stiffness=20.0,
             damping=1.5,
             armature=0.01,
-            friction=0.00001,
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -427,7 +412,6 @@ G1_29_DOF_CFG = ArticulationCfg(
             stiffness=300.0,
             damping=6.0,
             armature=0.01,
-            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -462,7 +446,6 @@ G1_29_DOF_CFG = ArticulationCfg(
                 ".*_wrist_.*_joint": 0.03,
                 ".*_hand_.*": 0.03,
             },
-            friction=0.00001,
         ),
     },
 )

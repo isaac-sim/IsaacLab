@@ -34,7 +34,6 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -62,15 +61,18 @@ import torch
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.utils import close_simulation, is_simulation_running
+from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab.utils.timer import Timer
 
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
@@ -96,7 +98,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -116,19 +117,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
 
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
-
-    # Set play mode for Newton viewer if using Newton visualizer
-    if args_cli.newton_visualizer:
-        # Set visualizer to play mode in Newton config
-        if hasattr(env_cfg.sim, "newton_cfg"):
-            env_cfg.sim.newton_cfg.visualizer_train_mode = False
-        else:
-            # Create newton_cfg if it doesn't exist
-            from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-
-            newton_cfg = NewtonCfg()
-            newton_cfg.visualizer_train_mode = False
-            env_cfg.sim.newton_cfg = newton_cfg
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
@@ -189,7 +177,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     obs = env.get_observations()
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
+    while is_simulation_running(simulation_app, env.unwrapped.sim):
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
@@ -216,4 +204,4 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    close_simulation(simulation_app)

@@ -5,22 +5,24 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.kit.commands
-import omni.log
 from pxr import Usd
 
+import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
 
+logger = logging.getLogger(__name__)
+
 
 @clone
-def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfaceCfg) -> Usd.Prim:
+def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfaceCfg) -> Usd.Prim | None:
     """Create a preview surface prim and override the settings with the given config.
 
     A preview surface is a physically-based surface that handles simple shaders while supporting
@@ -42,7 +44,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         cfg: The configuration instance.
 
     Returns:
-        The created prim.
+        The created prim, or None if omni.kit is not available.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -51,25 +53,33 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     if not prim_utils.is_prim_path_valid(prim_path):
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "CreatePreviewSurfaceMaterialPrim" kit command
-        attach_stage_to_usd_context(attaching_early=True)
+        # attach_stage_to_usd_context(attaching_early=True)
 
-        omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
+        try:
+            import omni.kit.commands
+
+            omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
+        except Exception as e:
+            logger.warning(f"Skipping preview surface material creation (omni.kit not available): {e}")
+            return None
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
     prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
+    if prim is None:
+        return None
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]
     for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"inputs:{to_camel_case(attr_name)}", attr_value, camel_case=False)
 
     return prim
 
 
 @clone
-def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg) -> Usd.Prim:
+def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg) -> Usd.Prim | None:
     """Load a material from its MDL file and override the settings with the given config.
 
     NVIDIA's `Material Definition Language (MDL) <https://www.nvidia.com/en-us/design-visualization/technologies/material-definition-language/>`__
@@ -92,7 +102,7 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
         cfg: The configuration instance.
 
     Returns:
-        The created prim.
+        The created prim, or None if omni.kit is not available.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -101,26 +111,33 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
     if not prim_utils.is_prim_path_valid(prim_path):
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "CreateMdlMaterialPrim" kit command
-        attach_stage_to_usd_context(attaching_early=True)
+        try:
+            attach_stage_to_usd_context(attaching_early=True)
 
-        # extract material name from path
-        material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
-        omni.kit.commands.execute(
-            "CreateMdlMaterialPrim",
-            mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),
-            mtl_name=material_name,
-            mtl_path=prim_path,
-            select_new_prim=False,
-        )
+            # extract material name from path
+            material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
+            import omni.kit.commands
+
+            omni.kit.commands.execute(
+                "CreateMdlMaterialPrim",
+                mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),
+                mtl_name=material_name,
+                mtl_path=prim_path,
+                select_new_prim=False,
+            )
+        except Exception as e:
+            logger.warning(f"Skipping MDL material creation (omni.kit not available): {e}")
+            return None
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # obtain prim
     prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
-    # apply properties
-    cfg = cfg.to_dict()
-    del cfg["func"]
-    del cfg["mdl_path"]
-    for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=False)
+    if prim:
+        # apply properties
+        cfg = cfg.to_dict()
+        del cfg["func"]
+        del cfg["mdl_path"]
+        for attr_name, attr_value in cfg.items():
+            safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=False)
     # return prim
     return prim

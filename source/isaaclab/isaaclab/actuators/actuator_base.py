@@ -8,9 +8,8 @@ from __future__ import annotations
 import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar
 
-import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
@@ -36,67 +35,14 @@ class ActuatorBase(ABC):
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
 
+    __backend_name__: str = "base"
+    """The name of the backend for the actuator."""
+
     is_implicit_model: ClassVar[bool] = False
     """Flag indicating if the actuator is an implicit or explicit actuator model.
 
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
-
-    computed_effort: torch.Tensor
-    """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
-
-    applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
-
-    This is the effort obtained after clipping the :attr:`computed_effort` based on the
-    actuator characteristics.
-    """
-
-    effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-    """
-
-    effort_limit_sim: torch.Tensor
-    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-    """
-
-    velocity_limit: torch.Tensor
-    """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
-    """
-
-    velocity_limit_sim: torch.Tensor
-    """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
-    """
-
-    control_mode: Literal["position", "velocity", "none"]
-    """The control mode of the actuator.
-
-    The control mode can be one of the following:
-
-    * ``"position"``: Position control
-    * ``"velocity"``: Velocity control
-    * ``"none"``: No control (used for explicit actuators or direct effort control)
-    """
-
-    stiffness: torch.Tensor
-    """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    damping: torch.Tensor
-    """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    armature: torch.Tensor
-    """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -108,17 +54,6 @@ class ActuatorBase(ABC):
     def __init__(
         self,
         cfg: ActuatorBaseCfg,
-        joint_names: list[str],
-        joint_ids: slice | torch.Tensor,
-        num_envs: int,
-        device: str,
-        control_mode: Literal["position", "velocity"] = "position",
-        stiffness: torch.Tensor | float = 0.0,
-        damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        effort_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf,
     ):
         """Initialize the actuator.
 
@@ -131,56 +66,9 @@ class ActuatorBase(ABC):
 
         Args:
             cfg: The configuration of the actuator model.
-            joint_names: The joint names in the articulation.
-            joint_ids: The joint indices in the articulation. If :obj:`slice(None)`, then all
-                the joints in the articulation are part of the group.
-            num_envs: Number of articulations in the view.
-            device: Device used for processing.
-            control_mode: The default control mode. Defaults to "position".
-            stiffness: The default joint stiffness (P gain). Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            damping: The default joint damping (D gain). Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            armature: The default joint armature. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            effort_limit: The default effort limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
-            velocity_limit: The default velocity limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
         """
         # save parameters
         self.cfg = cfg
-        self._num_envs = num_envs
-        self._device = device
-        self._joint_names = joint_names
-        self._joint_indices = joint_ids
-
-        # For explicit models, we do not want to enforce the effort limit through the solver
-        # (unless it is explicitly set)
-        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
-            self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
-
-        # parse control mode
-        self.control_mode = control_mode
-        # parse joint stiffness and damping
-        self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
-        self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
-        # parse joint armature and friction
-        self.armature = self._parse_joint_parameter(self.cfg.armature, armature)
-        self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
-        # parse joint limits
-        # -- velocity
-        self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        # -- effort
-        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
-
-        # create commands buffers for allocation
-        self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-        self.applied_effort = torch.zeros_like(self.computed_effort)
 
     def __str__(self) -> str:
         """Returns: A string representation of the actuator group."""
@@ -205,16 +93,19 @@ class ActuatorBase(ABC):
     """
 
     @property
+    @abstractmethod
     def num_joints(self) -> int:
         """Number of actuators in the group."""
-        return len(self._joint_names)
+        raise NotImplementedError
 
     @property
+    @abstractmethod
     def joint_names(self) -> list[str]:
         """Articulation's joint names that are part of the group."""
-        return self._joint_names
+        raise NotImplementedError
 
     @property
+    @abstractmethod
     def joint_indices(self) -> slice | torch.Tensor:
         """Articulation's joint indices that are part of the group.
 
@@ -222,7 +113,7 @@ class ActuatorBase(ABC):
             If :obj:`slice(None)` is returned, then the group contains all the joints in the articulation.
             We do this to avoid unnecessary indexing of the joints for performance reasons.
         """
-        return self._joint_indices
+        raise NotImplementedError
 
     """
     Operations.
@@ -260,6 +151,11 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
+    @abstractmethod
+    def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
+        raise NotImplementedError
+
+    @abstractmethod
     def _parse_joint_parameter(
         self, cfg_value: float | dict[str, float] | None, default_value: float | torch.Tensor | None
     ) -> torch.Tensor:
@@ -279,47 +175,9 @@ class ActuatorBase(ABC):
             ValueError: If the parameter value is None and no default value is provided.
             ValueError: If the default value tensor is the wrong shape.
         """
-        # create parameter buffer
-        param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-        # parse the parameter
-        if cfg_value is not None:
-            if isinstance(cfg_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(cfg_value)
-            elif isinstance(cfg_value, dict):
-                # if dict, then parse the regular expression
-                indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
-                param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
-            else:
-                raise TypeError(
-                    f"Invalid type for parameter value: {type(cfg_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or dict."
-                )
-        elif default_value is not None:
-            if isinstance(default_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(default_value)
-            elif isinstance(default_value, torch.Tensor):
-                # if tensor, then use the same tensor for all joints
-                if default_value.shape == (self._num_envs, self.num_joints):
-                    param = default_value.float()
-                else:
-                    raise ValueError(
-                        "Invalid default value tensor shape.\n"
-                        f"Got: {default_value.shape}\n"
-                        f"Expected: {(self._num_envs, self.num_joints)}"
-                    )
-            else:
-                raise TypeError(
-                    f"Invalid type for default value: {type(default_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or Tensor."
-                )
-        else:
-            raise ValueError("The parameter value is None and no default value is provided.")
+        raise NotImplementedError
 
-        return param
-
+    @abstractmethod
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip the desired torques based on the motor limits.
 
@@ -329,4 +187,4 @@ class ActuatorBase(ABC):
         Returns:
             The clipped torques.
         """
-        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
+        raise NotImplementedError

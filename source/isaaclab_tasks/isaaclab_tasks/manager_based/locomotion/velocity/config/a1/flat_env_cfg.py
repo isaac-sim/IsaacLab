@@ -16,11 +16,11 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=50,
-                ncon_per_env=30,
-                ls_iterations=10,
-                cone="elliptic",
-                impratio=100,
+                njmax=45,
+                nconmax=30,
+                ls_iterations=30,
+                cone="pyramidal",
+                impratio=1,
                 ls_parallel=True,
                 integrator="implicit",
             ),

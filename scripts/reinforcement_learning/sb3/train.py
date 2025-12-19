@@ -32,7 +32,6 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -79,6 +78,7 @@ from isaaclab.utils.timer import Timer
 Timer.enable = False
 Timer.enable_display_output = False
 
+import isaaclab_tasks_experimental  # noqa: F401
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
@@ -113,7 +113,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.sim.enable_newton_rendering = args_cli.newton_visualizer
 
     # directory for logging into
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -206,4 +205,5 @@ if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app:
+        simulation_app.close()
