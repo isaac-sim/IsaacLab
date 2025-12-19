@@ -591,6 +591,8 @@ class RigidObjectCollection(AssetBase):
     """
 
     def _initialize_impl(self):
+        # clear object names list to prevent double counting on re-initialization
+        self._object_names_list.clear()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         root_prim_path_exprs = []
