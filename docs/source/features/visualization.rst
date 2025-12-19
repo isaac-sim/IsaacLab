@@ -31,9 +31,15 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
      - Webviewer interface, time scrubbing, recording export
 
 
-.. list-table::
-   :widths: 33 33 33
+*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
 
+.. figure:: ../../_static/visualizers/ov_viz.jpg
+   :width: 100%
+   :alt: Omniverse Visualizer
+
+   Omniverse Visualizer
+
+<<<<<<< Updated upstream:docs/source/features/visualization.rst
    * - .. image:: ../_static/visualizers/ov_viz.jpg
           :width: 100%
           :alt: Omniverse Visualizer
@@ -45,8 +51,19 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
      - .. image:: ../_static/visualizers/rerun_viz.jpg
           :width: 100%
           :alt: Rerun Visualizer
+=======
+.. figure:: ../../_static/visualizers/newton_viz.jpg
+   :width: 100%
+   :alt: Newton Visualizer
 
-.. centered:: *Omniverse, Newton, and Rerun visualizers training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+   Newton Visualizer
+
+.. figure:: ../../_static/visualizers/rerun_viz.jpg
+   :width: 100%
+   :alt: Rerun Visualizer
+>>>>>>> Stashed changes:docs/source/experimental-features/newton-physics-integration/visualization.rst
+
+   Rerun Visualizer
 
 
 Quick Start
@@ -279,3 +296,32 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
     A future feature will support visualizing only a subset of environments, which will improve visualization performance
     and reduce resource usage while maintaining full-scale training in the background.
+<<<<<<< Updated upstream:docs/source/features/visualization.rst
+=======
+
+
+**Rerun Visualizer FPS Control**
+
+The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
+
+
+**Newton Visualizer Contact and Center of Mass Markers**
+
+Contact and center of mass markers are not yet supported in the Newton visualizer. This will be addressed in a future release.
+
+
+**Newton Visualizer CUDA/OpenGL Interoperability Warnings**
+
+On some system configurations, the Newton visualizer may display warnings about CUDA/OpenGL interoperability:
+
+.. code-block:: text
+
+    Warning: Could not get MSAA config, falling back to non-AA.
+    Warp CUDA error 999: unknown error (in function wp_cuda_graphics_register_gl_buffer)
+    Warp UserWarning: Could not register GL buffer since CUDA/OpenGL interoperability
+    is not available. Falling back to copy operations between the Warp array and the
+    OpenGL buffer.
+
+The visualizer will still function correctly but may experience reduced performance due to falling back to
+CPU copy operations instead of direct GPU memory sharing.
+>>>>>>> Stashed changes:docs/source/experimental-features/newton-physics-integration/visualization.rst
