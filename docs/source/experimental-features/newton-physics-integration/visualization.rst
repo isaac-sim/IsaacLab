@@ -77,7 +77,7 @@ If ``--headless`` is given, no visualizers will be launched.
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and editted in ``source/isaaclab/isaaclab/visualizers``.
+Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and edited in ``source/isaaclab/isaaclab/visualizers``.
 
 You can also configure custom visualizers in the code by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
 
