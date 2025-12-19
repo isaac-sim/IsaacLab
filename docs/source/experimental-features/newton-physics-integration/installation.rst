@@ -29,6 +29,8 @@ Pip Installation
 We recommend using conda for managing your python environments. Conda can be downloaded and installed from `here <https://docs.conda.io/en/latest/miniconda.html>`_.
 
 If you previously already have a virtual environment for Isaac Lab, please ensure to start from a fresh environment to avoid any dependency conflicts.
+If you have installed earlier versions of mujoco, mujoco-warp, or newton packages through pip, we recommend first
+cleaning your pip cache with ``pip cache purge`` to remove any cache of earlier versions that may be conflicting with the latest.
 
 Create a new conda environment:
 
