@@ -3,12 +3,6 @@
 
 .. automodule:: isaaclab.sensors
 
-  .. rubric:: Submodules
-
-  .. autosummary::
-
-    patterns
-
   .. rubric:: Classes
 
   .. autosummary::
@@ -23,16 +17,6 @@
     ContactSensor
     ContactSensorData
     ContactSensorCfg
-    FrameTransformer
-    FrameTransformerData
-    FrameTransformerCfg
-    RayCaster
-    RayCasterData
-    RayCasterCfg
-    RayCasterCamera
-    RayCasterCameraCfg
-    Imu
-    ImuCfg
 
 Sensor Base
 -----------
@@ -61,7 +45,7 @@ USD Camera
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, OffsetCfg
 
 Tile-Rendered USD Camera
 ------------------------
@@ -91,77 +75,6 @@ Contact Sensor
     :exclude-members: __init__
 
 .. autoclass:: ContactSensorCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Frame Transformer
------------------
-
-.. autoclass:: FrameTransformer
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: FrameTransformerData
-    :members:
-    :inherited-members:
-    :exclude-members: __init__
-
-.. autoclass:: FrameTransformerCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-.. autoclass:: OffsetCfg
-    :members:
-    :inherited-members:
-    :exclude-members: __init__
-
-Ray-Cast Sensor
----------------
-
-.. autoclass:: RayCaster
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: RayCasterData
-    :members:
-    :inherited-members:
-    :exclude-members: __init__
-
-.. autoclass:: RayCasterCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Ray-Cast Camera
----------------
-
-.. autoclass:: RayCasterCamera
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: RayCasterCameraCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Inertia Measurement Unit
-------------------------
-
-.. autoclass:: Imu
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: ImuCfg
     :members:
     :inherited-members:
     :show-inheritance:
