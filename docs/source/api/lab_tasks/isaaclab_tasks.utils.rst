@@ -3,6 +3,5 @@
 
 .. automodule:: isaaclab_tasks.utils
    :members:
-   :imported-members:
-
-   .. rubric:: Submodules
+   :undoc-members:
+   :show-inheritance:

@@ -17,6 +17,27 @@
 #
 import os
 import sys
+from typing import Union
+
+# Patch Sphinx's autodoc mock to support the | operator for type unions.
+# This is needed because type annotations like `torch.Tensor | wp.array` fail
+# when the mock doesn't implement __or__ and __ror__.
+try:
+    from sphinx.ext.autodoc.mock import _MockObject
+
+    _original_mock_or = getattr(_MockObject, "__or__", None)
+    _original_mock_ror = getattr(_MockObject, "__ror__", None)
+
+    def _mock_or(self, other):
+        return Union[self, other]
+
+    def _mock_ror(self, other):
+        return Union[other, self]
+
+    _MockObject.__or__ = _mock_or
+    _MockObject.__ror__ = _mock_ror
+except ImportError:
+    pass  # Sphinx not yet loaded, will be handled by autodoc_mock_imports
 
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
@@ -24,10 +45,14 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
 
 # -- Project information -----------------------------------------------------
 
@@ -113,7 +138,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
-    "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
+    # "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),  # URL no longer valid (404)
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
 }
@@ -135,6 +160,10 @@ autodoc_mock_imports = [
     "scipy",
     "carb",
     "warp",
+    "newton",
+    "newton.examples",
+    "newton.sensors",
+    "newton.solvers",
     "pxr",
     "isaacsim",
     "omni",

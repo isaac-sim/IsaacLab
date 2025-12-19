@@ -5,6 +5,8 @@
 
 """Utility functions for functions."""
 
+from __future__ import annotations
+
 import functools
 import inspect
 import logging
