@@ -30,7 +30,6 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     # newton
-    "usd-core==25.05.0",
     "mujoco>=3.4.0.dev839962392",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@e9a67538f2c14486121635074c5a5fd6ca55fa83",
     "newton @ git+https://github.com/newton-physics/newton.git@beta-0.2.0",
@@ -40,6 +39,15 @@ INSTALL_REQUIRES = [
 
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+
+# Append Linux x86_64 and ARM64 deps via PEP 508 markers
+SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64'"
+SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
+INSTALL_REQUIRES += [
+    # required by isaaclab.isaaclab.controllers.pink_ik
+    f"usd-core==25.05.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-exchange>=2.1 ; ({SUPPORTED_ARCHS_ARM})",
+]
 
 # Installation operation
 setup(
