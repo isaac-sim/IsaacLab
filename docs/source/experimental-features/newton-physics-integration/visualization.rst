@@ -31,22 +31,25 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
      - Webviewer, time scrubbing, recording export
 
 
-.. list-table::
-   :widths: 33 33 33
+*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
 
-   * - .. image:: ../../_static/visualizers/ov_viz.jpg
-          :width: 100%
-          :alt: Omniverse Visualizer
+.. figure:: ../../_static/visualizers/ov_viz.jpg
+   :width: 100%
+   :alt: Omniverse Visualizer
 
-     - .. image:: ../../_static/visualizers/newton_viz.jpg
-          :width: 100%
-          :alt: Newton OpenGL Visualizer
+   Omniverse Visualizer
 
-     - .. image:: ../../_static/visualizers/rerun_viz.jpg
-          :width: 100%
-          :alt: Rerun Visualizer
+.. figure:: ../../_static/visualizers/newton_viz.jpg
+   :width: 100%
+   :alt: Newton Visualizer
 
-.. centered:: *Omniverse, Newton, and Rerun visualizers training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+   Newton Visualizer
+
+.. figure:: ../../_static/visualizers/rerun_viz.jpg
+   :width: 100%
+   :alt: Rerun Visualizer
+
+   Rerun Visualizer
 
 
 Quick Start
@@ -74,7 +77,7 @@ If ``--headless`` is given, no visualizers will be launched.
 Configuration
 ~~~~~~~~~~~~~
 
-Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and edited in ``source/isaaclab/isaaclab/visualizers``.
+Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and editted in ``source/isaaclab/isaaclab/visualizers``.
 
 You can also configure custom visualizers in the code by defining new ``VisualizerCfg`` instances for the ``SimulationCfg``, for example:
 
@@ -279,6 +282,11 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
     A future feature will support visualizing only a subset of environments, which will improve visualization performance
     and reduce resource usage while maintaining full-scale training in the background.
+
+
+**Rerun Visualizer FPS Control**
+
+The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
 
 
 **Newton Visualizer Contact and Center of Mass Markers**
