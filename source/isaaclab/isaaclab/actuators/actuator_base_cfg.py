@@ -50,7 +50,7 @@ class ActuatorBaseCfg:
 
     """
 
-    """Optional (min v5) settings to the drive model capturing performance envelope velocity-effort dependence.
+    """Optional settings to the drive model capturing performance envelope velocity-effort dependence. Requires IsaacSim>5.0.0.
 
     See: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/_downloads/f44e831b7f29e7c2ec8e3f2c54418430/drivePerformanceEnvelope.pdf
     """
