@@ -124,7 +124,7 @@ Here are examples for different robots:
        --task=Isaac-Velocity-Flat-G1-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
-       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_g1.yaml \
+       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_g1.yaml
 
 
 2. Unitree H1
@@ -135,7 +135,7 @@ Here are examples for different robots:
        --task=Isaac-Velocity-Flat-H1-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
-       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_h1.yaml \
+       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_h1.yaml
 
 
 3. Unitree Go2
@@ -146,7 +146,7 @@ Here are examples for different robots:
        --task=Isaac-Velocity-Flat-Go2-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
-       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_go2.yaml \
+       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_go2.yaml
 
 
 4. ANYmal-D
@@ -157,7 +157,7 @@ Here are examples for different robots:
        --task=Isaac-Velocity-Flat-Anymal-D-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
-       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_anymal_d.yaml \
+       --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_anymal_d.yaml
 
 The key difference is using the ``newton_to_physx_*.yaml`` mapping files instead of ``physx_to_newton_*.yaml`` files. Also note that you need to checkout a PhysX-based IsaacLab branch such as ``main``.
 
