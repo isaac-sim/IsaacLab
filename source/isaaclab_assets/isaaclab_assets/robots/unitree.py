@@ -16,6 +16,10 @@ The following configurations are available:
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
 * :obj:`G1_INSPIRE_FTP_CFG`: G1 29DOF humanoid robot with Inspire 5-finger hand
+* :obj:`UNITREE_G1_29DOF_CFG`: Unitree G1 humanoid robot with 29 DOF for locomotion tasks
+* :obj:`UNITREE_G1_29DOF_DELAY_CFG`: Unitree G1 humanoid robot with 29 DOF and delayed PD actuators for locomotion tasks
+* :obj:`UNITREE_G1_23DOF_CFG`: Unitree G1 humanoid robot with 23 DOF for manipulation tasks
+* :obj:`UNITREE_G1_23DOF_DELAY_CFG`: Unitree G1 humanoid robot with 23 DOF and delayed PD actuators for manipulation tasks
 
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
