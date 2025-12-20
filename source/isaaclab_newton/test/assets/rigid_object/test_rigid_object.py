@@ -3005,7 +3005,7 @@ class TestProcessCfg:
     """Tests for _process_cfg method.
 
     Tests that the configuration processing correctly:
-    - Converts quaternion from (w, x, y, z) to (x, y, z, w) format for default root pose
+    - Uses quaternion in (x, y, z, w) format for default root pose
     - Sets default root velocity from lin_vel and ang_vel
     - Sets default joint positions from joint_pos dict with pattern matching
     - Sets default joint velocities from joint_vel dict with pattern matching
@@ -3023,15 +3023,15 @@ class TestProcessCfg:
         )
 
         # Set up init_state with specific position and rotation
-        # Rotation is in (w, x, y, z) format in the config
+        # Rotation is in (x, y, z, w) format in the config
         articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
-        articulation.cfg.init_state.rot = (0.707, 0.0, 0.707, 0.0)  # w, x, y, z
+        articulation.cfg.init_state.rot = (0.0, 0.707, 0.0, 0.707)  # x, y, z, w
 
         # Call _process_cfg
         articulation._process_cfg()
 
         # Verify the default root pose
-        # Expected: position (1, 2, 3) + quaternion converted to (x, y, z, w) = (0, 0.707, 0, 0.707)
+        # Expected: position (1, 2, 3) + quaternion in (x, y, z, w) = (0, 0.707, 0, 0.707)
         expected_pose = torch.tensor(
             [[1.0, 2.0, 3.0, 0.0, 0.707, 0.0, 0.707]] * num_instances,
             device=device,
@@ -3191,15 +3191,15 @@ class TestProcessCfg:
             device=device,
         )
 
-        # Set up init_state with identity quaternion (w=1, x=0, y=0, z=0)
+        # Set up init_state with identity quaternion (x=0, y=0, z=0, w=1)
         articulation.cfg.init_state.pos = (0.0, 0.0, 0.0)
-        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)  # Identity: w, x, y, z
+        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # Identity: x, y, z, w
 
         # Call _process_cfg
         articulation._process_cfg()
 
         # Verify the default root pose
-        # Expected: position (0, 0, 0) + quaternion converted to (x, y, z, w) = (0, 0, 0, 1)
+        # Expected: position (0, 0, 0) + quaternion in (x, y, z, w) = (0, 0, 0, 1)
         expected_pose = torch.tensor(
             [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * num_instances,
             device=device,
@@ -3222,7 +3222,7 @@ class TestProcessCfg:
 
         # Set up init_state
         articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
-        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)
+        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # x, y, z, w
         articulation.cfg.init_state.lin_vel = (0.5, 0.5, 0.5)
         articulation.cfg.init_state.ang_vel = (0.1, 0.1, 0.1)
         articulation.cfg.init_state.joint_pos = {}
@@ -3285,7 +3285,7 @@ class TestProcessCfg:
 
         # Set up default root pose in config: position (1.0, 2.0, 3.0), identity quaternion
         articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
-        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity)
+        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity)
 
         # Set up initial spawned positions for each instance
         # Instance 0: (5.0, 6.0, 0.0)
@@ -3335,7 +3335,7 @@ class TestProcessCfg:
 
         # Set up default root pose with zero position
         articulation.cfg.init_state.pos = (0.0, 0.0, 0.0)
-        articulation.cfg.init_state.rot = (1.0, 0.0, 0.0, 0.0)
+        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # x, y, z, w
 
         # Set up initial spawned positions
         spawned_transforms = torch.tensor(
@@ -3375,9 +3375,9 @@ class TestProcessCfg:
         )
 
         # Set up default root pose with specific rotation (90 degrees around z-axis)
-        # Quaternion for 90 degrees around z: (w=0.707, x=0, y=0, z=0.707)
+        # Quaternion for 90 degrees around z: (x=0, y=0, z=0.707, w=0.707)
         articulation.cfg.init_state.pos = (1.0, 2.0, 5.0)
-        articulation.cfg.init_state.rot = (0.707, 0.0, 0.0, 0.707)  # w, x, y, z
+        articulation.cfg.init_state.rot = (0.0, 0.0, 0.707, 0.707)  # x, y, z, w
 
         # Set up initial spawned positions
         spawned_transforms = torch.tensor(

@@ -102,8 +102,11 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
     assert pos == mesh_converter.cfg.translation
     quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
-    quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
-    assert quat == mesh_converter.cfg.rotation
+    # USD returns wxyz format, convert to xyzw to compare with cfg.rotation
+    quat_wxyz = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
+    # cfg.rotation is in xyzw format, so convert wxyz to xyzw for comparison
+    quat_xyzw = (quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0])
+    assert quat_xyzw == mesh_converter.cfg.rotation
     scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
     assert scale == mesh_converter.cfg.scale
 
