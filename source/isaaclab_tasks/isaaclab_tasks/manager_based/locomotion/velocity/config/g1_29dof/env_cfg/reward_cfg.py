@@ -51,11 +51,12 @@ class G1RewardsCfg:
 
     # -- base penalties
     base_height = RewTerm(func=mdp.base_height_l2, weight=-10.0, params={"target_height": 0.75})
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0) 
+    # TODO: pick one
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0) 
     body_orientation_l2 = RewTerm(
         func=g1_mdp.body_orientation_l2, 
         params={"asset_cfg": SceneEntityCfg("robot", body_names=".*torso.*")}, 
-        weight=-2.0
+        weight=-4.0
     )
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.0) 
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
@@ -71,7 +72,7 @@ class G1RewardsCfg:
     joint regularization.
     """
     energy = RewTerm(func=g1_mdp.energy, weight=-1e-3)
-    dof_vel_l2 = RewTerm(func=mdp.joint_vel_l2, weight=-1e-4) # optional
+    dof_vel_l2 = RewTerm(func=mdp.joint_vel_l2, weight=-1e-4)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     
     # penalize joint limits
@@ -137,7 +138,6 @@ class G1RewardsCfg:
     foot orientation
     """
 
-    # -- foot orientation penalities
     feet_yaw_diff = RewTerm(
         func=g1_mdp.reward_feet_yaw_diff, 
         weight=-1.0,
@@ -214,8 +214,6 @@ class G1RewardsCfg:
     gait
     """
 
-    # rewarded when agent walks with single stance gait. 
-    # this is sparse reward as agent receives reward equivalent to swing time only during single stance mode.
     feet_air_time = RewTerm(
         func=vel_mdp.feet_air_time_positive_biped,
         weight=0.15,
@@ -231,21 +229,21 @@ class G1RewardsCfg:
         func=g1_mdp.reward_feet_swing,
         weight=2.0,
         params={
-            # swing period in phase (0.5 is maximum)
             "swing_period": 0.2, 
             "sensor_cfg": SceneEntityCfg(
                 "contact_forces", body_names=".*ankle_roll.*"
             ),
             "cmd_threshold": 0.05, # or 0.1
             "command_name": "base_velocity",
+            "gait_command_name": "locomotion_gait",
         },
     )
-
-    fly = RewTerm(
-        func=g1_mdp.fly,
-        weight=-1.0,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"), "threshold": 1.0},
-    )
+    # # TODO: consider removing
+    # fly = RewTerm(
+    #     func=g1_mdp.fly,
+    #     weight=-1.0,
+    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"), "threshold": 1.0},
+    # )
 
     """
     stance foot
@@ -259,7 +257,7 @@ class G1RewardsCfg:
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
         },
     )
-    # penalize lateral foot distance
+    
     foot_distance = RewTerm(
         func = g1_mdp.reward_foot_distance,
         weight=-2.0,
@@ -274,7 +272,7 @@ class G1RewardsCfg:
     )
 
     feet_force = RewTerm(
-        func=g1_mdp.body_force,
+        func=g1_mdp.feet_force,
         weight=-3e-3,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
@@ -287,7 +285,6 @@ class G1RewardsCfg:
     swing foot
     """
     
-    # optional: encourage specific foot clearance value 
     foot_clearance = RewTerm(
         func=g1_mdp.foot_clearance_reward,
         weight=2.0,

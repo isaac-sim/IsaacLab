@@ -21,9 +21,10 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg, DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 ##
 # Configuration - Actuators.
@@ -609,3 +610,416 @@ G1_INSPIRE_FTP_CFG.actuators["hands"] = ImplicitActuatorCfg(
     damping=0.2,
     armature=0.001,
 )
+
+
+"""
+G1 configuration aligned with actual hardware xml. 
+G1_CFG above uses USD file which does not match hardware configurations. 
+Gain parameters are adapted from LeggedLab https://github.com/Hellod035/LeggedLab
+"""
+
+UNITREE_G1_29DOF_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/unitree/g1_29dof_rev_1_0/g1_29dof_rev_1_0.usd",
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=1
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.80),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.20,
+            ".*_knee_joint": 0.42,
+            ".*_ankle_pitch_joint": -0.23,
+            ".*_elbow_joint": 0.87,
+            "left_shoulder_roll_joint": 0.18,
+            "left_shoulder_pitch_joint": 0.35,
+            "right_shoulder_roll_joint": -0.18,
+            "right_shoulder_pitch_joint": 0.35,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.90,
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+                ".*waist.*",
+            ],
+            effort_limit_sim={
+                ".*_hip_yaw_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
+                ".*_hip_pitch_joint": 88.0,
+                ".*_knee_joint": 139.0,
+                ".*waist_yaw_joint": 88.0,
+                ".*waist_roll_joint": 35.0,
+                ".*waist_pitch_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_hip_yaw_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
+                ".*_hip_pitch_joint": 32.0,
+                ".*_knee_joint": 20.0,
+                ".*waist_yaw_joint": 32.0,
+                ".*waist_roll_joint": 30.0,
+                ".*waist_pitch_joint": 30.0,
+            },
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                ".*waist.*": 200.0,
+            },
+            damping={
+                ".*_hip_yaw_joint": 5.0,
+                ".*_hip_roll_joint": 5.0,
+                ".*_hip_pitch_joint": 5.0,
+                ".*_knee_joint": 5.0,
+                ".*waist.*": 5.0,
+            },
+            armature=0.01,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            effort_limit_sim={
+                ".*_ankle_pitch_joint": 35.0,
+                ".*_ankle_roll_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_ankle_pitch_joint": 30.0,
+                ".*_ankle_roll_joint": 30.0,
+            },
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "shoulders": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_pitch_joint",
+                ".*_shoulder_roll_joint",
+            ],
+            effort_limit_sim={
+                ".*_shoulder_pitch_joint": 25.0,
+                ".*_shoulder_roll_joint": 25.0,
+            },
+            velocity_limit_sim={
+                ".*_shoulder_pitch_joint": 37.0,
+                ".*_shoulder_roll_joint": 37.0,
+            },
+            stiffness=100.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_yaw_joint",
+                ".*_elbow_joint",
+            ],
+            effort_limit_sim={
+                ".*_shoulder_yaw_joint": 25.0,
+                ".*_elbow_joint": 25.0,
+            },
+            velocity_limit_sim={
+                ".*_shoulder_yaw_joint": 37.0,
+                ".*_elbow_joint": 37.0,
+            },
+            stiffness=50.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "wrist": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_wrist_.*",
+            ],
+            effort_limit_sim={
+                ".*_wrist_yaw_joint": 5.0,
+                ".*_wrist_roll_joint": 25.0,
+                ".*_wrist_pitch_joint": 5.0,
+            },
+            velocity_limit_sim={
+                ".*_wrist_yaw_joint": 22.0,
+                ".*_wrist_roll_joint": 37.0,
+                ".*_wrist_pitch_joint": 22.0,
+            },
+            stiffness=40.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+    },
+)
+
+UNITREE_G1_29DOF_DELAY_CFG = UNITREE_G1_29DOF_CFG.copy()
+UNITREE_G1_29DOF_DELAY_CFG.actuators["legs"] = DelayedPDActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+                ".*waist.*",
+            ],
+            effort_limit_sim={
+                ".*_hip_yaw_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
+                ".*_hip_pitch_joint": 88.0,
+                ".*_knee_joint": 139.0,
+                ".*waist_yaw_joint": 88.0,
+                ".*waist_roll_joint": 35.0,
+                ".*waist_pitch_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_hip_yaw_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
+                ".*_hip_pitch_joint": 32.0,
+                ".*_knee_joint": 20.0,
+                ".*waist_yaw_joint": 32.0,
+                ".*waist_roll_joint": 30.0,
+                ".*waist_pitch_joint": 30.0,
+            },
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                ".*waist.*": 200.0,
+            },
+            damping={
+                ".*_hip_yaw_joint": 5.0,
+                ".*_hip_roll_joint": 5.0,
+                ".*_hip_pitch_joint": 5.0,
+                ".*_knee_joint": 5.0,
+                ".*waist.*": 5.0,
+            },
+            armature=0.01,
+            min_delay=0,
+            max_delay=4, # physics time steps (max: 5.0*4=20.0ms)
+        )
+
+UNITREE_G1_29DOF_DELAY_CFG.actuators["feet"] = DelayedPDActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            effort_limit_sim={
+                ".*_ankle_pitch_joint": 35.0,
+                ".*_ankle_roll_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_ankle_pitch_joint": 30.0,
+                ".*_ankle_roll_joint": 30.0,
+            },
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+            min_delay=0,
+            max_delay=4, # physics time steps (max: 5.0*4=20.0ms)
+        )
+
+"""
+G1 23DOF model.
+"""
+
+UNITREE_G1_23DOF_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/unitree/g1_23dof_rev_1_0/g1_23dof_rev_1_0.usd",
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=1
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.80),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.1,
+            ".*_knee_joint": 0.3,
+            ".*_ankle_pitch_joint": -0.2,
+            ".*_elbow_joint": 0.97,
+            "left_shoulder_roll_joint": 0.25,
+            "left_shoulder_pitch_joint": 0.3,
+            "right_shoulder_roll_joint": -0.25,
+            "right_shoulder_pitch_joint": 0.3,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.90,
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+                ".*waist.*",
+            ],
+            effort_limit_sim={
+                ".*_hip_yaw_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
+                ".*_hip_pitch_joint": 88.0,
+                ".*_knee_joint": 139.0,
+                ".*waist_yaw_joint": 88.0,
+            },
+            velocity_limit_sim={
+                ".*_hip_yaw_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
+                ".*_hip_pitch_joint": 32.0,
+                ".*_knee_joint": 20.0,
+                ".*waist_yaw_joint": 32.0,
+            },
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                ".*waist.*": 200.0,
+            },
+            damping={
+                ".*_hip_yaw_joint": 5.0,
+                ".*_hip_roll_joint": 5.0,
+                ".*_hip_pitch_joint": 5.0,
+                ".*_knee_joint": 5.0,
+                ".*waist.*": 5.0,
+            },
+            armature=0.01,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            effort_limit_sim={
+                ".*_ankle_pitch_joint": 35.0,
+                ".*_ankle_roll_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_ankle_pitch_joint": 30.0,
+                ".*_ankle_roll_joint": 30.0,
+            },
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "shoulders": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_pitch_joint",
+                ".*_shoulder_roll_joint",
+            ],
+            effort_limit_sim={
+                ".*_shoulder_pitch_joint": 25.0,
+                ".*_shoulder_roll_joint": 25.0,
+            },
+            velocity_limit_sim={
+                ".*_shoulder_pitch_joint": 37.0,
+                ".*_shoulder_roll_joint": 37.0,
+            },
+            stiffness=100.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_yaw_joint",
+                ".*_elbow_joint",
+            ],
+            effort_limit_sim={
+                ".*_shoulder_yaw_joint": 25.0,
+                ".*_elbow_joint": 25.0,
+            },
+            velocity_limit_sim={
+                ".*_shoulder_yaw_joint": 37.0,
+                ".*_elbow_joint": 37.0,
+            },
+            stiffness=50.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "wrist": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_wrist_.*",
+            ],
+            effort_limit_sim={
+                ".*_wrist_roll_joint": 25.0,
+            },
+            velocity_limit_sim={
+                ".*_wrist_roll_joint": 37.0,
+            },
+            stiffness=40.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+    },
+)
+
+UNITREE_G1_23DOF_DELAY_CFG = UNITREE_G1_23DOF_CFG.copy()
+UNITREE_G1_23DOF_DELAY_CFG.actuators["legs"] = DelayedPDActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+                ".*waist.*",
+            ],
+            effort_limit_sim={
+                ".*_hip_yaw_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
+                ".*_hip_pitch_joint": 88.0,
+                ".*_knee_joint": 139.0,
+                ".*waist_yaw_joint": 88.0,
+            },
+            velocity_limit_sim={
+                ".*_hip_yaw_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
+                ".*_hip_pitch_joint": 32.0,
+                ".*_knee_joint": 20.0,
+                ".*waist_yaw_joint": 32.0,
+            },
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                ".*waist.*": 200.0,
+            },
+            damping={
+                ".*_hip_yaw_joint": 5.0,
+                ".*_hip_roll_joint": 5.0,
+                ".*_hip_pitch_joint": 5.0,
+                ".*_knee_joint": 5.0,
+                ".*waist.*": 5.0,
+            },
+            armature=0.01,
+            min_delay=0,
+            max_delay=4, # physics time steps (max: 5.0*4=20.0ms)
+        )
+
+UNITREE_G1_23DOF_DELAY_CFG.actuators["feet"] = DelayedPDActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            effort_limit_sim={
+                ".*_ankle_pitch_joint": 35.0,
+                ".*_ankle_roll_joint": 35.0,
+            },
+            velocity_limit_sim={
+                ".*_ankle_pitch_joint": 30.0,
+                ".*_ankle_roll_joint": 30.0,
+            },
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+            min_delay=0,
+            max_delay=4, # physics time steps (max: 5.0*4=20.0ms)
+        ),

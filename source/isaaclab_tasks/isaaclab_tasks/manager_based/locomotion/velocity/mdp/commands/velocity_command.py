@@ -124,8 +124,6 @@ class UniformLevelVelocityCommand(UniformVelocityCommand):
 class UniformLevelVelocityCommandCfg(UniformVelocityCommandCfg):
     class_type: type = UniformLevelVelocityCommand
     
-    limit_ranges: UniformVelocityCommandCfg.Ranges = MISSING
-    
     goal_linvel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )

@@ -17,7 +17,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import G1_DEPLOY_CFG, UNITREE_G1_23DOF_CFG, UNITREE_G1_29DOF_CFG  # type: ignore # isort: skip
+from isaaclab_assets import (
+    UNITREE_G1_29DOF_CFG, 
+    UNITREE_G1_29DOF_DELAY_CFG, 
+    UNITREE_G1_23DOF_CFG, 
+    UNITREE_G1_23DOF_DELAY_CFG
+    )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
 
@@ -47,9 +52,8 @@ class G1SceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
     # robots
-    robot: ArticulationCfg = G1_DEPLOY_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot") # leggedlab 
-    # robot: ArticulationCfg = UNITREE_G1_23DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot") # unitree_rl_lab
-    # robot: ArticulationCfg = UNITREE_G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot") # unitree_rl_lab
+    robot: ArticulationCfg = UNITREE_G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # robot: ArticulationCfg = UNITREE_G1_29DOF_DELAY_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     
     # sensors
     height_scanner = RayCasterCfg(

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 from isaaclab.utils import configclass
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as vel_mdp
 
@@ -15,17 +16,15 @@ class G1CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         rel_standing_envs=0.2,
         rel_heading_envs=1.0,
-        # heading_command=False,
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
-        # initial sampling ranges
         ranges=vel_mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.1, 0.1), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.1, 0.1)
+            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
-        # command ranges are clipped by these limit values
-        limit_ranges=vel_mdp.UniformLevelVelocityCommandCfg.Ranges(
-            # lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0)
-            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.2, 0.2)
-        ),
+    )
+    
+    locomotion_gait = vel_mdp.PhaseCommandCfg(
+        resampling_time_range=(1e10, 1e10),  # resample on command resample
+        gait_period=(1.0, 1.0), # for now, fix gait period
     )

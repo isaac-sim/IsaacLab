@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 import torch
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 from isaaclab.envs import mdp
 import isaaclab.utils.math as math_utils
@@ -33,6 +33,12 @@ base rewards
 """
 
 def body_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """
+    Reward based on the L2 norm of the body orientation deviation from upright.
+    
+    Returns:
+        sum of L2 norm of the body orientation deviation from upright for each environment.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
     body_orientation = math_utils.quat_apply_inverse(
         asset.data.body_quat_w[:, asset_cfg.body_ids[0], :], asset.data.GRAVITY_VEC_W
@@ -46,30 +52,22 @@ foot rewards
 def _feet_rpy(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    ):
-    """Compute the yaw angles of feet.
-
-    Args:
-    env: The environment.
-    asset_cfg: Configuration for the asset.
-    feet_index: Optional list of indices specifying which feet to consider. 
-            If None, all bodies specified in asset_cfg.body_ids are used.
+    )->Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute roll, pitch, yaw angles of feet.
 
     Returns:
-    torch.Tensor: Yaw angles of feet in radians.
+        roll, pitch, yaw angles of feet in radians.
     """
-    # Get the entity
+    # Get the robot entity
     entity = env.scene[asset_cfg.name]
     
     # Get the body IDs to use
     feet_quat = entity.data.body_quat_w[:, asset_cfg.body_ids, :]
-    # feet_quat = entity.data.body_quat_w[:, feet_index, :]
     original_shape = feet_quat.shape
     roll, pitch, yaw = euler_xyz_from_quat(feet_quat.reshape(-1, 4))
 
     roll = (roll + torch.pi) % (2*torch.pi) - torch.pi
     pitch = (pitch + torch.pi) % (2*torch.pi) - torch.pi
-    # yaw = (yaw + torch.pi) % (2*torch.pi) - torch.pi
 
     return roll.reshape(original_shape[0], -1), \
                 pitch.reshape(original_shape[0], -1), \
@@ -78,19 +76,14 @@ def _feet_rpy(
 def _base_rpy(
     env,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    base_index: list[int] = [0]):
-    """Compute the yaw angles of feet.
-
-    Args:
-    env: The environment.
-    asset_cfg: Configuration for the asset.
-    feet_index: Optional list of indices specifying which feet to consider. 
-            If None, all bodies specified in asset_cfg.body_ids are used.
+    base_index: list[int] = [0],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute roll, pitch, yaw angles of base.
 
     Returns:
-    torch.Tensor: Yaw angles of feet in radians.
+        Roll, pitch, yaw angles of base in radians.
     """
-    # Get the entity
+    # Get the robot entity
     entity = env.scene[asset_cfg.name]
     
     # Get the body IDs to use
@@ -105,17 +98,19 @@ def _base_rpy(
 def reward_feet_roll(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]
-) -> torch.Tensor:
-
+    ) -> torch.Tensor:
+    """
+    Reward based on the roll angles of the feet.
+    
+    Returns:
+        sum of squared roll angles of the feet for each environment.
+    """
     asset = env.scene[asset_cfg.name]
     
     # Calculate roll angles from quaternions for the feet
-    # feet_index = asset_cfg.body_ids
     feet_roll, _, _ = _feet_rpy(
         env, 
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     
     return torch.sum(torch.square(feet_roll), dim=-1)
@@ -123,8 +118,15 @@ def reward_feet_roll(
 def reward_feet_roll_diff(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]):
-) -> torch.Tensor:
+    ) -> torch.Tensor:
+    """Reward minimizing the difference between feet roll angles.
+    
+    This function rewards the agent for having similar roll angles for all feet,
+    which encourages a more stable and coordinated gait.
+    
+    Returns:
+        The absolute difference between the roll angles of the feet for each environment.
+    """
 
     asset = env.scene[asset_cfg.name]
     
@@ -132,7 +134,6 @@ def reward_feet_roll_diff(
     feet_roll, _, _ = _feet_rpy(
         env, 
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     roll_rel_diff = torch.abs((feet_roll[:, 1] - feet_roll[:, 0] + torch.pi) % (2 * torch.pi) - torch.pi)
     return roll_rel_diff
@@ -140,25 +141,35 @@ def reward_feet_roll_diff(
 def reward_feet_pitch(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]
-) -> torch.Tensor:
+    ) -> torch.Tensor:
+    """
+    Reward based on the pitch angles of the feet.
+    
+    Returns:
+        sum of squared pitch angles of the feet for each environment.
+    """
 
     asset = env.scene[asset_cfg.name]
     
     # Calculate roll angles from quaternions for the feet
-    # feet_index = asset_cfg.body_ids
     _, feet_pitch, _ = _feet_rpy(
         env, 
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     return torch.sum(torch.square(feet_pitch), dim=-1)
 
 def reward_feet_pitch_diff(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]):
-) -> torch.Tensor:
+    ) -> torch.Tensor:
+    """Reward minimizing the difference between feet pitch angles.
+    
+    This function rewards the agent for having similar pitch angles for all feet,
+    which encourages a more stable and coordinated gait.
+
+    Returns:
+        The absolute difference between the pitch angles of the feet for each environment.
+    """
 
     asset = env.scene[asset_cfg.name]
     
@@ -166,7 +177,6 @@ def reward_feet_pitch_diff(
     _, feet_pitch, _ = _feet_rpy(
         env, 
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     pitch_rel_diff = torch.abs((feet_pitch[:, 1] - feet_pitch[:, 0] + torch.pi) % (2 * torch.pi) - torch.pi)
     return pitch_rel_diff
@@ -174,20 +184,14 @@ def reward_feet_pitch_diff(
 def reward_feet_yaw_diff(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]):
 ) -> torch.Tensor:
     """Reward minimizing the difference between feet yaw angles.
     
     This function rewards the agent for having similar yaw angles for all feet,
     which encourages a more stable and coordinated gait.
     
-    Args:
-        env: The environment.
-        std: Standard deviation parameter for the exponential kernel.
-        asset_cfg: Configuration for the asset.
-    
     Returns:
-        torch.Tensor: Reward based on similarity of feet yaw angles.
+        The absolute difference between the yaw angles of the feet for each environment.
     """
 
     asset = env.scene[asset_cfg.name]
@@ -196,7 +200,6 @@ def reward_feet_yaw_diff(
     _, _, feet_yaw = _feet_rpy(
         env, 
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     yaw_rel_diff = torch.abs((feet_yaw[:, 1] - feet_yaw[:, 0] + torch.pi) % (2 * torch.pi) - torch.pi)
     return yaw_rel_diff
@@ -204,8 +207,16 @@ def reward_feet_yaw_diff(
 def reward_feet_yaw_mean(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    # feet_index: list[int] = [22, 23]
-) -> torch.Tensor:
+    ) -> torch.Tensor:
+    """
+    Reward minimizing the difference between feet yaw mean and base yaw.
+    
+    This function rewards the agent for having the mean yaw angle of all feet
+    close to the base yaw angle, which encourages better alignment between the feet and the body.
+    
+    Returns:
+        The absolute difference between the mean yaw angle of the feet and the base yaw angle for each environment.
+    """
 
     # Get the entity
     entity = env.scene[asset_cfg.name]
@@ -214,7 +225,6 @@ def reward_feet_yaw_mean(
     _, _, feet_yaw = _feet_rpy(
         env,
         asset_cfg=asset_cfg, 
-        # feet_index=feet_index
     )
     
     _, _, base_yaw = _base_rpy(
@@ -232,13 +242,41 @@ joint regularization
 """
 
 def energy(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """
+    Reward based on the energy consumption of the robot.
+    
+    Returns:
+        The energy consumption for each environment.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
     reward = torch.norm(torch.abs(asset.data.applied_torque * asset.data.joint_vel), dim=-1)
     return reward
 
 class variable_posture(ManagerTermBase):
     """
-    compute gaussian kernel reward to regularize robot's whole body posture for each gait.
+    Compute L2 reward to regularize robot's whole body posture for each gait.
+    This reward is modified based on mjlab's gaussian kernel reward. 
+    
+    The class takes in three different weight dictionaries for standing, walking, and running gaits.
+    Example configuration:
+        "weight_standing": {
+            "joint0": 0.2, 
+            "joint1": 0.1,
+            ...
+        },  
+        "weight_walking": {
+            "joint0": 0.02, 
+            "joint1": 0.15,
+            ...
+        },
+        "weight_running": {
+            "joint0": 0.02, 
+            "joint1": 0.15,
+            ...
+        },
+    
+    Returns: 
+        The L2 posture error for each environment.
     """
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -314,10 +352,25 @@ def reward_feet_swing(
     swing_period: float,
     sensor_cfg: SceneEntityCfg,
     cmd_threshold: float = 0.05,
-    command_name=None,
+    command_name:str = None,
+    gait_command_name:str = None
     ) -> torch.Tensor:
-    freq = 1 / env.phase_dt
-    phase = env.get_phase()
+    """
+    Reward based on the similarity between predifined swing phase and measured contact state of the feet.
+    Swing period is defined as the portion of the gait cycle where the foot is off the ground.
+    
+    Example swing period where locomotion phase is 0 ~ 1 
+    where SS stands for single support and DS stands for double support:
+    swing_period=0.2 -> |0.0-0.15 DS| |0.15-0.35 SS| |0.35-0.65 DS| |0.65-0.85 SS| |0.85-1.0 DS|
+    swing_period=0.3 -> |0.0-0.1  DS| |0.1-0.4   SS| |0.4-0.6   DS| |0.6-0.9   SS| |0.9-1.0  DS|
+    swing period=0.4 -> |0.0-0.05 DS| |0.05-0.45 SS| |0.45-0.55 DS| |0.55-0.95 SS| |0.95-1.0 DS|
+
+    Returns:
+        The swing phase reward for each environment.
+    """
+    gait_generator = env.command_manager.get_term(gait_command_name)
+    freq = 1 / gait_generator.phase_dt
+    phase = gait_generator.phase
 
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contacts = (
@@ -325,19 +378,10 @@ def reward_feet_swing(
         .norm(dim=-1)
         > 1.0
     )
-    # NOTE: wrong swing state ??
-    # swing_period=0.2 -> |0.0-0.15 ds| |0.15-0.35 ss| |0.35-0.65 ds| |0.65-0.85 ss| |0.85-1.0 ds|
-    # swing_period=0.3 -> |0.0-0.1  ds| |0.1-0.4   ss| |0.4-0.6   ds| |0.6-0.9   ss| |0.9-1.0  ds|
-    # swing period=0.4 -> |0.0-0.05 ds| |0.05-0.45 ss| |0.45-0.55 ds| |0.55-0.95 ss| |0.95-1.0 ds|
-    # swing period=0.6 -> |-0.05-0.55 ss| |0.45-1.05 ss| -> hopping gait ??
+    
     left_swing = (torch.abs(phase - 0.25) < 0.5 * swing_period) & (freq > 1.0e-8)
     right_swing = (torch.abs(phase - 0.75) < 0.5 * swing_period) & (freq > 1.0e-8)
     reward = (left_swing & ~contacts[:, 0]).float() + (right_swing & ~contacts[:, 1]).float()
-    
-    # swing_duty_cycle = 0.5
-    # left_swing = (phase < swing_duty_cycle) & (freq > 1.0e-8)
-    # right_swing = (phase >= 0.5) & (phase < 0.5 + swing_duty_cycle) & (freq > 1.0e-8)
-    # reward = (left_swing & ~contacts[:, 0]).float() + (right_swing & ~contacts[:, 1]).float()
 
     # weight by command magnitude
     if command_name is not None:
@@ -346,43 +390,13 @@ def reward_feet_swing(
 
     return reward
 
-def feet_gait(
-    env: ManagerBasedRLEnv,
-    period: float,
-    offset: list[float],
-    sensor_cfg: SceneEntityCfg,
-    threshold: float = 0.5,
-    cmd_threshold: float = 0.05,
-    command_name=None,
-) -> torch.Tensor:
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    is_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0
-
-    global_phase = ((env.episode_length_buf * env.step_dt) % period / period).unsqueeze(1)
-    phases = []
-    for offset_ in offset:
-        phase = (global_phase + offset_) % 1.0
-        phases.append(phase)
-    leg_phase = torch.cat(phases, dim=-1)
-
-    # leg_phase = env.get_phase()
-
-    reward = torch.zeros(env.num_envs, dtype=torch.float, device=env.device)
-    for i in range(len(sensor_cfg.body_ids)):
-        is_stance = leg_phase[:, i] < threshold
-        reward += ~(is_stance ^ is_contact[:, i]) # reward contact match (swing-swing or contact-contact)
-
-    if command_name is not None:
-        cmd_norm = torch.norm(env.command_manager.get_command(command_name), dim=1)
-        reward *= cmd_norm > cmd_threshold
-    
-    air_time = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids]
-    if "log" in env.extras.keys():
-        env.extras["log"]["Metrics/feet_air_time"] = air_time.mean()
-
-    return reward
-
 def fly(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """
+    Reward encourages one feet to be in the air at all times.
+    
+    Returns:
+        mask indicating whether at least one foot is in the air for each environment.
+    """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     net_contact_forces = contact_sensor.data.net_forces_w_history
     is_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
@@ -396,7 +410,11 @@ def reward_foot_distance(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, ref_dist: float
 ) -> torch.Tensor:
     """
-    Calculates the reward based on the distance between the feet. Penalize feet get close to each other or too far away.
+    Calculates the reward based on the distance between the feet. 
+    Penalize feet get close to each other or too far away.
+    
+    Returns:
+        The reward based on the distance between the feet for each environment.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     foot_pos = asset.data.body_pos_w[:, asset_cfg.body_ids, :3]
@@ -406,17 +424,15 @@ def reward_foot_distance(
     
     return reward
 
-def feet_stumble(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    return torch.any(
-        torch.norm(contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :2], dim=2)
-        > 5 * torch.abs(contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]),
-        dim=1,
-    )
-
-def body_force(
+def feet_force(
     env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float = 500, max_reward: float = 400
 ) -> torch.Tensor:
+    """
+    Penalize the vertical contact forces on the feet to reduce impact force.
+    
+    Returns: 
+        The penalty based on the vertical contact forces on the feet for each environment.
+    """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     reward = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2].norm(dim=-1)
     reward[reward < threshold] = 0
@@ -436,7 +452,15 @@ def foot_clearance_reward(
     tanh_mult: float, 
     standing_position_foot_z: float = 0.039,
 ) -> torch.Tensor:
-    """Reward the swinging feet for clearing a specified height off the ground, weighted by foot velocity."""
+    """
+    Reward the swinging feet for clearing a specified height off the ground, weighted by foot velocity.
+    
+    target_height is the desired max foot clearance. 
+    standing_position_foot_z is the foot link (ankle roll for G1) height when the robot is standing still on flat ground.
+    
+    Returns:
+        The foot clearance reward for each environment.
+    """
     asset: RigidObject = env.scene[asset_cfg.name]
     foot_z_target_error = torch.square(asset.data.body_pos_w[:, asset_cfg.body_ids, 2] - (target_height + standing_position_foot_z))
     foot_velocity_tanh = torch.tanh(tanh_mult * torch.norm(asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2], dim=2))
@@ -448,7 +472,13 @@ action rate
 """
 
 def action_rate_l2(env: ManagerBasedRLEnv, joint_idx:list[int]) -> torch.Tensor:
-    """Penalize the rate of change of the actions using L2 squared kernel."""
+    """
+    Penalize the rate of change of the actions using L2 squared kernel.
+    This is different from IsaacLab's built-in action rate penalty and lets you choose specific joints indedices.
+    
+    Returns:
+        The L2 squared action rate penalty for each environment.
+    """
     return torch.sum(
         torch.square(env.action_manager.action[:, joint_idx] - env.action_manager.prev_action[:, joint_idx]), 
         dim=1)

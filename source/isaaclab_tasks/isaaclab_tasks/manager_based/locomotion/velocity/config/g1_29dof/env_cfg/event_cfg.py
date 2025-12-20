@@ -12,8 +12,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 import isaaclab.envs.mdp as mdp
-# import isaaclab_tasks.manager_based.locomotion.velocity.mdp as vel_mdp
-import isaaclab_tasks.manager_based.locomotion.velocity.config.g1_29dof.mdp as g1_mdp
 
 
 @configclass
@@ -49,23 +47,6 @@ class G1EventCfg:
     #     params={
     #         "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
     #         "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-    #     },
-    # )
-    
-    # scale_actuator_gains = EventTerm(
-    #     func=mdp.randomize_actuator_gains, # type: ignore
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg(
-    #             "robot",
-    #             joint_names=".*"
-    #         ),
-    #         "operation": "scale",
-    #         "distribution": "uniform",
-    #         # "stiffness_distribution_params": (0.9, 1.1),
-    #         # "damping_distribution_params": (0.9, 1.1),
-    #         "stiffness_distribution_params": (0.75, 1.25),
-    #         "damping_distribution_params": (0.75, 1.25),
     #     },
     # )
 
@@ -108,7 +89,7 @@ class G1EventCfg:
     )
     
     scale_actuator_gains = EventTerm(
-        func=mdp.randomize_actuator_gains, # type: ignore
+        func=mdp.randomize_actuator_gains,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg(
@@ -117,8 +98,6 @@ class G1EventCfg:
             ),
             "operation": "scale",
             "distribution": "uniform",
-            # "stiffness_distribution_params": (0.9, 1.1),
-            # "damping_distribution_params": (0.9, 1.1),
             "stiffness_distribution_params": (0.75, 1.25),
             "damping_distribution_params": (0.75, 1.25),
         },

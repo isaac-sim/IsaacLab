@@ -9,7 +9,10 @@ import isaaclab.envs.mdp as mdp
 
 @configclass
 class G1ActionsCfg:
-    """Action specifications for the MDP."""
+    """
+    Action specifications for the MDP.
+    Joint order is aligned with hardware motor order.
+    """
 
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot", 
