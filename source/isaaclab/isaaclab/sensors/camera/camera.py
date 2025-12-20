@@ -118,18 +118,20 @@ class Camera(SensorBase):
 
         # spawn the asset
         if self.cfg.spawn is not None:
-            # compute the rotation offset
+            # compute the rotation offset (cfg.offset.rot is in xyzw format)
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
             rot_offset = rot_offset.squeeze(0).cpu().numpy()
+            # convert from xyzw to wxyz for spawner
+            rot_offset_wxyz = (rot_offset[3], rot_offset[0], rot_offset[1], rot_offset[2])
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
             # spawn the asset
             self.cfg.spawn.func(
-                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
+                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset_wxyz
             )
         # check that spawn was successful
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)

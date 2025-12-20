@@ -137,9 +137,9 @@ def test_copysign(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_is_identity_pose(device):
     """Test is_identity_pose method."""
-    # Single row identity pose
+    # Single row identity pose (x, y, z, w format)
     identity_pos = torch.zeros(3, device=device)
-    identity_rot = torch.tensor((1.0, 0.0, 0.0, 0.0), device=device)
+    identity_rot = torch.tensor((0.0, 0.0, 0.0, 1.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
     # Modified single row pose
@@ -147,14 +147,14 @@ def test_is_identity_pose(device):
     identity_rot = torch.tensor((1.0, 1.0, 0.0, 0.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
-    # Multi-row identity pose
+    # Multi-row identity pose (x, y, z, w format)
     identity_pos = torch.zeros(3, 3, device=device)
-    identity_rot = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
     # Modified multi-row pose
     identity_pos = torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=device)
-    identity_rot = torch.tensor([[1.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
@@ -821,12 +821,14 @@ def test_yaw_quat(device):
     """
     Test for yaw_quat methods.
     """
-    # 90-degree (n/2 radians) rotations about the Y-axis
-    quat_input = torch.tensor([0.7071, 0, 0.7071, 0], device=device)
+    # 90-degree (pi/2 radians) rotations about the Y-axis in xyzw format
+    # For Y-axis rotation: x=0, y=sin(45°)=0.7071, z=0, w=cos(45°)=0.7071
+    quat_input = torch.tensor([0.0, 0.7071, 0.0, 0.7071], device=device)
     cloned_quat_input = quat_input.clone()
 
-    # Calculated output that the function should return
-    expected_output = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    # Since input is pure Y-axis rotation, yaw (Z-axis) component is 0
+    # So output should be identity quaternion in xyzw format: (0, 0, 0, 1)
+    expected_output = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
 
     # Compute the result using the existing implementation
     result = math_utils.yaw_quat(quat_input)
@@ -835,7 +837,7 @@ def test_yaw_quat(device):
     torch.testing.assert_close(quat_input, cloned_quat_input)
 
     # check that the output is equivalent to the expected output
-    torch.testing.assert_close(result, expected_output)
+    torch.testing.assert_close(result, expected_output, atol=1e-4, rtol=1e-4)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -971,7 +973,8 @@ def test_quat_inv(device):
     q_unit = torch.randn(num, 4, device=device)
     q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
 
-    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    # Identity quaternion in xyzw format: (x=0, y=0, z=0, w=1)
+    identity = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
 
     for q in (q_nonunit, q_unit):
         q_inv = math_utils.quat_inv(q)

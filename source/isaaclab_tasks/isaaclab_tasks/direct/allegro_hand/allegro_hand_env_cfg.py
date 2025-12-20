@@ -95,7 +95,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
             scale=(1.2, 1.2, 1.2),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
         actuators={},
         articulation_root_prim_path="",
     )

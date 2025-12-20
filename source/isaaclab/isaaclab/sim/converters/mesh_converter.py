@@ -151,9 +151,11 @@ class MeshConverter(AssetConverterBase):
         # translation
         translate_op = geom_xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
         translate_op.Set(Gf.Vec3d(*cfg.translation))
-        # rotation
+        # rotation (cfg.rotation is in xyzw format, Gf.Quatd expects wxyz)
+        rot = cfg.rotation
+        rotation_wxyz = (rot[3], rot[0], rot[1], rot[2])
         orient_op = geom_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
-        orient_op.Set(Gf.Quatd(*cfg.rotation))
+        orient_op.Set(Gf.Quatd(*rotation_wxyz))
         # scale
         scale_op = geom_xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
         scale_op.Set(Gf.Vec3d(*cfg.scale))
