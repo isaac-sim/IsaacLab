@@ -48,7 +48,6 @@ Here is a non-exhaustive list of capabilities currently supported in the Newton 
             * A1
             * Go1
             * Go2
-            * Spot
             * Unitree G1
             * Unitree H1
         * Manipulation reach
