@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import RigidObject
+from isaaclab.assets import RigidObject, Articulation
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -51,3 +51,22 @@ def terrain_out_of_bounds(
         return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
     else:
         raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
+
+def root_height_below_minimum_adaptive(
+    env: ManagerBasedRLEnv,
+    minimum_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Terminate when the asset's root height is below the minimum height.
+
+    Note:
+        This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    min_foot_height = (
+        (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).min(dim=1).values
+    )
+
+    return asset.data.root_pos_w[:, 2] - min_foot_height < minimum_height
