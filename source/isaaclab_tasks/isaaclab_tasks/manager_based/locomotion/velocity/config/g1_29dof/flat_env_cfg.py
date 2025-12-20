@@ -16,15 +16,10 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        
-        # gait duration in sec
-        self.phase_dt = 0.5 * 2
 
         # physics dt
         self.sim.dt = 0.005 # 200Hz
         self.decimation = 4 # 50Hz
-        # self.sim.dt = 0.002 # 500Hz
-        # self.decimation = 10 # 50Hz
         self.sim.render_interval = self.decimation
 
         # change terrain to flat
@@ -57,21 +52,15 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         }
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
-        # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.heading = (-math.pi, math.pi)
-
 
 class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
 
-        # change timestep
-        # self.sim.dt = 1/200 # 200Hz
-        # self.decimation = 4 # 50Hz
+        # change physics speed
+        # self.sim.dt = 1/500 # 500Hz
+        # self.decimation = 10 # 50Hz
         # self.sim.render_interval = self.decimation
         self.episode_length_s = 20.0
 
@@ -96,7 +85,6 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 3.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        
         self.commands.base_velocity.heading_command = False
         self.commands.base_velocity.rel_standing_envs = 0.02
         self.commands.base_velocity.resampling_time_range = (self.episode_length_s/10, self.episode_length_s/10)

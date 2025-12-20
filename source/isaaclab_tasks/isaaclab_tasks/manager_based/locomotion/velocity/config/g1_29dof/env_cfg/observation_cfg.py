@@ -260,21 +260,21 @@ class CriticCfg(ObsGroup):
         self.history_length = 10 # legged_lab uses 10
 
     
-@configclass
-class LoggingObsCfg(ObsGroup):
-    """Observations for policy group."""
+# @configclass
+# class LoggingObsCfg(ObsGroup):
+#     """Observations for logging purposes."""
 
-    base_lin_vel = ObsTerm(func=mdp.base_lin_vel) 
-    base_ang_vel = ObsTerm(func=mdp.base_ang_vel) 
-    velocity_commands = ObsTerm(
-        func=mdp.generated_commands,
-        params={"command_name": "base_velocity"},
-    )
+#     base_lin_vel = ObsTerm(func=mdp.base_lin_vel) 
+#     base_ang_vel = ObsTerm(func=mdp.base_ang_vel) 
+#     velocity_commands = ObsTerm(
+#         func=mdp.generated_commands,
+#         params={"command_name": "base_velocity"},
+#     )
     
 
-    def __post_init__(self):
-        self.enable_corruption = True
-        self.concatenate_terms = True
+#     def __post_init__(self):
+#         self.enable_corruption = False
+#         self.concatenate_terms = True
 
 @configclass
 class G1ObservationsCfg:
@@ -283,4 +283,4 @@ class G1ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg()
     critic: CriticCfg = CriticCfg()
-    logging: LoggingObsCfg = LoggingObsCfg()
+    # logging: LoggingObsCfg = LoggingObsCfg()
