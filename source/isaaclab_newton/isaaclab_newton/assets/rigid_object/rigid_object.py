@@ -956,13 +956,8 @@ class RigidObject(BaseRigidObject):
 
     def _process_cfg(self) -> None:
         """Post processing of configuration parameters."""
-        # default pose with quaternion given as (w, x, y, z) --> (x, y, z, w)
-        default_root_pose = tuple(self.cfg.init_state.pos) + (
-            self.cfg.init_state.rot[1],
-            self.cfg.init_state.rot[2],
-            self.cfg.init_state.rot[3],
-            self.cfg.init_state.rot[0],
-        )
+        # default pose with quaternion already in (x, y, z, w) format
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
         # update the default root pose
         self._update_array_with_value(
             wp.transformf(*default_root_pose), self._data.default_root_pose, self.num_instances
