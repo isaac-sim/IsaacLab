@@ -59,12 +59,12 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Newton Visualizer" href="newton-visualizer.html" />
-    <link rel="prev" title="Installation" href="installation.html" />
+    <link rel="next" title="Visualization" href="visualization.html" />
+    <link rel="prev" title="IsaacLab 3.0" href="isaaclab_3-0.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 18, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 20, 2025"/>
   </head>
   
   
@@ -376,8 +376,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Newton Physics Integration</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_3-0.html">IsaacLab 3.0</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Training Environments</a></li>
-<li class="toctree-l2"><a class="reference internal" href="newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="visualization.html">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="solver-transitioning.html">Solver Transitioning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
@@ -663,9 +664,9 @@
 <p>The currently supported tasks are as follows:</p>
 <ul class="simple">
 <li><p>Isaac-Cartpole-Direct-v0</p></li>
-<li><p>Isaac-Cartpole-RGB-Camera-Direct-v0 (requires <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></li>
-<li><p>Isaac-Cartpole-Depth-Camera-Direct-v0 (requires <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></li>
 <li><p>Isaac-Cartpole-v0</p></li>
+<li><p>Isaac-Cartpole-RGB-Camera-Direct-v0</p></li>
+<li><p>Isaac-Cartpole-Depth-Camera-Direct-v0</p></li>
 <li><p>Isaac-Ant-Direct-v0</p></li>
 <li><p>Isaac-Ant-v0</p></li>
 <li><p>Isaac-Humanoid-Direct-v0</p></li>
@@ -680,10 +681,15 @@
 <li><p>Isaac-Velocity-Flat-Unitree-A1-v0</p></li>
 <li><p>Isaac-Velocity-Flat-Unitree-Go1-v0</p></li>
 <li><p>Isaac-Velocity-Flat-Unitree-Go2-v0</p></li>
-<li><p>Isaac-Velocity-Flat-Spot-v0</p></li>
 <li><p>Isaac-Reach-Franka-v0</p></li>
 <li><p>Isaac-Reach-UR10-v0</p></li>
 <li><p>Isaac-Repose-Cube-Allegro-Direct-v0</p></li>
+</ul>
+<p>New experimental warp-based enviromnets:</p>
+<ul class="simple">
+<li><p>Isaac-Cartpole-Direct-Warp-v0</p></li>
+<li><p>Isaac-Ant-Direct-Warp-v0</p></li>
+<li><p>Isaac-Humanoid-Direct-Warp-v0</p></li>
 </ul>
 <p>To launch an environment and check that it loads as expected, we can start by trying it out with zero actions sent to its actuators.
 This can be done as follows, where <code class="docutils literal notranslate"><span class="pre">TASK_NAME</span></code> is the name of the task you’d like to run, and <code class="docutils literal notranslate"><span class="pre">NUM_ENVS</span></code> is the number of instances of the task that you’d like to create.</p>
@@ -700,22 +706,24 @@ This can be done as follows, where <code class="docutils literal notranslate"><s
 </div>
 <p>To train the environment we provide hooks to different rl frameworks. See the <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts documentation</a> for more information.</p>
 <p>Here are some examples on how to run training on several different RL frameworks. Note that we are explicitly setting the number of environments to
-4096 to benefit more from GPU parallelization. We also disable the Omniverse UI visualization to train the environment as quickly as possible by using the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> option.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span><span class="w"> </span>--headless
+4096 to benefit more from GPU parallelization.</p>
+<p>By default, environments will train in headless mode. If visualization is required, use <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code> and specify the desired visualizer.
+Available options are <code class="docutils literal notranslate"><span class="pre">newton</span></code>, <code class="docutils literal notranslate"><span class="pre">rerun</span></code>, and <code class="docutils literal notranslate"><span class="pre">omniverse</span></code> (requires Isaac Sim installation). Note, multiple visualizers can be selected and launched.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span>
 </pre></div>
 </div>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span><span class="w"> </span>--headless
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span>
 </pre></div>
 </div>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span><span class="w"> </span>--headless
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span>
 </pre></div>
 </div>
 <p>Once a policy is trained we can visualize it by using the play scripts. But first, we need to find the checkpoint of the trained policy. Typically, these are stored under:
 <code class="docutils literal notranslate"><span class="pre">logs/NAME_OF_RL_FRAMEWORK/TASK_NAME/DATE</span></code>.</p>
 <p>For instance with our rsl_rl example it could look like this:
 <code class="docutils literal notranslate"><span class="pre">logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt</span></code></p>
-<p>To then run this policy we can use the following command, note that we reduced the number of environments and removed the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> option so that we can see our policy in action!</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span><span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
+<p>To then run this policy we can use the following command, note that we reduced the number of environments and added the <code class="docutils literal notranslate"><span class="pre">--visualizer</span> <span class="pre">newton</span></code> option so that we can see our policy in action!</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span><span class="w"> </span>--visualizer<span class="w"> </span>newton<span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt
 </pre></div>
 </div>
 <p>The same approach applies to all other frameworks.</p>
@@ -734,20 +742,20 @@ This can be done as follows, where <code class="docutils literal notranslate"><s
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="installation.html"
+       href="isaaclab_3-0.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Installation</p>
+        <p class="prev-next-title">IsaacLab 3.0</p>
       </div>
     </a>
     <a class="right-next"
-       href="newton-visualizer.html"
+       href="visualization.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Newton Visualizer</p>
+        <p class="prev-next-title">Visualization</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -786,7 +794,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 18, 2025.
+  Last updated on Dec 20, 2025.
   <br/>
 </p>
   </div>

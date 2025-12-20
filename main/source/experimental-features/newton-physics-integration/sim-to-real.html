@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 18, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 20, 2025"/>
   </head>
   
   
@@ -378,8 +378,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Newton Physics Integration</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_3-0.html">IsaacLab 3.0</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training-environments.html">Training Environments</a></li>
-<li class="toctree-l2"><a class="reference internal" href="newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="visualization.html">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="solver-transitioning.html">Solver Transitioning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
@@ -705,7 +706,7 @@ velocity-tracking task with the Newton backend.</p>
 <section id="train-the-teacher-policy">
 <h2>1. Train the teacher policy<a class="headerlink" href="#train-the-teacher-policy" title="Permalink to this heading">#</a></h2>
 <p>Train the teacher policy for the G1 velocity task using the Newton backend. The task ID is <code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Flat-G1-v1</span></code></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Flat-G1-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span><span class="w"> </span>--headless
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Flat-G1-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span>
 </pre></div>
 </div>
 <p>The teacher policy includes privileged observations (e.g., root linear velocity) defined in <code class="docutils literal notranslate"><span class="pre">PolicyCfg(ObsGroup)</span></code>.</p>
@@ -718,7 +719,7 @@ between their actions: <span class="math notranslate nohighlight">\(loss = MSE(\
 in <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py">velocity_env_cfg.py</a>).
 Specifically: <strong>Root angular velocity</strong> and <strong>Projected gravity</strong> come from the IMU sensor, <strong>Joint positions and velocities</strong> come from joint encoders, and <strong>Actions</strong> are the joint torques applied by the controller.</p>
 <p>Run the student distillation task <code class="docutils literal notranslate"><span class="pre">Velocity-G1-Distillation-v1</span></code> using <code class="docutils literal notranslate"><span class="pre">--load_run</span></code> and <code class="docutils literal notranslate"><span class="pre">--checkpoint</span></code> to specify the teacher policy you want to distill from.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Distillation-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span><span class="w"> </span>--headless<span class="w"> </span>--load_run<span class="w"> </span><span class="m">2025</span>-08-13_23-53-28<span class="w"> </span>--checkpoint<span class="w"> </span>model_1499.pt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Distillation-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span><span class="w"> </span>--load_run<span class="w"> </span><span class="m">2025</span>-08-13_23-53-28<span class="w"> </span>--checkpoint<span class="w"> </span>model_1499.pt
 </pre></div>
 </div>
 <div class="admonition note">
@@ -730,7 +731,7 @@ Specifically: <strong>Root angular velocity</strong> and <strong>Projected gravi
 <h2>3. Fine-tune the student policy with RL<a class="headerlink" href="#fine-tune-the-student-policy-with-rl" title="Permalink to this heading">#</a></h2>
 <p>Fine-tune the distilled student policy using RL with the <code class="docutils literal notranslate"><span class="pre">Velocity-G1-Student-Finetune-v1</span></code> task.
 Use <code class="docutils literal notranslate"><span class="pre">--load_run</span></code> and <code class="docutils literal notranslate"><span class="pre">--checkpoint</span></code> to initialize from the distilled policy.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Student-Finetune-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span><span class="w"> </span>--headless<span class="w"> </span>--load_run<span class="w"> </span><span class="m">2025</span>-08-20_16-06-52_distillation<span class="w"> </span>--checkpoint<span class="w"> </span>model_1499.pt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Student-Finetune-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">4096</span><span class="w"> </span>--load_run<span class="w"> </span><span class="m">2025</span>-08-20_16-06-52_distillation<span class="w"> </span>--checkpoint<span class="w"> </span>model_1499.pt
 </pre></div>
 </div>
 <p>This starts from the distilled student policy and improves it further with RL training.</p>
@@ -739,7 +740,7 @@ Use <code class="docutils literal notranslate"><span class="pre">--load_run</spa
 <p>Make sure <code class="docutils literal notranslate"><span class="pre">--load_run</span></code> and <code class="docutils literal notranslate"><span class="pre">--checkpoint</span></code> point to the correct initial policy (usually the latest checkpoint from the distillation step).</p>
 </div>
 <p>You can replay the student policy via:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Student-Finetune-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">32</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="o">=</span>Velocity-G1-Student-Finetune-v1<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span>--visualizer<span class="w"> </span>newton
 </pre></div>
 </div>
 <p>This exports the policy as <code class="docutils literal notranslate"><span class="pre">.pt</span></code> and <code class="docutils literal notranslate"><span class="pre">.onnx</span></code> files in the run’s export directory, ready for real robot deployment.</p>
@@ -832,7 +833,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 18, 2025.
+  Last updated on Dec 20, 2025.
   <br/>
 </p>
   </div>

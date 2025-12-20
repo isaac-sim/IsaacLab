@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Newton Visualizer &#8212; Isaac Lab Documentation</title>
+    <title>Visualization &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -55,7 +55,7 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/experimental-features/newton-physics-integration/newton-visualizer';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/experimental-features/newton-physics-integration/visualization';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 18, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 20, 2025"/>
   </head>
   
   
@@ -159,13 +159,13 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="newton-visualizer.html" selected>main</option>
+            <option value="visualization.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
-            <option value="../../../../release/2.3.0/source/experimental-features/newton-physics-integration/newton-visualizer.html" >release/2.3.0</option>
-            <option value="../../../../v2.3.1/source/experimental-features/newton-physics-integration/newton-visualizer.html" >v2.3.1</option>
-            <option value="../../../../v2.3.0/source/experimental-features/newton-physics-integration/newton-visualizer.html" >v2.3.0</option>
-            <option value="../../../../v2.2.1/source/experimental-features/newton-physics-integration/newton-visualizer.html" >v2.2.1</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
             <option value="../../../../v2.1.0/index.html" >v2.1.0</option>
@@ -376,8 +376,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Newton Physics Integration</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_3-0.html">IsaacLab 3.0</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training-environments.html">Training Environments</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Newton Visualizer</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="solver-transitioning.html">Solver Transitioning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
@@ -522,7 +523,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/experimental-features/newton-physics-integration/newton-visualizer.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/experimental-features/newton-physics-integration/visualization.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -539,7 +540,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/experimental-features/newton-physics-integration/newton-visualizer.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/experimental-features/newton-physics-integration/visualization.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -569,7 +570,7 @@
       
       
       
-      <li><a href="../../../_sources/source/experimental-features/newton-physics-integration/newton-visualizer.rst" target="_blank"
+      <li><a href="../../../_sources/source/experimental-features/newton-physics-integration/visualization.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -632,7 +633,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -643,11 +646,31 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Newton Visualizer</h1>
+    <h1>Visualization</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-backends">Visualizer Backends</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omniverse-visualizer">Omniverse Visualizer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#newton-visualizer">Newton Visualizer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rerun-visualizer">Rerun Visualizer</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-note">Performance Note</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -657,32 +680,297 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="newton-visualizer">
-<h1>Newton Visualizer<a class="headerlink" href="#newton-visualizer" title="Permalink to this heading">#</a></h1>
-<p>Newton includes its own built-in visualizer to enable a fast and lightweight way to view the results of simulation.
-Many additional features are planned for this system for the future, including the ability to view the results of
-training remotely through a web browser. To enable use of the Newton Visualizer use the <code class="docutils literal notranslate"><span class="pre">--newton_visualizer</span></code> command line option.</p>
-<p>The Newton Visualizer is not capable of or intended to provide camera sensor data for robots being trained. It is solely
-intended as a development debugging and visualization tool.</p>
-<p>It also currently only supports visualization of collision shapes, not visual shapes.</p>
-<p>Both the Omniverse RTX renderer and the Newton Visualizer can be run in parallel, or the Omniverse UI and RTX renderer
-can be disabled using the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> option.</p>
-<p>Using one of our training examples above, training the Cartpole environment, we might choose to disable the Omniverse UI
-and RTX renderer using the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> option and enable the Newton Visualizer instead as follows:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">4096</span><span class="w"> </span>--headless<span class="w"> </span>--newton_visualizer
+  <section id="visualization">
+<h1>Visualization<a class="headerlink" href="#visualization" title="Permalink to this heading">#</a></h1>
+<p>Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.</p>
+<p>You can use any visualizer regardless of your chosen physics engine or rendering backend.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<p>Isaac Lab supports three visualizer backends, each optimized for different use cases:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id1">
+<caption><span class="caption-text">Visualizer Comparison</span><a class="headerlink" href="#id1" title="Permalink to this table">#</a></caption>
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 35.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Visualizer</p></th>
+<th class="head"><p>Best For</p></th>
+<th class="head"><p>Key Features</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Omniverse</strong></p></td>
+<td><p>High-fidelity, Isaac Sim integration</p></td>
+<td><p>USD, visual markers, live plots</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Newton</strong></p></td>
+<td><p>Fast iteration</p></td>
+<td><p>Low overhead, visual markers</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Rerun</strong></p></td>
+<td><p>Remote viewing, replay</p></td>
+<td><p>Webviewer, time scrubbing, recording export</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><em>The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.</em></p>
+<figure class="align-default" id="id2">
+<a class="reference internal image-reference" href="../../../_images/ov_viz.jpg"><img alt="Omniverse Visualizer" src="../../../_images/ov_viz.jpg" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Omniverse Visualizer</span><a class="headerlink" href="#id2" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="../../../_images/newton_viz.jpg"><img alt="Newton Visualizer" src="../../../_images/newton_viz.jpg" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Newton Visualizer</span><a class="headerlink" href="#id3" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="../../../_images/rerun_viz.jpg"><img alt="Rerun Visualizer" src="../../../_images/rerun_viz.jpg" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Rerun Visualizer</span><a class="headerlink" href="#id4" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="quick-start">
+<h2>Quick Start<a class="headerlink" href="#quick-start" title="Permalink to this heading">#</a></h2>
+<p>Launch visualizers from the command line with <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch all visualizers</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>omniverse<span class="w"> </span>newton<span class="w"> </span>rerun
+
+<span class="c1"># Launch just newton visualizer</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>newton
 </pre></div>
 </div>
-<p>In general, we do not recommend using the Omniverse UI while training to ensure the fastest possible training times.
-The Newton Visualizer has less of a performance penalty while running, and we aim to bring that overhead even lower in the future.</p>
-<p>If we would like to run the Omniverse UI and the Newton Visualizer at the same time, for example when running inference using a
-lower number of environments, we can omit the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> option while still adding the <code class="docutils literal notranslate"><span class="pre">--newton_visualizer</span></code> option, as follows:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span><span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/cartpole_direct/2025-08-21_15-45-30/model_299.pt<span class="w"> </span>--newton_visualizer
+<p>If <code class="docutils literal notranslate"><span class="pre">--headless</span></code> is given, no visualizers will be launched.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--headless</span></code> argument may be deprecated in future versions to avoid confusion with the <code class="docutils literal notranslate"><span class="pre">--visualizer</span></code>
+argument. For now, <code class="docutils literal notranslate"><span class="pre">--headless</span></code> takes precedence and disables all visualizers.</p>
+</div>
+<section id="configuration">
+<h3>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading">#</a></h3>
+<p>Launching visualizers with the command line will use default visualizer configurations. Default configs can be found and edited in <code class="docutils literal notranslate"><span class="pre">source/isaaclab/isaaclab/visualizers</span></code>.</p>
+<p>You can also configure custom visualizers in the code by defining new <code class="docutils literal notranslate"><span class="pre">VisualizerCfg</span></code> instances for the <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code>, for example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span><span class="p">,</span> <span class="n">OVVisualizerCfg</span><span class="p">,</span> <span class="n">RerunVisualizerCfg</span>
+
+<span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
+    <span class="n">visualizer_cfgs</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">OVVisualizerCfg</span><span class="p">(</span>
+            <span class="n">viewport_name</span><span class="o">=</span><span class="s2">&quot;Visualizer Viewport&quot;</span><span class="p">,</span>
+            <span class="n">create_viewport</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">dock_position</span><span class="o">=</span><span class="s2">&quot;SAME&quot;</span><span class="p">,</span>
+            <span class="n">window_width</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span>
+            <span class="n">window_height</span><span class="o">=</span><span class="mi">720</span><span class="p">,</span>
+            <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">),</span> <span class="c1"># high top down view</span>
+            <span class="n">camera_target</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">NewtonVisualizerCfg</span><span class="p">(</span>
+            <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">),</span> <span class="c1"># closer quarter view</span>
+            <span class="n">camera_target</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">show_joints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">RerunVisualizerCfg</span><span class="p">(</span>
+            <span class="n">keep_historical_data</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">keep_scalar_history</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">record_to_rrd</span><span class="o">=</span><span class="s2">&quot;my_training.rrd&quot;</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<p>These options are available across all the learning frameworks.</p>
-<p>For more information about the Newton Visualizer, please refer to the <a class="reference external" href="https://newton-physics.github.io/newton/guide/visualization.html">Newton documentation</a>.</p>
-<p>IsaacLab provides additional customizations to the Newton visualizer with several learning-oriented features. These include the ability to pause rendering during training or pause the training process itself. Pausing rendering accelerates training by skipping rendering frames, which is particularly useful when we want to periodically check the trained policy without the performance overhead of continuous rendering. Pausing the training process is valuable for debugging purposes. Additionally, the visualizer’s update frequency can be adjusted using a slider in the visualizer window, making it easy to prioritize rendering quality against training performance and vice-versa.</p>
-<p>All IsaacLab-specific customizations are organized under the <em>IsaacLab Training Controls</em> tab in the visualizer window.</p>
+</section>
+</section>
+<section id="visualizer-backends">
+<h2>Visualizer Backends<a class="headerlink" href="#visualizer-backends" title="Permalink to this heading">#</a></h2>
+<section id="omniverse-visualizer">
+<h3>Omniverse Visualizer<a class="headerlink" href="#omniverse-visualizer" title="Permalink to this heading">#</a></h3>
+<p><strong>Main Features:</strong></p>
+<ul class="simple">
+<li><p>Native USD stage integration</p></li>
+<li><p>Visualization markers for debugging (arrows, frames, points, etc.)</p></li>
+<li><p>Live plots for monitoring training metrics</p></li>
+<li><p>Full Isaac Sim rendering capabilities and tooling</p></li>
+</ul>
+<p><strong>Core Configuration:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">OVVisualizerCfg</span>
+
+<span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">OVVisualizerCfg</span><span class="p">(</span>
+    <span class="c1"># Viewport settings</span>
+    <span class="n">viewport_name</span><span class="o">=</span><span class="s2">&quot;Visualizer Viewport&quot;</span><span class="p">,</span>      <span class="c1"># Viewport window name</span>
+    <span class="n">create_viewport</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                     <span class="c1"># Create new viewport vs. use existing</span>
+    <span class="n">dock_position</span><span class="o">=</span><span class="s2">&quot;SAME&quot;</span><span class="p">,</span>                     <span class="c1"># Docking: &#39;LEFT&#39;, &#39;RIGHT&#39;, &#39;BOTTOM&#39;, &#39;SAME&#39;</span>
+    <span class="n">window_width</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span>                        <span class="c1"># Viewport width in pixels</span>
+    <span class="n">window_height</span><span class="o">=</span><span class="mi">720</span><span class="p">,</span>                        <span class="c1"># Viewport height in pixels</span>
+
+    <span class="c1"># Camera settings</span>
+    <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>         <span class="c1"># Initial camera position (x, y, z)</span>
+    <span class="n">camera_target</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>           <span class="c1"># Camera look-at target</span>
+
+    <span class="c1"># Feature toggles</span>
+    <span class="n">enable_markers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                      <span class="c1"># Enable visualization markers</span>
+    <span class="n">enable_live_plots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                   <span class="c1"># Enable live plots (auto-expands frames)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="newton-visualizer">
+<h3>Newton Visualizer<a class="headerlink" href="#newton-visualizer" title="Permalink to this heading">#</a></h3>
+<p><strong>Main Features:</strong></p>
+<ul class="simple">
+<li><p>Lightweight OpenGL rendering with low overhead</p></li>
+<li><p>Visualization markers (joints, contacts, springs, COM)</p></li>
+<li><p>Training and rendering pause controls</p></li>
+<li><p>Adjustable update frequency for performance tuning</p></li>
+<li><p>Some customizable rendering options (shadows, sky, wireframe)</p></li>
+</ul>
+<p><strong>Interactive Controls:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key/Input</p></th>
+<th class="head"><p>Action</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>W, A, S, D</strong> or <strong>Arrow Keys</strong></p></td>
+<td><p>Forward / Left / Back / Right</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Q, E</strong></p></td>
+<td><p>Down / Up</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Left Click + Drag</strong></p></td>
+<td><p>Look around</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Mouse Scroll</strong></p></td>
+<td><p>Zoom in/out</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Space</strong></p></td>
+<td><p>Pause/resume rendering (physics continues)</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>H</strong></p></td>
+<td><p>Toggle UI sidebar</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>ESC</strong></p></td>
+<td><p>Exit viewer</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Core Configuration:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewtonVisualizerCfg</span>
+
+<span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">NewtonVisualizerCfg</span><span class="p">(</span>
+    <span class="c1"># Window settings</span>
+    <span class="n">window_width</span><span class="o">=</span><span class="mi">1920</span><span class="p">,</span>                        <span class="c1"># Window width in pixels</span>
+    <span class="n">window_height</span><span class="o">=</span><span class="mi">1080</span><span class="p">,</span>                       <span class="c1"># Window height in pixels</span>
+
+    <span class="c1"># Camera settings</span>
+    <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>         <span class="c1"># Initial camera position (x, y, z)</span>
+    <span class="n">camera_target</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>           <span class="c1"># Camera look-at target</span>
+
+    <span class="c1"># Performance tuning</span>
+    <span class="n">update_frequency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>                       <span class="c1"># Update every N frames (1=every frame)</span>
+
+    <span class="c1"># Physics debug visualization</span>
+    <span class="n">show_joints</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                        <span class="c1"># Show joint visualizations</span>
+    <span class="n">show_contacts</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                      <span class="c1"># Show contact points and normals</span>
+    <span class="n">show_springs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                       <span class="c1"># Show spring constraints</span>
+    <span class="n">show_com</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                           <span class="c1"># Show center of mass markers</span>
+
+    <span class="c1"># Rendering options</span>
+    <span class="n">enable_shadows</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                      <span class="c1"># Enable shadow rendering</span>
+    <span class="n">enable_sky</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                          <span class="c1"># Enable sky rendering</span>
+    <span class="n">enable_wireframe</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                   <span class="c1"># Enable wireframe mode</span>
+
+    <span class="c1"># Color customization</span>
+    <span class="n">background_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.53</span><span class="p">,</span> <span class="mf">0.81</span><span class="p">,</span> <span class="mf">0.92</span><span class="p">),</span>     <span class="c1"># Sky/background color (RGB [0,1])</span>
+    <span class="n">ground_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.18</span><span class="p">,</span> <span class="mf">0.20</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">),</span>         <span class="c1"># Ground plane color (RGB [0,1])</span>
+    <span class="n">light_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>             <span class="c1"># Directional light color (RGB [0,1])</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="rerun-visualizer">
+<h3>Rerun Visualizer<a class="headerlink" href="#rerun-visualizer" title="Permalink to this heading">#</a></h3>
+<p><strong>Main Features:</strong></p>
+<ul class="simple">
+<li><p>Web viewer interface accessible from local or remote browser</p></li>
+<li><p>Metadata logging and filtering</p></li>
+<li><p>Recording to .rrd files for offline replay (.rrd files can be opened with ctrl+O from the web viewer)</p></li>
+<li><p>Timeline scrubbing and playback controls of recordings</p></li>
+</ul>
+<p><strong>Core Configuration:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.visualizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">RerunVisualizerCfg</span>
+
+<span class="n">visualizer_cfg</span> <span class="o">=</span> <span class="n">RerunVisualizerCfg</span><span class="p">(</span>
+    <span class="c1"># Server settings</span>
+    <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;isaaclab-simulation&quot;</span><span class="p">,</span>             <span class="c1"># Application identifier for viewer</span>
+    <span class="n">web_port</span><span class="o">=</span><span class="mi">9090</span><span class="p">,</span>                            <span class="c1"># Port for local web viewer (launched in browser)</span>
+
+    <span class="c1"># Camera settings</span>
+    <span class="n">camera_position</span><span class="o">=</span><span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>         <span class="c1"># Initial camera position (x, y, z)</span>
+    <span class="n">camera_target</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>           <span class="c1"># Camera look-at target</span>
+
+    <span class="c1"># History settings</span>
+    <span class="n">keep_historical_data</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>               <span class="c1"># Keep transforms for time scrubbing</span>
+    <span class="n">keep_scalar_history</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                <span class="c1"># Keep scalar/plot history</span>
+
+    <span class="c1"># Recording</span>
+    <span class="n">record_to_rrd</span><span class="o">=</span><span class="s2">&quot;recording.rrd&quot;</span><span class="p">,</span>            <span class="c1"># Path to save .rrd file (None = no recording)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="performance-note">
+<h2>Performance Note<a class="headerlink" href="#performance-note" title="Permalink to this heading">#</a></h2>
+<p>To reduce overhead when visualizing large-scale environments, consider:</p>
+<ul class="simple">
+<li><p>Using Newton instead of Omniverse or Rerun</p></li>
+<li><p>Reducing window sizes</p></li>
+<li><p>Higher update frequencies</p></li>
+<li><p>Pausing visualizers while they are not being used</p></li>
+</ul>
+</section>
+<section id="limitations">
+<h2>Limitations<a class="headerlink" href="#limitations" title="Permalink to this heading">#</a></h2>
+<p><strong>Rerun Visualizer Performance</strong></p>
+<p>The Rerun web-based visualizer may experience performance issues or crashes when visualizing large-scale
+environments. For large-scale simulations, the Newton visualizer is recommended. Alternatively, to reduce load,
+the num of environments can be overwritten and decreased using <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--visualizer<span class="w"> </span>rerun<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">512</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A future feature will support visualizing only a subset of environments, which will improve visualization performance
+and reduce resource usage while maintaining full-scale training in the background.</p>
+</div>
+<p><strong>Rerun Visualizer FPS Control</strong></p>
+<p>The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.</p>
+<p><strong>Newton Visualizer Contact and Center of Mass Markers</strong></p>
+<p>Contact and center of mass markers are not yet supported in the Newton visualizer. This will be addressed in a future release.</p>
+<p><strong>Newton Visualizer CUDA/OpenGL Interoperability Warnings</strong></p>
+<p>On some system configurations, the Newton visualizer may display warnings about CUDA/OpenGL interoperability:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Warning: Could not get MSAA config, falling back to non-AA.
+Warp CUDA error 999: unknown error (in function wp_cuda_graphics_register_gl_buffer)
+Warp UserWarning: Could not register GL buffer since CUDA/OpenGL interoperability
+is not available. Falling back to copy operations between the Warp array and the
+OpenGL buffer.
+</pre></div>
+</div>
+<p>The visualizer will still function correctly but may experience reduced performance due to falling back to
+CPU copy operations instead of direct GPU memory sharing.</p>
+</section>
 </section>
 
 
@@ -721,6 +1009,34 @@ lower number of environments, we can omit the <code class="docutils literal notr
             
             
               
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizer-backends">Visualizer Backends</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omniverse-visualizer">Omniverse Visualizer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#newton-visualizer">Newton Visualizer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rerun-visualizer">Rerun Visualizer</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-note">Performance Note</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -749,7 +1065,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 18, 2025.
+  Last updated on Dec 20, 2025.
   <br/>
 </p>
   </div>

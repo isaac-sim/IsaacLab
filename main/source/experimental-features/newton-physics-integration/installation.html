@@ -59,12 +59,12 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Training Environments" href="training-environments.html" />
+    <link rel="next" title="IsaacLab 3.0" href="isaaclab_3-0.html" />
     <link rel="prev" title="Newton Physics Integration" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 18, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 20, 2025"/>
   </head>
   
   
@@ -376,8 +376,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../bleeding-edge.html">Welcome to the bleeding edge!</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Newton Physics Integration</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_3-0.html">IsaacLab 3.0</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training-environments.html">Training Environments</a></li>
-<li class="toctree-l2"><a class="reference internal" href="newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="visualization.html">Visualization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="limitations-and-known-bugs.html">Limitations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="solver-transitioning.html">Solver Transitioning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
@@ -656,7 +657,6 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pip-installation">Pip Installation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#binary-installation">Binary Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-installation">Testing the Installation</a></li>
 </ul>
             </nav>
@@ -673,23 +673,26 @@
 <h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h1>
 <p>Installing the Newton physics integration branch requires three things:</p>
 <ol class="arabic simple">
-<li><p>Isaac sim 5.0</p></li>
 <li><p>The <code class="docutils literal notranslate"><span class="pre">feature/newton</span></code> branch of Isaac Lab</p></li>
 <li><p>Ubuntu 22.04 or 24.04 (Windows will be supported soon)</p></li>
+<li><p>[Optional] Isaac sim 5.1 (Isaac Sim is not required if the Omniverse visualizer is not used)</p></li>
 </ol>
 <p>To begin, verify the version of Isaac Sim by checking the title of the window created when launching the simulation app.  Alternatively, you can
 find more explicit version information under the <code class="docutils literal notranslate"><span class="pre">Help</span> <span class="pre">-&gt;</span> <span class="pre">About</span></code> menu within the app.
-If your version is less than 5.0, you must first <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/quick-install.html">update or reinstall Isaac Sim</a> before
+If your version is less than 5.1, you must first <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/quick-install.html">update or reinstall Isaac Sim</a> before
 you can proceed further.</p>
 <p>Next, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.</p>
 <p>Make sure we are on the <code class="docutils literal notranslate"><span class="pre">feature/newton</span></code> branch by running the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>feature/newton
 </pre></div>
 </div>
-<p>Below, we provide instructions for installing Isaac Sim through pip or binary.</p>
+<p>Below, we provide instructions for installing Isaac Sim through pip.</p>
 <section id="pip-installation">
 <h2>Pip Installation<a class="headerlink" href="#pip-installation" title="Permalink to this heading">#</a></h2>
 <p>We recommend using conda for managing your python environments. Conda can be downloaded and installed from <a class="reference external" href="https://docs.conda.io/en/latest/miniconda.html">here</a>.</p>
+<p>If you previously already have a virtual environment for Isaac Lab, please ensure to start from a fresh environment to avoid any dependency conflicts.
+If you have installed earlier versions of mujoco, mujoco-warp, or newton packages through pip, we recommend first
+cleaning your pip cache with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">cache</span> <span class="pre">purge</span></code> to remove any cache of earlier versions that may be conflicting with the latest.</p>
 <p>Create a new conda environment:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>env_isaaclab<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
 </pre></div>
@@ -702,24 +705,8 @@ you can proceed further.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
-<p>Install Isaac Sim 5.0:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacsim[all,extscache]==5.0.0&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
-</pre></div>
-</div>
-<p>Install Isaac Lab extensions and dependencies:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-i
-</pre></div>
-</div>
-</section>
-<section id="binary-installation">
-<h2>Binary Installation<a class="headerlink" href="#binary-installation" title="Permalink to this heading">#</a></h2>
-<p>Follow the Isaac Sim <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">documentation</a> to install Isaac Sim 5.0 binaries.</p>
-<p>Enter the Isaac Lab directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>IsaacLab
-</pre></div>
-</div>
-<p>Add a symbolic link to the Isaac Sim installation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class="w"> </span>_isaac_sim
+<p>[Optional] Install Isaac Sim 5.1:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacsim[all,extscache]==5.1.0&quot;</span><span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
 </div>
 <p>Install Isaac Lab extensions and dependencies:</p>
@@ -733,6 +720,9 @@ you can proceed further.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/zero_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span>
 </pre></div>
 </div>
+<p>Note that since Newton requires a more recent version of Warp than Isaac Sim 5.1, there may be some incompatibility issues
+that could result in errors such as <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'warp.sim'</span></code>. These are ok to ignore and should not
+impact usability.</p>
 </section>
 </section>
 
@@ -757,11 +747,11 @@ you can proceed further.</p>
       </div>
     </a>
     <a class="right-next"
-       href="training-environments.html"
+       href="isaaclab_3-0.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Training Environments</p>
+        <p class="prev-next-title">IsaacLab 3.0</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -783,7 +773,6 @@ you can proceed further.</p>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pip-installation">Pip Installation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#binary-installation">Binary Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-the-installation">Testing the Installation</a></li>
 </ul>
   </nav></div>
@@ -818,7 +807,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 18, 2025.
+  Last updated on Dec 20, 2025.
   <br/>
 </p>
   </div>
