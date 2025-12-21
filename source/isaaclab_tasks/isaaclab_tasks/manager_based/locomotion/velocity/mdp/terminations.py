@@ -64,9 +64,13 @@ def root_height_below_minimum_adaptive(
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
+    
+    body_ids = asset_cfg.body_ids
+    if body_ids is None:
+        body_ids = slice(None)
 
     min_foot_height = (
-        (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).min(dim=1).values
+        (asset.data.body_pos_w[:, body_ids, 2]).min(dim=1).values
     )
 
     return asset.data.root_pos_w[:, 2] - min_foot_height < minimum_height

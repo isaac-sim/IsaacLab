@@ -46,7 +46,7 @@ class UniformLevelVelocityCommand(UniformVelocityCommand):
             self.curr_linvel_visualizer.set_visibility(True)
             self.curr_angvel_visualizer.set_visibility(True)
         else:
-            if hasattr(self, "goal_vel_visualizer"):
+            if hasattr(self, "goal_linvel_visualizer"):
                 self.goal_linvel_visualizer.set_visibility(False)
                 self.goal_angvel_visualizer.set_visibility(False)
                 self.curr_linvel_visualizer.set_visibility(False)
@@ -138,7 +138,7 @@ class UniformLevelVelocityCommandCfg(UniformVelocityCommandCfg):
     )
     """The configuration for the current velocity visualization marker. Defaults to BLUE_ARROW_X_MARKER_CFG."""
     current_angvel_visualizer_cfg: VisualizationMarkersCfg = BLUE_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/velocity_current"
+        prim_path="/Visuals/Command/angvel_current"
     )
     """The configuration for the current velocity visualization marker. Defaults to BLUE_ARROW_X_MARKER_CFG."""
 
