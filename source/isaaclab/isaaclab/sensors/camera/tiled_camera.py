@@ -201,11 +201,6 @@ class TiledCamera(Camera):
                     "distance_to_image_plane", device=self.device, do_array_copy=False
                 )
                 self._annotators[annotator_type] = annotator
-            elif annotator_type == "normals":
-                annotator = rep.AnnotatorRegistry.get_annotator("normals", device=self.device, do_array_copy=False)
-                # annotator returns 4-channel data, store as normals_padded
-                # we will extract first 3 channels to "normals"
-                self._annotators["normals_padded"] = annotator
             # note: we are verbose here to make it easier to understand the code.
             #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
             #   if colorize is false, the data is returned as a uint32 image with ids as values.
@@ -275,6 +270,11 @@ class TiledCamera(Camera):
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+            
+            # For normals, we only require the first three channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
+            if data_type == "normals":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,
@@ -291,14 +291,6 @@ class TiledCamera(Camera):
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
-
-            if data_type == "normals_padded":
-                if "normals" not in self.cfg.data_types:
-                    raise ValueError(
-                        "TiledCamera: 'normals_padded' annotator was created but 'normals' is not in cfg.data_types:"
-                        f" {self.cfg.data_types}. This indicates an internal inconsistency in the sensor configuration."
-                    )
-                self._data.output["normals"] = self._data.output["normals_padded"][..., :3]
 
             # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
             #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
@@ -373,10 +365,9 @@ class TiledCamera(Camera):
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
             ).contiguous()
         if "normals" in self.cfg.data_types:
-            data_dict["normals_padded"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.float32
+            data_dict["normals"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
             ).contiguous()
-            data_dict["normals"] = data_dict["normals_padded"][..., :3]
         if "motion_vectors" in self.cfg.data_types:
             data_dict["motion_vectors"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 2), device=self.device, dtype=torch.float32
