@@ -20,8 +20,6 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_assets import (
     UNITREE_G1_29DOF_CFG, 
     UNITREE_G1_29DOF_DELAY_CFG, 
-    UNITREE_G1_23DOF_CFG, 
-    UNITREE_G1_23DOF_DELAY_CFG
     )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 

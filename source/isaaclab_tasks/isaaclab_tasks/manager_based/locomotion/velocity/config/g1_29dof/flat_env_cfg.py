@@ -87,7 +87,7 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.heading_command = False
         self.commands.base_velocity.rel_standing_envs = 0.02
-        self.commands.base_velocity.resampling_time_range = (self.episode_length_s/10, self.episode_length_s/10)
+        self.commands.base_velocity.resampling_time_range = (self.episode_length_s, self.episode_length_s)
         
         # Randomization 
         self.events.reset_base.params = {
@@ -107,13 +107,12 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         }
 
         # track robot motion
-        self.sim.render.enable_dlssg = True
-        self.sim.render.dlss_mode = "performance"
+        # self.sim.render.enable_dlssg = True
+        # self.sim.render.dlss_mode = "performance"
         self.viewer = ViewerCfg(
             eye=(-0.0, -3.5, 0.0), 
             lookat=(0.0, -0.0, 0.0),
-            # resolution=(1920, 1080), 
-            resolution=(1080, 720),
+            resolution=(1920, 1080), 
             origin_type="asset_root", 
             asset_name="robot"
         )
