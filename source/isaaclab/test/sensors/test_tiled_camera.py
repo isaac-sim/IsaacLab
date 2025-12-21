@@ -643,7 +643,7 @@ def test_normals_only_camera(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-    assert list(camera.data.output.keys()) == ["normals"]
+    assert list(camera.data.output.keys()) == ["normals_padded", "normals"]
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -665,11 +665,17 @@ def test_normals_only_camera(setup_camera, device):
         sim.step()
         # update camera
         camera.update(dt)
-        # check image data
-        for _, im_data in camera.data.output.items():
-            assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
-            for i in range(4):
-                assert im_data[i].mean() > 0.0
+        # check image data for padded normals
+        im_data_padded = camera.data.output["normals_padded"]
+        assert im_data_padded.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
+        # check image data for normals
+        im_data = camera.data.output["normals"]
+        assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
+        for i in range(4):
+            assert im_data[i].mean() > 0.0
+        # check normal norm is approximately 1
+        norms = torch.norm(im_data, dim=-1)
+        assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
     assert camera.data.output["normals"].dtype == torch.float
     del camera
 
