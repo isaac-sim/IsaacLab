@@ -246,7 +246,6 @@ class XFormPrim:
         local_tf = Gf.Transform(local_m)
         return local_tf.GetTranslation(), local_tf.GetRotation().GetQuat()
 
-
     def set_world_poses(
         self,
         positions: torch.Tensor | np.ndarray | Sequence[float] | None = None,
