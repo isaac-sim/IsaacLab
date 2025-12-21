@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
@@ -53,3 +53,62 @@ def terrain_levels_vel(
     terrain.update_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
+
+class VelocityStage(TypedDict):
+    step: int
+    lin_vel_x: tuple[float, float] | None
+    lin_vel_y: tuple[float, float] | None
+    ang_vel_z: tuple[float, float] | None
+  
+def commands_vel(
+    env: ManagerBasedRLEnv, 
+    env_ids: torch.Tensor,
+    command_name: str,
+    velocity_stages: list[VelocityStage],
+    ) -> dict[str, torch.Tensor]:
+    """
+    Curriculum that updates the command velocity ranges based on predefined learning iterations. 
+    Example: 
+        "velocity_stages": [
+          {"step": 0, "lin_vel_x": (-1.0, 1.0), "ang_vel_z": (-0.5, 0.5)},
+          {"step": 5000 * 24, "lin_vel_x": (-1.5, 2.0), "ang_vel_z": (-0.7, 0.7)},
+          {"step": 10000 * 24, "lin_vel_x": (-2.0, 3.0)},
+        ],
+    """
+    del env_ids  # Unused.
+    command_term = env.command_manager.get_term(command_name)
+    assert command_term is not None
+    cfg = command_term.cfg
+    for stage in velocity_stages:
+        if env.common_step_counter > stage["step"]:
+            if "lin_vel_x" in stage and stage["lin_vel_x"] is not None:
+                cfg.ranges.lin_vel_x = stage["lin_vel_x"]
+            if "lin_vel_y" in stage and stage["lin_vel_y"] is not None:
+                cfg.ranges.lin_vel_y = stage["lin_vel_y"]
+            if "ang_vel_z" in stage and stage["ang_vel_z"] is not None:
+                cfg.ranges.ang_vel_z = stage["ang_vel_z"]
+    return {
+        "lin_vel_x_min": torch.tensor(cfg.ranges.lin_vel_x[0]),
+        "lin_vel_x_max": torch.tensor(cfg.ranges.lin_vel_x[1]),
+        "lin_vel_y_min": torch.tensor(cfg.ranges.lin_vel_y[0]),
+        "lin_vel_y_max": torch.tensor(cfg.ranges.lin_vel_y[1]),
+        "ang_vel_z_min": torch.tensor(cfg.ranges.ang_vel_z[0]),
+        "ang_vel_z_max": torch.tensor(cfg.ranges.ang_vel_z[1]),
+    }
+
+def modify_reward_std(env: ManagerBasedRLEnv, env_ids: Sequence[int], term_name: str, std: float, num_steps: int):
+    """Curriculum that modifies a exponential reward std a given number of steps.
+
+    Args:
+        env: The learning environment.
+        env_ids: Not used since all environments are affected.
+        term_name: The name of the reward term.
+        std: The std of the exponential reward term.
+        num_steps: The number of steps after which the change should be applied.
+    """
+    if env.common_step_counter > num_steps:
+        # obtain term settings
+        term_cfg = env.reward_manager.get_term_cfg(term_name)
+        # update term settings
+        term_cfg.params["std"] = std
+        env.reward_manager.set_term_cfg(term_name, term_cfg)
