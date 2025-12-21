@@ -10,7 +10,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab.envs.mdp as mdp
-import isaaclab_tasks.manager_based.locomotion.velocity.mdp as vel_mdp
+# import isaaclab_tasks.manager_based.locomotion.velocity.mdp as vel_mdp
 import isaaclab_tasks.manager_based.locomotion.velocity.config.g1_29dof.mdp as g1_mdp
 
 """
@@ -249,7 +249,7 @@ class CriticCfg(ObsGroup):
     # privileged observations
     base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
     feet_contact = ObsTerm(
-        func=vel_mdp.foot_contact, 
+        func=g1_mdp.foot_contact, 
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link")}, 
         )
 
@@ -259,23 +259,6 @@ class CriticCfg(ObsGroup):
         # self.history_length = 5 # unitree_rl_lab uses 5
         self.history_length = 10 # legged_lab uses 10
 
-    
-# @configclass
-# class LoggingObsCfg(ObsGroup):
-#     """Observations for logging purposes."""
-
-#     base_lin_vel = ObsTerm(func=mdp.base_lin_vel) 
-#     base_ang_vel = ObsTerm(func=mdp.base_ang_vel) 
-#     velocity_commands = ObsTerm(
-#         func=mdp.generated_commands,
-#         params={"command_name": "base_velocity"},
-#     )
-    
-
-#     def __post_init__(self):
-#         self.enable_corruption = False
-#         self.concatenate_terms = True
-
 @configclass
 class G1ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -283,4 +266,3 @@ class G1ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg()
     critic: CriticCfg = CriticCfg()
-    # logging: LoggingObsCfg = LoggingObsCfg()

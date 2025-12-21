@@ -47,10 +47,6 @@ def foot_pos_w(
 
     Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
 
-    Args:
-        env: The environment.
-        asset_cfg: The SceneEntity associated with this observation.
-
     Returns:
         The position of bodies in articulation [num_env, 3 * num_bodies].
         Output is stacked horizontally per body.
@@ -73,25 +69,97 @@ def foot_pos_w(
 
 
 """
-contact
+gait
 """
 
-def hard_contact_forces(
+def clock(
     env: ManagerBasedRLEnv, 
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("sensor")
+    cmd_threshold: float = 0.05,
+    command_name:str = "base_velocity",
+    gait_command_name:str = "locomotion_gait", 
     ) -> torch.Tensor:
+    """
+    Clock time using sin and cos from the phase of the simulation.
+    When using this reward, gait generator command must exist in command cfg. 
+    
+    Returns:
+        Gait clock with shape (num_envs, 2)
+    """
+    cmd_norm = torch.norm(env.command_manager.get_command(command_name), dim=1)
+    gait_generator = env.command_manager.get_term(gait_command_name)
+    
+    phase = gait_generator.phase
+    phase *= (cmd_norm > cmd_threshold).float()
+    return torch.cat(
+        [
+            torch.sin(2 * torch.pi * phase).unsqueeze(1),
+            torch.cos(2 * torch.pi * phase).unsqueeze(1),
+        ],
+        dim=1,
+    ).to(env.device)
+
+"""
+foot state
+"""
+
+def foot_height(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """
+    Get the height of the foot links wrt global frame.
+    
+    Returns:
+        Foot heights with shape (num_envs, num_foot_links)
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # access the body poses in world frame
+    pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
+    pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
+    return pose[..., 2].reshape(env.num_envs, -1)
+
+def foot_air_time(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
+) -> torch.Tensor:
+    """
+    Get the air time of the foot links.
+    
+    Returns:
+        Foot air times with shape (num_envs, num_foot_links)
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    air_time = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids]
+    return air_time
+
+def foot_contact(
+    env: ManagerBasedRLEnv, 
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
+    ) -> torch.Tensor:
+    """
+    Get the contact state of the foot links.
+    
+    Returns:
+        Foot contact states with shape (num_envs, num_foot_links)
+    """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :] # (num_envs, num_body_ids, 3)
-    contact_forces = contact_forces.reshape(-1, contact_forces.shape[1] * contact_forces.shape[2])
-    return contact_forces
+    contact = (torch.norm(contact_forces, dim=-1) > 1.0).float()
+    return contact
 
-def foot_hard_contact_forces(
+def foot_contact_forces(
     env: ManagerBasedRLEnv, 
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("sensor")
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
     ) -> torch.Tensor:
+    """
+    Get the contact forces of the foot links.
+    
+    Returns:
+        Foot contact forces with shape (num_envs, num_foot_links * 3)
+    """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contact_forces = contact_sensor.data.force_matrix_w[:, sensor_cfg.body_ids, :] # (num_envs, num_body_ids, num_filter, 3)
-    friction_forces = contact_sensor.data.friction_forces_w[:, sensor_cfg.body_ids, :] # (num_envs, num_body_ids, num_filter, 3)
-    total_contact_forces = (contact_forces + friction_forces).sum(dim=2) # (num_envs, num_body_ids, 3)
-    total_contact_forces = total_contact_forces.reshape(-1, total_contact_forces.shape[1] * total_contact_forces.shape[2])
-    return total_contact_forces
+    contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :] # (num_envs, num_body_ids, 3)
+    forces_flat = contact_forces.reshape(env.num_envs, -1)
+    return torch.sign(forces_flat) * torch.log1p(torch.abs(forces_flat))
