@@ -166,6 +166,7 @@ Guidelines for modifications:
 * David Leon
 * Song Yi
 * Weihua Zhang
+* Junnosuke Kamohara
 
 ## Acknowledgements
 
