@@ -1103,7 +1103,8 @@ def test_all_annotators_camera(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-    assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
+    expected_output_annotator_types = all_annotator_types + ["normals_padded"]
+    assert sorted(camera.data.output.keys()) == sorted(expected_output_annotator_types)
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -1131,6 +1132,7 @@ def test_all_annotators_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "normals_padded",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1156,6 +1158,7 @@ def test_all_annotators_camera(setup_camera, device):
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
     assert output["normals"].dtype == torch.float
+    assert output["normals_padded"].dtype == torch.float
     assert output["motion_vectors"].dtype == torch.float
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
@@ -1205,7 +1208,8 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-    assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
+    expected_output_annotator_types = all_annotator_types + ["normals_padded"]
+    assert sorted(camera.data.output.keys()) == sorted(expected_output_annotator_types)
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -1233,6 +1237,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "normals_padded",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1258,6 +1263,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
     assert output["normals"].dtype == torch.float
+    assert output["normals_padded"].dtype == torch.float
     assert output["motion_vectors"].dtype == torch.float
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
@@ -1305,7 +1311,8 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-    assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
+    expected_output_annotator_types = all_annotator_types + ["normals_padded"]
+    assert sorted(camera.data.output.keys()) == sorted(expected_output_annotator_types)
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -1333,6 +1340,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "normals_padded",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1358,6 +1366,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
     assert output["normals"].dtype == torch.float
+    assert output["normals_padded"].dtype == torch.float
     assert output["motion_vectors"].dtype == torch.float
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
@@ -1429,7 +1438,8 @@ def test_all_annotators_instanceable(setup_camera, device):
     # Check if camera prim is set correctly and that it is a camera prim
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-    assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
+    expected_output_annotator_types = all_annotator_types + ["normals_padded"]
+    assert sorted(camera.data.output.keys()) == sorted(expected_output_annotator_types)
 
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (num_cameras, 3)
@@ -1455,6 +1465,8 @@ def test_all_annotators_instanceable(setup_camera, device):
         for data_type, im_data in camera.data.output.items():
             if data_type in ["rgb", "normals"]:
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
+            elif data_type in ["normals_padded"]:
+                assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
             elif data_type in [
                 "rgba",
                 "semantic_segmentation",
@@ -1489,6 +1501,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
     assert output["normals"].dtype == torch.float
+    assert output["normals_padded"].dtype == torch.float
     assert output["motion_vectors"].dtype == torch.float
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
