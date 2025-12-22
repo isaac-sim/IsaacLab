@@ -597,6 +597,8 @@ CUDA Out of Memory
 Further Resources
 -----------------
 
+- `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
+- `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
 - Sim-to-Real Policy Transfer for Whole Body Controllers: :ref:`sim2real` - Shows how to train and deploy a whole body controller for legged robots using Isaac Lab with the Newton backend
 - `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
 - `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/tutorial_gear_assembly.html>`_
