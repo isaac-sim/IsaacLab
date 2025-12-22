@@ -37,7 +37,38 @@ parser.add_argument(
 parser.add_argument("--demo", type=str, default=None, help="The demo in the input dataset to use.")
 parser.add_argument("--num_runs", type=int, default=1, help="The number of trajectories to generate.")
 parser.add_argument(
-    "--draw_visualization", type=bool, default=False, help="Draw the occupancy map and path planning visualization."
+    "--draw_visualization",
+    action="store_true",
+    default=False,
+    help="Draw the occupancy map and path planning visualization.",
+)
+parser.add_argument(
+    "--grasp_left_hand_relative_to",
+    type=str,
+    default="object",
+    choices=["object", "base"],
+    help="During grasp phase, whether left hand moves relative to 'object' or 'base'.",
+)
+parser.add_argument(
+    "--grasp_right_hand_relative_to",
+    type=str,
+    default="object",
+    choices=["object", "base"],
+    help="During grasp phase, whether right hand moves relative to 'object' or 'base'.",
+)
+parser.add_argument(
+    "--lift_left_hand_relative_to",
+    type=str,
+    default="base",
+    choices=["object", "base"],
+    help="During lift phase, whether left hand moves relative to 'object' or 'base'.",
+)
+parser.add_argument(
+    "--lift_right_hand_relative_to",
+    type=str,
+    default="base",
+    choices=["object", "base"],
+    help="During lift phase, whether right hand moves relative to 'object' or 'base'.",
 )
 parser.add_argument(
     "--angular_gain",
@@ -85,6 +116,12 @@ parser.add_argument(
     type=float,
     default=0.5,
     help="An offset distance added to the destination to allow a buffer zone for reliably approaching the goal.",
+)
+parser.add_argument(
+    "--occupancy_map_buffer",
+    type=float,
+    default=0.15,
+    help="The buffer distance in meters to add to the occupancy map before path planning to ensure safe navigation.",
 )
 parser.add_argument(
     "--randomize_placement",
@@ -249,6 +286,7 @@ def setup_navigation_scene(
     env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     approach_distance: float,
+    occupancy_map_buffer: float = 0.15,
     randomize_placement: bool = True,
 ) -> tuple[OccupancyMap, ParameterizedPath, RelativePose, RelativePose]:
     """Set up the navigation scene with occupancy map and path planning.
@@ -257,6 +295,7 @@ def setup_navigation_scene(
         env: The locomanipulation SDG environment
         input_episode_data: Input episode data
         approach_distance: Buffer distance from final goal
+        occupancy_map_buffer: Buffer distance to add to occupancy map for path planning
         randomize_placement: Whether to randomize fixture placement
 
     Returns:
@@ -287,7 +326,7 @@ def setup_navigation_scene(
 
     # Plan navigation path
     base_path = plan_path(
-        start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(0.15)
+        start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(occupancy_map_buffer)
     )
     base_path_helper = ParameterizedPath(base_path)
 
@@ -300,6 +339,8 @@ def handle_grasp_state(
     recording_step: int,
     lift_step: int,
     output_data: LocomanipulationSDGOutputData,
+    left_hand_relative_to: str = "object",
+    right_hand_relative_to: str = "object",
 ) -> tuple[int, LocomanipulationSDGDataGenerationState]:
     """Handle the GRASP_OBJECT state logic.
 
@@ -309,6 +350,8 @@ def handle_grasp_state(
         recording_step: Current recording step
         lift_step: Step to transition to lift phase
         output_data: Output data to populate
+        left_hand_relative_to: Whether left hand moves relative to 'object' or 'base'
+        right_hand_relative_to: Whether right hand moves relative to 'object' or 'base'
 
     Returns:
         Tuple of (next_recording_step, next_state)
@@ -320,18 +363,30 @@ def handle_grasp_state(
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
 
-    # Transform hand poses relative to object
-    output_data.left_hand_pose_target = transform_relative_pose(
-        recording_item.left_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
-    )[0]
-    output_data.right_hand_pose_target = transform_relative_pose(
-        recording_item.right_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
-    )[0]
+    # Transform left hand pose
+    if left_hand_relative_to == "object":
+        output_data.left_hand_pose_target = transform_relative_pose(
+            recording_item.left_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
+        )[0]
+    else:  # relative to base
+        output_data.left_hand_pose_target = transform_relative_pose(
+            recording_item.left_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
+        )[0]
+
+    # Transform right hand pose
+    if right_hand_relative_to == "object":
+        output_data.right_hand_pose_target = transform_relative_pose(
+            recording_item.right_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
+        )[0]
+    else:  # relative to base
+        output_data.right_hand_pose_target = transform_relative_pose(
+            recording_item.right_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
+        )[0]
+
     output_data.left_hand_joint_positions_target = recording_item.left_hand_joint_positions_target
     output_data.right_hand_joint_positions_target = recording_item.right_hand_joint_positions_target
 
     # Update state
-
     next_recording_step = recording_step + 1
     next_state = (
         LocomanipulationSDGDataGenerationState.LIFT_OBJECT
@@ -348,6 +403,8 @@ def handle_lift_state(
     recording_step: int,
     navigate_step: int,
     output_data: LocomanipulationSDGOutputData,
+    left_hand_relative_to: str = "base",
+    right_hand_relative_to: str = "base",
 ) -> tuple[int, LocomanipulationSDGDataGenerationState]:
     """Handle the LIFT_OBJECT state logic.
 
@@ -357,6 +414,8 @@ def handle_lift_state(
         recording_step: Current recording step
         navigate_step: Step to transition to navigation phase
         output_data: Output data to populate
+        left_hand_relative_to: Whether left hand moves relative to 'object' or 'base'
+        right_hand_relative_to: Whether right hand moves relative to 'object' or 'base'
 
     Returns:
         Tuple of (next_recording_step, next_state)
@@ -368,13 +427,26 @@ def handle_lift_state(
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
 
-    # Transform hand poses relative to base
-    output_data.left_hand_pose_target = transform_relative_pose(
-        recording_item.left_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
-    )[0]
-    output_data.right_hand_pose_target = transform_relative_pose(
-        recording_item.right_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
-    )[0]
+    # Transform left hand pose
+    if left_hand_relative_to == "object":
+        output_data.left_hand_pose_target = transform_relative_pose(
+            recording_item.left_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
+        )[0]
+    else:  # relative to base
+        output_data.left_hand_pose_target = transform_relative_pose(
+            recording_item.left_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
+        )[0]
+
+    # Transform right hand pose
+    if right_hand_relative_to == "object":
+        output_data.right_hand_pose_target = transform_relative_pose(
+            recording_item.right_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
+        )[0]
+    else:  # relative to base
+        output_data.right_hand_pose_target = transform_relative_pose(
+            recording_item.right_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
+        )[0]
+
     output_data.left_hand_joint_positions_target = recording_item.left_hand_joint_positions_target
     output_data.right_hand_joint_positions_target = recording_item.right_hand_joint_positions_target
 
@@ -609,7 +681,12 @@ def replay(
     following_offset: float = 0.6,
     angle_threshold: float = 0.2,
     approach_distance: float = 1.0,
+    occupancy_map_buffer: float = 0.15,
     randomize_placement: bool = True,
+    grasp_left_hand_relative_to: str = "object",
+    grasp_right_hand_relative_to: str = "object",
+    lift_left_hand_relative_to: str = "base",
+    lift_right_hand_relative_to: str = "base",
 ) -> None:
     """Replay a locomanipulation SDG episode with state machine control.
 
@@ -633,7 +710,12 @@ def replay(
         following_offset: Look-ahead distance for path following (m)
         angle_threshold: Angular threshold for orientation control (rad)
         approach_distance: Buffer distance from final goal (m)
+        occupancy_map_buffer: Buffer distance to add to occupancy map for path planning (m)
         randomize_placement: Whether to randomize obstacle placement
+        grasp_left_hand_relative_to: During grasp, whether left hand moves relative to 'object' or 'base'
+        grasp_right_hand_relative_to: During grasp, whether right hand moves relative to 'object' or 'base'
+        lift_left_hand_relative_to: During lift, whether left hand moves relative to 'object' or 'base'
+        lift_right_hand_relative_to: During lift, whether right hand moves relative to 'object' or 'base'
     """
 
     # Initialize environment to starting state
@@ -652,7 +734,7 @@ def replay(
 
     # Set up navigation scene and path planning
     occupancy_map, base_path_helper, base_goal, base_goal_approach = setup_navigation_scene(
-        env, input_episode_data, approach_distance, randomize_placement
+        env, input_episode_data, approach_distance, occupancy_map_buffer, randomize_placement
     )
 
     # Visualize occupancy map and path if requested
@@ -678,12 +760,24 @@ def replay(
         # Execute state-specific logic using helper functions
         if current_state == LocomanipulationSDGDataGenerationState.GRASP_OBJECT:
             recording_step, current_state = handle_grasp_state(
-                env, input_episode_data, recording_step, lift_step, output_data
+                env,
+                input_episode_data,
+                recording_step,
+                lift_step,
+                output_data,
+                grasp_left_hand_relative_to,
+                grasp_right_hand_relative_to,
             )
 
         elif current_state == LocomanipulationSDGDataGenerationState.LIFT_OBJECT:
             recording_step, current_state = handle_lift_state(
-                env, input_episode_data, recording_step, navigate_step, output_data
+                env,
+                input_episode_data,
+                recording_step,
+                navigate_step,
+                output_data,
+                lift_left_hand_relative_to,
+                lift_right_hand_relative_to,
             )
 
         elif current_state == LocomanipulationSDGDataGenerationState.NAVIGATE:
@@ -765,7 +859,12 @@ if __name__ == "__main__":
                 following_offset=args_cli.following_offset,
                 angle_threshold=args_cli.angle_threshold,
                 approach_distance=args_cli.approach_distance,
+                occupancy_map_buffer=args_cli.occupancy_map_buffer,
                 randomize_placement=args_cli.randomize_placement,
+                grasp_left_hand_relative_to=args_cli.grasp_left_hand_relative_to,
+                grasp_right_hand_relative_to=args_cli.grasp_right_hand_relative_to,
+                lift_left_hand_relative_to=args_cli.lift_left_hand_relative_to,
+                lift_right_hand_relative_to=args_cli.lift_right_hand_relative_to,
             )
 
         env.reset()  # FIXME: hack to handle missing final recording
