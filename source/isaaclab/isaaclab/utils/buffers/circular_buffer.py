@@ -37,7 +37,9 @@ class CircularBuffer:
         self._device = device
         self._ALL_INDICES = torch.arange(batch_size, device=device)
 
-        # max length tensor for comparisons
+        # max length integer for cpu comparisons
+        self._max_len_int = max_len
+        # broadcastedmax length tensor for gpu tensor comparisons
         self._max_len = torch.full((batch_size,), max_len, dtype=torch.int, device=device)
         # number of data pushes passed since the last call to :meth:`reset`
         self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
@@ -46,6 +48,8 @@ class CircularBuffer:
         # the actual buffer for data storage
         # note: this is initialized on the first call to :meth:`append`
         self._buffer: torch.Tensor = None  # type: ignore
+        # track if all batches have been initialized
+        self._all_initialized: bool = False
 
     """
     Properties.
@@ -64,7 +68,7 @@ class CircularBuffer:
     @property
     def max_length(self) -> int:
         """The maximum length of the ring buffer."""
-        return int(self._max_len[0].item())
+        return self._max_len_int
 
     @property
     def current_length(self) -> torch.Tensor:
@@ -99,7 +103,9 @@ class CircularBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
-        self._num_pushes[batch_ids] = 0
+        self._num_pushes[batch_ids] = 0 
+        # re-initialization is required
+        self._all_initialized = False
         if self._buffer is not None:
             # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
             self._buffer[:, batch_ids, :] = 0.0
@@ -129,9 +135,14 @@ class CircularBuffer:
         # add the new data to the last layer
         self._buffer[self._pointer] = data
         # Check for batches with zero pushes and initialize all values in batch to first append
-        is_first_push = self._num_pushes == 0
-        if torch.any(is_first_push):
-            self._buffer[:, is_first_push] = data[is_first_push]
+        # Only check if we haven't confirmed all batches are initialized (avoids GPU sync in hot path)
+        if not self._all_initialized:
+            is_first_push = self._num_pushes == 0
+            if is_first_push.any().item():
+                self._buffer[:, is_first_push] = data[is_first_push]
+            else:
+                # All batches now initialized, skip this check in future calls
+                self._all_initialized = True
         # increment number of number of pushes for all batches
         self._num_pushes += 1
 
@@ -156,8 +167,9 @@ class CircularBuffer:
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
         # check if the buffer is empty
-        if torch.any(self._num_pushes == 0) or self._buffer is None:
-            raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
+        if not self._all_initialized:
+            if self._buffer is None or (self._num_pushes == 0).any().item():
+                raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
 
         # admissible lag
         valid_keys = torch.minimum(key, self._num_pushes - 1)

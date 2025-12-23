@@ -358,9 +358,9 @@ class DelayedPDActuator(IdealPDActuator):
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # apply delay based on the delay the model for all the setpoints
-        control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
-        control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
-        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
+        control_action.joint_positions[:] = self.positions_delay_buffer.compute(control_action.joint_positions)
+        control_action.joint_velocities[:] = self.velocities_delay_buffer.compute(control_action.joint_velocities)
+        control_action.joint_efforts[:] = self.efforts_delay_buffer.compute(control_action.joint_efforts)
         # compte actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
