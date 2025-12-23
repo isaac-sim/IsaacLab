@@ -103,7 +103,7 @@ class CircularBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
-        self._num_pushes[batch_ids] = 0 
+        self._num_pushes[batch_ids] = 0
         # re-initialization is required
         self._all_initialized = False
         if self._buffer is not None:
