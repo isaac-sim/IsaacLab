@@ -154,6 +154,8 @@ def body_pose_w(
 
     # access the body poses in world frame
     pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
+    if isinstance(asset_cfg.body_ids, (slice, int)):
+        pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     return pose.reshape(env.num_envs, -1)
 

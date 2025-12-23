@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.50.6 (2025-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue where :meth:~isaaclab.envs.mdp.observations.body_pose_w` was modifying the original body pose data
+  when using slice or int for body_ids in the observation config. A clone of the data is now created to avoid modifying
+  the original data.
+
+
 0.50.5 (2025-12-15)
 ~~~~~~~~~~~~~~~~~~~
 
