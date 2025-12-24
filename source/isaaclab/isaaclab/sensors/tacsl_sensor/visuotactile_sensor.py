@@ -863,7 +863,7 @@ class VisuoTactileSensor(SensorBase):
         with debugging and understanding sensor behavior.
 
         The method handles two visualization modes:
-        
+
         1. **Standard mode**: Visualizes ``tactile_points_pos_w`` - the world positions of
             tactile sensing points on the sensor surface
         2. **SDF debug mode**: When ``cfg.visualize_sdf_closest_pts`` is True, visualizes

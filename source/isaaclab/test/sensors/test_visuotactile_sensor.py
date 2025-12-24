@@ -137,12 +137,12 @@ def setup(sensor_type: str = "cube"):
 
     robot_cfg = ArticulationCfg(
         prim_path="/World/Robot",
-        spawn=sim_utils.UsdFileWithPhysicsMaterialOnPrimsCfg(
+        spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=usd_file_path,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
             compliant_contact_stiffness=10.0,
             compliant_contact_damping=1.0,
-            apply_physics_material_prim_path="elastomer",
+            physics_material_prim_path="elastomer",
         ),
         actuators={},
         init_state=ArticulationCfg.InitialStateCfg(

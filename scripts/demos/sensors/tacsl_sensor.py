@@ -100,7 +100,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     # Robot with tactile sensor
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileWithPhysicsMaterialOnPrimsCfg(
+        spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -108,7 +108,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
             ),
             compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
             compliant_contact_damping=args_cli.tactile_compliant_damping,
-            apply_physics_material_prim_path="elastomer",
+            physics_material_prim_path="elastomer",
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
                 solver_position_iteration_count=12,

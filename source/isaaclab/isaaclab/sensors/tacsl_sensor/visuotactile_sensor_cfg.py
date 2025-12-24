@@ -184,6 +184,6 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
 
     trimesh_vis_tactile_points: bool = False
     """Whether to visualize tactile points for debugging using trimesh. Defaults to False."""
-    
+
     visualize_sdf_closest_pts: bool = False
     """Whether to visualize SDF closest points for debugging. Defaults to False."""

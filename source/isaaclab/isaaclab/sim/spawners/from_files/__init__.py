@@ -17,7 +17,7 @@ from .from_files import (
     spawn_from_mjcf,
     spawn_from_urdf,
     spawn_from_usd,
-    spawn_from_usd_with_physics_material_on_prim,
+    spawn_from_usd_with_compliant_contact,
     spawn_ground_plane,
 )
-from .from_files_cfg import GroundPlaneCfg, MjcfFileCfg, UrdfFileCfg, UsdFileCfg, UsdFileWithPhysicsMaterialOnPrimsCfg
+from .from_files_cfg import GroundPlaneCfg, MjcfFileCfg, UrdfFileCfg, UsdFileCfg, UsdFileWithCompliantContactCfg

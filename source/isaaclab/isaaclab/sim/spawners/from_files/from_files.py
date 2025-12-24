@@ -373,9 +373,9 @@ def _spawn_from_usd_file(
 
 
 @clone
-def spawn_from_usd_with_physics_material_on_prim(
+def spawn_from_usd_with_compliant_contact(
     prim_path: str,
-    cfg: from_files_cfg.UsdFileWithPhysicsMaterialOnPrimsCfg,
+    cfg: from_files_cfg.UsdFileWithCompliantContactCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
@@ -406,16 +406,15 @@ def spawn_from_usd_with_physics_material_on_prim(
     prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
     stiff = cfg.compliant_contact_stiffness
     damp = cfg.compliant_contact_damping
-    if cfg.apply_physics_material_prim_path is None:
+    if cfg.physics_material_prim_path is None:
         omni.log.warn("No physics material prim path specified. Skipping physics material application.")
         return prim
 
-    if not cfg.apply_physics_material_prim_path.startswith("/"):
-        rigid_body_prim_path = f"{prim_path}/{cfg.apply_physics_material_prim_path}"
+    if isinstance(cfg.physics_material_prim_path, str):
+        prim_paths = [cfg.physics_material_prim_path]
     else:
-        rigid_body_prim_path = cfg.apply_physics_material_prim_path
+        prim_paths = cfg.physics_material_prim_path
 
-    material_path = f"{rigid_body_prim_path}/compliant_material"
     if stiff is not None or damp is not None:
         material_kwargs = {}
         if stiff is not None:
@@ -424,16 +423,24 @@ def spawn_from_usd_with_physics_material_on_prim(
             material_kwargs["compliant_contact_damping"] = damp
         material_cfg = RigidBodyMaterialCfg(**material_kwargs)
 
-        # spawn physics material
-        material_cfg.func(material_path, material_cfg)
+        for path in prim_paths:
+            if not path.startswith("/"):
+                rigid_body_prim_path = f"{prim_path}/{path}"
+            else:
+                rigid_body_prim_path = path
 
-        bind_physics_material(
-            rigid_body_prim_path,
-            material_path,
-        )
-        omni.log.info(
-            f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
-            f" compliance damping: {damp}."
-        )
+            material_path = f"{rigid_body_prim_path}/compliant_material"
+
+            # spawn physics material
+            material_cfg.func(material_path, material_cfg)
+
+            bind_physics_material(
+                rigid_body_prim_path,
+                material_path,
+            )
+            omni.log.info(
+                f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
+                f" compliance damping: {damp}."
+            )
 
     return prim

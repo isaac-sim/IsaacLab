@@ -96,12 +96,12 @@ Configuration Requirements
    **Physics Materials**
       The sensor uses physics materials to configure the compliant contact properties of the elastomer.
       By default, physics material properties are pre-configured in the USD asset. However, you can override
-      these properties by specifying the following parameters in ``UsdFileWithPhysicsMaterialOnPrimsCfg`` when
+      these properties by specifying the following parameters in ``UsdFileWithCompliantContactCfg`` when
       spawning the robot:
 
       * ``compliant_contact_stiffness`` - Contact stiffness for the elastomer surface
       * ``compliant_contact_damping`` - Contact damping for the elastomer surface
-      * ``apply_physics_material_prim_path`` - Prim path where physics material is applied (typically ``"elastomer"``)
+      * ``physics_material_prim_path`` - Prim path where physics material is applied (typically ``"elastomer"``)
 
       If any parameter is set to ``None``, the corresponding property from the USD asset will be retained.
 
