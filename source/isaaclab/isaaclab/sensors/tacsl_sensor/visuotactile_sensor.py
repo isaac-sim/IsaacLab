@@ -283,6 +283,7 @@ class VisuoTactileSensor(SensorBase):
         """Initialize force field tactile sensing components.
 
         This method sets up all components required for force field based tactile sensing:
+        
         1. Creates PhysX views for elastomer and contact object rigid bodies
         2. Generates tactile sensing points on the elastomer surface using mesh geometry
         3. Initializes SDF (Signed Distance Field) for collision detection
