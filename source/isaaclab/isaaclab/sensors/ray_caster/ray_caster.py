@@ -304,7 +304,8 @@ class RayCaster(SensorBase):
             mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
-        # apply vertical drift to ray starting position in ray caster frame
+        # apply vertical drift to the z-coordinate of detected hit positions (rather than the ray starts)
+        # to model vertical bias without changing ray geometry or recomputing intersections.
         self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
