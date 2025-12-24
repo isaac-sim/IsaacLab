@@ -170,7 +170,8 @@ class UsdFileWithPhysicsMaterialOnPrimsCfg(UsdFileCfg):
     compliant_contact_stiffness: float | None = None
     compliant_contact_damping: float | None = None
     apply_physics_material_prim_path: str | None = None
-    """Path to the prim to apply the physics material to.
+    """Path to the prim to apply the physics material to. Defaults to None, in which case the
+    physics material is not applied.
 
     If the path is relative, then it will be relative to the prim's path.
     If None, then the physics material will not be applied.
