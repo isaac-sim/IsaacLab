@@ -160,6 +160,36 @@ Spawning ground plane.
 
 
 @configclass
+class UsdFileWithCompliantContactCfg(UsdFileCfg):
+    """USD file to spawn asset from with physics material.
+
+    It uses the :meth:`spawn_from_usd_with_compliant_contact` function to spawn the USD file and apply the physics material.
+    """
+
+    func: Callable = from_files.spawn_from_usd_with_compliant_contact
+
+    compliant_contact_stiffness: float | None = None
+    """Stiffness of the compliant contact. Defaults to None.
+
+    This parameter is the same as :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
+    """
+
+    compliant_contact_damping: float | None = None
+    """Damping of the compliant contact. Defaults to None.
+
+    This parameter is the same as :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
+    """
+
+    physics_material_prim_path: str | list[str] | None = None
+    """Path to the prim or prims to apply the physics material to. Defaults to None, in which case the
+    physics material is not applied.
+
+    If the path is relative, then it will be relative to the prim's path.
+    If None, then the physics material will not be applied.
+    """
+
+
+@configclass
 class GroundPlaneCfg(SpawnerCfg):
     """Create a ground plane prim.
 
