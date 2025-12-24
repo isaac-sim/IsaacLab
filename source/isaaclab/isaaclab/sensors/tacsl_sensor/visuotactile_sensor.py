@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
-from isaacsim.core.prims import SdfShapePrim
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -325,13 +324,9 @@ class VisuoTactileSensor(SensorBase):
         # Create SDF view for collision detection
         num_query_points = self.cfg.tactile_array_size[0] * self.cfg.tactile_array_size[1]
         mesh_path_pattern = contact_object_mesh.GetPath().pathString.replace("env_0", "env_*")
-        self._contact_object_sdf_view = SdfShapePrim(
-            prim_paths_expr=mesh_path_pattern,
-            name="contact_object_sdf_view",
-            num_query_points=num_query_points,
-            prepare_sdf_schemas=False,
+        self._contact_object_sdf_view = self._physics_sim_view.create_sdf_shape_view(
+            mesh_path_pattern, num_query_points
         )
-        self._contact_object_sdf_view.initialize(physics_sim_view=self._physics_sim_view)
 
         # Create rigid body views for contact object and elastomer
         body_path_pattern = contact_object_rigid_body.GetPath().pathString.replace("env_0", "env_*")
