@@ -25,7 +25,6 @@ import torch
 import cv2
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils.timer import Timer
 
 # Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
@@ -80,8 +79,10 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 # Import our TactileSensor
 from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
 from isaaclab.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
+from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.timer import Timer
 
 
 @configclass
@@ -203,7 +204,15 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
     )
 
 
-def mkdir_helper(dir_path):
+def mkdir_helper(dir_path: str) -> tuple[str, str]:
+    """Create directories for saving tactile sensor visualizations.
+
+    Args:
+        dir_path: The base directory path where visualizations will be saved.
+
+    Returns:
+        A tuple containing paths to the force field directory and RGB image directory.
+    """
     tactile_img_folder = dir_path
     os.makedirs(tactile_img_folder, exist_ok=True)
     tactile_force_field_dir = os.path.join(tactile_img_folder, "tactile_force_field")
@@ -213,7 +222,24 @@ def mkdir_helper(dir_path):
     return tactile_force_field_dir, tactile_rgb_image_dir
 
 
-def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
+def save_viz_helper(
+    dir_path_list: tuple[str, str],
+    count: int,
+    tactile_data: VisuoTactileSensorData,
+    num_envs: int,
+    nrows: int,
+    ncols: int,
+):
+    """Save visualization of tactile sensor data.
+
+    Args:
+        dir_path_list: A tuple containing paths to the force field directory and RGB image directory.
+        count: The current simulation step count, used for naming saved files.
+        tactile_data: The data object containing tactile sensor readings (forces, images).
+        num_envs: Number of environments in the simulation.
+        nrows: Number of rows in the tactile array.
+        ncols: Number of columns in the tactile array.
+    """
     # Only save the first 2 environments
 
     tactile_force_field_dir, tactile_rgb_image_dir = dir_path_list
@@ -252,7 +278,7 @@ def save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols):
         cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count}.png"), tactile_rgb_tiled)
 
 
-def run_simulator(sim, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()

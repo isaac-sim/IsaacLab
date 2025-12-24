@@ -30,14 +30,14 @@ def compute_tactile_shear_image(
     """Visualize the tactile shear field.
 
     Args:
-        tactile_normal_force: Array of tactile normal forces.
-        tactile_shear_force: Array of tactile shear forces.
+        tactile_normal_force: Array of tactile normal forces. Shape: (H, W).
+        tactile_shear_force: Array of tactile shear forces. Shape: (H, W, 2).
         normal_force_threshold: Threshold for normal force visualization. Defaults to 0.00008.
         shear_force_threshold: Threshold for shear force visualization. Defaults to 0.0005.
         resolution: Resolution for the visualization. Defaults to 30.
 
     Returns:
-        Image visualizing the tactile shear forces.
+        Image visualizing the tactile shear forces. Shape: (H * resolution, W * resolution, 3).
     """
     nrows = tactile_normal_force.shape[0]
     ncols = tactile_normal_force.shape[1]
@@ -69,12 +69,12 @@ def compute_penetration_depth(
     """Visualize the penetration depth.
 
     Args:
-        penetration_depth_img: Image of penetration depth.
+        penetration_depth_img: Image of penetration depth. Shape: (H, W).
         resolution: Resolution for the upsampling. Defaults to 5.
         depth_multiplier: Multiplier for the depth values. Defaults to 300.0.
 
     Returns:
-        Upsampled image visualizing the penetration depth.
+        Upsampled image visualizing the penetration depth. Shape: (H * resolution, W * resolution).
     """
     # penetration_depth_img_upsampled = penetration_depth.repeat(resolution, 0).repeat(resolution, 1)
     penetration_depth_img_upsampled = np.kron(penetration_depth_img, np.ones((resolution, resolution)))
@@ -157,10 +157,10 @@ class GelsightRender:
         """Render the height map using the GelSight sensor (tensorized version).
 
         Args:
-            heightMap: Input height map tensor.
+            heightMap: Input height map tensor. Shape: (N, H, W).
 
         Returns:
-            Rendered image tensor.
+            Rendered image tensor. Shape: (N, H, W, 3).
         """
         height_map = heightMap.clone()
         height_map[torch.abs(height_map) < 1e-6] = 0  # remove minor artifact
@@ -228,10 +228,10 @@ class GelsightRender:
         """Generate the gradient magnitude and direction of the height map.
 
         Args:
-            img: Input height map tensor.
+            img: Input height map tensor. Shape: (N, H, W).
 
         Returns:
-            Tuple containing gradient magnitude tensor and gradient direction tensor.
+            Tuple containing gradient magnitude tensor and gradient direction tensor. Shape: (N, H, W).
         """
         img_grad = torch.gradient(img, dim=(1, 2))
         dzdx, dzdy = img_grad
@@ -256,7 +256,7 @@ class GelsightRender:
             kernel_sz: Size of the kernel. Defaults to 5.
 
         Returns:
-            Filtering kernel.
+            Filtering kernel. Shape: (kernel_sz, kernel_sz).
         """
         filter_1D = scipy.special.binom(kernel_sz - 1, np.arange(kernel_sz))
         filter_1D /= filter_1D.sum()
@@ -269,11 +269,11 @@ class GelsightRender:
         """Apply Gaussian filtering to the input image tensor.
 
         Args:
-            img: Input image tensor.
-            kernel: Filtering kernel tensor.
+            img: Input image tensor. Shape: (N, H, W, 1).
+            kernel: Filtering kernel tensor. Shape: (K, K).
 
         Returns:
-            Filtered image tensor.
+            Filtered image tensor. Shape: (N, H, W, 1).
         """
         img_output = torch.nn.functional.conv2d(
             img.permute(0, 3, 1, 2), kernel.unsqueeze(0).unsqueeze(0), stride=1, padding="same"

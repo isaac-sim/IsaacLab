@@ -206,6 +206,11 @@ class VisuoTactileSensor(SensorBase):
         is occurring. This baseline is used for computing relative changes during
         tactile interactions.
 
+        .. warning::
+            It is the user's responsibility to ensure that the sensor is in a "no contact" state
+            when this method is called. If the sensor is in contact with an object, the baseline
+            will be incorrect, leading to erroneous tactile readings.
+
         Returns:
             dict | None: Dictionary containing initial render data with sensor output keys
                         and corresponding tensor values. Returns None if camera tactile
