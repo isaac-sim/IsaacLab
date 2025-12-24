@@ -101,6 +101,10 @@ class VisuoTactileSensor(SensorBase):
         self._tactile_quat_local: torch.Tensor | None = None
         self._sdf_object: Any | None = None
 
+        # COMs for velocity correction
+        self._elastomer_com_b: torch.Tensor | None = None
+        self._contact_object_com_b: torch.Tensor | None = None
+
         # Physics views
         self._physics_sim_view = None
         self._elastomer_body_view = None
@@ -311,6 +315,8 @@ class VisuoTactileSensor(SensorBase):
         """
         elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
+        # Get elastomer COM for velocity correction
+        self._elastomer_com_b = self._elastomer_body_view.get_coms().to(self._device).split([3, 4], dim=-1)[0]
 
         if self.cfg.contact_object_prim_path_expr is None:
             return
@@ -330,6 +336,8 @@ class VisuoTactileSensor(SensorBase):
         # Create rigid body views for contact object and elastomer
         body_path_pattern = contact_object_rigid_body.GetPath().pathString.replace("env_0", "env_*")
         self._contact_object_body_view = self._physics_sim_view.create_rigid_body_view([body_path_pattern])
+        # Get contact object COM for velocity correction
+        self._contact_object_com_b = self._contact_object_body_view.get_coms().to(self._device).split([3, 4], dim=-1)[0]
 
     def _find_contact_object_components(self) -> tuple[Any, Any]:
         """Find and validate contact object SDF mesh and its parent rigid body.
@@ -759,14 +767,27 @@ class VisuoTactileSensor(SensorBase):
 
         if collision_mask.any() or self.cfg.visualize_sdf_closest_pts:
 
-            # Get contact object and elastomer velocities
+            # Get contact object and elastomer velocities (com velocities)
             contact_object_velocities = self._contact_object_body_view.get_velocities()
-            contact_object_linvel_w = contact_object_velocities[env_ids, :3]
+            contact_object_linvel_w_com = contact_object_velocities[env_ids, :3]
             contact_object_angvel_w = contact_object_velocities[env_ids, 3:]
 
             elastomer_velocities = self._elastomer_body_view.get_velocities()
-            elastomer_linvel_w = elastomer_velocities[env_ids, :3]
+            elastomer_linvel_w_com = elastomer_velocities[env_ids, :3]
             elastomer_angvel_w = elastomer_velocities[env_ids, 3:]
+
+            # Contact object adjustment
+            contact_object_com_w_offset = math_utils.quat_apply(
+                contact_object_quat_w[env_ids], self._contact_object_com_b[env_ids]
+            )
+            contact_object_linvel_w = contact_object_linvel_w_com - torch.cross(
+                contact_object_angvel_w, contact_object_com_w_offset, dim=-1
+            )
+            # v_origin = v_com - w x (com_world_offset) where com_world_offset = quat_apply(quat, com_b)
+            elastomer_com_w_offset = math_utils.quat_apply(elastomer_quat_w[env_ids], self._elastomer_com_b[env_ids])
+            elastomer_linvel_w = elastomer_linvel_w_com - torch.cross(
+                elastomer_angvel_w, elastomer_com_w_offset, dim=-1
+            )
 
             # Normalize gradients to get surface normals in local frame
             normals_local = torch.nn.functional.normalize(sdf_gradients[env_ids], dim=-1)
