@@ -311,7 +311,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     while simulation_app.is_running():
 
         if count == 122:
-            print(scene["tactile_sensor"].get_timing_summary())
             # Reset robot and contact object positions
             count = 0
             for entity in entity_list:

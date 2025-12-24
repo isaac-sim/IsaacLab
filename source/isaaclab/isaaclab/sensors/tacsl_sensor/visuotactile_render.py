@@ -197,11 +197,11 @@ class GelsightRender:
         sim_img = sim_img_rgb + self.background_tensor  # /255.0
         sim_img = torch.clip(sim_img, 0, 255, out=sim_img).to(torch.uint8)
         return sim_img
-    
+
     """
     Internal Helpers.
     """
-    
+
     def _get_render_data(self, data_dir: str, file_name: str) -> str:
         """Gets the path for the GelSight render data file.
 

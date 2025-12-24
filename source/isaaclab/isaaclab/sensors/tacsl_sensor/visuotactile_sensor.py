@@ -10,7 +10,6 @@ import itertools
 import numpy as np
 import torch
 from collections.abc import Sequence
-from scipy.spatial.transform import Rotation as R
 from typing import TYPE_CHECKING, Any
 
 import isaacsim.core.utils.torch as torch_utils
@@ -26,7 +25,6 @@ from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
 from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
-from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
@@ -112,13 +110,6 @@ class VisuoTactileSensor(SensorBase):
         # Visualization
         self._tactile_visualizer: VisualizationMarkers | None = None
 
-        # Timing tracking attributes
-        self._camera_timing_total: float = 0.0
-        self._force_field_timing_total: float = 0.0
-        self._timing_call_count: int = 0
-        self._camera_timer: Timer = Timer()
-        self._force_field_timer: Timer = Timer()
-
         # Tactile points count
         self.num_tactile_points: int = 0
 
@@ -166,11 +157,6 @@ class VisuoTactileSensor(SensorBase):
         """Resets the sensor internals."""
         # reset the timestamps
         super().reset(env_ids)
-
-        # Reset all timing statistics to zero
-        self._camera_timing_total = 0.0
-        self._force_field_timing_total = 0.0
-        self._timing_call_count = 0
 
         # Reset camera sensor if enabled
         if self._camera_sensor:
@@ -288,7 +274,7 @@ class VisuoTactileSensor(SensorBase):
         """Initialize force field tactile sensing components.
 
         This method sets up all components required for force field based tactile sensing:
-        
+
         1. Creates PhysX views for elastomer and contact object rigid bodies
         2. Generates tactile sensing points on the elastomer surface using mesh geometry
         3. Initializes SDF (Signed Distance Field) for collision detection
@@ -506,10 +492,11 @@ class VisuoTactileSensor(SensorBase):
             )
 
         # Assume tactile frame rotation are all the same
-        rotation = (0, 0, -np.pi)
-        rotation = R.from_euler("xyz", rotation).as_quat()
+        rotation = torch.tensor([0, 0, -torch.pi], device=self._device)
         self._tactile_quat_local = (
-            torch.tensor(rotation, dtype=torch.float32, device=self._device).unsqueeze(0).repeat(len(tactile_points), 1)
+            math_utils.quat_from_euler_xyz(rotation[0], rotation[1], rotation[2])
+            .unsqueeze(0)
+            .repeat(len(tactile_points), 1)
         )
 
         omni.log.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
@@ -537,16 +524,11 @@ class VisuoTactileSensor(SensorBase):
         """Fills the buffers of the sensor data.
 
         This method updates both camera-based and force field tactile sensing data
-        for the specified environments. It also tracks timing statistics for
-        performance monitoring.
+        for the specified environments.
 
         Args:
             env_ids: Sequence of environment indices to update. If length equals
                     total number of environments, all environments are updated.
-
-        Note:
-            The first two timing measurements are excluded from statistics to
-            account for initialization overhead.
         """
         # Convert to proper indices for internal methods
         if len(env_ids) == self._num_envs:
@@ -554,24 +536,13 @@ class VisuoTactileSensor(SensorBase):
         else:
             internal_env_ids = env_ids
 
-        # Increment call counter for timing tracking
-        self._timing_call_count += 1
-
         # Update camera-based tactile data
         if self.cfg.enable_camera_tactile:
-            self._camera_timer.start()
             self._update_camera_tactile(internal_env_ids)
-            if self._timing_call_count > 2:
-                self._camera_timing_total += self._camera_timer.time_elapsed
-            self._camera_timer.stop()
 
         # Update force field tactile data
         if self.cfg.enable_force_field:
-            self._force_field_timer.start()
             self._update_force_field(internal_env_ids)
-            if self._timing_call_count > 2:
-                self._force_field_timing_total += self._force_field_timer.time_elapsed
-            self._force_field_timer.stop()
 
     def _update_camera_tactile(self, env_ids: Sequence[int] | slice):
         """Update camera-based tactile sensing data.
@@ -865,46 +836,6 @@ class VisuoTactileSensor(SensorBase):
             # Assume tactile frame has Z as normal direction
             tactile_normal_force[:] = tactile_force_tactile[..., 2]  # Z component
             tactile_shear_force[:] = tactile_force_tactile[..., :2]  # X,Y components
-
-    #########################################################################################
-    # Timing statistics
-    #########################################################################################
-
-    def get_timing_summary(self) -> dict:
-        """Get current timing statistics as a dictionary.
-
-        Returns:
-            Dictionary containing timing statistics.
-        """
-        if self._timing_call_count <= 0:
-            return {
-                "call_count": 0,
-                "camera_total": 0.0,
-                "camera_average": 0.0,
-                "force_field_total": 0.0,
-                "force_field_average": 0.0,
-                "combined_average": 0.0,
-            }
-
-        # skip the first two calls for calculation (without mutating state)
-        adjusted_call_count = max(0, self._timing_call_count - 2)
-        num_frames = adjusted_call_count * self._num_envs
-        force_field_avg = self._force_field_timing_total / num_frames if self._force_field_timing_total > 0 else 0.0
-        camera_avg = self._camera_timing_total / num_frames if self._camera_timing_total > 0 else 0.0
-
-        return {
-            "call_count": adjusted_call_count,
-            "camera_total": self._camera_timing_total,
-            "camera_average": camera_avg,
-            "force_field_total": self._force_field_timing_total,
-            "force_field_average": force_field_avg,
-            "combined_average": camera_avg + force_field_avg,
-            "num_envs": self._num_envs,
-            "num_frames": num_frames,
-            "camera_fps": 1 / camera_avg if camera_avg > 0 else 0.0,
-            "force_field_fps": 1 / force_field_avg if force_field_avg > 0 else 0.0,
-            "total_fps": 1 / (camera_avg + force_field_avg) if (camera_avg + force_field_avg) > 0 else 0.0,
-        }
 
     #########################################################################################
     # Debug visualization
