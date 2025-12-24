@@ -96,7 +96,7 @@ class GelsightRender:
             device: Device to use ('cpu' or 'cuda').
 
         Raises:
-            ValueError: If mm_per_pixel is zero or negative.
+            ValueError: If :attr:`GelSightRenderCfg.mm_per_pixel` is zero or negative.
             FileNotFoundError: If render data files cannot be retrieved.
         """
         self.cfg = cfg
