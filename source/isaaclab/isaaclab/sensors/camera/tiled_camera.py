@@ -271,6 +271,11 @@ class TiledCamera(Camera):
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
+            # For normals, we only require the first three channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
+            if data_type == "normals":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(self._view.count, self.cfg.height, self.cfg.width),
