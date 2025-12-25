@@ -270,7 +270,7 @@ class TiledCamera(Camera):
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-            
+
             # For normals, we only require the first three channels of the tiled buffer
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
             if data_type == "normals":
