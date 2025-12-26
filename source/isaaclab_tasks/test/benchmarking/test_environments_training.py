@@ -64,13 +64,20 @@ def train_job(workflow, task, env_config, num_gpus):
         cmd.append("--distributed")
 
     # Add experiment name variable
-    cmd.append(f"{WORKFLOW_EXPERIMENT_NAME_VARIABLE[workflow]}={task}")
+    workflow_experiment_name_variable = WORKFLOW_EXPERIMENT_NAME_VARIABLE.get(workflow)
+    if workflow_experiment_name_variable:
+        cmd.append(f"{workflow_experiment_name_variable}={task}")
 
     print("Running : " + " ".join(cmd))
 
     start_time = time.time()
-    subprocess.run(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     duration = time.time() - start_time
+
+    if result.returncode != 0:
+        print(f"Training failed with exit code {result.returncode}")
+        print(f"STDERR: {result.stderr}")
+        # Still return duration so evaluate_job can report failure via logs
 
     return duration
 
