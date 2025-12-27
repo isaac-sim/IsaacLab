@@ -32,7 +32,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim as sim_utils
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -132,7 +132,7 @@ class SimulationContext(_SimulationContext):
         cfg.validate()
         self.cfg = cfg
         # check that simulation is running
-        if stage_utils.get_current_stage() is None:
+        if sim_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
         # setup logger
@@ -140,7 +140,7 @@ class SimulationContext(_SimulationContext):
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = stage_utils.create_new_stage_in_memory()
+            self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
 
@@ -631,7 +631,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with stage_utils.use_stage(self.get_initial_stage()):
+        with sim_utils.use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
@@ -953,7 +953,7 @@ class SimulationContext(_SimulationContext):
 
         # Save stage to disk
         stage_path = os.path.join(self._anim_recording_output_dir, "stage_simulation.usdc")
-        stage_utils.save_stage(stage_path, save_and_reload_in_place=False)
+        sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
 
         # Find the latest ovd file not named tmp.ovd
         ovd_files = [
@@ -1100,7 +1100,7 @@ def build_simulation_context(
     """
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device

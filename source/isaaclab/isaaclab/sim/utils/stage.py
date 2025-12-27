@@ -132,10 +132,10 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     .. code-block:: python
 
         >>> from pxr import Usd
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
-        >>> with stage_utils.use_stage(stage_in_memory):
+        >>> with sim_utils.use_stage(stage_in_memory):
         ...    # operate on the specified stage
         ...    pass
         >>> # operate on the default stage attached to the USD context
@@ -174,9 +174,9 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage()
+        >>> sim_utils.get_current_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -195,9 +195,9 @@ def get_current_stage_id() -> int:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage_id()
+        >>> sim_utils.get_current_stage_id()
         1234567890
     """
     stage = get_current_stage()
@@ -215,9 +215,9 @@ def update_stage() -> None:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.update_stage()
+        >>> sim_utils.update_stage()
     """
     omni.kit.app.get_app_interface().update()
 
@@ -233,15 +233,15 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # clear the whole stage
-        >>> stage_utils.clear_stage()
+        >>> sim_utils.clear_stage()
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
         >>> # Delete only the prims of type Cube
         >>> predicate = lambda path: prims_utils.from_prim_path_get_type_name(path) == "Cube"
-        >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
+        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
     from .prims import get_all_matching_child_prims
@@ -298,10 +298,10 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # load an USD file (franka.usd) to the stage under the path /World/panda
-        >>> prim = stage_utils.add_reference_to_stage(
+        >>> prim = sim_utils.add_reference_to_stage(
         ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd",
         ...     prim_path="/World/panda"
         ... )
@@ -351,9 +351,9 @@ def create_new_stage() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.create_new_stage()
+        >>> sim_utils.create_new_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -371,9 +371,9 @@ def create_new_stage_in_memory() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.create_new_stage_in_memory()
+        >>> sim_utils.create_new_stage_in_memory()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
                         sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -405,9 +405,9 @@ def open_stage(usd_path: str) -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
+        >>> sim_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
         True
     """
     if not Usd.Stage.IsSupportedFile(usd_path):
@@ -436,9 +436,9 @@ def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
+        >>> sim_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
         True
     """
     if not Usd.Stage.IsSupportedFile(usd_path):
@@ -472,21 +472,21 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.close_stage()
+        >>> sim_utils.close_stage()
         True
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
         ...
-        >>> stage_utils.close_stage(callback)
+        >>> sim_utils.close_stage(callback)
         True
-        >>> stage_utils.close_stage(callback)
+        >>> sim_utils.close_stage(callback)
         callback: (False, 'Stage opening or closing already in progress!!') {}
         False
     """
@@ -507,9 +507,9 @@ def is_stage_loading() -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.is_stage_loading()
+        >>> sim_utils.is_stage_loading()
         False
     """
     context = omni.usd.get_context()
@@ -534,11 +534,11 @@ def get_next_free_path(path: str, parent: str = None) -> str:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01.
         >>> # Get the next available path for /World/Cube
-        >>> stage_utils.get_next_free_path("/World/Cube")
+        >>> sim_utils.get_next_free_path("/World/Cube")
         /World/Cube_02
     """
     if parent is not None:

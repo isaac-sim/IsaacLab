@@ -21,7 +21,6 @@ from dataclasses import dataclass
 import pytest
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.utils import configclass
 
@@ -91,7 +90,7 @@ def _populate_scene():
 def create_dummy_sensor(request, device):
 
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Simulation time-step
     dt = 0.01
@@ -104,7 +103,7 @@ def create_dummy_sensor(request, device):
 
     sensor_cfg = DummySensorCfg()
 
-    stage_utils.update_stage()
+    sim_utils.update_stage()
 
     yield sensor_cfg, sim, dt
 
