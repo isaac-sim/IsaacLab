@@ -85,10 +85,10 @@ def create_prim(
     .. code-block:: python
 
         >>> import numpy as np
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # create a cube (/World/Cube) of size 2 centered at (1.0, 0.5, 0.0)
-        >>> prims_utils.create_prim(
+        >>> sim_utils.create_prim(
         ...     prim_path="/World/Cube",
         ...     prim_type="Cube",
         ...     position=np.array([1.0, 0.5, 0.0]),
@@ -98,10 +98,10 @@ def create_prim(
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # load an USD file (franka.usd) to the stage under the path /World/panda
-        >>> prims_utils.create_prim(
+        >>> sim_utils.create_prim(
         ...     prim_path="/World/panda",
         ...     prim_type="Xform",
         ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd"
@@ -167,9 +167,9 @@ def delete_prim(prim_path: str) -> None:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> prims_utils.delete_prim("/World/Cube")
+        >>> sim_utils.delete_prim("/World/Cube")
     """
     DeletePrimsCommand([prim_path]).do()
 
@@ -188,14 +188,14 @@ def is_prim_path_valid(prim_path: str, fabric: bool = False) -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube
-        >>> prims_utils.is_prim_path_valid("/World/Cube")
+        >>> sim_utils.is_prim_path_valid("/World/Cube")
         True
-        >>> prims_utils.is_prim_path_valid("/World/Cube/")
+        >>> sim_utils.is_prim_path_valid("/World/Cube/")
         False
-        >>> prims_utils.is_prim_path_valid("/World/Sphere")  # it doesn't exist
+        >>> sim_utils.is_prim_path_valid("/World/Sphere")  # it doesn't exist
         False
     """
     stage = get_current_stage(fabric=fabric)
@@ -235,10 +235,10 @@ def move_prim(path_from: str, path_to: str) -> None:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
-        >>> prims_utils.move_prim("/World/Cube", "/Cube")
+        >>> sim_utils.move_prim("/World/Cube", "/Cube")
     """
     MovePrimCommand(path_from=path_from, path_to=path_to).do()
 
@@ -674,17 +674,17 @@ def get_articulation_root_api_prim_path(prim_path):
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/env/Ant, /World/env_01/Ant, /World/env_02/Ant
         >>> # search specifying the prim with the Articulation Root API
-        >>> prims_utils.get_articulation_root_api_prim_path("/World/env/Ant/torso")
+        >>> sim_utils.get_articulation_root_api_prim_path("/World/env/Ant/torso")
         /World/env/Ant/torso
         >>> # search specifying some ancestor prim that does not have the Articulation Root API
-        >>> prims_utils.get_articulation_root_api_prim_path("/World/env/Ant")
+        >>> sim_utils.get_articulation_root_api_prim_path("/World/env/Ant")
         /World/env/Ant/torso
         >>> # regular expression search
-        >>> prims_utils.get_articulation_root_api_prim_path("/World/env.*/Ant")
+        >>> sim_utils.get_articulation_root_api_prim_path("/World/env.*/Ant")
         /World/env.*/Ant/torso
     """
     stage = get_current_stage()
@@ -859,11 +859,11 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.prims as prims_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube. Make the Cube not visible
-        >>> prim = prims_utils.get_prim_at_path("/World/Cube")
-        >>> prims_utils.set_prim_visibility(prim, False)
+        >>> prim = sim_utils.get_prim_at_path("/World/Cube")
+        >>> sim_utils.set_prim_visibility(prim, False)
     """
     imageable = UsdGeom.Imageable(prim)
     if visible:
