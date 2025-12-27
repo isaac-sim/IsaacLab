@@ -481,14 +481,6 @@ class SimulationContext(_SimulationContext):
         """
         return self.carb_settings.get(name)
 
-    def forward(self) -> None:
-        """Updates articulation kinematics and fabric for rendering."""
-        if self._fabric_iface is not None:
-            if self.physics_sim_view is not None and self.is_playing():
-                # Update the articulations' link's poses before rendering
-                self.physics_sim_view.update_articulations_kinematic()
-            self._update_fabric(0.0, 0.0)
-
     def get_initial_stage(self) -> Usd.Stage:
         """Returns stage handle used during scene creation.
 
@@ -521,6 +513,14 @@ class SimulationContext(_SimulationContext):
             for _ in range(2):
                 self.render()
         self._disable_app_control_on_stop_handle = False
+
+    def forward(self) -> None:
+        """Updates articulation kinematics and fabric for rendering."""
+        if self._fabric_iface is not None:
+            if self.physics_sim_view is not None and self.is_playing():
+                # Update the articulations' link's poses before rendering
+                self.physics_sim_view.update_articulations_kinematic()
+            self._update_fabric(0.0, 0.0)
 
     def step(self, render: bool = True):
         """Steps the simulation.
