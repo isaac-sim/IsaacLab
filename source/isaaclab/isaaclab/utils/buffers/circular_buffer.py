@@ -49,7 +49,7 @@ class CircularBuffer:
         # note: this is initialized on the first call to :meth:`append`
         self._buffer: torch.Tensor = None  # type: ignore
         # track if all batches have been initialized
-        self._all_initialized: bool = False
+        self._need_reset: bool = True
 
     """
     Properties.
@@ -105,7 +105,7 @@ class CircularBuffer:
         # reset the number of pushes for the specified batch indices
         self._num_pushes[batch_ids] = 0
         # re-initialization is required
-        self._all_initialized = False
+        self._need_reset = True
         if self._buffer is not None:
             # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
             self._buffer[:, batch_ids, :] = 0.0
@@ -136,13 +136,13 @@ class CircularBuffer:
         self._buffer[self._pointer] = data
         # Check for batches with zero pushes and initialize all values in batch to first append
         # Only check if we haven't confirmed all batches are initialized (avoids GPU sync in hot path)
-        if not self._all_initialized:
+        if self._need_reset:
             is_first_push = self._num_pushes == 0
             if is_first_push.any().item():
                 self._buffer[:, is_first_push] = data[is_first_push]
             else:
                 # All batches now initialized, skip this check in future calls
-                self._all_initialized = True
+                self._need_reset = False
         # increment number of number of pushes for all batches
         self._num_pushes += 1
 
@@ -167,7 +167,7 @@ class CircularBuffer:
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
         # check if the buffer is empty
-        if not self._all_initialized:
+        if self._need_reset:
             if self._buffer is None or (self._num_pushes == 0).any().item():
                 raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
 
