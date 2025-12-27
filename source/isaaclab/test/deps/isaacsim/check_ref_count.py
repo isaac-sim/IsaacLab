@@ -38,12 +38,10 @@ import gc
 import logging
 import torch  # noqa: F401
 
+import isaacsim.core.utils.nucleus as nucleus_utils
+import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
-
-import isaaclab.sim.utils.prims as prim_utils
-
-import utils.nucleus as nucleus_utils
 
 # import logger
 logger = logging.getLogger(__name__)
