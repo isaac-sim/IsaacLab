@@ -58,6 +58,7 @@ Guidelines for modifications:
 * Calvin Yu
 * Cathy Y. Li
 * Cheng-Rong Lai
+* Chengyi Lux Zhang
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
@@ -157,6 +158,7 @@ Guidelines for modifications:
 * Yanzi Zhu
 * Yijie Guo
 * Yohan Choi
+* Yufeng Chi
 * Yujian Zhang
 * Yun Liu
 * Zehao Wang
