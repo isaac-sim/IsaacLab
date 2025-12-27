@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Sdf, Usd
 
-import isaaclab.sim.utils.prims as prim_utils
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone, get_current_stage
+from isaaclab.sim.utils import attach_stage_to_usd_context, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -89,7 +88,7 @@ def spawn_camera(
 
     # spawn camera if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
+        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 

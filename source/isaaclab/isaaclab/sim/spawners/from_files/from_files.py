@@ -11,8 +11,6 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
-import isaaclab.sim.utils.prims as prim_utils
-
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
     import Semantics
@@ -20,8 +18,17 @@ except ModuleNotFoundError:
     from pxr import Semantics
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
-from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
+from isaaclab.sim.utils import (
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    create_prim,
+    get_current_stage,
+    get_first_matching_child_prim,
+    is_current_stage_in_memory,
+    select_usd_variants,
+    set_prim_visibility,
+)
 from isaaclab.utils.assets import check_usd_path_with_timeout
 
 if TYPE_CHECKING:
@@ -196,7 +203,7 @@ def spawn_ground_plane(
 
     # Spawn Ground-plane
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -204,7 +211,7 @@ def spawn_ground_plane(
     if cfg.physics_material is not None:
         cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         # Apply physics material to ground plane
-        collision_prim = prim_utils.get_first_matching_child_prim(
+        collision_prim = get_first_matching_child_prim(
             prim_path,
             predicate=lambda _prim: _prim.GetTypeName() == "Plane",
             stage=stage,
@@ -266,7 +273,7 @@ def spawn_ground_plane(
             sem.CreateSemanticDataAttr().Set(semantic_value)
 
     # Apply visibility
-    prim_utils.set_prim_visibility(prim, cfg.visible)
+    set_prim_visibility(prim, cfg.visible)
 
     # return the prim
     return prim
@@ -323,7 +330,7 @@ def _spawn_from_usd_file(
     # spawn asset if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
         # add prim as reference to stage
-        prim_utils.create_prim(
+        create_prim(
             prim_path,
             usd_path=usd_path,
             translation=translation,

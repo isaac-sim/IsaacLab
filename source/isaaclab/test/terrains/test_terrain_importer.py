@@ -27,7 +27,7 @@ from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import Usd, UsdGeom
 
-import isaaclab.sim.utils.prims as prim_utils
+import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
@@ -289,7 +289,7 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # -- Ball geometry
         enable_extension("omni.kit.primitive.mesh")
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+        sim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
         # -- Ball physics
         SingleRigidPrim(
             prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)

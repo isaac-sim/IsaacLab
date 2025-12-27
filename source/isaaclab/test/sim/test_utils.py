@@ -19,8 +19,6 @@ import pytest
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
@@ -29,32 +27,32 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 def test_setup_teardown():
     """Create a blank new stage for each test."""
     # Setup: Create a new stage
-    stage_utils.create_new_stage()
-    stage_utils.update_stage()
+    sim_utils.create_new_stage()
+    sim_utils.update_stage()
 
     # Yield for the test
     yield
 
     # Teardown: Clear stage after each test
-    stage_utils.clear_stage()
+    sim_utils.clear_stage()
 
 
 def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene
-    prim_utils.create_prim("/World/Floor")
-    prim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
-    prim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
+    sim_utils.create_prim("/World/Floor")
+    sim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
 
     # test
-    isaac_sim_result = prim_utils.get_all_matching_child_prims("/World")
+    isaac_sim_result = sim_utils.get_all_matching_child_prims("/World")
     isaaclab_result = sim_utils.get_all_matching_child_prims("/World")
     assert isaac_sim_result == isaaclab_result
 
     # add articulation root prim -- this asset has instanced prims
     # note: isaac sim function does not support instanced prims so we add it here
     #  after the above test for the above test to still pass.
-    prim_utils.create_prim(
+    sim_utils.create_prim(
         "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
 
@@ -78,14 +76,14 @@ def test_get_all_matching_child_prims():
 def test_get_first_matching_child_prim():
     """Test get_first_matching_child_prim() function."""
     # create scene
-    prim_utils.create_prim("/World/Floor")
-    prim_utils.create_prim(
+    sim_utils.create_prim("/World/Floor")
+    sim_utils.create_prim(
         "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
-    prim_utils.create_prim(
+    sim_utils.create_prim(
         "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
-    prim_utils.create_prim(
+    sim_utils.create_prim(
         "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
 
@@ -107,16 +105,14 @@ def test_get_first_matching_child_prim():
 def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
-    prim_utils.create_prim("/World")
-    prim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    prim_utils.create_prim(
-        "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
-    )
+    sim_utils.create_prim("/World")
+    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
+    sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     if "4.5" in ISAAC_NUCLEUS_DIR:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
     else:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-    prim_utils.create_prim("/World/Franka_Isaac", usd_path=franka_usd)
+    sim_utils.create_prim("/World/Franka_Isaac", usd_path=franka_usd)
 
     # test
     assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None
@@ -132,7 +128,7 @@ def test_find_global_fixed_joint_prim():
 
 def test_select_usd_variants():
     """Test select_usd_variants() function."""
-    stage = stage_utils.get_current_stage()
+    stage = sim_utils.get_current_stage()
     prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
     stage.SetDefaultPrim(prim)
 
@@ -165,7 +161,7 @@ def test_resolve_prim_pose():
     # create objects
     for i in range(num_objects):
         # simple cubes
-        cube_prim = prim_utils.create_prim(
+        cube_prim = sim_utils.create_prim(
             f"/World/Cubes/instance_{i:02d}",
             "Cube",
             translation=rand_positions[i, 0],
@@ -174,14 +170,14 @@ def test_resolve_prim_pose():
             attributes={"size": rand_widths[i]},
         )
         # xform hierarchy
-        xform_prim = prim_utils.create_prim(
+        xform_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}",
             "Xform",
             translation=rand_positions[i, 1],
             orientation=rand_quats[i, 1],
             scale=rand_scales[i, 1],
         )
-        geometry_prim = prim_utils.create_prim(
+        geometry_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/geometry",
             "Sphere",
             translation=rand_positions[i, 2],
@@ -189,7 +185,7 @@ def test_resolve_prim_pose():
             scale=rand_scales[i, 2],
             attributes={"radius": rand_widths[i]},
         )
-        dummy_prim = prim_utils.create_prim(
+        dummy_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/dummy",
             "Sphere",
         )
@@ -267,7 +263,7 @@ def test_resolve_prim_scale():
     # create objects
     for i in range(num_objects):
         # simple cubes
-        cube_prim = prim_utils.create_prim(
+        cube_prim = sim_utils.create_prim(
             f"/World/Cubes/instance_{i:02d}",
             "Cube",
             translation=rand_positions[i, 0],
@@ -275,20 +271,20 @@ def test_resolve_prim_scale():
             attributes={"size": rand_widths[i]},
         )
         # xform hierarchy
-        xform_prim = prim_utils.create_prim(
+        xform_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}",
             "Xform",
             translation=rand_positions[i, 1],
             scale=rand_scales[i, 1],
         )
-        geometry_prim = prim_utils.create_prim(
+        geometry_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/geometry",
             "Sphere",
             translation=rand_positions[i, 2],
             scale=rand_scales[i, 2],
             attributes={"radius": rand_widths[i]},
         )
-        dummy_prim = prim_utils.create_prim(
+        dummy_prim = sim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/dummy",
             "Sphere",
         )

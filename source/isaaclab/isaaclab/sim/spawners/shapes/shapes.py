@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd
 
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, get_current_stage
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -283,7 +282,7 @@ def _spawn_geom_from_prim_type(
 
     # spawn geometry if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
+        create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -292,7 +291,7 @@ def _spawn_geom_from_prim_type(
     mesh_prim_path = geom_prim_path + "/mesh"
 
     # create the geometry prim
-    prim_utils.create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
+    create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
     # apply collision properties
     if cfg.collision_props is not None:
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
