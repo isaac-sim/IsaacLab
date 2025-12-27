@@ -29,12 +29,17 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 @pytest.fixture
 def sim():
     """Create a simulation context."""
+    # create stage in memory
     cfg = SimulationCfg(create_stage_in_memory=True)
     sim = SimulationContext(cfg=cfg)
+    # update stage
     sim_utils.update_stage()
+    # yield simulation context
     yield sim
+    # stop simulation
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()
+    # clear simulation context
     sim.clear()
     sim.clear_all_callbacks()
     sim.clear_instance()
