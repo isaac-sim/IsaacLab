@@ -23,7 +23,6 @@ import pytest
 
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
-from isaaclab.sim.utils.prims import is_prim_path_valid
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])
@@ -44,22 +43,25 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
 @pytest.mark.parametrize("add_ground_plane", [True, False])
 def test_build_simulation_context_ground_plane(add_ground_plane):
     """Test that the simulation context is built with the correct ground plane."""
-    with build_simulation_context(add_ground_plane=add_ground_plane) as _:
+    with build_simulation_context(add_ground_plane=add_ground_plane) as sim:
         # Ensure that ground plane got added
-        assert is_prim_path_valid("/World/defaultGroundPlane") == add_ground_plane
+        if add_ground_plane:
+            assert sim.stage.GetPrimAtPath("/World/defaultGroundPlane").IsValid()
+        else:
+            assert not sim.stage.GetPrimAtPath("/World/defaultGroundPlane").IsValid()
 
 
 @pytest.mark.parametrize("add_lighting", [True, False])
 @pytest.mark.parametrize("auto_add_lighting", [True, False])
 def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_lighting):
     """Test that the simulation context is built with the correct lighting."""
-    with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as _:
+    with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as sim:
         if auto_add_lighting or add_lighting:
             # Ensure that dome light got added
-            assert is_prim_path_valid("/World/defaultDomeLight")
+            assert sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
         else:
             # Ensure that dome light didn't get added
-            assert not is_prim_path_valid("/World/defaultDomeLight")
+            assert not sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
 
 
 def test_build_simulation_context_cfg():

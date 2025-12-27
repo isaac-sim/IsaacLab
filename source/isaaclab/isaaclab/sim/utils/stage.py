@@ -17,7 +17,7 @@ from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
 from omni.usd.commands import DeletePrimsCommand
-from pxr import Sdf, Usd, UsdGeom, UsdUtils
+from pxr import Sdf, Usd, UsdUtils
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -27,25 +27,6 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
 sim_stage._context = _context
-
-AXES_TOKEN = {
-    "X": UsdGeom.Tokens.x,
-    "x": UsdGeom.Tokens.x,
-    "Y": UsdGeom.Tokens.y,
-    "y": UsdGeom.Tokens.y,
-    "Z": UsdGeom.Tokens.z,
-    "z": UsdGeom.Tokens.z,
-}
-"""Mapping from axis name to axis USD token
-
-    >>> import isaacsim.core.utils.constants as constants_utils
-    >>>
-    >>> # get the x-axis USD token
-    >>> constants_utils.AXES_TOKEN['x']
-    X
-    >>> constants_utils.AXES_TOKEN['X']
-    X
-"""
 
 
 def attach_stage_to_usd_context(attaching_early: bool = False):
@@ -241,50 +222,6 @@ def update_stage() -> None:
     omni.kit.app.get_app_interface().update()
 
 
-# TODO: make a generic util for setting all layer properties
-def set_stage_up_axis(axis: str = "z") -> None:
-    """Change the up axis of the current stage
-
-    Args:
-        axis (UsdGeom.Tokens, optional): valid values are ``"x"``, ``"y"`` and ``"z"``
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # set stage up axis to Y-up
-        >>> stage_utils.set_stage_up_axis("y")
-    """
-    stage = get_current_stage()
-    if stage is None:
-        raise Exception("There is no stage currently opened")
-    rootLayer = stage.GetRootLayer()
-    rootLayer.SetPermissionToEdit(True)
-    with Usd.EditContext(stage, rootLayer):
-        UsdGeom.SetStageUpAxis(stage, AXES_TOKEN[axis])
-
-
-def get_stage_up_axis() -> str:
-    """Get the current up-axis of USD stage.
-
-    Returns:
-        str: The up-axis of the stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_up_axis()
-        Z
-    """
-    stage = get_current_stage()
-    return UsdGeom.GetStageUpAxis(stage)
-
-
 def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer
 
@@ -337,35 +274,6 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
         omni.kit.app.get_app_interface().update()
-
-
-def print_stage_prim_paths(fabric: bool = False) -> None:
-    """Traverses the stage and prints all prim (hidden or not) paths.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> stage_utils.print_stage_prim_paths()
-        /Render
-        /World
-        /World/Cube
-        /World/Cube_01
-        /World/Cube_02
-        /OmniverseKit_Persp
-        /OmniverseKit_Front
-        /OmniverseKit_Top
-        /OmniverseKit_Right
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    from .prims import get_prim_path
-
-    for prim in traverse_stage(fabric=fabric):
-        prim_path = get_prim_path(prim)
-        print(prim_path)
 
 
 def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
@@ -589,35 +497,6 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
     return result
 
 
-def traverse_stage(fabric=False) -> typing.Iterable:
-    """Traverse through prims (hidden or not) in the opened Usd stage.
-
-    Returns:
-        Generator which yields prims from the stage in depth-first-traversal order.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Traverse through prims in the stage
-        >>> for prim in stage_utils.traverse_stage():
-        >>>     print(prim)
-        Usd.Prim(</World>)
-        Usd.Prim(</World/Cube>)
-        Usd.Prim(</World/Cube_01>)
-        Usd.Prim(</World/Cube_02>)
-        Usd.Prim(</OmniverseKit_Persp>)
-        Usd.Prim(</OmniverseKit_Front>)
-        Usd.Prim(</OmniverseKit_Top>)
-        Usd.Prim(</OmniverseKit_Right>)
-        Usd.Prim(</Render>)
-    """
-    return get_current_stage(fabric=fabric).Traverse()
-
-
 def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
@@ -639,76 +518,6 @@ def is_stage_loading() -> bool:
     else:
         _, _, loading = context.get_stage_loading_status()
         return loading > 0
-
-
-def set_stage_units(stage_units_in_meters: float) -> None:
-    """Set the stage meters per unit
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Args:
-        stage_units_in_meters (float): units for stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.set_stage_units(1.0)
-    """
-    if get_current_stage() is None:
-        raise Exception("There is no stage currently opened, init_stage needed before calling this func")
-    with Usd.EditContext(get_current_stage(), get_current_stage().GetRootLayer()):
-        UsdGeom.SetStageMetersPerUnit(get_current_stage(), stage_units_in_meters)
-
-
-def get_stage_units() -> float:
-    """Get the stage meters per unit currently set
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Returns:
-        float: current stage meters per unit
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_units()
-        1.0
-    """
-    return UsdGeom.GetStageMetersPerUnit(get_current_stage())
 
 
 def get_next_free_path(path: str, parent: str = None) -> str:
@@ -740,49 +549,3 @@ def get_next_free_path(path: str, parent: str = None) -> str:
     else:
         path = omni.usd.get_stage_next_free_path(get_current_stage(), path, True)
     return path
-
-
-def remove_deleted_references():
-    """Clean up deleted references in the current USD stage.
-
-    Removes any deleted items from both payload and references lists
-    for all prims in the stage's root layer. Prints information about
-    any deleted items that were cleaned up.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>> stage_utils.remove_deleted_references()
-        Removed 2 deleted payload items from </World/Robot>
-        Removed 1 deleted reference items from </World/Scene>
-    """
-    stage = get_current_stage()
-    deleted_count = 0
-
-    for prim in stage.Traverse():
-        prim_spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
-        if not prim_spec:
-            continue
-
-        # Clean payload references
-        payload_list = prim_spec.GetInfo("payload")
-        if payload_list.deletedItems:
-            deleted_payload_count = len(payload_list.deletedItems)
-            print(f"Removed {deleted_payload_count} deleted payload items from {prim.GetPath()}")
-            payload_list.deletedItems = []
-            prim_spec.SetInfo("payload", payload_list)
-            deleted_count += deleted_payload_count
-
-        # Clean prim references
-        references_list = prim_spec.GetInfo("references")
-        if references_list.deletedItems:
-            deleted_ref_count = len(references_list.deletedItems)
-            print(f"Removed {deleted_ref_count} deleted reference items from {prim.GetPath()}")
-            references_list.deletedItems = []
-            prim_spec.SetInfo("references", references_list)
-            deleted_count += deleted_ref_count
-
-    if deleted_count == 0:
-        print("No deleted references or payloads found in the stage.")

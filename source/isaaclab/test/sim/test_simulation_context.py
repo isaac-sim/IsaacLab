@@ -17,7 +17,6 @@ import numpy as np
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -70,8 +69,8 @@ def test_initialization():
     assert sim.get_rendering_dt() == cfg.dt * cfg.render_interval
     assert not sim.has_rtx_sensors()
     # check valid paths
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX")
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial")
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX").IsValid()
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX/defaultMaterial").IsValid()
     # check valid gravity
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag

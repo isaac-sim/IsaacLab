@@ -11,7 +11,7 @@ from pxr import Usd
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, get_current_stage
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -50,11 +50,13 @@ def spawn_sphere(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # spawn sphere if it doesn't exist.
     attributes = {"radius": cfg.radius}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", attributes, translation, orientation)
+    _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", attributes, translation, orientation, stage=stage)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -94,14 +96,16 @@ def spawn_cuboid(
     Raises:
         If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # resolve the scale
     size = min(cfg.size)
     scale = [dim / size for dim in cfg.size]
     # spawn cuboid if it doesn't exist.
     attributes = {"size": size}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cube", attributes, translation, orientation, scale)
+    _spawn_geom_from_prim_type(prim_path, cfg, "Cube", attributes, translation, orientation, scale, stage=stage)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -137,11 +141,13 @@ def spawn_cylinder(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # spawn cylinder if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
+    _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation, stage=stage)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -177,11 +183,13 @@ def spawn_capsule(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # spawn capsule if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
+    _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation, stage=stage)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -217,11 +225,13 @@ def spawn_cone(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # spawn cone if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
+    _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation, stage=stage)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 """
@@ -237,6 +247,7 @@ def _spawn_geom_from_prim_type(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
+    stage: Usd.Stage | None = None,
 ):
     """Create a USDGeom-based prim with the given attributes.
 
@@ -262,12 +273,16 @@ def _spawn_geom_from_prim_type(
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
+        stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
 
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = stage if stage is not None else get_current_stage()
+
     # spawn geometry if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")

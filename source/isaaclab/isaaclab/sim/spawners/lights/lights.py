@@ -11,6 +11,7 @@ from pxr import Usd, UsdLux
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import lights_cfg
@@ -45,8 +46,10 @@ def spawn_light(
     Raises:
         ValueError:  When a prim already exists at the specified prim path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
     # check if prim already exists
-    if prim_utils.is_prim_path_valid(prim_path):
+    if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
     prim = prim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
