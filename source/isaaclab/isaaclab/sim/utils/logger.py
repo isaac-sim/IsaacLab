@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ColoredFormatter(logging.Formatter):
     """Colored formatter for logging.
-    
+
     This formatter colors the log messages based on the log level.
     """
 
@@ -48,7 +48,7 @@ class ColoredFormatter(logging.Formatter):
 
 class RateLimitFilter(logging.Filter):
     """Custom rate-limited warning filter.
-    
+
     This filter allows warning-level messages only once every few seconds per message.
     This is useful to avoid flooding the log with the same message multiple times.
     """
