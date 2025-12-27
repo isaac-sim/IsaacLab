@@ -12,19 +12,21 @@ from omni.client import Result
 logger = logging.getLogger(__name__)
 
 DEFAULT_ASSET_ROOT_PATH_SETTING = "/persistent/isaac/asset_root/default"
-DEFAULT_ASSET_ROOT_TIMEOUT_SETTING = "/persistent/isaac/asset_root/timeout"
+"""The setting name for the default path to the Isaac Sim assets on a Nucleus server."""
 
+DEFAULT_ASSET_ROOT_TIMEOUT_SETTING = "/persistent/isaac/asset_root/timeout"
+"""The setting name for the default timeout for checking the Isaac Sim assets on a Nucleus server."""
 
 def check_server(server: str, path: str, timeout: float = 10.0) -> bool:
-    """Check a specific server for a path
+    """Check a specific server for a path.
 
     Args:
-        server (str): Name of Nucleus server
-        path (str): Path to search
-        timeout (float): Default value: 10 seconds
+        server: The name of the Nucleus server
+        path: The path to search
+        timeout: The timeout for the check operation. Defaults to 10 seconds.
 
     Returns:
-        bool: True if folder is found
+        True if the path is found, False otherwise.
     """
     logger.info(f"Checking path: {server}{path}")
     # Increase hang detection timeout
@@ -39,29 +41,30 @@ def check_server(server: str, path: str, timeout: float = 10.0) -> bool:
 
 
 def get_assets_root_path(*, skip_check: bool = False) -> str:
-    """Tries to find the root path to the Isaac Sim assets on a Nucleus server
+    """Tries to find the root path to the Isaac Sim assets on a Nucleus server.
 
     Args:
-        skip_check (bool): If True, skip the checking step to verify that the resolved path exists.
-
-    Raises:
-        RuntimeError: if the root path setting is not set.
-        RuntimeError: if the root path is not found.
+        skip_check: If True, skip the checking step to verify that the resolved path exists.
+            Defaults to False.
 
     Returns:
-        url (str): URL of Nucleus server with root path to assets folder.
-    """
+        The URL of the Nucleus server with the root path to the assets folder.
 
-    # get timeout
+    Raises:
+        RuntimeError: If the assets root path is not set or if the root path is not found.
+    """
+    # get the timeout for the check operation
     timeout = carb.settings.get_settings().get(DEFAULT_ASSET_ROOT_TIMEOUT_SETTING)
     if not isinstance(timeout, (int, float)):
         timeout = 10.0
 
     # resolve path
-    logger.info(f"Check {DEFAULT_ASSET_ROOT_PATH_SETTING} setting")
+    logger.info(f"Checking '{DEFAULT_ASSET_ROOT_PATH_SETTING}' setting...")
     default_asset_root = carb.settings.get_settings().get(DEFAULT_ASSET_ROOT_PATH_SETTING)
     if not default_asset_root:
-        raise RuntimeError(f"The '{DEFAULT_ASSET_ROOT_PATH_SETTING}' setting is not set")
+        raise RuntimeError(f"The setting '{DEFAULT_ASSET_ROOT_PATH_SETTING}' is not set")
+
+    # if skip_check is True, return the default asset root path
     if skip_check:
         return default_asset_root
 
