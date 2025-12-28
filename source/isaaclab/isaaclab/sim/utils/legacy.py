@@ -34,7 +34,7 @@ def add_reference_to_stage(usd_path: str, path: str, prim_type: str = "Xform") -
     """Adds a USD reference to the stage at the specified prim path.
 
     .. deprecated:: 2.3.0
-        This function is deprecated. Use :func:`isaaclab.sim.utils.prims.add_usd_reference` instead.
+        This function is deprecated. Please use the :func:`isaaclab.sim.utils.prims.add_usd_reference` function instead.
 
     Args:
         usd_path: The path to the USD file to reference.
@@ -337,7 +337,7 @@ def get_next_free_path(path: str) -> str:
     """Gets a new prim path that doesn't exist in the stage given a base path.
 
     .. deprecated:: 2.3.0
-        This function is deprecated. Use :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` instead.
+        This function is deprecated. Please use the :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` function instead.
 
     Args:
         path: The base prim path to check.
