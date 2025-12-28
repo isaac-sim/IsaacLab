@@ -7,7 +7,7 @@ import logging
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.sim.utils.stage import get_current_stage
+from .stage import get_current_stage
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 
 
 def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", overwrite: bool = True) -> None:
-    """Apply semantic labels to a prim using the Semantics.LabelsAPI.
+    """Apply semantic labels to a prim using the :class:`Semantics.LabelsAPI`.
 
     Args:
-        prim (Usd.Prim): Usd Prim to add or update labels on.
-        labels (list): The list of labels to apply.
-        instance_name (str, optional): The name of the semantic instance. Defaults to "class".
-        overwrite (bool, optional): If True (default), existing labels for this instance are replaced.
-                                   If False, the new labels are appended to existing ones (if any).
+        prim: The USD prim to add or update labels on.
+        labels: The list of labels to apply.
+        instance_name: The name of the semantic instance. Defaults to "class".
+        overwrite: Whether to overwrite existing labels for this instance. If False,
+          the new labels are appended to existing ones (if any). Defaults to True.
     """
     import omni.replicator.core.functional as F
 
@@ -36,14 +36,14 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
-    """Returns semantic labels (Semantics.LabelsAPI) applied to a prim.
+    """Returns semantic labels (:class:`Semantics.LabelsAPI`) applied to a prim.
 
     Args:
-        prim (Usd.Prim): Prim to return labels for.
+        prim: The USD prim to return labels for.
 
     Returns:
-        dict[str, list[str]]: Dictionary mapping instance names to a list of labels.
-                              Returns an empty dict if no LabelsAPI instances are found.
+        A dictionary mapping instance names to a list of labels.
+        If no :attr:`LabelsAPI` instances are found, it returns an empty dict.
     """
     result = {}
     for schema_name in prim.GetAppliedSchemas():
@@ -59,17 +59,18 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     return result
 
 
-def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False) -> None:
-    """Removes semantic labels (Semantics.LabelsAPI) from a prim.
+def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
+    """Removes semantic labels (:class:`Semantics.LabelsAPI`) from a prim.
 
     Args:
-        prim (Usd.Prim): Prim to remove labels from.
-        instance_name (str | None, optional): Specific instance name to remove.
-                                              If None (default), removes *all* LabelsAPI instances.
-        include_descendants (bool, optional): Also traverse children and remove labels recursively. Defaults to False.
+        prim: The USD prim to remove labels from.
+        instance_name: The specific instance name to remove. Defaults to None, in which case
+            *all* :attr:`LabelsAPI` instances are removed.
+        include_descendants: Whether to also traverse children and remove labels recursively.
+            Defaults to False.
     """
 
-    def remove_single_prim_labels(target_prim: Usd.Prim):
+    def _remove_single_prim_labels(target_prim: Usd.Prim):
         schemas_to_remove = []
         for schema_name in target_prim.GetAppliedSchemas():
             if schema_name.startswith("SemanticsLabelsAPI:"):
@@ -82,36 +83,41 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
 
     if include_descendants:
         for p in Usd.PrimRange(prim):
-            remove_single_prim_labels(p)
+            _remove_single_prim_labels(p)
     else:
-        remove_single_prim_labels(prim)
+        _remove_single_prim_labels(prim)
 
 
 def check_missing_labels(prim_path: str | None = None) -> list[str]:
-    """Returns a list of prim paths of meshes with missing semantic labels (Semantics.LabelsAPI).
+    """Checks whether the prim and its descendants at the provided path have missing
+    semantic labels (:class:`Semantics.LabelsAPI`).
+
+    Note:
+        The function checks only prims that are "Mesh" type.
 
     Args:
-        prim_path (str | None): This will check Prim path and its childrens' labels. If None, checks the whole stage.
+        prim_path: The prim path to search from. If None, the entire stage is inspected.
 
     Returns:
-        list[str]: Prim paths of meshes with no LabelsAPI applied.
+        A list containing prim paths to prims with no :class:`LabelsAPI` applied.
     """
-    prim_paths = []
+    # check if stage is valid
     stage = get_current_stage()
     if stage is None:
-        logger.warning("Invalid stage, skipping label check")
-        return prim_paths
+        logger.warning("Invalid stage. Skipping check for semantic labels.")
+        return []
 
+    # check if inspect path is valid
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         # Allow None prim_path for whole stage check, warn if path specified but not found
         if prim_path:
-            logger.warning(f"Prim path not found: {prim_path}")
-        return prim_paths
+            logger.warning(f"No prim found at path '{prim_path}'. Returning from check for semantic labels.")
+        return []
 
-    prims_to_check = Usd.PrimRange(start_prim)
-
-    for prim in prims_to_check:
+    # iterate over prim and its children
+    prim_paths = []
+    for prim in Usd.PrimRange(start_prim):
         if prim.IsA(UsdGeom.Mesh):
             has_any_label = False
             for schema_name in prim.GetAppliedSchemas():
@@ -120,34 +126,41 @@ def check_missing_labels(prim_path: str | None = None) -> list[str]:
                     break
             if not has_any_label:
                 prim_paths.append(prim.GetPath().pathString)
+
     return prim_paths
 
 
 def check_incorrect_labels(prim_path: str | None = None) -> list[list[str]]:
-    """Returns a list of [prim_path, label] for meshes where at least one semantic label (LabelsAPI)
+    """Check whether the prim and its descendants at the provided path have incorrect
+    semantic labels (:class:`Semantics.LabelsAPI`).
+
+    A label is considered incorrect if it is not found within the prim's path string
+    (case-insensitive, ignoring '_' and '-'). For example, if the prim path is "/World/Cube",
+    and the label is "cube", it is considered incorrect because it is not found within the prim's
+    path string.
+    
+    Returns a list of [prim_path, label] for meshes where at least one semantic label (LabelsAPI)
        is not found within the prim's path string (case-insensitive, ignoring '_' and '-').
 
     Args:
-        prim_path (str | None): This will check Prim path and its childrens' labels. If None, checks the whole stage.
+        prim_path: This will check Prim path and its childrens' labels. If None, checks the whole stage.
 
     Returns:
-        list[list[str]]: List containing pairs of [prim_path, first_incorrect_label].
+        List containing pairs of [prim_path, first_incorrect_label].
     """
-    incorrect_pairs = []
     stage = get_current_stage()
     if stage is None:
         logger.warning("Invalid stage, skipping label check")
-        return incorrect_pairs
+        return []
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         if prim_path:
             logger.warning(f"Prim path not found: {prim_path}")
-        return incorrect_pairs
+        return []
 
-    prims_to_check = Usd.PrimRange(start_prim)
-
-    for prim in prims_to_check:
+    incorrect_pairs = []
+    for prim in Usd.PrimRange(start_prim):
         if prim.IsA(UsdGeom.Mesh):
             labels_dict = get_labels(prim)
             if labels_dict:
@@ -173,11 +186,11 @@ def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
     """Returns a dictionary of semantic labels (Semantics.LabelsAPI) and their corresponding count.
 
     Args:
-        prim_path (str | None): This will check Prim path and its childrens' labels. If None, checks the whole stage.
+        prim_path: This will check Prim path and its childrens' labels. If None, checks the whole stage.
 
     Returns:
-        dict[str, int]: Dictionary mapping individual labels to their total count across all instances.
-                       Includes a 'missing_labels' count for meshes with no LabelsAPI.
+        Dictionary mapping individual labels to their total count across all instances.
+        Includes a 'missing_labels' count for meshes with no LabelsAPI.
     """
     labels_counter = {"missing_labels": 0}
     stage = get_current_stage()
@@ -191,9 +204,7 @@ def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
             logger.warning(f"Prim path not found: {prim_path}")
         return labels_counter
 
-    prims_to_check = Usd.PrimRange(start_prim)
-
-    for prim in prims_to_check:
+    for prim in Usd.PrimRange(start_prim):
         if prim.IsA(UsdGeom.Mesh):
             labels_dict = get_labels(prim)
             if not labels_dict:
@@ -217,12 +228,12 @@ def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool =
     new 'labels' list. The old SemanticsAPI is always removed after upgrading.
 
     Args:
-        prim (Usd.Prim): The starting prim to upgrade.
-        include_descendants (bool, optional): If True, upgrades the prim and all its descendants.
+        prim: The starting prim to upgrade.
+        include_descendants: If True, upgrades the prim and all its descendants.
                                      If False (default), upgrades only the specified prim.
 
     Returns:
-        int: The total number of SemanticsAPI instances successfully upgraded to LabelsAPI.
+        The total number of SemanticsAPI instances successfully upgraded to LabelsAPI.
     """
     total_upgraded = 0
 

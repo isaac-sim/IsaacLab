@@ -506,10 +506,12 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
     # get stage handle
     if stage is None:
         stage = get_current_stage()
+
+    # normalize legacy wildcard pattern
+    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
 
     # check prim path is global
     if not prim_path_regex.startswith("/"):
