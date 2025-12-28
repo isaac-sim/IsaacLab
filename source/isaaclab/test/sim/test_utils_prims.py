@@ -18,11 +18,11 @@ import numpy as np
 import torch
 
 import pytest
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -186,166 +186,6 @@ def test_move_prim():
     assert prim.GetPrimPath() == "/World/TestMove2/Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
     assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
-
-
-"""
-USD Stage traversal.
-"""
-
-
-def test_get_next_free_prim_path():
-    """Test get_next_free_prim_path() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
-
-    # test
-    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor")
-    assert isaaclab_result == "/World/Floor_01"
-
-    # create another prim
-    sim_utils.create_prim("/World/Floor/Box_01", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-
-    # test again
-    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor/Box")
-    assert isaaclab_result == "/World/Floor/Box_02"
-
-
-def test_get_first_matching_ancestor_prim():
-    """Test get_first_matching_ancestor_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Floor/Box/Sphere", "Sphere", attributes={"radius": 1e3})
-
-    # test with input prim not having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cube"
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
-
-    # test with input prim having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box", predicate=lambda x: x.GetTypeName() == "Cube"
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
-
-    # test with no predicate match
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cone"
-    )
-    assert isaaclab_result is None
-
-
-def test_get_all_matching_child_prims():
-    """Test get_all_matching_child_prims() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
-
-    # add articulation root prim -- this asset has instanced prims
-    # note: isaac sim function does not support instanced prims so we add it here
-    #  after the above test for the above test to still pass.
-    sim_utils.create_prim(
-        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
-    )
-
-    # test with predicate
-    isaaclab_result = sim_utils.get_all_matching_child_prims("/World", predicate=lambda x: x.GetTypeName() == "Cube")
-    assert len(isaaclab_result) == 1
-    assert isaaclab_result[0].GetPrimPath() == "/World/Floor/Box"
-
-    # test with predicate and instanced prims
-    isaaclab_result = sim_utils.get_all_matching_child_prims(
-        "/World/Franka/panda_hand/visuals", predicate=lambda x: x.GetTypeName() == "Mesh"
-    )
-    assert len(isaaclab_result) == 1
-    assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
-
-    # test valid path
-    with pytest.raises(ValueError):
-        sim_utils.get_all_matching_child_prims("World/Room")
-
-
-def test_get_first_matching_child_prim():
-    """Test get_first_matching_child_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim(
-        "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
-    )
-    sim_utils.create_prim(
-        "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
-    )
-    sim_utils.create_prim(
-        "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
-    )
-
-    # test
-    isaaclab_result = sim_utils.get_first_matching_child_prim(
-        "/World", predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka"
-
-    # test with instanced prims
-    isaaclab_result = sim_utils.get_first_matching_child_prim(
-        "/World/env_1/Franka", predicate=lambda prim: prim.GetTypeName() == "Mesh"
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
-
-
-def test_find_global_fixed_joint_prim():
-    """Test find_global_fixed_joint_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World")
-    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
-    if "4.5" in ISAAC_NUCLEUS_DIR:
-        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
-    else:
-        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-    sim_utils.create_prim("/World/Franka_Isaac", usd_path=franka_usd)
-
-    # test
-    assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac") is not None
-
-    # make fixed joint disabled manually
-    joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")
-    joint_prim.GetJointEnabledAttr().Set(False)
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True) is None
-
-
-"""
-USD references and variants.
-"""
-
-
-def test_select_usd_variants():
-    """Test select_usd_variants() function."""
-    stage = sim_utils.get_current_stage()
-    prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
-    stage.SetDefaultPrim(prim)
-
-    # Create the variant set and add your variants to it.
-    variants = ["red", "blue", "green"]
-    variant_set = prim.GetVariantSets().AddVariantSet("colors")
-    for variant in variants:
-        variant_set.AddVariant(variant)
-
-    # Set the variant selection
-    sim_utils.utils.select_usd_variants("/World", {"colors": "red"}, stage)
-
-    # Check if the variant selection is correct
-    assert variant_set.GetVariantSelection() == "red"
 
 
 """
@@ -513,3 +353,27 @@ def test_resolve_prim_scale():
         scale = sim_utils.resolve_prim_scale(dummy_prim)
         scale = np.array(scale)
         np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
+
+
+"""
+USD references and variants.
+"""
+
+
+def test_select_usd_variants():
+    """Test select_usd_variants() function."""
+    stage = sim_utils.get_current_stage()
+    prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
+    stage.SetDefaultPrim(prim)
+
+    # Create the variant set and add your variants to it.
+    variants = ["red", "blue", "green"]
+    variant_set = prim.GetVariantSets().AddVariantSet("colors")
+    for variant in variants:
+        variant_set.AddVariant(variant)
+
+    # Set the variant selection
+    sim_utils.utils.select_usd_variants("/World", {"colors": "red"}, stage)
+
+    # Check if the variant selection is correct
+    assert variant_set.GetVariantSelection() == "red"

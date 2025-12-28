@@ -8,14 +8,21 @@
   .. autosummary::
 
     stage
+    queries
     prims
     semantics
-
 
 Stage
 -----
 
 .. automodule:: isaaclab.sim.utils.stage
+  :members:
+  :show-inheritance:
+
+Queries
+-------
+
+.. automodule:: isaaclab.sim.utils.queries
   :members:
   :show-inheritance:
 
