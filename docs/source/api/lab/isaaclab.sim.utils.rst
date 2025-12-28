@@ -11,6 +11,7 @@
     queries
     prims
     semantics
+    legacy
 
 Stage
 -----
@@ -37,5 +38,12 @@ Semantics
 ---------
 
 .. automodule:: isaaclab.sim.utils.semantics
+  :members:
+  :show-inheritance:
+
+Legacy
+------
+
+.. automodule:: isaaclab.sim.utils.legacy
   :members:
   :show-inheritance:
