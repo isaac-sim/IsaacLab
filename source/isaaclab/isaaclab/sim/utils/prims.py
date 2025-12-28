@@ -276,9 +276,9 @@ def get_first_matching_ancestor_prim(
         The first ancestor prim that passes the predicate. If no ancestor prim passes the predicate, it returns None.
 
     Raises:
-        ValueError: If the prim path is not global (i.e: does not start with '/').    
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-     # get stage handle
+    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
@@ -292,7 +292,7 @@ def get_first_matching_ancestor_prim(
     # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    
+
     # walk up to find the first matching ancestor prim
     ancestor_prim = prim
     while ancestor_prim and ancestor_prim.IsValid():
@@ -552,106 +552,6 @@ def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = Non
     for prim in output_prims:
         output_prim_paths.append(prim.GetPath().pathString)
     return output_prim_paths
-
-
-def check_prim_implements_apis(
-    prim: Usd.Prim, apis: list[Usd.APISchemaBase] | Usd.APISchemaBase = UsdPhysics.RigidBodyAPI
-) -> bool:
-    """Check if provided primitive implements all required APIs.
-
-    Args:
-        prim: The primitive to check.
-        apis: The API schemas required. Defaults to UsdPhysics.RigidBodyAPI.
-
-    Returns:
-        True if prim implements all APIs. False otherwise.
-    """
-    if not isinstance(apis, list):
-        return prim.HasAPI(apis)
-    else:
-        return all(prim.HasAPI(api) for api in apis)
-
-
-def resolve_pose_relative_to_physx_parent(
-    prim_path_regex: str,
-    implements_apis: list[Usd.APISchemaBase] | Usd.APISchemaBase = UsdPhysics.RigidBodyAPI,
-    *,
-    stage: Usd.Stage | None = None,
-) -> tuple[str, tuple[float, float, float], tuple[float, float, float, float]]:
-    """For some applications, it can be important to identify the closest parent primitive which implements certain APIs
-    in order to retrieve data from PhysX (for example, force information requires more than an XFormPrim). When an object is
-    nested beneath a reference frame which is not represented by a PhysX tensor, it can be useful to extract the relative pose
-    between the primitive and the closest parent implementing the necessary API in the PhysX representation. This function
-    identifies the closest appropriate parent. The fixed transform is computed as ancestor->target (in ancestor
-    /body frame). If the first primitive in the prim_path already implements the necessary APIs, return identity.
-
-    Args:
-        prim_path_regex: A str reflecting a primitive path pattern (e.g. from a cfg).
-
-        .. Note::
-            Only simple wild card expressions are supported (e.g. .*). More complicated expressions (e.g. [0-9]+) are not
-            supported at this time.
-
-        implements_apis: APIs ancestor must implement.
-
-    Returns:
-        A tuple containing:
-
-        - A prim path expression including wildcards for the closest PhysX parent.
-        - A tuple containing the positional offset w.r.t. the closest PhysX parent.
-        - A tuple containing the rotational offset w.r.t. the closest PhysX parent.
-
-    """
-    target_prim = find_first_matching_prim(prim_path_regex, stage)
-
-    if target_prim is None:
-        raise RuntimeError(f"Path: {prim_path_regex} does not match any existing primitives.")
-    # If target prim itself implements all required APIs, we can use it directly.
-    if check_prim_implements_apis(target_prim, implements_apis):
-        return prim_path_regex.replace(".*", "*"), None, None
-    # Walk up to find closest ancestor which implements all required APIs
-    ancestor = target_prim.GetParent()
-    while ancestor and ancestor.IsValid():
-        if check_prim_implements_apis(ancestor, implements_apis):
-            break
-        ancestor = ancestor.GetParent()
-    if not ancestor or not ancestor.IsValid():
-        raise RuntimeError(f"Path '{target_prim.GetPath()}' has no primitive in tree which implements required APIs.")
-    # Compute fixed transform ancestor->target at default time
-    xcache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
-    # Compute relative transform
-    X_ancestor_to_target, __ = xcache.ComputeRelativeTransform(target_prim, ancestor)
-
-    # Extract pos, quat from matrix (right-handed, column major)
-    # Gf decomposes as translation and rotation quaternion
-    t = X_ancestor_to_target.ExtractTranslation()
-    r = X_ancestor_to_target.ExtractRotationQuat()
-
-    fixed_pos_b = (t[0], t[1], t[2])
-    # Convert Gf.Quatf (w, x, y, z) to tensor order [w, x, y, z]
-    fixed_quat_b = (float(r.GetReal()), r.GetImaginary()[0], r.GetImaginary()[1], r.GetImaginary()[2])
-
-    # This restores regex patterns from the original PathPattern in the path to return.
-    # ( Omnikit 18+ may provide a cleaner approach without relying on strings )
-    child_path = target_prim.GetPrimPath()
-    ancestor_path = ancestor.GetPrimPath()
-    rel = child_path.MakeRelativePath(ancestor_path).pathString
-
-    if rel and prim_path_regex.endswith(rel):
-        # Note: This string trimming logic is not robust to all wild card replacements, e.g. [0-9]+ or (a|b).
-        # Remove "/<rel>" or "<rel>" at end
-        cut_len = len(rel)
-        trimmed = prim_path_regex
-        if trimmed.endswith("/" + rel):
-            trimmed = trimmed[: -(cut_len + 1)]
-        else:
-            trimmed = trimmed[:-cut_len]
-        ancestor_path = trimmed
-
-    ancestor_path = ancestor_path.replace(".*", "*")
-
-    return ancestor_path, fixed_pos_b, fixed_quat_b
 
 
 def find_global_fixed_joint_prim(

@@ -64,18 +64,25 @@ def test_get_first_matching_ancestor_prim():
     sim_utils.create_prim("/World/Floor/Box/Sphere", "Sphere", attributes={"radius": 1e3})
 
     # test with input prim not having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cube")
+    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
+        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cube"
+    )
     assert isaaclab_result is not None
     assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
 
     # test with input prim having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box", predicate=lambda x: x.GetTypeName() == "Cube")
+    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
+        "/World/Floor/Box", predicate=lambda x: x.GetTypeName() == "Cube"
+    )
     assert isaaclab_result is not None
     assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
 
     # test with no predicate match
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cone")
+    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
+        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cone"
+    )
     assert isaaclab_result is None
+
 
 def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
