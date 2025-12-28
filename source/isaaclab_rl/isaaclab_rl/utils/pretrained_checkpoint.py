@@ -34,21 +34,21 @@ WORKFLOW_PLAYER = {w: f"scripts/reinforcement_learning/{w}/play.py" for w in WOR
 PRETRAINED_CHECKPOINT_PATH = str(PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR) + "/Isaac/IsaacLab/PretrainedCheckpoints"
 """URL for where we store all the pre-trained checkpoints"""
 
-"""The filename for checkpoints used by the different workflows"""
 WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES = {
     "rl_games": "checkpoint.pth",
     "rsl_rl": "checkpoint.pt",
     "sb3": "checkpoint.zip",
     "skrl": "checkpoint.pt",
 }
+"""The filename for checkpoints used by the different workflows"""
 
-"""Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
     "rl_games": "agent.params.config.name",
     "rsl_rl": "agent.experiment_name",
     "sb3": None,
     "skrl": "agent.agent.experiment.directory",
 }
+"""Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 
 
 def has_pretrained_checkpoints_asset_root_dir() -> bool:
