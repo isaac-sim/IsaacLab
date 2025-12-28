@@ -3,7 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module with logging utilities."""
+"""Sub-module with logging utilities.
+
+To use the logger, you can use the :func:`logging.getLogger` function.
+
+Example:
+    >>> import logging
+    >>> logger = logging.getLogger(__name__)
+    >>> logger.info("This is an info message")
+    >>> logger.warning("This is a warning message")
+    >>> logger.error("This is an error message")
+    >>> logger.critical("This is a critical message")
+    >>> logger.debug("This is a debug message")
+"""
 
 from __future__ import annotations
 
