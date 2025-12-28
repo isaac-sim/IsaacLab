@@ -31,12 +31,6 @@ from .stage import attach_stage_to_usd_context, get_current_stage, get_current_s
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
-
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -1077,14 +1071,10 @@ def clone(func: Callable) -> Callable:
                 # deal with spaces by replacing them with underscores
                 semantic_type_sanitized = semantic_type.replace(" ", "_")
                 semantic_value_sanitized = semantic_value.replace(" ", "_")
-                # set the semantic API for the instance
-                instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-                sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-                # create semantic type and data attributes
-                sem.CreateSemanticTypeAttr()
-                sem.CreateSemanticDataAttr()
-                sem.GetSemanticTypeAttr().Set(semantic_type)
-                sem.GetSemanticDataAttr().Set(semantic_value)
+                # add labels to the prim
+                add_labels(
+                    prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized, overwrite=False
+                )
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas

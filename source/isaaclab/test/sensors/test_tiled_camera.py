@@ -25,12 +25,6 @@ import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
-
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -1397,11 +1391,7 @@ def test_all_annotators_instanceable(setup_camera, device):
             scale=(5.0, 5.0, 5.0),
         )
         prim = stage.GetPrimAtPath(f"/World/Cube_{i}")
-        sem = Semantics.SemanticsAPI.Apply(prim, "Semantics")
-        sem.CreateSemanticTypeAttr()
-        sem.CreateSemanticDataAttr()
-        sem.GetSemanticTypeAttr().Set("class")
-        sem.GetSemanticDataAttr().Set("cube")
+        sim_utils.add_labels(prim, labels=["cube"], instance_name="class")
 
     # Create camera
     camera_cfg = copy.deepcopy(camera_cfg)

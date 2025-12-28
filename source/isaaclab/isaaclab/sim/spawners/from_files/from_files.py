@@ -11,14 +11,9 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
-
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import (
+    add_labels,
     bind_physics_material,
     bind_visual_material,
     clone,
@@ -265,12 +260,8 @@ def spawn_ground_plane(
             # deal with spaces by replacing them with underscores
             semantic_type_sanitized = semantic_type.replace(" ", "_")
             semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # set the semantic API for the instance
-            instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-            # create semantic type and data attributes
-            sem.CreateSemanticTypeAttr().Set(semantic_type)
-            sem.CreateSemanticDataAttr().Set(semantic_value)
+            # add labels to the prim
+            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
 
     # Apply visibility
     set_prim_visibility(prim, cfg.visible)
