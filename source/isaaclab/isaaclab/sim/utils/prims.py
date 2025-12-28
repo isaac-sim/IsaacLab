@@ -128,7 +128,7 @@ def create_prim(
             prim.GetAttribute(k).Set(v)
     # add reference to USD file
     if usd_path is not None:
-        add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
+        add_reference_to_stage(usd_path=usd_path, prim_path=prim_path, stage=stage)
     # add semantic label to prim
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)

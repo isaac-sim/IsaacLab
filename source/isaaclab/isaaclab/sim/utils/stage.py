@@ -14,7 +14,6 @@ import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
-from omni.metrics.assembler.core import get_metrics_assembler_interface
 from pxr import Sdf, Usd, UsdUtils
 
 # import logger
@@ -209,7 +208,7 @@ def get_current_stage_id() -> int:
     return stage_id
 
 
-def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
+def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform", stage: Usd.Stage | None = None) -> Usd.Prim:
     """Add USD reference to the opened stage at specified prim path.
 
     Adds a reference to an external USD file at the specified prim path on the current stage.
@@ -220,6 +219,7 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
         usd_path: The path to USD file to reference.
         prim_path: The prim path where the reference will be attached.
         prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
+        stage: The stage to add the reference to. Defaults to None, in which case the current stage is used.
 
     Returns:
         The USD prim at the specified prim path.
@@ -241,37 +241,52 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
         >>> prim
         Usd.Prim(</World/panda>)
     """
-    stage = get_current_stage()
+    # get current stage
+    stage = get_current_stage() if stage is None else stage
+    # get prim at path
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-    # logger.info("Loading Asset from path {} ".format(usd_path))
-    # Handle units
+
+    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
+        """Helper function to add a reference to a prim."""
+        success_bool = prim.GetReferences().AddReference(usd_path)
+        if not success_bool:
+            raise RuntimeError(f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}")
+        return prim
+    
+    # get isaac sim version
+    isaac_sim_version = float(".".join(get_version()[2]))
+    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
+    if isaac_sim_version < 5:
+        return _add_reference_to_prim(prim)
+
+    # check if the USD file is valid and add reference to the prim
     sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
     if not sdf_layer:
-        pass
-        # logger.info(f"Could not get Sdf layer for {usd_path}")
+        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
+
+    # import metrics assembler interface
+    # note: this is only available in Isaac Sim 5.0 and above
+    from omni.metrics.assembler.core import get_metrics_assembler_interface
+    
+    # obtain the stage ID
+    stage_id = get_current_stage_id()
+    # check if the layers are compatible (i.e. the same units)
+    ret_val = get_metrics_assembler_interface().check_layers(
+        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
+    )
+    if ret_val["ret_val"]:
+        try:
+            import omni.metrics.assembler.ui
+
+            omni.kit.commands.execute("AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path))
+
+            return prim
+        except Exception:
+            return _add_reference_to_prim(prim)
     else:
-        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
-        ret_val = get_metrics_assembler_interface().check_layers(
-            stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
-        )
-        if ret_val["ret_val"]:
-            try:
-                import omni.metrics.assembler.ui
-
-                payref = Sdf.Reference(usd_path)
-                omni.kit.commands.execute("AddReference", stage=stage, prim_path=prim.GetPath(), reference=payref)
-            except Exception:
-                success_bool = prim.GetReferences().AddReference(usd_path)
-                if not success_bool:
-                    raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
-        else:
-            success_bool = prim.GetReferences().AddReference(usd_path)
-            if not success_bool:
-                raise FileNotFoundError(f"The usd file at path {usd_path} provided wasn't found")
-
-    return prim
+        return _add_reference_to_prim(prim)   
 
 
 def create_new_stage() -> Usd.Stage:
