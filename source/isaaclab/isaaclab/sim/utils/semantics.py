@@ -45,33 +45,44 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         overwrite: Whether to overwrite existing labels for this instance. If False,
           the new labels are appended to existing ones (if any). Defaults to True.
     """
+    # Try modern approach (Isaac Sim >= 5.0)
     try:
-        import omni.replicator.core.functional as F
+        import omni.replicator.core.functional as rep_functional
 
         mode = "replace" if overwrite else "add"
-        F.modify.semantics(prim, {instance_name: labels}, mode=mode)
-    except Exception as e:
-        # For Isaac Sim < 5.0, we use the deprecated SemanticsAPI.
-        if float(".".join(get_version()[2])) < 5:
-            import Semantics
+        rep_functional.modify.semantics(prim, {instance_name: labels}, mode=mode)
 
-            # check we have only one label
-            if len(labels) != 1:
-                raise ValueError(f"Only one label can be applied to a prim. Received: {labels}")
-            # set the semantic API for the instance
-            instance_name = f"{instance_name}_{labels[0]}"
-            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-            # create semantic type and data attributes
-            sem.CreateSemanticTypeAttr()
-            sem.CreateSemanticDataAttr()
-            sem.GetSemanticTypeAttr().Set(instance_name)
-            sem.GetSemanticDataAttr().Set(labels[0])
-        else:
+        return
+    except (ModuleNotFoundError, ImportError) as e:
+        # check if we are using isaac sim 5.0
+        if float(".".join(get_version()[2])) >= 5:
             logger.warning(
-                f"Failed to add labels to prim {prim.GetPath()}: {e}. "
-                "\nPlease ensure replicator core is enabled by passing '--enable-cameras' to the AppLauncher."
+                f"Failed to add labels to prim {prim.GetPath()} using Replicator API: {e}. "
+                "\nPlease ensure Replicator API is enabled by passing '--enable_cameras' to the AppLauncher."
+                "\nFalling back to legacy approach."
             )
-            raise e
+
+    # Try legacy approach (Isaac Sim < 5.0)
+    try:
+        import Semantics
+
+        # check we have only one label
+        if len(labels) != 1:
+            raise ValueError(f"Only one label can be applied to a prim. Received: {labels}")
+        # set the semantic API for the instance
+        instance_name = f"{instance_name}_{labels[0]}"
+        sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
+        # create semantic type and data attributes
+        sem.CreateSemanticTypeAttr()
+        sem.CreateSemanticDataAttr()
+        sem.GetSemanticTypeAttr().Set(instance_name)
+        sem.GetSemanticDataAttr().Set(labels[0])
+    except Exception as e:
+        logger.warning(
+            f"Failed to add labels to prim {prim.GetPath()} using legacy API: {e}. "
+            "\nSemantics functionality may not be available in this Isaac Sim version."
+            " Please open an issue at https://github.com/isaac-sim/IsaacLab/issues if you believe this is a bug."
+        )
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
