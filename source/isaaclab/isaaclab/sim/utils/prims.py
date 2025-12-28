@@ -714,60 +714,6 @@ def find_global_fixed_joint_prim(
     return fixed_joint_prim
 
 
-def get_articulation_root_api_prim_path(prim_path):
-    """Get the prim path that has the Articulation Root API
-
-    .. note::
-
-        This function assumes that all prims defined by a regular expression correspond to the same articulation type
-
-    Args:
-        prim_path: path or regex of the prim(s) on which to search for the prim containing the API
-
-    Returns:
-        path or regex of the prim(s) that has the Articulation Root API.
-             If no prim has been found, the same input value is returned
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/env/Ant, /World/env_01/Ant, /World/env_02/Ant
-        >>> # search specifying the prim with the Articulation Root API
-        >>> sim_utils.get_articulation_root_api_prim_path("/World/env/Ant/torso")
-        /World/env/Ant/torso
-        >>> # search specifying some ancestor prim that does not have the Articulation Root API
-        >>> sim_utils.get_articulation_root_api_prim_path("/World/env/Ant")
-        /World/env/Ant/torso
-        >>> # regular expression search
-        >>> sim_utils.get_articulation_root_api_prim_path("/World/env.*/Ant")
-        /World/env.*/Ant/torso
-    """
-    stage = get_current_stage()
-
-    predicate = lambda path: stage.GetPrimAtPath(path).HasAPI(UsdPhysics.ArticulationRootAPI)  # noqa: E731
-    # single prim
-    if Sdf.Path.IsValidPathString(prim_path) and stage.GetPrimAtPath(prim_path).IsValid():
-        prim = get_first_matching_child_prim(prim_path, predicate)
-        if prim is not None:
-            return prim.GetPath().pathString
-    # regular expression
-    else:
-        paths = find_matching_prim_paths(prim_path)
-        if len(paths):
-            prim = get_first_matching_child_prim(paths[0], predicate)
-            if prim is not None:
-                path = prim.GetPath().pathString
-                remainder_path = "/".join(path.split("/")[prim_path.count("/") + 1 :])
-                if remainder_path != "":
-                    return prim_path + "/" + remainder_path
-                else:
-                    return prim_path
-    return prim_path
-
-
 """
 USD Prim properties and attributes.
 """
