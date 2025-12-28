@@ -13,8 +13,6 @@ import carb
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 
 if TYPE_CHECKING:
@@ -47,7 +45,7 @@ def spawn_multi_asset(
         The created prim at the first prim path.
     """
     # get stage handle
-    stage = stage_utils.get_current_stage()
+    stage = sim_utils.get_current_stage()
 
     # resolve: {SPAWN_NS}/AssetName
     # note: this assumes that the spawn namespace already exists in the stage
@@ -68,8 +66,8 @@ def spawn_multi_asset(
         source_prim_paths = [root_path]
 
     # find a free prim path to hold all the template prims
-    template_prim_path = stage_utils.get_next_free_path("/World/Template")
-    prim_utils.create_prim(template_prim_path, "Scope")
+    template_prim_path = sim_utils.get_next_free_prim_path("/World/Template", stage=stage)
+    sim_utils.create_prim(template_prim_path, "Scope")
 
     # spawn everything first in a "Dataset" prim
     proto_prim_paths = list()
@@ -118,7 +116,7 @@ def spawn_multi_asset(
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
     # delete the dataset prim after spawning
-    prim_utils.delete_prim(template_prim_path)
+    sim_utils.delete_prim(template_prim_path)
 
     # set carb setting to indicate Isaac Lab's environments that different prims have been spawned
     # at varying prim paths. In this case, PhysX parser shouldn't optimize the stage parsing.
@@ -127,7 +125,7 @@ def spawn_multi_asset(
     carb_settings_iface.set_bool("/isaaclab/spawn/multi_assets", True)
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_paths[0])
+    return stage.GetPrimAtPath(prim_paths[0])
 
 
 def spawn_multi_usd_file(

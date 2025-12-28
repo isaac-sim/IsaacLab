@@ -21,7 +21,6 @@ from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
@@ -353,7 +352,7 @@ class Camera(SensorBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)

@@ -17,8 +17,6 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -26,13 +24,13 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 def sim():
     """Create a blank new stage for each test."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Wait for spawning
-    stage_utils.update_stage()
+    sim_utils.update_stage()
 
     yield sim
 
@@ -51,7 +49,7 @@ def test_spawn_usd(sim):
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Franka")
+    assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
@@ -82,7 +80,7 @@ def test_spawn_urdf(sim):
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Franka")
+    assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
@@ -94,5 +92,5 @@ def test_spawn_ground_plane(sim):
     prim = cfg.func("/World/ground_plane", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/ground_plane")
+    assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"

@@ -18,7 +18,6 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.utils.math import random_orientation
@@ -31,14 +30,14 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Open a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Load kit helper
     sim_context = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="torch", device="cuda:0")
     yield sim_context
     # Cleanup
     sim_context.stop()
     sim_context.clear_instance()
-    stage_utils.close_stage()
+    sim_utils.close_stage()
 
 
 def test_instantiation(sim):

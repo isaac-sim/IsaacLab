@@ -28,8 +28,6 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.math import convert_quat
@@ -60,7 +58,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
         ),
     )
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
@@ -69,7 +67,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     # populate scene
     _populate_scene()
     # load stage
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -891,7 +889,7 @@ def _populate_scene():
         position *= np.asarray([1.5, 1.5, 0.5])
         # create prim
         prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-        prim = prim_utils.create_prim(
+        prim = sim_utils.create_prim(
             f"/World/Objects/Obj_{i:02d}",
             prim_type,
             translation=position,

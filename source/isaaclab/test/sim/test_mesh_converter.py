@@ -22,8 +22,7 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -62,7 +61,7 @@ def assets():
 def sim():
     """Create a blank new stage for each test."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.01
     # Load kit helper
@@ -78,16 +77,19 @@ def sim():
 
 def check_mesh_conversion(mesh_converter: MeshConverter):
     """Check that mesh is loadable and stage is valid."""
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
+
     # Load the mesh
     prim_path = "/World/Object"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
     # Check prim can be properly spawned
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
     # Load a second time
     prim_path = "/World/Object2"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
     # Check prim can be properly spawned
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
 
     stage = omni.usd.get_context().get_stage()
     # Check axis is z-up
@@ -97,30 +99,35 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     units = UsdGeom.GetStageMetersPerUnit(stage)
     assert units == 1.0
 
+    # Obtain prim handle
+    prim = stage.GetPrimAtPath("/World/Object/geometry")
     # Check mesh settings
-    pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+    pos = tuple(prim.GetAttribute("xformOp:translate").Get())
     assert pos == mesh_converter.cfg.translation
-    quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
+    quat = prim.GetAttribute("xformOp:orient").Get()
     quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
     assert quat == mesh_converter.cfg.rotation
-    scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+    scale = tuple(prim.GetAttribute("xformOp:scale").Get())
     assert scale == mesh_converter.cfg.scale
 
 
 def check_mesh_collider_settings(mesh_converter: MeshConverter):
     """Check that mesh collider settings are correct."""
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
+
     # Check prim can be properly spawned
     prim_path = "/World/Object"
-    prim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
-    assert prim_utils.is_prim_path_valid(prim_path)
+    sim_utils.create_prim(prim_path, usd_path=mesh_converter.usd_path)
+    assert stage.GetPrimAtPath(prim_path).IsValid()
 
     # Make uninstanceable to check collision settings
-    geom_prim = prim_utils.get_prim_at_path(prim_path + "/geometry")
+    geom_prim = stage.GetPrimAtPath(prim_path + "/geometry")
     # Check that instancing worked!
     assert geom_prim.IsInstanceable() == mesh_converter.cfg.make_instanceable
     # Obtain mesh settings
     geom_prim.SetInstanceable(False)
-    mesh_prim = prim_utils.get_prim_at_path(prim_path + "/geometry/mesh")
+    mesh_prim = stage.GetPrimAtPath(prim_path + "/geometry/mesh")
 
     # Check collision settings
     # -- if collision is enabled, check that API is present

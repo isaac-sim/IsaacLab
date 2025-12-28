@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Sdf, Usd
 
-import isaaclab.sim.utils.prims as prim_utils
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone
+from isaaclab.sim.utils import attach_stage_to_usd_context, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -84,9 +83,12 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage handle
+    stage = get_current_stage()
+
     # spawn camera if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -124,7 +126,7 @@ def spawn_camera(
         "from_intrinsic_matrix",
     ]
     # get camera prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # create attributes for the fisheye camera model
     # note: for pinhole those are already part of the USD camera prim
     for attr_name, attr_type in attribute_types.values():
@@ -147,4 +149,4 @@ def spawn_camera(
         # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return prim

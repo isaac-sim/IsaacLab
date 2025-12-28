@@ -95,7 +95,7 @@ import os
 import carb
 import omni.kit.app
 
-import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
@@ -187,7 +187,7 @@ def main():
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
         # Open the stage with USD
-        stage_utils.open_stage(mesh_converter.usd_path)
+        sim_utils.open_stage(mesh_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

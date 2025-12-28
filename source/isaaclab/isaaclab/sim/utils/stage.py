@@ -7,8 +7,7 @@ import builtins
 import contextlib
 import logging
 import threading
-import typing
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import carb
 import omni
@@ -16,8 +15,7 @@ import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
-from omni.usd.commands import DeletePrimsCommand
-from pxr import Sdf, Usd, UsdGeom, UsdUtils
+from pxr import Sdf, Usd, UsdUtils
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -27,25 +25,6 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
 sim_stage._context = _context
-
-AXES_TOKEN = {
-    "X": UsdGeom.Tokens.x,
-    "x": UsdGeom.Tokens.x,
-    "Y": UsdGeom.Tokens.y,
-    "y": UsdGeom.Tokens.y,
-    "Z": UsdGeom.Tokens.z,
-    "z": UsdGeom.Tokens.z,
-}
-"""Mapping from axis name to axis USD token
-
-    >>> import isaacsim.core.utils.constants as constants_utils
-    >>>
-    >>> # get the x-axis USD token
-    >>> constants_utils.AXES_TOKEN['x']
-    X
-    >>> constants_utils.AXES_TOKEN['X']
-    X
-"""
 
 
 def attach_stage_to_usd_context(attaching_early: bool = False):
@@ -89,8 +68,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # early attach warning msg
     if attaching_early:
         logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
+            "Attaching stage in memory to USD context early to support an operation which"
+            " does not support stage in memory."
         )
 
     # skip this callback to avoid wiping the stage after attachment
@@ -121,7 +100,6 @@ def is_current_stage_in_memory() -> bool:
     Returns:
         Whether the current stage is in memory.
     """
-
     # grab current stage id
     stage_id = get_current_stage_id()
 
@@ -151,10 +129,10 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     .. code-block:: python
 
         >>> from pxr import Usd
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
-        >>> with stage_utils.use_stage(stage_in_memory):
+        >>> with sim_utils.use_stage(stage_in_memory):
         ...    # operate on the specified stage
         ...    pass
         >>> # operate on the default stage attached to the USD context
@@ -193,9 +171,9 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage()
+        >>> sim_utils.get_current_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -205,7 +183,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
 
 def get_current_stage_id() -> int:
-    """Get the current open stage id
+    """Get the current open stage ID.
 
     Returns:
         The current open stage id.
@@ -214,158 +192,21 @@ def get_current_stage_id() -> int:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.get_current_stage_id()
+        >>> sim_utils.get_current_stage_id()
         1234567890
     """
+    # get current stage
     stage = get_current_stage()
+    # retrieve stage ID from stage cache
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
+    # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
+    # return stage ID
     return stage_id
-
-
-def update_stage() -> None:
-    """Update the current USD stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.update_stage()
-    """
-    omni.kit.app.get_app_interface().update()
-
-
-# TODO: make a generic util for setting all layer properties
-def set_stage_up_axis(axis: str = "z") -> None:
-    """Change the up axis of the current stage
-
-    Args:
-        axis (UsdGeom.Tokens, optional): valid values are ``"x"``, ``"y"`` and ``"z"``
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # set stage up axis to Y-up
-        >>> stage_utils.set_stage_up_axis("y")
-    """
-    stage = get_current_stage()
-    if stage is None:
-        raise Exception("There is no stage currently opened")
-    rootLayer = stage.GetRootLayer()
-    rootLayer.SetPermissionToEdit(True)
-    with Usd.EditContext(stage, rootLayer):
-        UsdGeom.SetStageUpAxis(stage, AXES_TOKEN[axis])
-
-
-def get_stage_up_axis() -> str:
-    """Get the current up-axis of USD stage.
-
-    Returns:
-        str: The up-axis of the stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_up_axis()
-        Z
-    """
-    stage = get_current_stage()
-    return UsdGeom.GetStageUpAxis(stage)
-
-
-def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
-    """Deletes all prims in the stage without populating the undo command buffer
-
-    Args:
-        predicate: user defined function that takes a prim_path (str) as input and returns True/False if the prim
-            should/shouldn't be deleted. If predicate is None, a default is used that deletes all prims
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # clear the whole stage
-        >>> stage_utils.clear_stage()
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Delete only the prims of type Cube
-        >>> predicate = lambda path: prims_utils.from_prim_path_get_type_name(path) == "Cube"
-        >>> stage_utils.clear_stage(predicate)  # after the execution the stage will be /World
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    from .prims import get_all_matching_child_prims
-
-    def default_predicate(prim: Usd.Prim) -> bool:
-        prim_path = prim.GetPath().pathString
-        if prim_path == "/":
-            return False
-        if prim_path.startswith("/Render"):
-            return False
-        if prim.GetMetadata("no_delete"):
-            return False
-        if prim.GetMetadata("hide_in_stage_window"):
-            return False
-        if omni.usd.check_ancestral(prim):
-            return False
-        return True
-
-    def predicate_from_path(prim: Usd.Prim) -> bool:
-        if predicate is None:
-            return default_predicate(prim)
-        return predicate(prim.GetPath().pathString)
-
-    if predicate is None:
-        prims = get_all_matching_child_prims("/", default_predicate)
-    else:
-        prims = get_all_matching_child_prims("/", predicate_from_path)
-    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
-    DeletePrimsCommand(prim_paths_to_delete).do()
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        omni.kit.app.get_app_interface().update()
-
-
-def print_stage_prim_paths(fabric: bool = False) -> None:
-    """Traverses the stage and prints all prim (hidden or not) paths.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> stage_utils.print_stage_prim_paths()
-        /Render
-        /World
-        /World/Cube
-        /World/Cube_01
-        /World/Cube_02
-        /OmniverseKit_Persp
-        /OmniverseKit_Front
-        /OmniverseKit_Top
-        /OmniverseKit_Right
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    from .prims import get_prim_path
-
-    for prim in traverse_stage(fabric=fabric):
-        prim_path = get_prim_path(prim)
-        print(prim_path)
 
 
 def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
@@ -390,10 +231,10 @@ def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xfor
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> # load an USD file (franka.usd) to the stage under the path /World/panda
-        >>> prim = stage_utils.add_reference_to_stage(
+        >>> prim = sim_utils.add_reference_to_stage(
         ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd",
         ...     prim_path="/World/panda"
         ... )
@@ -443,9 +284,9 @@ def create_new_stage() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.create_new_stage()
+        >>> sim_utils.create_new_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
                         sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -463,9 +304,9 @@ def create_new_stage_in_memory() -> Usd.Stage:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.create_new_stage_in_memory()
+        >>> sim_utils.create_new_stage_in_memory()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
                         sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
                         pathResolverContext=<invalid repr>)
@@ -485,100 +326,100 @@ def open_stage(usd_path: str) -> bool:
     """Open the given usd file and replace currently opened stage.
 
     Args:
-        usd_path (str): Path to the USD file to open.
+        usd_path: The path to the USD file to open.
+
+    Returns:
+        True if operation is successful, otherwise False.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
-        True
     """
+    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be loaded with this method")
+        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+    # get USD context
     usd_context = omni.usd.get_context()
+    # disable save to recent files
     usd_context.disable_save_to_recent_files()
-    result = omni.usd.get_context().open_stage(usd_path)
+    # open stage
+    result = usd_context.open_stage(usd_path)
+    # enable save to recent files
     usd_context.enable_save_to_recent_files()
+    # return result
     return result
 
 
-def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
-    """Save usd file to path, it will be overwritten with the current stage
+def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
+    """Saves contents of the root layer of the current stage to the specified USD file.
+
+    If the file already exists, it will be overwritten.
 
     Args:
-        usd_path (str): File path to save the current stage to
-        save_and_reload_in_place (bool, optional): use ``save_as_stage`` to save and reload the root layer in place. Defaults to True.
+        usd_path: The file path to save the current stage to
+        save_and_reload_in_place: Whether to open the saved USD file in place. Defaults to True.
+
+    Returns:
+        True if operation is successful, otherwise False.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
-        True
     """
+    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be saved with this method")
-
+        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+    # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
+    # get root layer
     root_layer = get_current_stage().GetRootLayer()
+    # transfer content from root layer to new layer
     layer.TransferContent(root_layer)
+    # resolve paths
     omni.usd.resolve_paths(root_layer.identifier, layer.identifier)
+    # save layer
     result = layer.Save()
+    # if requested, open the saved USD file in place
     if save_and_reload_in_place:
         open_stage(usd_path)
 
     return result
 
 
-def close_stage(callback_fn: typing.Callable | None = None) -> bool:
-    """Closes the current opened USD stage.
+def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
+    """Closes the current USD stage.
 
     .. note::
 
-        Once the stage is closed, it is necessary to open a new stage or create a new one in order to work on it.
+        Once the stage is closed, it is necessary to open a new stage or create a
+        new one in order to work on it.
 
     Args:
-        callback_fn: Callback function to call while closing. Defaults to None.
+        callback_fn: A callback function to call while closing the stage.
+            The function should take two arguments: a boolean indicating whether the stage is closing
+            and a string indicating the error message if the stage closing fails. Defaults to None,
+            in which case the stage will be closed without a callback.
 
     Returns:
-        bool: True if operation is successful, otherwise false.
+        True if operation is successful, otherwise False.
 
     Example:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.close_stage()
+        >>> sim_utils.close_stage()
         True
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
         ...
-        >>> stage_utils.close_stage(callback)
+        >>> sim_utils.close_stage(callback)
         True
-        >>> stage_utils.close_stage(callback)
+        >>> sim_utils.close_stage(callback)
         callback: (False, 'Stage opening or closing already in progress!!') {}
         False
     """
@@ -589,33 +430,68 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
     return result
 
 
-def traverse_stage(fabric=False) -> typing.Iterable:
-    """Traverse through prims (hidden or not) in the opened Usd stage.
+def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
+    """Deletes all prims in the stage without populating the undo command buffer.
 
-    Returns:
-        Generator which yields prims from the stage in depth-first-traversal order.
+    The function will delete all prims in the stage that satisfy the predicate. If the predicate
+    is None, a default predicate will be used that deletes all prims. The default predicate deletes
+    all prims that are not the root prim, are not under the /Render namespace, have the ``no_delete``
+    metadata, are not ancestral to any other prim, and are not hidden in the stage window.
+
+    Args:
+        predicate: A user defined function that takes the USD prim as an argument and
+            returns a boolean indicating if the prim should be deleted. If the predicate is None,
+            a default predicate will be used that deletes all prims.
 
     Example:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # clear the whole stage
+        >>> sim_utils.clear_stage()
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Traverse through prims in the stage
-        >>> for prim in stage_utils.traverse_stage():
-        >>>     print(prim)
-        Usd.Prim(</World>)
-        Usd.Prim(</World/Cube>)
-        Usd.Prim(</World/Cube_01>)
-        Usd.Prim(</World/Cube_02>)
-        Usd.Prim(</OmniverseKit_Persp>)
-        Usd.Prim(</OmniverseKit_Front>)
-        Usd.Prim(</OmniverseKit_Top>)
-        Usd.Prim(</OmniverseKit_Right>)
-        Usd.Prim(</Render>)
+        >>> # Delete only the prims of type Cube
+        >>> predicate = lambda _prim: _prim.GetTypeName() == "Cube"
+        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
-    return get_current_stage(fabric=fabric).Traverse()
+    # Note: Need to import this here to prevent circular dependencies.
+    from .prims import delete_prim, get_all_matching_child_prims
+
+    def _default_predicate(prim: Usd.Prim) -> bool:
+        """Check if the prim should be deleted."""
+        prim_path = prim.GetPath().pathString
+        if prim_path == "/":
+            return False
+        if prim_path.startswith("/Render"):
+            return False
+        if prim.GetMetadata("no_delete"):
+            return False
+        if prim.GetMetadata("hide_in_stage_window"):
+            return False
+        if omni.usd.check_ancestral(prim):
+            return False
+        return True
+
+    def _predicate_from_path(prim: Usd.Prim) -> bool:
+        if predicate is None:
+            return _default_predicate(prim)
+        return predicate(prim.GetPath().pathString)
+
+    # get all prims to delete
+    if predicate is None:
+        prims = get_all_matching_child_prims("/", _default_predicate)
+    else:
+        prims = get_all_matching_child_prims("/", _predicate_from_path)
+    # convert prims to prim paths
+    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    # delete prims
+    delete_prim(prim_paths_to_delete)
+
+    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        omni.kit.app.get_app_interface().update()
 
 
 def is_stage_loading() -> bool:
@@ -628,9 +504,9 @@ def is_stage_loading() -> bool:
 
     .. code-block:: python
 
-        >>> import isaaclab.sim.utils.stage as stage_utils
+        >>> import isaaclab.sim as sim_utils
         >>>
-        >>> stage_utils.is_stage_loading()
+        >>> sim_utils.is_stage_loading()
         False
     """
     context = omni.usd.get_context()
@@ -639,150 +515,3 @@ def is_stage_loading() -> bool:
     else:
         _, _, loading = context.get_stage_loading_status()
         return loading > 0
-
-
-def set_stage_units(stage_units_in_meters: float) -> None:
-    """Set the stage meters per unit
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Args:
-        stage_units_in_meters (float): units for stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.set_stage_units(1.0)
-    """
-    if get_current_stage() is None:
-        raise Exception("There is no stage currently opened, init_stage needed before calling this func")
-    with Usd.EditContext(get_current_stage(), get_current_stage().GetRootLayer()):
-        UsdGeom.SetStageMetersPerUnit(get_current_stage(), stage_units_in_meters)
-
-
-def get_stage_units() -> float:
-    """Get the stage meters per unit currently set
-
-    The most common units and their values are listed in the following table:
-
-    +------------------+--------+
-    | Unit             | Value  |
-    +==================+========+
-    | kilometer (km)   | 1000.0 |
-    +------------------+--------+
-    | meters (m)       | 1.0    |
-    +------------------+--------+
-    | inch (in)        | 0.0254 |
-    +------------------+--------+
-    | centimeters (cm) | 0.01   |
-    +------------------+--------+
-    | millimeter (mm)  | 0.001  |
-    +------------------+--------+
-
-    Returns:
-        float: current stage meters per unit
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> stage_utils.get_stage_units()
-        1.0
-    """
-    return UsdGeom.GetStageMetersPerUnit(get_current_stage())
-
-
-def get_next_free_path(path: str, parent: str = None) -> str:
-    """Returns the next free usd path for the current stage
-
-    Args:
-        path (str): path we want to check
-        parent (str, optional): Parent prim for the given path. Defaults to None.
-
-    Returns:
-        str: a new path that is guaranteed to not exist on the current stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01.
-        >>> # Get the next available path for /World/Cube
-        >>> stage_utils.get_next_free_path("/World/Cube")
-        /World/Cube_02
-    """
-    if parent is not None:
-        # remove trailing slash from parent and leading slash from path
-        path = omni.usd.get_stage_next_free_path(
-            get_current_stage(), parent.rstrip("/") + "/" + path.lstrip("/"), False
-        )
-    else:
-        path = omni.usd.get_stage_next_free_path(get_current_stage(), path, True)
-    return path
-
-
-def remove_deleted_references():
-    """Clean up deleted references in the current USD stage.
-
-    Removes any deleted items from both payload and references lists
-    for all prims in the stage's root layer. Prints information about
-    any deleted items that were cleaned up.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim.utils.stage as stage_utils
-        >>> stage_utils.remove_deleted_references()
-        Removed 2 deleted payload items from </World/Robot>
-        Removed 1 deleted reference items from </World/Scene>
-    """
-    stage = get_current_stage()
-    deleted_count = 0
-
-    for prim in stage.Traverse():
-        prim_spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
-        if not prim_spec:
-            continue
-
-        # Clean payload references
-        payload_list = prim_spec.GetInfo("payload")
-        if payload_list.deletedItems:
-            deleted_payload_count = len(payload_list.deletedItems)
-            print(f"Removed {deleted_payload_count} deleted payload items from {prim.GetPath()}")
-            payload_list.deletedItems = []
-            prim_spec.SetInfo("payload", payload_list)
-            deleted_count += deleted_payload_count
-
-        # Clean prim references
-        references_list = prim_spec.GetInfo("references")
-        if references_list.deletedItems:
-            deleted_ref_count = len(references_list.deletedItems)
-            print(f"Removed {deleted_ref_count} deleted reference items from {prim.GetPath()}")
-            references_list.deletedItems = []
-            prim_spec.SetInfo("references", references_list)
-            deleted_count += deleted_ref_count
-
-    if deleted_count == 0:
-        print("No deleted references or payloads found in the stage.")

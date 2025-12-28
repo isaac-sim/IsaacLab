@@ -10,9 +10,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaacsim.core.simulation_manager import SimulationManager
+from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.utils import resolve_pose_relative_to_physx_parent
@@ -266,7 +266,7 @@ class Imu(SensorBase):
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(

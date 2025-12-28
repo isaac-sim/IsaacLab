@@ -45,7 +45,6 @@ simulation_app = app_launcher.app
 import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim
@@ -67,7 +66,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     cloner = GridCloner(spacing=10.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)

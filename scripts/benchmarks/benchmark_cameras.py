@@ -248,7 +248,6 @@ import torch
 import psutil
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene.interactive_scene import InteractiveScene
 from isaaclab.sensors import (
@@ -260,7 +259,6 @@ from isaaclab.sensors import (
     TiledCameraCfg,
     patterns,
 )
-from isaaclab.sim.utils.stage import create_new_stage
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
@@ -286,7 +284,7 @@ def create_camera_base(
     if instantiate:
         # Create the necessary prims
         for idx in range(num_cams):
-            prim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
+            sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
     if prim_path is None:
         prim_path = f"/World/{name}_.*/{name}"
     # If valid camera settings are provided, create the camera
@@ -346,7 +344,7 @@ def create_ray_caster_cameras(
 ) -> RayCasterCamera | RayCasterCameraCfg | None:
     """Create the raycaster cameras; different configuration than Standard/Tiled camera"""
     for idx in range(num_cams):
-        prim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
+        sim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
 
     if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
         cam_cfg = RayCasterCameraCfg(
@@ -446,7 +444,7 @@ def design_scene(
     scene_entities = {}
 
     # Xform to hold objects
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(num_objects):
         # sample random position
@@ -851,7 +849,7 @@ def main():
             cur_sys_util = analysis["system_utilization_analytics"]
             print("Triggering reset...")
             env.close()
-            create_new_stage()
+            sim_utils.create_new_stage()
         print("[INFO]: DONE! Feel free to CTRL + C Me ")
         print(f"[INFO]: If you've made it this far, you can likely simulate {cur_num_cams} {camera_name_prefix}")
         print("Keep in mind, this is without any training running on the GPU.")

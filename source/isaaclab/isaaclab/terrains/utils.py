@@ -83,12 +83,11 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     from pxr import UsdGeom
 
     import isaaclab.sim as sim_utils
-    import isaaclab.sim.utils.prims as prim_utils
 
     # create parent prim
-    prim_utils.create_prim(prim_path, "Xform")
+    sim_utils.create_prim(prim_path, "Xform")
     # create mesh prim
-    prim = prim_utils.create_prim(
+    prim = sim_utils.create_prim(
         f"{prim_path}/mesh",
         "Mesh",
         translation=kwargs.get("translation"),

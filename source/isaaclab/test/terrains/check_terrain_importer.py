@@ -76,7 +76,6 @@ from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
@@ -109,7 +108,7 @@ def main():
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.define_prim("/World/envs/env_0")
 
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -136,7 +135,7 @@ def main():
     else:
         # -- Ball geometry
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+        sim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
         # -- Ball physics
         SingleRigidPrim(
             prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)
