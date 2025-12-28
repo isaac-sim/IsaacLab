@@ -157,7 +157,7 @@ def create_prim(
     return prim
 
 
-def delete_prim(prim_path: str | list[str]) -> None:
+def delete_prim(prim_path: str | Sequence[str]) -> None:
     """Remove the USD Prim and its descendants from the scene if able.
 
     Args:
@@ -177,30 +177,6 @@ def delete_prim(prim_path: str | list[str]) -> None:
         prim_path = [prim_path]
     # delete prims
     DeletePrimsCommand(prim_path).do()
-
-
-def from_prim_path_get_type_name(prim_path: str, fabric: bool = False) -> str:
-    """Get the TypeName of the USD Prim at the path if it is valid
-
-    Args:
-        prim_path: path of the prim in the stage
-        fabric: True for fabric stage and False for USD stage. Defaults to False.
-
-    Returns:
-        The TypeName of the USD Prim at the path string
-    """
-    stage = get_current_stage(fabric=fabric)
-
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise Exception(f"A prim does not exist at prim path: {prim_path}")
-
-    prim = stage.GetPrimAtPath(prim_path)
-
-    # TODO: Check if GetTypeName is directly available in USD API.
-    if fabric:
-        return prim.GetTypeName()
-    else:
-        return prim.GetPrimTypeInfo().GetTypeName()
 
 
 def move_prim(path_from: str, path_to: str) -> None:

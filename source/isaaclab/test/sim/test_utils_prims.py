@@ -8,7 +8,8 @@
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+# note: need to enable cameras to be able to make replicator core available
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
@@ -16,7 +17,7 @@ import numpy as np
 import torch
 
 import pytest
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -36,12 +37,120 @@ def test_setup_teardown():
     # Teardown: Clear stage after each test
     sim_utils.clear_stage()
 
+"""
+General Utils
+"""
+
+def test_create_prim():
+    """Test create_prim() function."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create scene
+    prim = sim_utils.create_prim(prim_path="/World/Test", prim_type="Xform", stage=stage)
+    # check prim created
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/Test"
+    assert prim.GetTypeName() == "Xform"
+
+    # check recreation of prim
+    with pytest.raises(ValueError, match="already exists"):
+        sim_utils.create_prim(prim_path="/World/Test", prim_type="Xform", stage=stage)
+
+    # check attribute setting
+    prim = sim_utils.create_prim(prim_path="/World/Test/Cube", prim_type="Cube", stage=stage, attributes={"size": 100})
+    # check attribute set
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/Test/Cube"
+    assert prim.GetTypeName() == "Cube"
+    assert prim.GetAttribute("size").Get() == 100
+
+    # check adding USD reference
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
+    # check USD reference set
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/Test/USDReference"
+    assert prim.GetTypeName() == "Xform"
+    # get the reference of the prim
+    references = []
+    for prim_spec in prim.GetPrimStack():
+        references.extend(prim_spec.referenceList.prependedItems)
+    assert len(references) == 1
+    assert str(references[0].assetPath) == franka_usd
+
+    # check adding semantic label
+    prim = sim_utils.create_prim("/World/Test/Sphere", "Sphere", stage=stage, semantic_label="sphere", attributes={"radius": 10.0})
+    # check semantic label set
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/Test/Sphere"
+    assert prim.GetTypeName() == "Sphere"
+    assert prim.GetAttribute("radius").Get() == 10.0
+    assert sim_utils.get_labels(prim)["class"] == ["sphere"]
+
+    # check setting transform
+    pos = (1.0, 2.0, 3.0)
+    quat = (0.0, 0.0, 0.0, 1.0)
+    scale = (1.0, 0.5, 0.5)
+    prim = sim_utils.create_prim("/World/Test/Xform", "Xform", stage=stage, translation=pos, orientation=quat, scale=scale)
+    # check transform set
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/Test/Xform"
+    assert prim.GetTypeName() == "Xform"
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(pos)
+    assert prim.GetAttribute("xformOp:orient").Get() == Gf.Quatf(*quat)
+    assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3f(scale)
+    # check xform operation order
+    op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
+    assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+def test_delete_prim():
+    """Test delete_prim() function."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create scene
+    prim = sim_utils.create_prim("/World/Test/Xform", "Xform", stage=stage)
+    # delete prim
+    sim_utils.delete_prim("/World/Test/Xform")
+    # check prim deleted
+    assert not prim.IsValid()
+
+    # check for usd reference
+    prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd", stage=stage)
+    # delete prim
+    sim_utils.delete_prim("/World/Test/USDReference")
+    # check prim deleted
+    assert not prim.IsValid()
+
+    # check deleting multiple prims
+    prim1 = sim_utils.create_prim("/World/Test/Xform1", "Xform", stage=stage)
+    prim2 = sim_utils.create_prim("/World/Test/Xform2", "Xform", stage=stage)
+    sim_utils.delete_prim(("/World/Test/Xform1", "/World/Test/Xform2"))
+    # check prims deleted
+    assert not prim1.IsValid()
+    assert not prim2.IsValid()
+
+def test_move_prim():
+    """Test move_prim() function."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create scene
+    sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+    sim_utils.create_prim("/World/TestMove", "Xform", stage=stage, translation=(1.0, 1.0, 1.0), orientation=(0.0, 0.0, 1.0, 0.0))
+    prim = sim_utils.create_prim("/World/Test/Xform", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd", translation=(1.0, 2.0, 3.0), orientation=(0.0, 0.0, 0.0, 1.0), stage=stage,)
+    # move prim
+    sim_utils.move_prim("/World/Test/Xform", "/World/TestMove/Xform")
+    # check prim moved
+    prim = stage.GetPrimAtPath("/World/TestMove/Xform")
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/TestMove/Xform"
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((1.0, 1.0, 1.0))
+    assert prim.GetAttribute("xformOp:orient").Get() == Gf.Quatf(0.0, 0.0, 1.0, 0.0)
 
 def test_get_next_free_prim_path():
     """Test get_next_free_prim_path() function."""
     # create scene
     sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
     sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
 
     # test
@@ -49,7 +158,7 @@ def test_get_next_free_prim_path():
     assert isaaclab_result == "/World/Floor_01"
 
     # create another prim
-    sim_utils.create_prim("/World/Floor/Box_01", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Floor/Box_01", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
 
     # test again
     isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor/Box")
@@ -60,7 +169,7 @@ def test_get_first_matching_ancestor_prim():
     """Test get_first_matching_ancestor_prim() function."""
     # create scene
     sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
     sim_utils.create_prim("/World/Floor/Box/Sphere", "Sphere", attributes={"radius": 1e3})
 
     # test with input prim not having the predicate
@@ -88,7 +197,7 @@ def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene
     sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
     sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
 
     # add articulation root prim -- this asset has instanced prims
