@@ -37,6 +37,25 @@ def test_setup_teardown():
     sim_utils.clear_stage()
 
 
+def test_get_next_free_prim_path():
+    """Test get_next_free_prim_path() function."""
+    # create scene
+    sim_utils.create_prim("/World/Floor")
+    sim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
+
+    # test
+    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor")
+    assert isaaclab_result == "/World/Floor_01"
+
+    # create another prim
+    sim_utils.create_prim("/World/Floor/Box_01", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+
+    # test again
+    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor/Box")
+    assert isaaclab_result == "/World/Floor/Box_02"
+
+
 def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene

@@ -66,7 +66,7 @@ def spawn_multi_asset(
         source_prim_paths = [root_path]
 
     # find a free prim path to hold all the template prims
-    template_prim_path = sim_utils.get_next_free_path("/World/Template")
+    template_prim_path = sim_utils.get_next_free_prim_path("/World/Template", stage=stage)
     sim_utils.create_prim(template_prim_path, "Scope")
 
     # spawn everything first in a "Dataset" prim

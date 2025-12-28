@@ -157,11 +157,12 @@ def create_prim(
     return prim
 
 
-def delete_prim(prim_path: str) -> None:
-    """Remove the USD Prim and its descendants from the scene if able
+def delete_prim(prim_path: str | list[str]) -> None:
+    """Remove the USD Prim and its descendants from the scene if able.
 
     Args:
-        prim_path: path of the prim in the stage
+        prim_path: The path of the prim to delete. If a list of paths is provided,
+            the function will delete all the prims in the list.
 
     Example:
 
@@ -171,35 +172,11 @@ def delete_prim(prim_path: str) -> None:
         >>>
         >>> sim_utils.delete_prim("/World/Cube")
     """
-    DeletePrimsCommand([prim_path]).do()
-
-
-def is_prim_path_valid(prim_path: str, fabric: bool = False) -> bool:
-    """Check if a path has a valid USD Prim at it
-
-    Args:
-        prim_path: path of the prim in the stage
-        fabric: True for fabric stage and False for USD stage. Defaults to False.
-
-    Returns:
-        bool: True if the path points to a valid prim
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/Cube
-        >>> sim_utils.is_prim_path_valid("/World/Cube")
-        True
-        >>> sim_utils.is_prim_path_valid("/World/Cube/")
-        False
-        >>> sim_utils.is_prim_path_valid("/World/Sphere")  # it doesn't exist
-        False
-    """
-    stage = get_current_stage(fabric=fabric)
-    return stage.GetPrimAtPath(prim_path).IsValid()
+    # convert prim_path to list if it is a string
+    if isinstance(prim_path, str):
+        prim_path = [prim_path]
+    # delete prims
+    DeletePrimsCommand(prim_path).do()
 
 
 def from_prim_path_get_type_name(prim_path: str, fabric: bool = False) -> str:
@@ -218,6 +195,8 @@ def from_prim_path_get_type_name(prim_path: str, fabric: bool = False) -> str:
         raise Exception(f"A prim does not exist at prim path: {prim_path}")
 
     prim = stage.GetPrimAtPath(prim_path)
+
+    # TODO: Check if GetTypeName is directly available in USD API.
     if fabric:
         return prim.GetTypeName()
     else:
@@ -246,6 +225,35 @@ def move_prim(path_from: str, path_to: str) -> None:
 """
 USD Stage traversal.
 """
+
+def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
+    """Gets a new prim path that doesn't exist in the stage given a base path.
+
+    If the given path doesn't exist in the stage already, it returns the given path. Otherwise,
+    it appends a suffix with an incrementing number to the given path.
+
+    Args:
+        path: The base prim path to check.
+        stage: The stage to check. Defaults to the current stage.
+
+    Returns:
+        A new path that is guaranteed to not exist on the current stage
+
+    Example:
+
+    .. code-block:: python
+
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # given the stage: /World/Cube, /World/Cube_01.
+        >>> # Get the next available path for /World/Cube
+        >>> sim_utils.get_next_free_prim_path("/World/Cube")
+        /World/Cube_02
+    """
+    # get current stage
+    stage = get_current_stage() if stage is None else stage
+    # get next free path
+    return omni.usd.get_stage_next_free_path(stage, path, True)
 
 
 def get_first_matching_child_prim(

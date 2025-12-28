@@ -146,7 +146,7 @@ class VisualizationMarkers:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
         # get next free path for the prim
-        prim_path = sim_utils.get_next_free_path(cfg.prim_path)
+        prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         # create a new prim
         self.stage = sim_utils.get_current_stage()
         self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)

@@ -7,8 +7,7 @@ import builtins
 import contextlib
 import logging
 import threading
-import typing
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import carb
 import omni
@@ -16,7 +15,6 @@ import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
 from omni.metrics.assembler.core import get_metrics_assembler_interface
-from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdUtils
 
 # import logger
@@ -70,8 +68,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # early attach warning msg
     if attaching_early:
         logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
+            "Attaching stage in memory to USD context early to support an operation which"
+            " does not support stage in memory."
         )
 
     # skip this callback to avoid wiping the stage after attachment
@@ -102,7 +100,6 @@ def is_current_stage_in_memory() -> bool:
     Returns:
         Whether the current stage is in memory.
     """
-
     # grab current stage id
     stage_id = get_current_stage_id()
 
@@ -186,7 +183,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
 
 
 def get_current_stage_id() -> int:
-    """Get the current open stage id
+    """Get the current open stage ID.
 
     Returns:
         The current open stage id.
@@ -200,80 +197,16 @@ def get_current_stage_id() -> int:
         >>> sim_utils.get_current_stage_id()
         1234567890
     """
+    # get current stage
     stage = get_current_stage()
+    # retrieve stage ID from stage cache
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
+    # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
+    # return stage ID
     return stage_id
-
-
-def update_stage() -> None:
-    """Update the current USD stage.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> sim_utils.update_stage()
-    """
-    omni.kit.app.get_app_interface().update()
-
-
-def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
-    """Deletes all prims in the stage without populating the undo command buffer
-
-    Args:
-        predicate: user defined function that takes a prim_path (str) as input and returns True/False if the prim
-            should/shouldn't be deleted. If predicate is None, a default is used that deletes all prims
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # clear the whole stage
-        >>> sim_utils.clear_stage()
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
-        >>> # Delete only the prims of type Cube
-        >>> predicate = lambda path: sim_utils.from_prim_path_get_type_name(path) == "Cube"
-        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
-    """
-    # Note: Need to import this here to prevent circular dependencies.
-    from .prims import get_all_matching_child_prims
-
-    def default_predicate(prim: Usd.Prim) -> bool:
-        prim_path = prim.GetPath().pathString
-        if prim_path == "/":
-            return False
-        if prim_path.startswith("/Render"):
-            return False
-        if prim.GetMetadata("no_delete"):
-            return False
-        if prim.GetMetadata("hide_in_stage_window"):
-            return False
-        if omni.usd.check_ancestral(prim):
-            return False
-        return True
-
-    def predicate_from_path(prim: Usd.Prim) -> bool:
-        if predicate is None:
-            return default_predicate(prim)
-        return predicate(prim.GetPath().pathString)
-
-    if predicate is None:
-        prims = get_all_matching_child_prims("/", default_predicate)
-    else:
-        prims = get_all_matching_child_prims("/", predicate_from_path)
-    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
-    DeletePrimsCommand(prim_paths_to_delete).do()
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        omni.kit.app.get_app_interface().update()
 
 
 def add_reference_to_stage(usd_path: str, prim_path: str, prim_type: str = "Xform") -> Usd.Prim:
@@ -393,80 +326,80 @@ def open_stage(usd_path: str) -> bool:
     """Open the given usd file and replace currently opened stage.
 
     Args:
-        usd_path (str): Path to the USD file to open.
+        usd_path: The path to the USD file to open.
+
+    Returns:
+        True if operation is successful, otherwise False.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> sim_utils.open_stage("/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd")
-        True
     """
+    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be loaded with this method")
+        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+    # get USD context
     usd_context = omni.usd.get_context()
+    # disable save to recent files
     usd_context.disable_save_to_recent_files()
-    result = omni.usd.get_context().open_stage(usd_path)
+    # open stage
+    result = usd_context.open_stage(usd_path)
+    # enable save to recent files
     usd_context.enable_save_to_recent_files()
+    # return result
     return result
 
 
-def save_stage(usd_path: str, save_and_reload_in_place=True) -> bool:
-    """Save usd file to path, it will be overwritten with the current stage
+def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
+    """Saves contents of the root layer of the current stage to the specified USD file.
+
+    If the file already exists, it will be overwritten.
 
     Args:
-        usd_path (str): File path to save the current stage to
-        save_and_reload_in_place (bool, optional): use ``save_as_stage`` to save and reload the root layer in place. Defaults to True.
+        usd_path: The file path to save the current stage to
+        save_and_reload_in_place: Whether to open the saved USD file in place. Defaults to True.
+
+    Returns:
+        True if operation is successful, otherwise False.
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
-
-    Returns:
-        bool: True if operation is successful, otherwise false.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> sim_utils.save_stage("/home/<user>/Documents/Save/stage.usd")
-        True
     """
+    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError("Only USD files can be saved with this method")
-
+        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+    # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
+    # get root layer
     root_layer = get_current_stage().GetRootLayer()
+    # transfer content from root layer to new layer
     layer.TransferContent(root_layer)
+    # resolve paths
     omni.usd.resolve_paths(root_layer.identifier, layer.identifier)
+    # save layer
     result = layer.Save()
+    # if requested, open the saved USD file in place
     if save_and_reload_in_place:
         open_stage(usd_path)
 
     return result
 
 
-def close_stage(callback_fn: typing.Callable | None = None) -> bool:
-    """Closes the current opened USD stage.
+def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
+    """Closes the current USD stage.
 
     .. note::
 
-        Once the stage is closed, it is necessary to open a new stage or create a new one in order to work on it.
+        Once the stage is closed, it is necessary to open a new stage or create a
+        new one in order to work on it.
 
     Args:
-        callback_fn: Callback function to call while closing. Defaults to None.
+        callback_fn: A callback function to call while closing the stage.
+            The function should take two arguments: a boolean indicating whether the stage is closing
+            and a string indicating the error message if the stage closing fails. Defaults to None,
+            in which case the stage will be closed without a callback.
 
     Returns:
-        bool: True if operation is successful, otherwise false.
+        True if operation is successful, otherwise False.
 
     Example:
 
@@ -496,6 +429,69 @@ def close_stage(callback_fn: typing.Callable | None = None) -> bool:
         result = omni.usd.get_context().close_stage_with_callback(callback_fn)
     return result
 
+def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
+    """Deletes all prims in the stage without populating the undo command buffer.
+
+    The function will delete all prims in the stage that satisfy the predicate. If the predicate
+    is None, a default predicate will be used that deletes all prims. The default predicate deletes
+    all prims that are not the root prim, are not under the /Render namespace, have the ``no_delete``
+    metadata, are not ancestral to any other prim, and are not hidden in the stage window.
+
+    Args:
+        predicate: A user defined function that takes the USD prim as an argument and
+            returns a boolean indicating if the prim should be deleted. If the predicate is None,
+            a default predicate will be used that deletes all prims.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> # clear the whole stage
+        >>> sim_utils.clear_stage()
+        >>>
+        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
+        >>> # Delete only the prims of type Cube
+        >>> predicate = lambda _prim: _prim.GetTypeName() == "Cube"
+        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
+    """
+    # Note: Need to import this here to prevent circular dependencies.
+    from .prims import get_all_matching_child_prims, delete_prim
+
+    def _default_predicate(prim: Usd.Prim) -> bool:
+        """Check if the prim should be deleted."""
+        prim_path = prim.GetPath().pathString
+        if prim_path == "/":
+            return False
+        if prim_path.startswith("/Render"):
+            return False
+        if prim.GetMetadata("no_delete"):
+            return False
+        if prim.GetMetadata("hide_in_stage_window"):
+            return False
+        if omni.usd.check_ancestral(prim):
+            return False
+        return True
+
+    def _predicate_from_path(prim: Usd.Prim) -> bool:
+        if predicate is None:
+            return _default_predicate(prim)
+        return predicate(prim.GetPath().pathString)
+
+    # get all prims to delete
+    if predicate is None:
+        prims = get_all_matching_child_prims("/", _default_predicate)
+    else:
+        prims = get_all_matching_child_prims("/", _predicate_from_path)
+    # convert prims to prim paths
+    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
+    # delete prims
+    delete_prim(prim_paths_to_delete)
+
+    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+        omni.kit.app.get_app_interface().update()
+
 
 def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
@@ -518,34 +514,3 @@ def is_stage_loading() -> bool:
     else:
         _, _, loading = context.get_stage_loading_status()
         return loading > 0
-
-
-def get_next_free_path(path: str, parent: str = None) -> str:
-    """Returns the next free usd path for the current stage
-
-    Args:
-        path (str): path we want to check
-        parent (str, optional): Parent prim for the given path. Defaults to None.
-
-    Returns:
-        str: a new path that is guaranteed to not exist on the current stage
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01.
-        >>> # Get the next available path for /World/Cube
-        >>> sim_utils.get_next_free_path("/World/Cube")
-        /World/Cube_02
-    """
-    if parent is not None:
-        # remove trailing slash from parent and leading slash from path
-        path = omni.usd.get_stage_next_free_path(
-            get_current_stage(), parent.rstrip("/") + "/" + path.lstrip("/"), False
-        )
-    else:
-        path = omni.usd.get_stage_next_free_path(get_current_stage(), path, True)
-    return path
