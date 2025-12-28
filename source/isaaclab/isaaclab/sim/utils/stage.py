@@ -25,7 +25,7 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 # _context is a singleton design in isaacsim and for that reason
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
-sim_stage._context = _context
+sim_stage._context = _context  # type: ignore
 
 
 def create_new_stage() -> Usd.Stage:
@@ -291,7 +291,8 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
-    from .prims import delete_prim, get_all_matching_child_prims
+    from .prims import delete_prim
+    from .queries import get_all_matching_child_prims
 
     def _default_predicate(prim: Usd.Prim) -> bool:
         """Check if the prim should be deleted."""
@@ -323,7 +324,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     # delete prims
     delete_prim(prim_paths_to_delete)
 
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
         omni.kit.app.get_app_interface().update()
 
 
@@ -466,7 +467,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     SimulationManager.enable_stage_open_callback(False)
 
     # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
+    SimulationContext.instance()._physics_context.enable_fabric(True)  # type: ignore
 
     # attach stage to usd context
     omni.usd.get_context().attach_stage_with_callback(stage_id)
