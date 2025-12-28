@@ -226,6 +226,7 @@ def move_prim(path_from: str, path_to: str) -> None:
 USD Stage traversal.
 """
 
+
 def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
     """Gets a new prim path that doesn't exist in the stage given a base path.
 

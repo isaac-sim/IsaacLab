@@ -429,6 +429,7 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
         result = omni.usd.get_context().close_stage_with_callback(callback_fn)
     return result
 
+
 def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer.
 
@@ -457,7 +458,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
     """
     # Note: Need to import this here to prevent circular dependencies.
-    from .prims import get_all_matching_child_prims, delete_prim
+    from .prims import delete_prim, get_all_matching_child_prims
 
     def _default_predicate(prim: Usd.Prim) -> bool:
         """Check if the prim should be deleted."""
