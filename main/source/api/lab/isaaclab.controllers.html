@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 20, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 28, 2025"/>
   </head>
   
   
@@ -1416,7 +1416,7 @@ specifications.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets">
-<span class="sig-name descname"><span class="pre">update_null_space_joint_targets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.update_null_space_joint_targets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">update_null_space_joint_targets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">numpy.ndarray</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.update_null_space_joint_targets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets" title="Permalink to this definition">#</a></dt>
 <dd><p>Update the null space joint targets.</p>
 <p>This method updates the target joint positions for null space posture tasks based on the current
 joint configuration. This is useful for maintaining desired joint configurations when the primary
@@ -1430,7 +1430,7 @@ task allows redundancy.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController.compute">
-<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.compute" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.compute" title="Permalink to this definition">#</a></dt>
 <dd><p>Compute the target joint positions based on current state and tasks.</p>
 <p>Performs inverse kinematics using the Pink solver to compute target joint positions that satisfy
 the defined tasks. The solver uses quadratic programming to find optimal joint velocities that
@@ -1843,7 +1843,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 20, 2025.
+  Last updated on Dec 28, 2025.
   <br/>
 </p>
   </div>
