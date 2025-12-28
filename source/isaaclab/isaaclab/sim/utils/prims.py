@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utilities for creating and manipulating USD prims."""
+
 from __future__ import annotations
 
 import functools

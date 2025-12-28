@@ -3,6 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utilities for applying and removing semantic labels to USD prims."""
+
+from __future__ import annotations
+
 import logging
 
 import Semantics
