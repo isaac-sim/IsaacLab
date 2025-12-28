@@ -77,17 +77,13 @@ def create_prim(
         ValueError: If there is already a prim at the provided prim_path.
 
     Example:
-
-    .. code-block:: python
-
-        >>> import numpy as np
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> # create a cube (/World/Cube) of size 2 centered at (1.0, 0.5, 0.0)
         >>> sim_utils.create_prim(
         ...     prim_path="/World/Cube",
         ...     prim_type="Cube",
-        ...     position=np.array([1.0, 0.5, 0.0]),
+        ...     position=(1.0, 0.5, 0.0),
         ...     attributes={"size": 2.0}
         ... )
         Usd.Prim(</World/Cube>)
@@ -150,9 +146,6 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         stage: The stage to delete the prim in. Defaults to None, in which case the current stage is used.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.delete_prim("/World/Cube")
@@ -185,9 +178,6 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
         stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
@@ -220,9 +210,6 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
         A new path that is guaranteed to not exist on the current stage
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube, /World/Cube_01.
@@ -729,6 +716,11 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
     return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
 
 
+"""
+Attribute - Setters.
+"""
+
+
 def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
     """Sets the visibility of the prim in the opened stage.
 
@@ -741,9 +733,6 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
         visible: flag to set the visibility of the usd prim in stage.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> # given the stage: /World/Cube. Make the Cube not visible
@@ -755,11 +744,6 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
         imageable.MakeVisible()
     else:
         imageable.MakeInvisible()
-
-
-"""
-Attribute - Setters.
-"""
 
 
 def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, value: Any, camel_case: bool):
