@@ -12,6 +12,8 @@ and are provided mainly for convenience.
 It is recommended to use the USD APIs directly whenever possible.
 """
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Iterable
 
