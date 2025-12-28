@@ -15,8 +15,9 @@ import carb
 import omni
 import omni.kit.app
 from isaacsim.core.utils import stage as sim_stage
-from isaacsim.core.version import get_version
 from pxr import Sdf, Usd, UsdUtils
+
+from isaaclab.utils.version import get_isaac_sim_version
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -63,11 +64,10 @@ def create_new_stage_in_memory() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
-            " stage attached to USD context."
+            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory."
+            "Falling back to creating a new stage attached to USD context."
         )
         return create_new_stage()
     else:
@@ -134,8 +134,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...    pass
         >>> # operate on the default stage attached to the USD context
     """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
@@ -432,8 +431,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     from isaaclab.sim.simulation_context import SimulationContext
 
     # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         return
 
     # if stage is not in memory, we can return early
