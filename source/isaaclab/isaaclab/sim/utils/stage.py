@@ -91,7 +91,6 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     SimulationManager.enable_stage_open_callback(True)
 
 
-
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """Context manager that sets a thread-local stage, if supported.
@@ -273,7 +272,7 @@ def open_stage(usd_path: str) -> bool:
     # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
-    
+
     # get USD context
     usd_context = omni.usd.get_context()
     # disable save to recent files
@@ -305,12 +304,12 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
     # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
-    
+
     # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
     if layer is None:
         raise RuntimeError(f"Failed to create new USD layer at path '{usd_path}'.")
-    
+
     # get root layer
     root_layer = get_current_stage().GetRootLayer()
     # transfer content from root layer to new layer
@@ -321,7 +320,7 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
     result = layer.Save()
     if not result:
         logger.error(f"Failed to save USD layer to path '{usd_path}'.")
-    
+
     # if requested, open the saved USD file in place
     if save_and_reload_in_place and result:
         open_stage(usd_path)

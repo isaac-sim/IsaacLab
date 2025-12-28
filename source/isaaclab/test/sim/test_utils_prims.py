@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import math
 import numpy as np
 import torch
 
@@ -37,9 +38,18 @@ def test_setup_teardown():
     # Teardown: Clear stage after each test
     sim_utils.clear_stage()
 
+
+def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd, eps: float = 1e-6):
+    """Assert two quaternions are close."""
+    assert math.isclose(q1.GetReal(), q2.GetReal(), abs_tol=eps)
+    for i in range(3):
+        assert math.isclose(q1.GetImaginary()[i], q2.GetImaginary()[i], abs_tol=eps)
+
+
 """
 General Utils
 """
+
 
 def test_create_prim():
     """Test create_prim() function."""
@@ -79,7 +89,9 @@ def test_create_prim():
     assert str(references[0].assetPath) == franka_usd
 
     # check adding semantic label
-    prim = sim_utils.create_prim("/World/Test/Sphere", "Sphere", stage=stage, semantic_label="sphere", attributes={"radius": 10.0})
+    prim = sim_utils.create_prim(
+        "/World/Test/Sphere", "Sphere", stage=stage, semantic_label="sphere", attributes={"radius": 10.0}
+    )
     # check semantic label set
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/Test/Sphere"
@@ -91,17 +103,20 @@ def test_create_prim():
     pos = (1.0, 2.0, 3.0)
     quat = (0.0, 0.0, 0.0, 1.0)
     scale = (1.0, 0.5, 0.5)
-    prim = sim_utils.create_prim("/World/Test/Xform", "Xform", stage=stage, translation=pos, orientation=quat, scale=scale)
+    prim = sim_utils.create_prim(
+        "/World/Test/Xform", "Xform", stage=stage, translation=pos, orientation=quat, scale=scale
+    )
     # check transform set
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/Test/Xform"
     assert prim.GetTypeName() == "Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(pos)
-    assert prim.GetAttribute("xformOp:orient").Get() == Gf.Quatf(*quat)
-    assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3f(scale)
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*quat))
+    assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(scale)
     # check xform operation order
     op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
 
 def test_delete_prim():
     """Test delete_prim() function."""
@@ -115,19 +130,24 @@ def test_delete_prim():
     assert not prim.IsValid()
 
     # check for usd reference
-    prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd", stage=stage)
+    prim = sim_utils.create_prim(
+        "/World/Test/USDReference",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        stage=stage,
+    )
     # delete prim
-    sim_utils.delete_prim("/World/Test/USDReference")
+    sim_utils.delete_prim("/World/Test/USDReference", stage=stage)
     # check prim deleted
     assert not prim.IsValid()
 
     # check deleting multiple prims
     prim1 = sim_utils.create_prim("/World/Test/Xform1", "Xform", stage=stage)
     prim2 = sim_utils.create_prim("/World/Test/Xform2", "Xform", stage=stage)
-    sim_utils.delete_prim(("/World/Test/Xform1", "/World/Test/Xform2"))
+    sim_utils.delete_prim(("/World/Test/Xform1", "/World/Test/Xform2"), stage=stage)
     # check prims deleted
     assert not prim1.IsValid()
     assert not prim2.IsValid()
+
 
 def test_move_prim():
     """Test move_prim() function."""
@@ -135,16 +155,43 @@ def test_move_prim():
     stage = sim_utils.get_current_stage()
     # create scene
     sim_utils.create_prim("/World/Test", "Xform", stage=stage)
-    sim_utils.create_prim("/World/TestMove", "Xform", stage=stage, translation=(1.0, 1.0, 1.0), orientation=(0.0, 0.0, 1.0, 0.0))
-    prim = sim_utils.create_prim("/World/Test/Xform", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd", translation=(1.0, 2.0, 3.0), orientation=(0.0, 0.0, 0.0, 1.0), stage=stage,)
+    prim = sim_utils.create_prim(
+        "/World/Test/Xform",
+        "Xform",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
+        stage=stage,
+    )
+
     # move prim
-    sim_utils.move_prim("/World/Test/Xform", "/World/TestMove/Xform")
+    sim_utils.create_prim("/World/TestMove", "Xform", stage=stage, translation=(1.0, 1.0, 1.0))
+    sim_utils.move_prim("/World/Test/Xform", "/World/TestMove/Xform", stage=stage)
     # check prim moved
     prim = stage.GetPrimAtPath("/World/TestMove/Xform")
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/TestMove/Xform"
-    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((1.0, 1.0, 1.0))
-    assert prim.GetAttribute("xformOp:orient").Get() == Gf.Quatf(0.0, 0.0, 1.0, 0.0)
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
+
+    # check moving prim with keep_world_transform=False
+    # it should preserve the local transform from last move
+    sim_utils.create_prim(
+        "/World/TestMove2", "Xform", stage=stage, translation=(2.0, 2.0, 2.0), orientation=(0.0, 0.7071, 0.0, 0.7071)
+    )
+    sim_utils.move_prim("/World/TestMove/Xform", "/World/TestMove2/Xform", keep_world_transform=False, stage=stage)
+    # check prim moved
+    prim = stage.GetPrimAtPath("/World/TestMove2/Xform")
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == "/World/TestMove2/Xform"
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
+
+
+"""
+USD Stage traversal.
+"""
+
 
 def test_get_next_free_prim_path():
     """Test get_next_free_prim_path() function."""
@@ -277,6 +324,11 @@ def test_find_global_fixed_joint_prim():
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True) is None
 
 
+"""
+USD references and variants.
+"""
+
+
 def test_select_usd_variants():
     """Test select_usd_variants() function."""
     stage = sim_utils.get_current_stage()
@@ -294,6 +346,11 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+
+"""
+USD Prim properties and attributes.
+"""
 
 
 def test_resolve_prim_pose():

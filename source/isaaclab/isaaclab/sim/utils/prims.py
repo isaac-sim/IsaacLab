@@ -57,9 +57,9 @@ def create_prim(
     attributes: dict | None = None,
     stage: Usd.Stage | None = None,
 ) -> Usd.Prim:
-    """Create a prim into current USD stage.
+    """Creates a prim in the provided USD stage.
 
-    The method applies specified transforms, the semantic label and set specified attributes.
+    The method applies the specified transforms, the semantic label and sets the specified attributes.
 
     Args:
         prim_path: The path of the new prim.
@@ -74,11 +74,11 @@ def create_prim(
         attributes: Key-value pairs of prim attributes to set.
         stage: The stage to create the prim in. Defaults to None, in which case the current stage is used.
 
-    Raises:
-        Exception: If there is already a prim at the prim_path
-
     Returns:
         The created USD prim.
+
+    Raises:
+        ValueError: If there is already a prim at the provided prim_path.
 
     Example:
 
@@ -95,18 +95,6 @@ def create_prim(
         ...     attributes={"size": 2.0}
         ... )
         Usd.Prim(</World/Cube>)
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # load an USD file (franka.usd) to the stage under the path /World/panda
-        >>> sim_utils.create_prim(
-        ...     prim_path="/World/panda",
-        ...     prim_type="Xform",
-        ...     usd_path="/home/<user>/Documents/Assets/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-        ... )
-        Usd.Prim(</World/panda>)
     """
     # Note: Imported here to prevent cyclic dependency in the module.
     from isaacsim.core.prims import XFormPrim
@@ -157,12 +145,13 @@ def create_prim(
     return prim
 
 
-def delete_prim(prim_path: str | Sequence[str]) -> None:
-    """Remove the USD Prim and its descendants from the scene if able.
+def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> None:
+    """Removes the USD Prim and its descendants from the scene if able.
 
     Args:
         prim_path: The path of the prim to delete. If a list of paths is provided,
             the function will delete all the prims in the list.
+        stage: The stage to delete the prim in. Defaults to None, in which case the current stage is used.
 
     Example:
 
@@ -175,16 +164,29 @@ def delete_prim(prim_path: str | Sequence[str]) -> None:
     # convert prim_path to list if it is a string
     if isinstance(prim_path, str):
         prim_path = [prim_path]
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
     # delete prims
-    DeletePrimsCommand(prim_path).do()
+    DeletePrimsCommand(prim_path, stage=stage).do()
 
 
-def move_prim(path_from: str, path_to: str) -> None:
-    """Run the Move command to change a prims USD Path in the stage
+def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> None:
+    """Moves a prim from one path to another within a USD stage.
+
+    This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
+    is set to True, the world transform of the prim is kept. This implies that the prim's local transform is reset
+    such that the prim's world transform is the same as the source path's world transform. If it is set to False,
+    the prim's local transform is preserved.
+
+    .. warning::
+        Reparenting or moving prims in USD is an expensive operation that may trigger
+        significant recomposition costs, especially in large or deeply layered stages.
 
     Args:
         path_from: Path of the USD Prim you wish to move
         path_to: Final destination of the prim
+        keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
+        stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
 
     Example:
 
@@ -195,7 +197,12 @@ def move_prim(path_from: str, path_to: str) -> None:
         >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
         >>> sim_utils.move_prim("/World/Cube", "/Cube")
     """
-    MovePrimCommand(path_from=path_from, path_to=path_to).do()
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
+    # move prim
+    MovePrimCommand(
+        path_from=path_from, path_to=path_to, keep_world_transform=keep_world_transform, stage_or_context=stage
+    ).do()
 
 
 """
