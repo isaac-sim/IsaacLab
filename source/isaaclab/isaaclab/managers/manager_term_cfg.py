@@ -64,7 +64,7 @@ class RecorderTermCfg:
     class_type: type[RecorderTerm] = MISSING
     """The associated recorder term class.
 
-    The class should inherit from :class:`isaaclab.managers.action_manager.RecorderTerm`.
+    The class should inherit from :class:`isaaclab.managers.recorder_manager.RecorderTerm`.
     """
 
 
