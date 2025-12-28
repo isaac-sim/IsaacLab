@@ -91,25 +91,6 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     SimulationManager.enable_stage_open_callback(True)
 
 
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
 
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
@@ -138,11 +119,12 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
-        logger.warning("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
     else:
         # check stage
-        assert isinstance(stage, Usd.Stage), f"Expected a USD stage instance, got: {type(stage)}"
+        if not isinstance(stage, Usd.Stage):
+            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
         # store previous context value if it exists
         previous_stage = getattr(_context, "stage", None)
         # set new context value
@@ -208,6 +190,26 @@ def get_current_stage_id() -> int:
     return stage_id
 
 
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is in memory.
+
+    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+
+    Returns:
+        Whether the current stage is in memory.
+    """
+    # grab current stage id
+    stage_id = get_current_stage_id()
+
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
+
+    # check if stage ids are the same
+    return stage_id != context_stage_id
+
+
 def create_new_stage() -> Usd.Stage:
     """Create a new stage attached to the USD context.
 
@@ -270,7 +272,8 @@ def open_stage(usd_path: str) -> bool:
     """
     # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+        raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
+    
     # get USD context
     usd_context = omni.usd.get_context()
     # disable save to recent files
@@ -297,12 +300,17 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 
     Raises:
         ValueError: When input path is not a supported file type by USD.
+        RuntimeError: When layer creation or save operation fails.
     """
     # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
-        raise ValueError(f"The USD file at path {usd_path} is not supported.")
+        raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
+    
     # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
+    if layer is None:
+        raise RuntimeError(f"Failed to create new USD layer at path '{usd_path}'.")
+    
     # get root layer
     root_layer = get_current_stage().GetRootLayer()
     # transfer content from root layer to new layer
@@ -311,8 +319,11 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
     omni.usd.resolve_paths(root_layer.identifier, layer.identifier)
     # save layer
     result = layer.Save()
+    if not result:
+        logger.error(f"Failed to save USD layer to path '{usd_path}'.")
+    
     # if requested, open the saved USD file in place
-    if save_and_reload_in_place:
+    if save_and_reload_in_place and result:
         open_stage(usd_path)
 
     return result
@@ -449,3 +460,28 @@ def is_stage_loading() -> bool:
     else:
         _, _, loading = context.get_stage_loading_status()
         return loading > 0
+
+
+def update_stage() -> None:
+    """Updates the current stage by triggering an application update cycle.
+
+    This function triggers a single update cycle of the application interface, which
+    in turn updates the stage and all associated systems (rendering, physics, etc.).
+    This is necessary to ensure that changes made to the stage are properly processed
+    and reflected in the simulation.
+
+    Note:
+        This function calls the application update interface rather than directly
+        updating the stage because the stage update is part of the broader
+        application update cycle that includes rendering, physics, and other systems.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.update_stage()
+    """
+    # TODO: Why is this updating the simulation and not the stage?
+    omni.kit.app.get_app_interface().update()
