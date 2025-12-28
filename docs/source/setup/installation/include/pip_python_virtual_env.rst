@@ -52,24 +52,20 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
                .. code-block:: bash
 
-                  # create a virtual environment named env_isaaclab with python3.11
-                  uv venv --python 3.11 env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.11 and pip
+                  uv venv --python 3.11 --seed env_isaaclab
                   # activate the virtual environment
                   source env_isaaclab/bin/activate
-                  # manually install pip via uv
-                  uv pip install pip
 
             .. tab-item:: :icon:`fa-brands fa-windows` Windows
                :sync: windows
 
                .. code-block:: batch
 
-                  :: create a virtual environment named env_isaaclab with python3.11
-                  uv venv --python 3.11 env_isaaclab
+                  :: create a virtual environment named env_isaaclab with python3.11 and pip
+                  uv venv --python 3.11 --seed env_isaaclab
                   :: activate the virtual environment
                   env_isaaclab\Scripts\activate
-                  :: manually install pip via uv
-                  uv pip install pip
 
       .. tab-item::  Conda Environment
 
