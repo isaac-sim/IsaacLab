@@ -39,7 +39,8 @@ extra_standard_library = [
     "tqdm",
     "torchvision",
     "transformers",
-    "einops" # Needed for transformers, doesn't always auto-install
+    "einops", # Needed for transformers, doesn't always auto-install
+    "packaging",
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
