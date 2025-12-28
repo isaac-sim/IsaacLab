@@ -65,11 +65,11 @@ def test_version_comparisons(v1, v2, expected):
 def test_symmetry():
     """Test anti-symmetric property: if v1 < v2, then v2 > v1."""
     test_pairs = [("1.0.0", "2.0.0"), ("1.5.3", "1.4.9"), ("1.0.0", "1.0.0")]
-    
+
     for v1, v2 in test_pairs:
         result1 = compare_versions(v1, v2)
         result2 = compare_versions(v2, v1)
-        
+
         if result1 == 0:
             assert result2 == 0
         else:
@@ -82,4 +82,3 @@ def test_transitivity():
     assert compare_versions(v1, v2) == -1
     assert compare_versions(v2, v3) == -1
     assert compare_versions(v1, v3) == -1
-
