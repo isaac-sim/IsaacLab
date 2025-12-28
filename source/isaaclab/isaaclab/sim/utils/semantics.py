@@ -7,15 +7,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from pxr import Usd, UsdGeom
 
 # USD Semantics is only available in Isaac Sim 5.0 and later.
-try:
+with contextlib.suppress(ModuleNotFoundError, ImportError):
     from pxr import UsdSemantics
-except (ModuleNotFoundError, ImportError):
-    pass
 
 from isaacsim.core.version import get_version
 
