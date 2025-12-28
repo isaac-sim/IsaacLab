@@ -1306,6 +1306,11 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">env_ids_for_slice</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env_ids_for_slice</span> <span class="o">=</span> <span class="n">env_ids</span>
+
         <span class="c1"># sample joint properties from the given ranges and set into the physics simulation</span>
         <span class="c1"># joint friction coefficient</span>
         <span class="k">if</span> <span class="n">friction_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1322,7 +1327,7 @@
             <span class="n">friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
 
             <span class="c1"># Always set static friction (indexed once)</span>
-            <span class="n">static_friction_coeff</span> <span class="o">=</span> <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="n">static_friction_coeff</span> <span class="o">=</span> <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span>
 
             <span class="c1"># if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient</span>
             <span class="n">major_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
@@ -1353,8 +1358,8 @@
                 <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span> <span class="n">friction_coeff</span><span class="p">)</span>
 
                 <span class="c1"># Index once at the end</span>
-                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">dynamic_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
-                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">viscous_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">dynamic_friction_coeff</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">viscous_friction_coeff</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># For versions &lt; 5.0.0, we do not set these values</span>
                 <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1380,7 +1385,7 @@
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span>
-                <span class="n">armature</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
+                <span class="n">armature</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
             <span class="p">)</span>
 
         <span class="c1"># joint position limits</span>
@@ -1408,7 +1413,7 @@
                 <span class="p">)</span>
 
             <span class="c1"># extract the position limits for the concerned joints</span>
-            <span class="n">joint_pos_limits</span> <span class="o">=</span> <span class="n">joint_pos_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="n">joint_pos_limits</span> <span class="o">=</span> <span class="n">joint_pos_limits</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">joint_pos_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                     <span class="s2">&quot;Randomization term &#39;randomize_joint_parameters&#39; is setting lower joint limits that are greater&quot;</span>

@@ -698,14 +698,22 @@ running the following command:</p>
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/list_envs.py
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--keyword</span> <span class="pre">&lt;search_term&gt;</span></code> (optional) to filter environments by keyword.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/list_envs.py<span class="w"> </span>--keyword<span class="w"> </span>&lt;search_term&gt;
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\environments\list_envs.py
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--keyword</span> <span class="pre">&lt;search_term&gt;</span></code> (optional) to filter environments by keyword.</p>
+</div>
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts\environments\list_envs.py --keyword <span class="p">&lt;</span>search_term&gt;
 </pre></div>
 </div>
 </div>

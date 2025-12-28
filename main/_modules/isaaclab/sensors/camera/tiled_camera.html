@@ -866,6 +866,11 @@
             <span class="k">if</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;motion_vectors&quot;</span><span class="p">:</span>
                 <span class="n">tiled_data_buffer</span> <span class="o">=</span> <span class="n">tiled_data_buffer</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
 
+            <span class="c1"># For normals, we only require the first three channels of the tiled buffer</span>
+            <span class="c1"># Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)</span>
+            <span class="k">if</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;normals&quot;</span><span class="p">:</span>
+                <span class="n">tiled_data_buffer</span> <span class="o">=</span> <span class="n">tiled_data_buffer</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+
             <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
                 <span class="n">kernel</span><span class="o">=</span><span class="n">reshape_tiled_image</span><span class="p">,</span>
                 <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">),</span>

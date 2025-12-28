@@ -741,14 +741,20 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-0">
 UV Environment</label><div class="sd-tab-content docutils">
-<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.
-You can create the Isaac Lab environment using the following commands:</p>
+<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A virtual environment created by <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">venv</span></code> does <strong>not</strong> include <code class="docutils literal notranslate"><span class="pre">pip</span></code>.
+Since Isaac Lab installation requires <code class="docutils literal notranslate"><span class="pre">pip</span></code>, please install it manually
+after activating the environment.</p>
+</div>
+<p>You can create the Isaac Lab environment using the following commands:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-3">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a virtual environment named env_isaaclab with python3.11</span>
-uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.11<span class="w"> </span>env_isaaclab
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a virtual environment named env_isaaclab with python3.11 and pip</span>
+uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.11<span class="w"> </span>--seed<span class="w"> </span>env_isaaclab
 <span class="c1"># activate the virtual environment</span>
 <span class="nb">source</span><span class="w"> </span>env_isaaclab/bin/activate
 </pre></div>
@@ -757,8 +763,8 @@ uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> <
 <input id="sd-tab-item-4" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-4">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: create a virtual environment named env_isaaclab with python3.11</span>
-uv venv --python 3.11 env_isaaclab
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: create a virtual environment named env_isaaclab with python3.11 and pip</span>
+uv venv --python 3.11 --seed env_isaaclab
 <span class="p">:</span><span class="c1">: activate the virtual environment</span>
 env_isaaclab\Scripts\activate
 </pre></div>

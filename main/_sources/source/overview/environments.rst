@@ -13,16 +13,23 @@ running the following command:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py
+         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\list_envs.py
+         isaaclab.bat -p scripts\environments\list_envs.py --keyword <search_term>
+
 
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
