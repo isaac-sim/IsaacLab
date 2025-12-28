@@ -1,0 +1,104 @@
+{
+  "name": "Isaac Lab Development Container",
+  "dockerComposeFile": ["../docker/docker-compose.yaml"],
+  "service": "isaac-lab-base",
+  "workspaceFolder": "/workspace/isaaclab",
+
+  // Run commands after container creation
+  "postCreateCommand": "echo 'Isaac Lab development container ready! Run: ./isaaclab.sh -i'",
+
+  // Shutdown action  
+  "shutdownAction": "stopCompose",
+
+  // Port forwarding for potential web services
+  "forwardPorts": [8888, 6006],
+  "portsAttributes": {
+    "8888": {
+      "label": "Jupyter",
+      "onAutoForward": "notify"
+    },
+    "6006": {
+      "label": "TensorBoard",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Set environment variables
+  "remoteEnv": {
+    "PYTHONUNBUFFERED": "1",
+    "ISAACLAB_PATH": "${containerWorkspaceFolder}"
+  },
+
+  // VS Code customizations
+  "customizations": {
+    "vscode": {
+      // Extensions for Python, AI/ML, and robotics development
+      "extensions": [
+        // Python essentials
+        "ms-python.python"
+      ],
+
+      // VS Code settings
+      "settings": {
+        // Python configuration
+        "python.defaultInterpreterPath": "/isaac-sim/python.sh",
+        "python.terminal.activateEnvironment": true,
+        
+        // Formatting
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": false,
+        "editor.rulers": [120],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        
+        // Python formatting with Black
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        
+        // Black formatter settings
+        "black-formatter.args": ["--line-length", "120"],
+        
+        // isort settings
+        "isort.args": ["--profile", "black", "--line-length", "120"],
+        
+        // Pylance settings
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.autoImportCompletions": true,
+        "python.analysis.inlayHints.functionReturnTypes": true,
+        "python.analysis.inlayHints.variableTypes": true,
+        
+        // File associations
+        "files.associations": {
+          "*.yaml": "yaml",
+          "*.yml": "yaml",
+          "*.toml": "toml",
+          "*.kit": "json"
+        },
+        
+        // Exclude patterns for file watcher
+        "files.watcherExclude": {
+          "**/.git/**": true,
+          "**/node_modules/**": true,
+          "**/__pycache__/**": true,
+          "**/.pytest_cache/**": true,
+          "**/*.egg-info/**": true,
+          "**/logs/**": true,
+          "**/data_storage/**": true
+        },
+        
+        // Search exclude patterns
+        "search.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true,
+          "**/*.egg-info": true,
+          "**/logs": true
+        }
+      }
+    }
+  }
+}
