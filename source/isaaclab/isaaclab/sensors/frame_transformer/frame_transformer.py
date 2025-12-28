@@ -35,31 +35,28 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
-# Regex pattern for environment path parsing
-# Matches: env_0/, env_.*/, etc. and captures the path after
-_ENV_PATH_PATTERN = re.compile(r"env_[^/]+/(.*)")
-
 
 def _get_relative_body_path(prim_path: str) -> str:
-    """Extract the relative body path from a prim path.
+    """Extract a normalized body path from a prim path.
+
+    Removes the environment instance segment `/envs/env_<id>/` to normalize paths
+    across multiple environments, while preserving the `/envs/` prefix to
+    distinguish environment-scoped paths from non-environment paths.
 
     Examples:
-    - '/World/envs/env_0/Robot/torso' -> 'Robot/torso'
-    - '/World/envs/env_123/Robot/left_hand' -> 'Robot/left_hand'
+    - '/World/envs/env_0/Robot/torso' -> '/World/envs/Robot/torso'
+    - '/World/envs/env_123/Robot/left_hand' -> '/World/envs/Robot/left_hand'
+    - '/World/Robot' -> '/World/Robot'
+    - '/World/Robot_2/left_hand' -> '/World/Robot_2/left_hand'
 
     Args:
-        prim_path: The full prim path. Must contain env_* pattern.
+        prim_path: The full prim path.
 
     Returns:
-        The relative body path after the env prefix.
-
-    Raises:
-        ValueError: If the prim path does not contain the expected env pattern.
+        The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
     """
-    match = _ENV_PATH_PATTERN.search(prim_path)
-    if match is None:
-        raise ValueError(f"Prim path '{prim_path}' does not match expected pattern 'env_*/...'")
-    return match.group(1)
+    pattern = re.compile(r"/envs/env_[^/]+/")
+    return pattern.sub("/envs/", prim_path)
 
 
 class FrameTransformer(SensorBase):

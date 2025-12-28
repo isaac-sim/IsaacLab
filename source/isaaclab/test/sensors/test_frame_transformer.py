@@ -592,7 +592,8 @@ def test_sensor_print(sim):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("source_robot", ["Robot", "Robot_1"])
-def test_frame_transformer_duplicate_body_names(sim, source_robot):
+@pytest.mark.parametrize("path_prefix", ["{ENV_REGEX_NS}", "/World"])
+def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     """Test tracking bodies with same leaf name at different hierarchy levels.
 
     This test verifies that bodies with the same leaf name but different paths
@@ -617,6 +618,7 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot):
         source_robot: The robot to use as the source frame ("Robot" or "Robot_1").
                       This tests that both source frames work correctly when there are
                       duplicate body names.
+        path_prefix: The path prefix to use ("{ENV_REGEX_NS}" for env patterns or "/World" for direct paths).
     """
 
     # Create a custom scene config with two robots
@@ -626,41 +628,41 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot):
 
         terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
 
-        # First robot
-        robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-        # Second robot (same type, different prim path)
-        robot_1 = ANYMAL_C_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot_1",
-            init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
-        )
-
         # Frame transformer will be set after config creation (needs source_robot parameter)
         frame_transformer: FrameTransformerCfg = None  # type: ignore
 
-    # Spawn things into stage
-    scene_cfg = MultiRobotSceneCfg(num_envs=2, env_spacing=10.0, lazy_sensor_update=False)
+    # Use multiple envs for env patterns, single env for direct paths
+    num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1
+    env_spacing = 10.0 if path_prefix == "{ENV_REGEX_NS}" else 0.0
+
+    # Create scene config with appropriate prim paths
+    scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
+    scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
+    scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+        prim_path=f"{path_prefix}/Robot_1",
+        init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+    )
 
     # Frame transformer tracking same-named bodies from both robots
     # Source frame is parametrized to test both Robot/base and Robot_1/base
     scene_cfg.frame_transformer = FrameTransformerCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/{source_robot}/base",
+        prim_path=f"{path_prefix}/{source_robot}/base",
         target_frames=[
             # Explicit frame names (recommended when bodies share the same leaf name)
             FrameTransformerCfg.FrameCfg(
                 name="Robot_LF_SHANK",
-                prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK",
+                prim_path=f"{path_prefix}/Robot/LF_SHANK",
             ),
             FrameTransformerCfg.FrameCfg(
                 name="Robot_1_LF_SHANK",
-                prim_path="{ENV_REGEX_NS}/Robot_1/LF_SHANK",
+                prim_path=f"{path_prefix}/Robot_1/LF_SHANK",
             ),
             # Implicit frame names (backward compatibility)
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/RF_SHANK",
+                prim_path=f"{path_prefix}/Robot/RF_SHANK",
             ),
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot_1/RF_SHANK",
+                prim_path=f"{path_prefix}/Robot_1/RF_SHANK",
             ),
         ],
     )
