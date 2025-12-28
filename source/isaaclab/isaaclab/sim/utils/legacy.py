@@ -13,6 +13,7 @@ It is recommended to use the USD APIs directly whenever possible.
 """
 
 import logging
+from collections.abc import Iterable
 
 from pxr import Usd, UsdGeom
 
@@ -24,21 +25,9 @@ from .stage import get_current_stage
 logger = logging.getLogger(__name__)
 
 
-def get_next_free_path(path: str, stage: Usd.Stage | None = None) -> str:
-    """Gets a new prim path that doesn't exist in the stage given a base path.
-
-    .. deprecated:: 2.3.0
-        This function is deprecated. Use :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` instead.
-
-    Args:
-        path: The base prim path to check.
-        stage: The stage to check. Defaults to the current stage.
-
-    Returns:
-        A new path that is guaranteed to not exist on the current stage
-    """
-    logger.warning("Function 'get_next_free_path' is deprecated. Please use 'get_next_free_prim_path' instead.")
-    return get_next_free_prim_path(path, stage)
+"""
+Stage utilities.
+"""
 
 
 def add_reference_to_stage(usd_path: str, path: str, prim_type: str = "Xform") -> Usd.Prim:
@@ -84,6 +73,51 @@ def get_stage_up_axis() -> str:
     """
     logger.warning(msg)
     return UsdGeom.GetStageUpAxis(get_current_stage())
+
+
+def traverse_stage(fabric: bool = False) -> Iterable[Usd.Prim]:
+    """Traverses the stage and returns all the prims.
+
+    .. deprecated:: 2.3.0
+        This function is deprecated. Please use the USD APIs directly instead.
+
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Usd
+        >>>
+        >>> stage = sim_utils.get_current_stage()
+        >>> for prim in stage.Traverse():
+        >>>     print(prim)
+        Usd.Prim(</World>)
+        Usd.Prim(</World/Cube>)
+        Usd.Prim(</World/Cube_01>)
+        Usd.Prim(</World/Cube_02>)
+
+    Args:
+        fabric: True for fabric stage and False for USD stage. Defaults to False.
+
+    Returns:
+        An iterable of all the prims in the stage.
+    """
+    msg = """Function 'traverse_stage' is deprecated. Please use the USD APIs directly instead.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Usd
+        >>>
+        >>> stage = sim_utils.get_current_stage()
+        >>> for prim in stage.Traverse():
+        >>>     print(prim)
+    """
+    logger.warning(msg)
+    # get current stage
+    stage = get_current_stage(fabric=fabric)
+    # traverse stage
+    return stage.Traverse()
+
+
+"""
+Prims utilities.
+"""
 
 
 def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | None:
@@ -292,3 +326,25 @@ def get_prim_type_name(prim_path: str | Usd.Prim, fabric: bool = False) -> str:
         raise ValueError(f"A prim does not exist at prim path: {prim_path}")
     # return type name
     return prim.GetTypeName()
+
+
+"""
+Queries utilities.
+"""
+
+
+def get_next_free_path(path: str) -> str:
+    """Gets a new prim path that doesn't exist in the stage given a base path.
+
+    .. deprecated:: 2.3.0
+        This function is deprecated. Use :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` instead.
+
+    Args:
+        path: The base prim path to check.
+        stage: The stage to check. Defaults to the current stage.
+
+    Returns:
+        A new path that is guaranteed to not exist on the current stage
+    """
+    logger.warning("Function 'get_next_free_path' is deprecated. Please use 'get_next_free_prim_path' instead.")
+    return get_next_free_prim_path(path)
