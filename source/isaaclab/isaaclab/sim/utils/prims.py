@@ -257,6 +257,55 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
     return omni.usd.get_stage_next_free_path(stage, path, True)
 
 
+def get_first_matching_ancestor_prim(
+    prim_path: str | Sdf.Path,
+    predicate: Callable[[Usd.Prim], bool],
+    stage: Usd.Stage | None = None,
+) -> Usd.Prim | None:
+    """Gets the first ancestor prim that passes the predicate function.
+
+    This function walks up the prim hierarchy starting from the target prim and returns the first ancestor prim
+    that passes the predicate function. This includes the prim itself if it passes the predicate.
+
+    Args:
+        prim_path: The path of the prim in the stage.
+        predicate: The function to test the prims against. It takes a prim as input and returns a boolean.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The first ancestor prim that passes the predicate. If no ancestor prim passes the predicate, it returns None.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').    
+    """
+     # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
+    # make paths str type if they aren't already
+    prim_path = str(prim_path)
+    # check if prim path is global
+    if not prim_path.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
+    # get prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    
+    # walk up to find the first matching ancestor prim
+    ancestor_prim = prim
+    while ancestor_prim and ancestor_prim.IsValid():
+        # check if prim passes predicate
+        if predicate(ancestor_prim):
+            return ancestor_prim
+        # get parent prim
+        ancestor_prim = ancestor_prim.GetParent()
+
+    # If no ancestor prim passes the predicate, return None
+    return None
+
+
 def get_first_matching_child_prim(
     prim_path: str | Sdf.Path,
     predicate: Callable[[Usd.Prim], bool],
