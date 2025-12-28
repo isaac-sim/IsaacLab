@@ -51,9 +51,11 @@ def create_test_environment_with_labels():
 
     return [f"/World/Test/Object{i}" for i in range(4)] + [str(nested_prim.GetPrimPath())]
 
+
 """
 Tests.
 """
+
 
 def test_add_and_get_labels():
     """Test add_labels() and get_labels() functions."""
@@ -79,6 +81,7 @@ def test_add_and_get_labels():
     assert "class" in nested_labels_dict
     assert nested_labels_dict["class"] == ["nested_label"]
 
+
 def test_add_labels_with_overwrite():
     """Test add_labels() function with overwriting existing labels."""
     # get stage handle
@@ -96,6 +99,7 @@ def test_add_labels_with_overwrite():
     assert labels_dict["class"] == ["replaced_label"]
     assert "shape" in labels_dict
     assert labels_dict["shape"] == ["shape_a"]
+
 
 def test_add_labels_without_overwrite():
     """Test add_labels() function without overwriting existing labels."""
@@ -121,7 +125,7 @@ def test_remove_all_labels():
     # create a test prim
     prim = stage.DefinePrim("/test", "Xform")
     nested_prim = stage.DefinePrim("/test/nested", "Xform")
-    
+
     # Add labels
     sim_utils.add_labels(prim, ["label_a", "label_b"], instance_name="class")
     sim_utils.add_labels(prim, ["shape_a"], instance_name="shape")
@@ -150,6 +154,7 @@ def test_remove_all_labels():
     nested_labels_dict = sim_utils.get_labels(nested_prim)
     assert len(nested_labels_dict) == 0
 
+
 def test_remove_specific_labels():
     """Test removing of specific labels from a prim and its descendants."""
     # get stage handle
@@ -157,7 +162,7 @@ def test_remove_specific_labels():
     # create a test prim
     prim = stage.DefinePrim("/test", "Xform")
     nested_prim = stage.DefinePrim("/test/nested", "Xform")
-    
+
     # Add labels
     sim_utils.add_labels(prim, ["label_a", "label_b"], instance_name="class")
     sim_utils.add_labels(prim, ["shape_a"], instance_name="shape")
@@ -212,7 +217,7 @@ def test_check_missing_labels():
 def test_count_labels_in_scene():
     """Test the count_labels_in_scene() function."""
     # create a test environment with labels
-    object_paths = create_test_environment_with_labels()
+    create_test_environment_with_labels()
 
     # Count from root
     labels_dict = sim_utils.count_total_labels()

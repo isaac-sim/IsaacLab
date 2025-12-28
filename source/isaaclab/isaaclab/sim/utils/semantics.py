@@ -9,8 +9,15 @@ from __future__ import annotations
 
 import logging
 
-import Semantics
-from pxr import Usd, UsdGeom, UsdSemantics
+from pxr import Usd, UsdGeom
+
+# USD Semantics is only available in Isaac Sim 5.0 and later.
+try:
+    from pxr import UsdSemantics
+except (ModuleNotFoundError, ImportError):
+    pass
+
+from isaacsim.core.version import get_version
 
 from .stage import get_current_stage
 
@@ -23,6 +30,10 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
 
     This function is a wrapper around the :func:`omni.replicator.core.functional.modify.semantics` function.
     It applies the labels to the prim using the :class:`UsdSemantics.LabelsAPI`.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later, which introduces the :class:`UsdSemantics.LabelsAPI`.
+        For previous versions, the function falls back to use the deprecated :class:`UsdSemantics.SemanticsAPI` instead.
 
     Example:
         >>> prim = sim_utils.create_prim("/World/Test/Sphere", "Sphere", stage=stage, attributes={"radius": 10.0})
@@ -41,15 +52,35 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         mode = "replace" if overwrite else "add"
         F.modify.semantics(prim, {instance_name: labels}, mode=mode)
     except Exception as e:
-        logger.warning(
-            f"Failed to add labels to prim {prim.GetPath()}: {e}. "
-            "\nPlease ensure replicator core is enabled by passing '--enable-cameras' to the AppLauncher."
-        )
-        raise e
+        # For Isaac Sim < 5.0, we use the deprecated SemanticsAPI.
+        if float(".".join(get_version()[2])) < 5:
+            import Semantics
+
+            # check we have only one label
+            if len(labels) != 1:
+                raise ValueError(f"Only one label can be applied to a prim. Received: {labels}")
+            # set the semantic API for the instance
+            instance_name = f"{instance_name}_{labels[0]}"
+            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
+            # create semantic type and data attributes
+            sem.CreateSemanticTypeAttr()
+            sem.CreateSemanticDataAttr()
+            sem.GetSemanticTypeAttr().Set(instance_name)
+            sem.GetSemanticDataAttr().Set(labels[0])
+        else:
+            logger.warning(
+                f"Failed to add labels to prim {prim.GetPath()}: {e}. "
+                "\nPlease ensure replicator core is enabled by passing '--enable-cameras' to the AppLauncher."
+            )
+            raise e
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     """Get all semantic labels (:class:`UsdSemantics.LabelsAPI`) applied to a prim.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For previous versions,
+        please use :mod:`isaacsim.core.utils.semantics` module instead.
 
     Args:
         prim: The USD prim to return labels for.
@@ -74,6 +105,10 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
 
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
     """Removes semantic labels (:class:`UsdSemantics.LabelsAPI`) from a prim and optionally its descendants.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For previous versions,
+        please use :mod:`isaacsim.core.utils.semantics` module instead.
 
     Args:
         prim: The USD prim to remove labels from.
@@ -106,8 +141,12 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     """Checks whether the prim and its descendants at the provided path have missing
     semantic labels (:class:`UsdSemantics.LabelsAPI`).
 
-    Note:
+    .. note::
         The function checks only prims that are :class:`UsdGeom.Gprim` type.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For previous versions,
+        please use :mod:`isaacsim.core.utils.semantics` module instead.
 
     Args:
         prim_path: The prim path to search from. If None, the entire stage is inspected.
@@ -147,6 +186,10 @@ def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = N
 
     This function iterates over all the prims from the provided path and counts the number of times
     each label is applied to the prims. It returns a dictionary of labels and their corresponding count.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For previous versions,
+        please use :mod:`isaacsim.core.utils.semantics` module instead.
 
     Args:
         prim_path: The prim path to search from. If None, the entire stage is inspected.
