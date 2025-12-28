@@ -33,10 +33,11 @@ from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+from .utils import bind_physics_material
 
 # import logger
 logger = logging.getLogger(__name__)
