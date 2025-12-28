@@ -151,6 +151,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
 * Yang Jin
