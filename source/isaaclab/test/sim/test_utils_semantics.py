@@ -13,15 +13,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import numpy as np
-import torch
-
 import pytest
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -44,9 +38,9 @@ def create_test_environment_with_labels():
     for i in range(3):
         sim_utils.create_prim(f"/World/Test/Object{i}", "Cube", semantic_label="cube")
     # create a sphere without any labels
-    sim_utils.create_prim(f"/World/Test/Object3", "Sphere")
+    sim_utils.create_prim("/World/Test/Object3", "Sphere")
     # create a nested prim with label "nested"
-    nested_prim = sim_utils.create_prim(f"/World/Test/Object0/Nested", "Cube")
+    nested_prim = sim_utils.create_prim("/World/Test/Object0/Nested", "Cube")
     sim_utils.add_labels(nested_prim, ["nested"], instance_name="shape")
 
     return [f"/World/Test/Object{i}" for i in range(4)] + [str(nested_prim.GetPrimPath())]
