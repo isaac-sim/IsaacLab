@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utilities for operating on the USD stage."""
+
 import builtins
 import contextlib
 import logging
@@ -26,189 +28,6 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 sim_stage._context = _context
 
 
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches the current USD stage in memory to the USD context.
-
-    This function should be called during or after scene is created and before stage is simulated or rendered.
-
-    Note:
-        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
-
-    Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
-    """
-
-    from isaacsim.core.simulation_manager import SimulationManager
-
-    from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        return
-
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
-
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
-
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
-
-    # early attach warning msg
-    if attaching_early:
-        logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which"
-            " does not support stage in memory."
-        )
-
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
-
-    # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
-
-    # attach stage to usd context
-    omni.usd.get_context().attach_stage_with_callback(stage_id)
-
-    # attach stage to physx
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
-
-
-@contextlib.contextmanager
-def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
-
-    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
-
-    Args:
-        stage: The stage to set temporarily.
-
-    Raises:
-        AssertionError: If the stage is not a USD stage instance.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> from pxr import Usd
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> stage_in_memory = Usd.Stage.CreateInMemory()
-        >>> with sim_utils.use_stage(stage_in_memory):
-        ...    # operate on the specified stage
-        ...    pass
-        >>> # operate on the default stage attached to the USD context
-    """
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        # check stage
-        if not isinstance(stage, Usd.Stage):
-            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
-        # store previous context value if it exists
-        previous_stage = getattr(_context, "stage", None)
-        # set new context value
-        try:
-            _context.stage = stage
-            yield
-        # remove context value or restore previous one if it exists
-        finally:
-            if previous_stage is None:
-                delattr(_context, "stage")
-            else:
-                _context.stage = previous_stage
-
-
-def get_current_stage(fabric: bool = False) -> Usd.Stage:
-    """Get the current open USD or Fabric stage
-
-    Args:
-        fabric: True to get the fabric stage. False to get the USD stage. Defaults to False.
-
-    Returns:
-        The USD or Fabric stage as specified by the input arg fabric.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> sim_utils.get_current_stage()
-        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
-                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
-                        pathResolverContext=<invalid repr>)
-    """
-    stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
-    return stage
-
-
-def get_current_stage_id() -> int:
-    """Get the current open stage ID.
-
-    Returns:
-        The current open stage id.
-
-    Example:
-
-    .. code-block:: python
-
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> sim_utils.get_current_stage_id()
-        1234567890
-    """
-    # get current stage
-    stage = get_current_stage()
-    # retrieve stage ID from stage cache
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_id = stage_cache.GetId(stage).ToLongInt()
-    # if stage ID is not found, insert it into the stage cache
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
-    # return stage ID
-    return stage_id
-
-
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
-
 def create_new_stage() -> Usd.Stage:
     """Create a new stage attached to the USD context.
 
@@ -216,15 +35,12 @@ def create_new_stage() -> Usd.Stage:
         Usd.Stage: The created USD stage.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.create_new_stage()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
-                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
-                        pathResolverContext=<invalid repr>)
+                       sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
+                       pathResolverContext=<invalid repr>)
     """
     return omni.usd.get_context().new_stage()
 
@@ -232,19 +48,20 @@ def create_new_stage() -> Usd.Stage:
 def create_new_stage_in_memory() -> Usd.Stage:
     """Creates a new stage in memory, if supported.
 
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For backwards
+        compatibility, it falls back to creating a new stage attached to the USD context.
+
     Returns:
         The new stage in memory.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.create_new_stage_in_memory()
         Usd.Stage.Open(rootLayer=Sdf.Find('anon:0xf7b00e0:tmp.usda'),
-                        sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
-                        pathResolverContext=<invalid repr>)
+                       sessionLayer=Sdf.Find('anon:0xf7cd2e0:tmp-session.usda'),
+                       pathResolverContext=<invalid repr>)
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
@@ -283,6 +100,82 @@ def open_stage(usd_path: str) -> bool:
     usd_context.enable_save_to_recent_files()
     # return result
     return result
+
+
+@contextlib.contextmanager
+def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
+    """Context manager that sets a thread-local stage, if supported.
+
+    This function binds the stage to the thread-local context for the duration of the context manager.
+    During the context manager, any call to :func:`get_current_stage` will return the stage specified
+    in the context manager. After the context manager is exited, the stage is restored to the default
+    stage attached to the USD context.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For backwards
+        compatibility, it falls back to a no-op context manager in Isaac Sim < 5.0.
+
+    Args:
+        stage: The stage to set in the context.
+
+    Returns:
+        A context manager that sets the stage in the context.
+
+    Raises:
+        AssertionError: If the stage is not a USD stage instance.
+
+    Example:
+        >>> from pxr import Usd
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> stage_in_memory = Usd.Stage.CreateInMemory()
+        >>> with sim_utils.use_stage(stage_in_memory):
+        ...    # operate on the specified stage
+        ...    pass
+        >>> # operate on the default stage attached to the USD context
+    """
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+        yield  # no-op
+    else:
+        # check stage
+        if not isinstance(stage, Usd.Stage):
+            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
+        # store previous context value if it exists
+        previous_stage = getattr(_context, "stage", None)
+        # set new context value
+        try:
+            _context.stage = stage
+            yield
+        # remove context value or restore previous one if it exists
+        finally:
+            if previous_stage is None:
+                delattr(_context, "stage")
+            else:
+                _context.stage = previous_stage
+
+
+def update_stage() -> None:
+    """Updates the current stage by triggering an application update cycle.
+
+    This function triggers a single update cycle of the application interface, which
+    in turn updates the stage and all associated systems (rendering, physics, etc.).
+    This is necessary to ensure that changes made to the stage are properly processed
+    and reflected in the simulation.
+
+    Note:
+        This function calls the application update interface rather than directly
+        updating the stage because the stage update is part of the broader
+        application update cycle that includes rendering, physics, and other systems.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.update_stage()
+    """
+    # TODO: Why is this updating the simulation and not the stage?
+    omni.kit.app.get_app_interface().update()
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -353,9 +246,8 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
         >>>
         >>> sim_utils.close_stage()
         True
-
-    .. code-block:: python
-
+        >>>
+        >>>
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> def callback(*args, **kwargs):
@@ -388,9 +280,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
             a default predicate will be used that deletes all prims.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> # clear the whole stage
@@ -438,6 +327,26 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         omni.kit.app.get_app_interface().update()
 
 
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is in memory.
+
+    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+
+    Returns:
+        Whether the current stage is in memory.
+    """
+    # grab current stage id
+    stage_id = get_current_stage_id()
+
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
+
+    # check if stage ids are the same
+    return stage_id != context_stage_id
+
+
 def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
@@ -445,9 +354,6 @@ def is_stage_loading() -> bool:
         bool: True if loading, False otherwise
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.is_stage_loading()
@@ -461,26 +367,113 @@ def is_stage_loading() -> bool:
         return loading > 0
 
 
-def update_stage() -> None:
-    """Updates the current stage by triggering an application update cycle.
+def get_current_stage(fabric: bool = False) -> Usd.Stage:
+    """Get the current open USD or Fabric stage
 
-    This function triggers a single update cycle of the application interface, which
-    in turn updates the stage and all associated systems (rendering, physics, etc.).
-    This is necessary to ensure that changes made to the stage are properly processed
-    and reflected in the simulation.
+    Args:
+        fabric: True to get the fabric stage. False to get the USD stage. Defaults to False.
 
-    Note:
-        This function calls the application update interface rather than directly
-        updating the stage because the stage update is part of the broader
-        application update cycle that includes rendering, physics, and other systems.
+    Returns:
+        The USD or Fabric stage as specified by the input arg fabric.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> sim_utils.update_stage()
+        >>> sim_utils.get_current_stage()
+        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
+                       sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
+                       pathResolverContext=<invalid repr>)
     """
-    # TODO: Why is this updating the simulation and not the stage?
-    omni.kit.app.get_app_interface().update()
+    stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
+    return stage
+
+
+def get_current_stage_id() -> int:
+    """Get the current open stage ID.
+
+    Returns:
+        The current open stage id.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.get_current_stage_id()
+        1234567890
+    """
+    # get current stage
+    stage = get_current_stage()
+    # retrieve stage ID from stage cache
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_id = stage_cache.GetId(stage).ToLongInt()
+    # if stage ID is not found, insert it into the stage cache
+    if stage_id < 0:
+        stage_id = stage_cache.Insert(stage).ToLongInt()
+    # return stage ID
+    return stage_id
+
+
+def attach_stage_to_usd_context(attaching_early: bool = False):
+    """Attaches the current USD stage in memory to the USD context.
+
+    This function should be called during or after scene is created and before stage is simulated or rendered.
+    If the stage is not in memory or rendering is not enabled, this function will return without attaching.
+
+    .. versionadded:: 2.3.0
+        This function is available in Isaac Sim 5.0 and later. For backwards
+        compatibility, it returns without attaching to the USD context.
+
+    Args:
+        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
+    """
+
+    from isaacsim.core.simulation_manager import SimulationManager
+
+    from isaaclab.sim.simulation_context import SimulationContext
+
+    # if Isaac Sim version is less than 5.0, stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        return
+
+    # if stage is not in memory, we can return early
+    if not is_current_stage_in_memory():
+        return
+
+    # attach stage to physx
+    stage_id = get_current_stage_id()
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # this carb flag is equivalent to if rendering is enabled
+    carb_setting = carb.settings.get_settings()
+    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
+
+    # if rendering is not enabled, we don't need to attach it
+    if not is_rendering_enabled:
+        return
+
+    # early attach warning msg
+    if attaching_early:
+        logger.warning(
+            "Attaching stage in memory to USD context early to support an operation which"
+            " does not support stage in memory."
+        )
+
+    # skip this callback to avoid wiping the stage after attachment
+    SimulationContext.instance().skip_next_stage_open_callback()
+
+    # disable stage open callback to avoid clearing callbacks
+    SimulationManager.enable_stage_open_callback(False)
+
+    # enable physics fabric
+    SimulationContext.instance()._physics_context.enable_fabric(True)
+
+    # attach stage to usd context
+    omni.usd.get_context().attach_stage_with_callback(stage_id)
+
+    # attach stage to physx
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # re-enable stage open callback
+    SimulationManager.enable_stage_open_callback(True)
