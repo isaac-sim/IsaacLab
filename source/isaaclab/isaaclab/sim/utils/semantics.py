@@ -5,22 +5,24 @@
 
 import logging
 
-from pxr import Usd, UsdGeom
+import Semantics
+from pxr import Usd, UsdGeom, UsdSemantics
 
 from .stage import get_current_stage
-
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
 
 # import logger
 logger = logging.getLogger(__name__)
 
 
 def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", overwrite: bool = True) -> None:
-    """Apply semantic labels to a prim using the :class:`Semantics.LabelsAPI`.
+    """Apply semantic labels to a prim using the :class:`UsdSemantics.LabelsAPI`.
+
+    This function is a wrapper around the :func:`omni.replicator.core.functional.modify.semantics` function.
+    It applies the labels to the prim using the :class:`UsdSemantics.LabelsAPI`.
+
+    Example:
+        >>> prim = sim_utils.create_prim("/World/Test/Sphere", "Sphere", stage=stage, attributes={"radius": 10.0})
+        >>> sim_utils.add_labels(prim, labels=["sphere"], instance_name="class")
 
     Args:
         prim: The USD prim to add or update labels on.
@@ -29,27 +31,34 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         overwrite: Whether to overwrite existing labels for this instance. If False,
           the new labels are appended to existing ones (if any). Defaults to True.
     """
-    import omni.replicator.core.functional as F
+    try:
+        import omni.replicator.core.functional as F
 
-    mode = "replace" if overwrite else "add"
-    F.modify.semantics(prim, {instance_name: labels}, mode=mode)
+        mode = "replace" if overwrite else "add"
+        F.modify.semantics(prim, {instance_name: labels}, mode=mode)
+    except Exception as e:
+        logger.warning(
+            f"Failed to add labels to prim {prim.GetPath()}: {e}. "
+            "\nPlease ensure replicator core is enabled by passing '--enable-cameras' to the AppLauncher."
+        )
+        raise e
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
-    """Returns semantic labels (:class:`Semantics.LabelsAPI`) applied to a prim.
+    """Get all semantic labels (:class:`UsdSemantics.LabelsAPI`) applied to a prim.
 
     Args:
         prim: The USD prim to return labels for.
 
     Returns:
         A dictionary mapping instance names to a list of labels.
-        If no :attr:`LabelsAPI` instances are found, it returns an empty dict.
+        If no labels are found, it returns an empty dictionary.
     """
     result = {}
     for schema_name in prim.GetAppliedSchemas():
         if schema_name.startswith("SemanticsLabelsAPI:"):
             instance_name = schema_name.split(":", 1)[1]
-            sem_api = Semantics.LabelsAPI(prim, instance_name)
+            sem_api = UsdSemantics.LabelsAPI(prim, instance_name)
             labels_attr = sem_api.GetLabelsAttr()
             if labels_attr:
                 labels = labels_attr.Get()
@@ -60,12 +69,12 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
 
 
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
-    """Removes semantic labels (:class:`Semantics.LabelsAPI`) from a prim.
+    """Removes semantic labels (:class:`UsdSemantics.LabelsAPI`) from a prim.
 
     Args:
         prim: The USD prim to remove labels from.
         instance_name: The specific instance name to remove. Defaults to None, in which case
-            *all* :attr:`LabelsAPI` instances are removed.
+            *all* labels are removed.
         include_descendants: Whether to also traverse children and remove labels recursively.
             Defaults to False.
     """
@@ -79,7 +88,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
                     schemas_to_remove.append(current_instance)
 
         for inst_to_remove in schemas_to_remove:
-            target_prim.RemoveAPI(Semantics.LabelsAPI, inst_to_remove)
+            target_prim.RemoveAPI(UsdSemantics.LabelsAPI, inst_to_remove)
 
     if include_descendants:
         for p in Usd.PrimRange(prim):
@@ -90,7 +99,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
 
 def check_missing_labels(prim_path: str | None = None) -> list[str]:
     """Checks whether the prim and its descendants at the provided path have missing
-    semantic labels (:class:`Semantics.LabelsAPI`).
+    semantic labels (:class:`UsdSemantics.LabelsAPI`).
 
     Note:
         The function checks only prims that are "Mesh" type.
@@ -99,7 +108,7 @@ def check_missing_labels(prim_path: str | None = None) -> list[str]:
         prim_path: The prim path to search from. If None, the entire stage is inspected.
 
     Returns:
-        A list containing prim paths to prims with no :class:`LabelsAPI` applied.
+        A list containing prim paths to prims with no labels applied.
     """
     # check if stage is valid
     stage = get_current_stage()
@@ -130,15 +139,15 @@ def check_missing_labels(prim_path: str | None = None) -> list[str]:
     return prim_paths
 
 
-def check_incorrect_labels(prim_path: str | None = None) -> list[list[str]]:
+def check_incorrect_labels(prim_path: str | None = None) -> list[tuple[str, str]]:
     """Check whether the prim and its descendants at the provided path have incorrect
-    semantic labels (:class:`Semantics.LabelsAPI`).
+    semantic labels (:class:`UsdSemantics.LabelsAPI`).
 
     A label is considered incorrect if it is not found within the prim's path string
     (case-insensitive, ignoring '_' and '-'). For example, if the prim path is "/World/Cube",
     and the label is "cube", it is considered incorrect because it is not found within the prim's
     path string.
-    
+
     Returns a list of [prim_path, label] for meshes where at least one semantic label (LabelsAPI)
        is not found within the prim's path string (case-insensitive, ignoring '_' and '-').
 
@@ -176,21 +185,21 @@ def check_incorrect_labels(prim_path: str | None = None) -> list[list[str]]:
                         and label_lower.replace("_", "") not in prim_path_str
                         and label_lower.replace("-", "") not in prim_path_str
                     ):
-                        incorrect_pair = [prim.GetPath().pathString, label]
+                        incorrect_pair = (prim.GetPath().pathString, label)
                         incorrect_pairs.append(incorrect_pair)
                         break  # Only report first incorrect label per prim
     return incorrect_pairs
 
 
 def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
-    """Returns a dictionary of semantic labels (Semantics.LabelsAPI) and their corresponding count.
+    """Returns a dictionary of semantic labels (UsdSemantics.LabelsAPI) and their corresponding count.
 
     Args:
         prim_path: This will check Prim path and its childrens' labels. If None, checks the whole stage.
 
     Returns:
         Dictionary mapping individual labels to their total count across all instances.
-        Includes a 'missing_labels' count for meshes with no LabelsAPI.
+        Includes a 'missing_labels' count for meshes with no labels.
     """
     labels_counter = {"missing_labels": 0}
     stage = get_current_stage()
@@ -220,7 +229,7 @@ def count_labels_in_scene(prim_path: str | None = None) -> dict[str, int]:
 
 def upgrade_prim_semantics_to_labels(prim: Usd.Prim, include_descendants: bool = False) -> int:
     """Upgrades a prim and optionally its descendants from the deprecated SemanticsAPI
-    to the new Semantics.LabelsAPI.
+    to the new UsdSemantics.LabelsAPI.
 
     Converts each found SemanticsAPI instance on the processed prim(s) to a corresponding
     LabelsAPI instance. The old 'semanticType' becomes the new LabelsAPI
