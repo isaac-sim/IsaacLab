@@ -24,7 +24,7 @@ from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 from isaaclab.utils.string import to_camel_case
 
 from .semantics import add_labels
-from .stage import add_reference_to_stage, attach_stage_to_usd_context, get_current_stage
+from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -128,7 +128,7 @@ def create_prim(
             prim.GetAttribute(k).Set(v)
     # add reference to USD file
     if usd_path is not None:
-        add_reference_to_stage(usd_path=usd_path, prim_path=prim_path, stage=stage)
+        add_usd_reference(usd_path=usd_path, prim_path=prim_path, stage=stage)
     # add semantic label to prim
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
@@ -1369,8 +1369,84 @@ def bind_physics_material(
 
 
 """
-USD Variants.
+USD References and Variants.
 """
+
+
+def add_usd_reference(
+    usd_path: str, prim_path: str, prim_type: str = "Xform", stage: Usd.Stage | None = None
+) -> Usd.Prim:
+    """Adds a USD reference at the specified prim path on the provided stage.
+
+    This function adds a reference to an external USD file at the specified prim path on the provided stage.
+    If the prim does not exist, it will be created with the specified type.
+
+    The function also handles stage units verification to ensure compatibility. For instance,
+    if the current stage is in meters and the referenced USD file is in centimeters, the function will
+    convert the units to match. This is done using the :mod:`omni.metrics.assembler` functionality.
+
+    Args:
+        usd_path: The path to USD file to reference.
+        prim_path: The prim path where the reference will be attached.
+        prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
+        stage: The stage to add the reference to. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The USD prim at the specified prim path.
+
+    Raises:
+        FileNotFoundError: When the input USD file is not found at the specified path.
+    """
+    # get current stage
+    stage = get_current_stage() if stage is None else stage
+    # get prim at path
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        prim = stage.DefinePrim(prim_path, prim_type)
+
+    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
+        """Helper function to add a reference to a prim."""
+        success_bool = prim.GetReferences().AddReference(usd_path)
+        if not success_bool:
+            raise RuntimeError(
+                f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
+            )
+        return prim
+
+    # get isaac sim version
+    isaac_sim_version = float(".".join(get_version()[2]))
+    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
+    if isaac_sim_version < 5:
+        return _add_reference_to_prim(prim)
+
+    # check if the USD file is valid and add reference to the prim
+    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
+    if not sdf_layer:
+        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
+
+    # import metrics assembler interface
+    # note: this is only available in Isaac Sim 5.0 and above
+    from omni.metrics.assembler.core import get_metrics_assembler_interface
+
+    # obtain the stage ID
+    stage_id = get_current_stage_id()
+    # check if the layers are compatible (i.e. the same units)
+    ret_val = get_metrics_assembler_interface().check_layers(
+        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
+    )
+    if ret_val["ret_val"]:
+        try:
+            import omni.metrics.assembler.ui
+
+            omni.kit.commands.execute(
+                "AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path)
+            )
+
+            return prim
+        except Exception:
+            return _add_reference_to_prim(prim)
+    else:
+        return _add_reference_to_prim(prim)
 
 
 def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
