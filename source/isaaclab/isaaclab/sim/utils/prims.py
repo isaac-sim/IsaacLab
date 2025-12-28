@@ -192,6 +192,162 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
 
 
 """
+USD References and Variants.
+"""
+
+
+def add_usd_reference(
+    usd_path: str, prim_path: str, prim_type: str = "Xform", stage: Usd.Stage | None = None
+) -> Usd.Prim:
+    """Adds a USD reference at the specified prim path on the provided stage.
+
+    This function adds a reference to an external USD file at the specified prim path on the provided stage.
+    If the prim does not exist, it will be created with the specified type.
+
+    The function also handles stage units verification to ensure compatibility. For instance,
+    if the current stage is in meters and the referenced USD file is in centimeters, the function will
+    convert the units to match. This is done using the :mod:`omni.metrics.assembler` functionality.
+
+    Args:
+        usd_path: The path to USD file to reference.
+        prim_path: The prim path where the reference will be attached.
+        prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
+        stage: The stage to add the reference to. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The USD prim at the specified prim path.
+
+    Raises:
+        FileNotFoundError: When the input USD file is not found at the specified path.
+    """
+    # get current stage
+    stage = get_current_stage() if stage is None else stage
+    # get prim at path
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        prim = stage.DefinePrim(prim_path, prim_type)
+
+    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
+        """Helper function to add a reference to a prim."""
+        success_bool = prim.GetReferences().AddReference(usd_path)
+        if not success_bool:
+            raise RuntimeError(
+                f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
+            )
+        return prim
+
+    # get isaac sim version
+    isaac_sim_version = float(".".join(get_version()[2]))
+    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
+    if isaac_sim_version < 5:
+        return _add_reference_to_prim(prim)
+
+    # check if the USD file is valid and add reference to the prim
+    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
+    if not sdf_layer:
+        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
+
+    # import metrics assembler interface
+    # note: this is only available in Isaac Sim 5.0 and above
+    from omni.metrics.assembler.core import get_metrics_assembler_interface
+
+    # obtain the stage ID
+    stage_id = get_current_stage_id()
+    # check if the layers are compatible (i.e. the same units)
+    ret_val = get_metrics_assembler_interface().check_layers(
+        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
+    )
+    if ret_val["ret_val"]:
+        try:
+            import omni.metrics.assembler.ui
+
+            omni.kit.commands.execute(
+                "AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path)
+            )
+
+            return prim
+        except Exception:
+            return _add_reference_to_prim(prim)
+    else:
+        return _add_reference_to_prim(prim)
+
+
+def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
+    """Sets the variant selections from the specified variant sets on a USD prim.
+
+    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on
+    a single asset. This can be done by modifying variations of the same prim parameters per variant option in a set.
+    This function acts as a script-based utility to set the variant selections for the specified variant sets on a
+    USD prim.
+
+    The function takes a dictionary or a config class mapping variant set names to variant selections. For instance,
+    if we have a prim at ``"/World/Table"`` with two variant sets: "color" and "size", we can set the variant
+    selections as follows:
+
+    .. code-block:: python
+
+        select_usd_variants(
+            prim_path="/World/Table",
+            variants={
+                "color": "red",
+                "size": "large",
+            },
+        )
+
+    Alternatively, we can use a config class to define the variant selections:
+
+    .. code-block:: python
+
+        @configclass
+        class TableVariants:
+            color: Literal["blue", "red"] = "red"
+            size: Literal["small", "large"] = "large"
+
+        select_usd_variants(
+            prim_path="/World/Table",
+            variants=TableVariants(),
+        )
+
+    Args:
+        prim_path: The path of the USD prim.
+        variants: A dictionary or config class mapping variant set names to variant selections.
+        stage: The USD stage. Defaults to None, in which case, the current stage is used.
+
+    Raises:
+        ValueError: If the prim at the specified path is not valid.
+
+    .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
+    """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
+    # Obtain prim
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # Convert to dict if we have a configclass object.
+    if not isinstance(variants, dict):
+        variants = variants.to_dict()
+
+    existing_variant_sets = prim.GetVariantSets()
+    for variant_set_name, variant_selection in variants.items():
+        # Check if the variant set exists on the prim.
+        if not existing_variant_sets.HasVariantSet(variant_set_name):
+            logger.warning(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
+            continue
+
+        variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # Only set the variant selection if it is different from the current selection.
+        if variant_set.GetVariantSelection() != variant_selection:
+            variant_set.SetVariantSelection(variant_selection)
+            logger.info(
+                f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
+                f" prim '{prim_path}'."
+            )
+
+
+"""
 USD Stage traversal.
 """
 
@@ -1222,159 +1378,3 @@ def bind_physics_material(
     material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
     # return success
     return True
-
-
-"""
-USD References and Variants.
-"""
-
-
-def add_usd_reference(
-    usd_path: str, prim_path: str, prim_type: str = "Xform", stage: Usd.Stage | None = None
-) -> Usd.Prim:
-    """Adds a USD reference at the specified prim path on the provided stage.
-
-    This function adds a reference to an external USD file at the specified prim path on the provided stage.
-    If the prim does not exist, it will be created with the specified type.
-
-    The function also handles stage units verification to ensure compatibility. For instance,
-    if the current stage is in meters and the referenced USD file is in centimeters, the function will
-    convert the units to match. This is done using the :mod:`omni.metrics.assembler` functionality.
-
-    Args:
-        usd_path: The path to USD file to reference.
-        prim_path: The prim path where the reference will be attached.
-        prim_type: The type of prim to create if it doesn't exist. Defaults to "Xform".
-        stage: The stage to add the reference to. Defaults to None, in which case the current stage is used.
-
-    Returns:
-        The USD prim at the specified prim path.
-
-    Raises:
-        FileNotFoundError: When the input USD file is not found at the specified path.
-    """
-    # get current stage
-    stage = get_current_stage() if stage is None else stage
-    # get prim at path
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        prim = stage.DefinePrim(prim_path, prim_type)
-
-    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
-        """Helper function to add a reference to a prim."""
-        success_bool = prim.GetReferences().AddReference(usd_path)
-        if not success_bool:
-            raise RuntimeError(
-                f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
-            )
-        return prim
-
-    # get isaac sim version
-    isaac_sim_version = float(".".join(get_version()[2]))
-    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
-    if isaac_sim_version < 5:
-        return _add_reference_to_prim(prim)
-
-    # check if the USD file is valid and add reference to the prim
-    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
-    if not sdf_layer:
-        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
-
-    # import metrics assembler interface
-    # note: this is only available in Isaac Sim 5.0 and above
-    from omni.metrics.assembler.core import get_metrics_assembler_interface
-
-    # obtain the stage ID
-    stage_id = get_current_stage_id()
-    # check if the layers are compatible (i.e. the same units)
-    ret_val = get_metrics_assembler_interface().check_layers(
-        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
-    )
-    if ret_val["ret_val"]:
-        try:
-            import omni.metrics.assembler.ui
-
-            omni.kit.commands.execute(
-                "AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path)
-            )
-
-            return prim
-        except Exception:
-            return _add_reference_to_prim(prim)
-    else:
-        return _add_reference_to_prim(prim)
-
-
-def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
-    """Sets the variant selections from the specified variant sets on a USD prim.
-
-    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on
-    a single asset. This can be done by modifying variations of the same prim parameters per variant option in a set.
-    This function acts as a script-based utility to set the variant selections for the specified variant sets on a
-    USD prim.
-
-    The function takes a dictionary or a config class mapping variant set names to variant selections. For instance,
-    if we have a prim at ``"/World/Table"`` with two variant sets: "color" and "size", we can set the variant
-    selections as follows:
-
-    .. code-block:: python
-
-        select_usd_variants(
-            prim_path="/World/Table",
-            variants={
-                "color": "red",
-                "size": "large",
-            },
-        )
-
-    Alternatively, we can use a config class to define the variant selections:
-
-    .. code-block:: python
-
-        @configclass
-        class TableVariants:
-            color: Literal["blue", "red"] = "red"
-            size: Literal["small", "large"] = "large"
-
-        select_usd_variants(
-            prim_path="/World/Table",
-            variants=TableVariants(),
-        )
-
-    Args:
-        prim_path: The path of the USD prim.
-        variants: A dictionary or config class mapping variant set names to variant selections.
-        stage: The USD stage. Defaults to None, in which case, the current stage is used.
-
-    Raises:
-        ValueError: If the prim at the specified path is not valid.
-
-    .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
-    """
-    # get stage handle
-    if stage is None:
-        stage = get_current_stage()
-
-    # Obtain prim
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # Convert to dict if we have a configclass object.
-    if not isinstance(variants, dict):
-        variants = variants.to_dict()
-
-    existing_variant_sets = prim.GetVariantSets()
-    for variant_set_name, variant_selection in variants.items():
-        # Check if the variant set exists on the prim.
-        if not existing_variant_sets.HasVariantSet(variant_set_name):
-            logger.warning(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
-            continue
-
-        variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
-        # Only set the variant selection if it is different from the current selection.
-        if variant_set.GetVariantSelection() != variant_selection:
-            variant_set.SetVariantSelection(variant_selection)
-            logger.info(
-                f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
-                f" prim '{prim_path}'."
-            )
