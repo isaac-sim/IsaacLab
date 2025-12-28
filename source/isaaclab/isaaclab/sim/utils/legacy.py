@@ -57,7 +57,6 @@ def get_stage_up_axis() -> str:
         >>> import isaaclab.sim as sim_utils
         >>> from pxr import UsdGeom
         >>>
-        >>> sim_utils.create_prim("/World/Cube", "Cube")
         >>> UsdGeom.GetStageUpAxis(sim_utils.get_current_stage())
         'Z'
     """
@@ -67,7 +66,6 @@ def get_stage_up_axis() -> str:
         >>> import isaaclab.sim as sim_utils
         >>> from pxr import UsdGeom
         >>>
-        >>> sim_utils.create_prim("/World/Cube", "Cube")
         >>> UsdGeom.GetStageUpAxis(sim_utils.get_current_stage())
         'Z'
     """
@@ -82,7 +80,6 @@ def traverse_stage(fabric: bool = False) -> Iterable[Usd.Prim]:
         This function is deprecated. Please use the USD APIs directly instead.
 
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> for prim in stage.Traverse():
@@ -102,7 +99,6 @@ def traverse_stage(fabric: bool = False) -> Iterable[Usd.Prim]:
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> for prim in stage.Traverse():
@@ -127,7 +123,6 @@ def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | None:
         This function is deprecated. Please use the USD APIs directly instead.
 
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> stage.GetPrimAtPath("/World/Cube")
@@ -144,7 +139,6 @@ def get_prim_at_path(prim_path: str, fabric: bool = False) -> Usd.Prim | None:
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> stage.GetPrimAtPath("/World/Cube")
@@ -164,8 +158,9 @@ def get_prim_path(prim: Usd.Prim) -> str:
     .. deprecated:: 2.3.0
         This function is deprecated. Please use the USD APIs directly instead.
 
-        >>> from pxr import Usd
+        >>> import isaaclab.sim as sim_utils
         >>>
+        >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
         >>> prim.GetPath().pathString
         "/World/Cube"
@@ -180,8 +175,8 @@ def get_prim_path(prim: Usd.Prim) -> str:
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
+        >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
         >>> prim.GetPath().pathString
         "/World/Cube"
@@ -197,7 +192,6 @@ def is_prim_path_valid(prim_path: str, fabric: bool = False) -> bool:
         This function is deprecated. Please use the USD APIs directly instead.
 
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
@@ -215,7 +209,6 @@ def is_prim_path_valid(prim_path: str, fabric: bool = False) -> bool:
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
@@ -242,7 +235,6 @@ def define_prim(prim_path: str, prim_type: str = "Xform", fabric: bool = False) 
         function instead.
 
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> stage.DefinePrim("/World/Shapes", "Xform")
@@ -263,7 +255,6 @@ def define_prim(prim_path: str, prim_type: str = "Xform", fabric: bool = False) 
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> stage.DefinePrim("/World/Shapes", "Xform")
@@ -286,7 +277,6 @@ def get_prim_type_name(prim_path: str | Usd.Prim, fabric: bool = False) -> str:
         This function is deprecated. Please use the USD APIs directly instead.
 
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
@@ -307,7 +297,6 @@ def get_prim_type_name(prim_path: str | Usd.Prim, fabric: bool = False) -> str:
 
     Example:
         >>> import isaaclab.sim as sim_utils
-        >>> from pxr import Usd
         >>>
         >>> stage = sim_utils.get_current_stage()
         >>> prim = stage.GetPrimAtPath("/World/Cube")
