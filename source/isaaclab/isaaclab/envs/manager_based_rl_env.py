@@ -15,7 +15,6 @@ from typing import Any, ClassVar
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -56,7 +55,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": str(get_isaac_sim_version()),
     }
     """Metadata for the environment."""
 

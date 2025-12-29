@@ -63,7 +63,6 @@ class DirectMARLEnv(gym.Env):
 
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": str(get_isaac_sim_version()),
     }
     """Metadata for the environment."""
 
