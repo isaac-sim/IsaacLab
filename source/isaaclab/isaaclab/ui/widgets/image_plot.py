@@ -43,7 +43,6 @@ class ImagePlot(UIWidgetWrapper):
     |||+-------------------------------------------------+|||
     |||                   mode_frame                      |||
     |||                                                   |||
-    ||+---------------------------------------------------+||
     |||    [Dropdown: Mode Selection]                     |||
     |||    [Collapsible: Manual Normalization Options]    |||
     ||+---------------------------------------------------+||
