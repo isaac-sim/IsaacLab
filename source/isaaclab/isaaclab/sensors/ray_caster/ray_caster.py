@@ -26,7 +26,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
