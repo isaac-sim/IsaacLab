@@ -14,7 +14,7 @@ Added
 Changed
 ^^^^^^^
 
-* Changed the function :meth:`~isaaclab.utils.versio.compare_versions` to use :mod:`packaging.version.Version` module.
+* Changed the function :meth:`~isaaclab.utils.version.compare_versions` to use :mod:`packaging.version.Version` module.
 * Changed occurrences of :func:`isaacsim.core.version.get_version` to :func:`~isaaclab.utils.version.get_isaac_sim_version`.
 
 Removed
