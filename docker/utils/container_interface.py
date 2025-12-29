@@ -68,8 +68,10 @@ class ContainerInterface:
             # insert a hyphen before the suffix if a suffix is given
             self.suffix = f"-{suffix}"
 
-        self.container_name = f"isaac-lab-{self.profile}{self.suffix}"
-        self.image_name = f"isaac-lab-{self.profile}{self.suffix}:latest"
+        # set names for easier reference
+        self.service_name = f"isaac-lab-{self.profile}"
+        self.container_name = f"{self.service_name}{self.suffix}"
+        self.image_name = f"{self.service_name}{self.suffix}:latest"
 
         # keep the environment variables from the current environment,
         # except make sure that the docker name suffix is set from the script
@@ -127,6 +129,42 @@ class ContainerInterface:
         """
         result = subprocess.run(["docker", "image", "inspect", self.image_name], capture_output=True, text=True)
         return result.returncode == 0
+
+    def build(self):
+        """Build the Docker image."""
+        print("[INFO] Building the docker image for the profile 'base'...\n")
+        # build the image for the base profile
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--file",
+                "docker-compose.yaml",
+                "--env-file",
+                ".env.base",
+                "build",
+                "isaac-lab-base",
+            ],
+            check=False,
+            cwd=self.context_dir,
+            env=self.environ,
+        )
+        print("[INFO] Finished building the docker image for the profile 'base'.\n")
+
+        # build the image for the profile
+        if self.profile != "base":
+            print(f"[INFO] Building the docker image for the profile '{self.profile}'...\n")
+            subprocess.run(
+                ["docker", "compose"]
+                + self.add_yamls
+                + self.add_profiles
+                + self.add_env_files
+                + ["build", self.service_name],
+                check=False,
+                cwd=self.context_dir,
+                env=self.environ,
+            )
+            print(f"[INFO] Finished building the docker image for the profile '{self.profile}'.\n")
 
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
