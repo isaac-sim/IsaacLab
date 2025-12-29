@@ -57,6 +57,11 @@ def parse_cli_args() -> argparse.Namespace:
             " passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``."
         ),
     )
+    parent_parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Print the container interface information. This is useful for debugging purposes.",
+    )
 
     # Actual command definition begins here
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -107,6 +112,10 @@ def main(args: argparse.Namespace):
         envs=args.env_files,
         suffix=args.suffix,
     )
+    if args.info:
+        print("[INFO] Printing container interface information...\n")
+        ci.print_info()
+        return
 
     print(f"[INFO] Using container profile: {ci.profile}")
     if args.command == "start":

@@ -81,6 +81,26 @@ class ContainerInterface:
         # load the environment variables from the .env files
         self._parse_dot_vars()
 
+    def print_info(self):
+        """Print the container interface information."""
+        print("=" * 60)
+        print(f"{'DOCKER CONTAINER INFO':^60}")  # Centered title
+        print("=" * 60)
+
+        print(f"{'Profile:':25} {self.profile}")
+        print(f"{'Suffix:':25} {self.suffix}")
+        print(f"{'Service Name:':25} {self.service_name}")
+        print(f"{'Image Name:':25} {self.image_name}")
+        print(f"{'Container Name:':25} {self.container_name}")
+
+        print("-" * 60)
+        print(f"{'Docker Compose Arguments':^60}")
+        print("-" * 60)
+        print(f"{'YAMLs:':25} {' '.join(self.add_yamls)}")
+        print(f"{'Profiles:':25} {' '.join(self.add_profiles)}")
+        print(f"{'Env Files:':25} {' '.join(self.add_env_files)}")
+        print("=" * 60)
+
     """
     Operations.
     """
