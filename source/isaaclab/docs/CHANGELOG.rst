@@ -1,5 +1,6 @@
 Changelog
 ---------
+
 0.51.0 (2025-12-29)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -27,7 +28,7 @@ Changed
 * Moved ``logger.py`` to the :mod:`isaaclab.utils` module.
 
 
-0.50.6 (2025-12-29)
+0.50.7 (2025-12-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
