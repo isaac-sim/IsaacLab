@@ -11,9 +11,8 @@ import logging
 import threading
 from collections.abc import Callable, Generator
 
-import carb
-import omni
 import omni.kit.app
+import omni.usd
 from isaacsim.core.utils import stage as sim_stage
 from isaacsim.core.version import get_version
 from pxr import Sdf, Usd, UsdUtils
@@ -66,7 +65,7 @@ def create_new_stage_in_memory() -> Usd.Stage:
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
         logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
+            "Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
             " stage attached to USD context."
         )
         return create_new_stage()
@@ -427,6 +426,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
 
+    import carb
+    import omni.physx
     from isaacsim.core.simulation_manager import SimulationManager
 
     from isaaclab.sim.simulation_context import SimulationContext
