@@ -10,6 +10,7 @@
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
+# FIXME (mmittal): Stage in memory requires cameras to be enabled.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
