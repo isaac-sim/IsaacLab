@@ -215,23 +215,28 @@ class ContainerInterface:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
     def stop(self):
-        """Stop the running container using the Docker compose command.
-
-        Raises:
-            RuntimeError: If the container is not running.
-        """
+        """Stop the running container using the Docker compose command."""
         if self.is_container_running():
-            print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
+            print(f"[INFO] Stopping the launched docker service '{self.service_name}'...\n")
+            # stop running services
+            cmd = ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["stop", self.service_name]
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+
+            # remove the container and its volumes
+            print(f"[INFO] Removing the container '{self.container_name}' and its volumes...\n")
             cmd = (
                 ["docker", "compose"]
                 + self.add_yamls
                 + self.add_profiles
                 + self.add_env_files
-                + ["rm", "-f", "-v", self.container_name]
+                + ["rm", "-f", "-v", self.service_name]
             )
             subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
         else:
-            raise RuntimeError(f"Can't stop container '{self.container_name}' as it is not running.")
+            print(
+                f"[INFO] Can't stop container '{self.container_name}' as it is not running."
+                " To check if the container is running, run 'docker ps' or 'docker container ls'.\n"
+            )
 
     def copy(self, output_dir: Path | None = None):
         """Copy artifacts from the running container to the host machine.
