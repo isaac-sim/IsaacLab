@@ -39,7 +39,14 @@ def configure_logging(
 ) -> logging.Logger:
     """Setup the logger with a colored formatter and a rate limit filter.
 
-    This function defines the default logger for IsaacLab.
+    This function defines the default logger for IsaacLab. It adds a stream handler with a colored formatter
+    and a rate limit filter. If :attr:`save_logs_to_file` is True, it also adds a file handler to save the logs
+    to a file. The log directory can be specified using :attr:`log_dir`. If not provided, the logs will be saved
+    to the temp directory with the sub-directory "isaaclab/logs".
+
+    The log file name is formatted as "isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log".
+    The log record format is "%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s".
+    The date format is "%Y-%m-%d %H:%M:%S".
 
     Args:
         logging_level: The logging level.
