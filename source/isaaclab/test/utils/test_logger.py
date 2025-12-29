@@ -15,12 +15,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import logging
+import os
 import re
+import tempfile
 import time
 
 import pytest
 
-from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter
+from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
 
 
 # Fixtures
@@ -469,3 +471,238 @@ def test_default_initialization():
     # RateLimitFilter with default interval
     filter_obj = RateLimitFilter()
     assert filter_obj.interval == 5  # default is 5 seconds
+
+
+"""
+Tests for the configure_logging function.
+"""
+
+
+def test_configure_logging_basic():
+    """Test basic configure_logging functionality without file logging."""
+    # Setup logger without file logging
+    logger = configure_logging(logging_level="INFO", save_logs_to_file=False)
+
+    # Should return root logger
+    assert logger is not None
+    assert logger is logging.getLogger()
+    assert logger.level == logging.INFO
+
+    # Should have exactly one handler (stream handler)
+    assert len(logger.handlers) == 1
+
+    # Stream handler should have ColoredFormatter
+    stream_handler = logger.handlers[0]
+    assert isinstance(stream_handler, logging.StreamHandler)
+    assert isinstance(stream_handler.formatter, ColoredFormatter)
+    assert stream_handler.level == logging.INFO
+
+    # Should have RateLimitFilter
+    assert len(stream_handler.filters) > 0
+    rate_filter = stream_handler.filters[0]
+    assert isinstance(rate_filter, RateLimitFilter)
+    assert rate_filter.interval == 5
+
+
+def test_configure_logging_with_file():
+    """Test configure_logging with file logging enabled."""
+    # Setup logger with file logging
+    with tempfile.TemporaryDirectory() as temp_dir:
+        logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=temp_dir)
+
+        # Should return root logger
+        assert logger is not None
+        assert logger.level == logging.DEBUG
+
+        # Should have two handlers (stream + file)
+        assert len(logger.handlers) == 2
+
+        # Check stream handler
+        stream_handler = logger.handlers[0]
+        assert isinstance(stream_handler, logging.StreamHandler)
+        assert isinstance(stream_handler.formatter, ColoredFormatter)
+
+        # Check file handler
+        file_handler = logger.handlers[1]
+        assert isinstance(file_handler, logging.FileHandler)
+        assert file_handler.level == logging.DEBUG
+
+        # Verify log file was created
+        log_files = [f for f in os.listdir(temp_dir) if f.startswith("isaaclab_")]
+        assert len(log_files) == 1
+
+
+def test_configure_logging_levels():
+    """Test configure_logging with different logging levels."""
+    from typing import Literal
+
+    levels: list[Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]] = [
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "CRITICAL",
+    ]
+    level_values = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+
+    for level_str in levels:
+        logger = configure_logging(logging_level=level_str, save_logs_to_file=False)
+        assert logger.level == level_values[level_str]
+        assert logger.handlers[0].level == level_values[level_str]
+
+
+def test_configure_logging_removes_existing_handlers():
+    """Test that configure_logging removes existing handlers."""
+    # Get root logger and add a dummy handler
+    root_logger = logging.getLogger()
+    dummy_handler = logging.StreamHandler()
+    root_logger.addHandler(dummy_handler)
+
+    initial_handler_count = len(root_logger.handlers)
+    assert initial_handler_count > 0
+
+    # Setup logger should remove existing handlers
+    logger = configure_logging(logging_level="INFO", save_logs_to_file=False)
+
+    # Should only have the new handler
+    assert len(logger.handlers) == 1
+    assert dummy_handler not in logger.handlers
+
+
+def test_configure_logging_default_log_dir():
+    """Test configure_logging uses temp directory when log_dir is None."""
+
+    logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=None)
+
+    # Should have file handler
+    assert len(logger.handlers) == 2
+    file_handler = logger.handlers[1]
+    assert isinstance(file_handler, logging.FileHandler)
+
+    # File should be in temp directory
+    log_file_path = file_handler.baseFilename
+    assert os.path.dirname(log_file_path) == os.path.join(tempfile.gettempdir(), "isaaclab", "logs")
+    assert os.path.basename(log_file_path).startswith("isaaclab_")
+
+    # Cleanup
+    if os.path.exists(log_file_path):
+        os.remove(log_file_path)
+
+
+def test_configure_logging_custom_log_dir():
+    """Test configure_logging with custom log directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        custom_log_dir = os.path.join(temp_dir, "custom_logs")
+
+        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=custom_log_dir)
+
+        # Custom directory should be created
+        assert os.path.exists(custom_log_dir)
+        assert os.path.isdir(custom_log_dir)
+
+        # Log file should be in custom directory
+        file_handler = logger.handlers[1]
+        assert isinstance(file_handler, logging.FileHandler)
+        log_file_path = file_handler.baseFilename
+        assert os.path.dirname(log_file_path) == custom_log_dir
+
+
+def test_configure_logging_log_file_format():
+    """Test that log file has correct timestamp format."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
+
+        # Get log file name
+        file_handler = logger.handlers[1]
+        assert isinstance(file_handler, logging.FileHandler)
+        log_file_path = file_handler.baseFilename
+        log_filename = os.path.basename(log_file_path)
+
+        # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
+        pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
+        assert re.match(pattern, log_filename), f"Log filename {log_filename} doesn't match expected pattern"
+
+
+def test_configure_logging_file_formatter():
+    """Test that file handler has more detailed formatter than stream handler."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
+
+        stream_handler = logger.handlers[0]
+        file_handler = logger.handlers[1]
+
+        # Stream formatter should exist and be ColoredFormatter
+        assert stream_handler.formatter is not None
+        assert isinstance(stream_handler.formatter, ColoredFormatter)
+        stream_format = stream_handler.formatter._fmt  # type: ignore
+        assert stream_format is not None
+        assert "%(asctime)s" in stream_format
+        assert "%(filename)s" in stream_format
+
+        # File formatter should exist and include line numbers
+        assert file_handler.formatter is not None
+        assert isinstance(file_handler.formatter, logging.Formatter)
+        file_format = file_handler.formatter._fmt  # type: ignore
+        assert file_format is not None
+        assert "%(asctime)s" in file_format
+        assert "%(lineno)d" in file_format
+
+        # File handler should always use DEBUG level
+        assert file_handler.level == logging.DEBUG
+
+
+def test_configure_logging_multiple_calls():
+    """Test that multiple configure_logging calls properly cleanup."""
+    # First setup
+    logger1 = configure_logging(logging_level="INFO", save_logs_to_file=False)
+    handler_count_1 = len(logger1.handlers)
+
+    # Second setup should remove previous handlers
+    logger2 = configure_logging(logging_level="DEBUG", save_logs_to_file=False)
+    handler_count_2 = len(logger2.handlers)
+
+    # Should be same logger (root logger)
+    assert logger1 is logger2
+
+    # Should have same number of handlers (old ones removed)
+    assert handler_count_1 == handler_count_2 == 1
+
+
+def test_configure_logging_actual_logging():
+    """Test that logger actually logs messages correctly."""
+    import io
+
+    # Capture stdout
+    captured_output = io.StringIO()
+
+    # Setup logger
+    logger = configure_logging(logging_level="INFO", save_logs_to_file=False)
+
+    # Temporarily redirect handler to captured output
+    stream_handler = logger.handlers[0]
+    assert isinstance(stream_handler, logging.StreamHandler)
+    original_stream = stream_handler.stream  # type: ignore
+    stream_handler.stream = captured_output  # type: ignore
+
+    # Log some messages
+    test_logger = logging.getLogger("test_module")
+    test_logger.info("Test info message")
+    test_logger.warning("Test warning message")
+    test_logger.debug("Test debug message")  # Should not appear (level is INFO)
+
+    # Restore original stream
+    stream_handler.stream = original_stream  # type: ignore
+
+    # Check output
+    output = captured_output.getvalue()
+    assert "Test info message" in output
+    assert "Test warning message" in output
+    assert "Test debug message" not in output  # DEBUG < INFO
+    assert "INFO" in output
+    assert "WARNING" in output

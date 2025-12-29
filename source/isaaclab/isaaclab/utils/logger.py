@@ -9,7 +9,11 @@ To use the logger, you can use the :func:`logging.getLogger` function.
 
 Example:
     >>> import logging
+    >>>
+    >>> # define logger for the current module (enables fine-control)
     >>> logger = logging.getLogger(__name__)
+    >>>
+    >>> # log messages
     >>> logger.info("This is an info message")
     >>> logger.warning("This is a warning message")
     >>> logger.error("This is an error message")
@@ -20,10 +24,81 @@ Example:
 from __future__ import annotations
 
 import logging
+import os
+import sys
+import tempfile
 import time
+from datetime import datetime
+from typing import Literal
 
-# import logger
-logger = logging.getLogger(__name__)
+
+def configure_logging(
+    logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING",
+    save_logs_to_file: bool = True,
+    log_dir: str | None = None,
+) -> logging.Logger:
+    """Setup the logger with a colored formatter and a rate limit filter.
+
+    This function defines the default logger for IsaacLab. It adds a stream handler with a colored formatter
+    and a rate limit filter. If :attr:`save_logs_to_file` is True, it also adds a file handler to save the logs
+    to a file. The log directory can be specified using :attr:`log_dir`. If not provided, the logs will be saved
+    to the temp directory with the sub-directory "isaaclab/logs".
+
+    The log file name is formatted as "isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log".
+    The log record format is "%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s".
+    The date format is "%Y-%m-%d %H:%M:%S".
+
+    Args:
+        logging_level: The logging level.
+        save_logs_to_file: Whether to save the logs to a file.
+        log_dir: The directory to save the logs to. Default is None, in which case the logs
+            will be saved to the temp directory with the sub-directory "isaaclab/logs".
+
+    Returns:
+        The root logger.
+    """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging_level)
+
+    # remove existing handlers
+    # Note: iterate over a copy [:] to avoid modifying list during iteration
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # add a stream handler with default level
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging_level)
+
+    # add a colored formatter
+    formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+    handler.setFormatter(formatter)
+    handler.addFilter(RateLimitFilter(interval_seconds=5))
+    root_logger.addHandler(handler)
+
+    # add a file handler
+    if save_logs_to_file:
+        # if log_dir is not provided, use the temp directory
+        if log_dir is None:
+            log_dir = os.path.join(tempfile.gettempdir(), "isaaclab", "logs")
+        # create the log directory if it does not exist
+        os.makedirs(log_dir, exist_ok=True)
+        # create the log file path
+        log_file_path = os.path.join(log_dir, f"isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+        # create the file handler
+        file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_formatter = logging.Formatter(
+            fmt="%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(file_formatter)
+        root_logger.addHandler(file_handler)
+
+        # print the log file path once at startup
+        print(f"[INFO] [IsaacLab] Logging to file: {log_file_path}")
+
+    # return the root logger
+    return root_logger
 
 
 class ColoredFormatter(logging.Formatter):

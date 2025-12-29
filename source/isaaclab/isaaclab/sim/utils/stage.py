@@ -264,15 +264,13 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
         True if operation is successful, otherwise False.
 
     Example:
-
-    .. code-block:: python
-
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.close_stage()
         True
         >>>
-        >>>
+
+    Example with callback function:
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> def callback(*args, **kwargs):
