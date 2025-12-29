@@ -11,17 +11,19 @@ from typing import TYPE_CHECKING
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
-import isaaclab.sim.utils.prims as prim_utils
-
-# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
-try:
-    import Semantics
-except ModuleNotFoundError:
-    from pxr import Semantics
-
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
-from isaaclab.sim.utils.stage import get_current_stage, is_current_stage_in_memory
+from isaaclab.sim.utils import (
+    add_labels,
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    create_prim,
+    get_current_stage,
+    get_first_matching_child_prim,
+    is_current_stage_in_memory,
+    select_usd_variants,
+    set_prim_visibility,
+)
 from isaaclab.utils.assets import check_usd_path_with_timeout
 
 if TYPE_CHECKING:
@@ -191,9 +193,12 @@ def spawn_ground_plane(
     Raises:
         ValueError: If the prim path already exists.
     """
+    # Obtain current stage
+    stage = get_current_stage()
+
     # Spawn Ground-plane
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -201,20 +206,26 @@ def spawn_ground_plane(
     if cfg.physics_material is not None:
         cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         # Apply physics material to ground plane
-        collision_prim_path = prim_utils.get_prim_path(
-            prim_utils.get_first_matching_child_prim(
-                prim_path, predicate=lambda x: prim_utils.from_prim_get_type_name(x) == "Plane"
-            )
+        collision_prim = get_first_matching_child_prim(
+            prim_path,
+            predicate=lambda _prim: _prim.GetTypeName() == "Plane",
+            stage=stage,
         )
+        if collision_prim is None:
+            raise ValueError(f"No collision prim found at path: '{prim_path}'.")
+        # bind physics material to the collision prim
+        collision_prim_path = str(collision_prim.GetPath())
         bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
 
+    # Obtain environment prim
+    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
-    if prim_utils.is_prim_path_valid(f"{prim_path}/Environment"):
+    if environment_prim.IsValid():
         # compute scale from size
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh
-        prim_utils.set_prim_property(f"{prim_path}/Environment", "xformOp:scale", scale)
+        environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
@@ -239,10 +250,9 @@ def spawn_ground_plane(
             )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
-    stage = get_current_stage()
     omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)
 
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # Apply semantic tags
     if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
         # note: taken from replicator scripts.utils.utils.py
@@ -250,15 +260,11 @@ def spawn_ground_plane(
             # deal with spaces by replacing them with underscores
             semantic_type_sanitized = semantic_type.replace(" ", "_")
             semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # set the semantic API for the instance
-            instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
-            sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-            # create semantic type and data attributes
-            sem.CreateSemanticTypeAttr().Set(semantic_type)
-            sem.CreateSemanticDataAttr().Set(semantic_value)
+            # add labels to the prim
+            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
 
     # Apply visibility
-    prim_utils.set_prim_visibility(prim, cfg.visible)
+    set_prim_visibility(prim, cfg.visible)
 
     # return the prim
     return prim
@@ -310,10 +316,12 @@ def _spawn_from_usd_file(
         else:
             raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
 
+    # Obtain current stage
+    stage = get_current_stage()
     # spawn asset if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         # add prim as reference to stage
-        prim_utils.create_prim(
+        create_prim(
             prim_path,
             usd_path=usd_path,
             translation=translation,
@@ -367,4 +375,4 @@ def _spawn_from_usd_file(
         bind_visual_material(prim_path, material_path)
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)

@@ -14,7 +14,7 @@ from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:

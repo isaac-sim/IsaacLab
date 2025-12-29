@@ -32,11 +32,12 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
-import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim as sim_utils
+from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+from .utils import bind_physics_material
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -132,7 +133,7 @@ class SimulationContext(_SimulationContext):
         cfg.validate()
         self.cfg = cfg
         # check that simulation is running
-        if stage_utils.get_current_stage() is None:
+        if sim_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
         # setup logger
@@ -140,7 +141,7 @@ class SimulationContext(_SimulationContext):
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = stage_utils.create_new_stage_in_memory()
+            self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
 
@@ -363,9 +364,17 @@ class SimulationContext(_SimulationContext):
 
         The returned tuple contains the following information:
 
-        * Major version (int): This is the year of the release (e.g. 2022).
-        * Minor version (int): This is the half-year of the release (e.g. 1 or 2).
-        * Patch version (int): This is the patch number of the release (e.g. 0).
+        * Major version: This is the year of the release (e.g. 2022).
+        * Minor version: This is the half-year of the release (e.g. 1 or 2).
+        * Patch version: This is the patch number of the release (e.g. 0).
+
+        Returns:
+            A tuple containing the major, minor, and patch versions.
+
+        Example:
+            >>> sim = SimulationContext()
+            >>> sim.get_version()
+            (2022, 1, 0)
         """
         return int(self._isaacsim_version[2]), int(self._isaacsim_version[3]), int(self._isaacsim_version[4])
 
@@ -481,14 +490,6 @@ class SimulationContext(_SimulationContext):
         """
         return self.carb_settings.get(name)
 
-    def forward(self) -> None:
-        """Updates articulation kinematics and fabric for rendering."""
-        if self._fabric_iface is not None:
-            if self.physics_sim_view is not None and self.is_playing():
-                # Update the articulations' link's poses before rendering
-                self.physics_sim_view.update_articulations_kinematic()
-            self._update_fabric(0.0, 0.0)
-
     def get_initial_stage(self) -> Usd.Stage:
         """Returns stage handle used during scene creation.
 
@@ -521,6 +522,14 @@ class SimulationContext(_SimulationContext):
             for _ in range(2):
                 self.render()
         self._disable_app_control_on_stop_handle = False
+
+    def forward(self) -> None:
+        """Updates articulation kinematics and fabric for rendering."""
+        if self._fabric_iface is not None:
+            if self.physics_sim_view is not None and self.is_playing():
+                # Update the articulations' link's poses before rendering
+                self.physics_sim_view.update_articulations_kinematic()
+            self._update_fabric(0.0, 0.0)
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -631,7 +640,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with stage_utils.use_stage(self.get_initial_stage()):
+        with sim_utils.use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
@@ -953,7 +962,7 @@ class SimulationContext(_SimulationContext):
 
         # Save stage to disk
         stage_path = os.path.join(self._anim_recording_output_dir, "stage_simulation.usdc")
-        stage_utils.save_stage(stage_path, save_and_reload_in_place=False)
+        sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
 
         # Find the latest ovd file not named tmp.ovd
         ovd_files = [
@@ -1100,7 +1109,7 @@ def build_simulation_context(
     """
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device

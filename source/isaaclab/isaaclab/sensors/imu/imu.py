@@ -10,12 +10,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaacsim.core.simulation_manager import SimulationManager
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.utils import resolve_pose_relative_to_physx_parent
 
 from ..sensor_base import SensorBase
 from .imu_data import ImuData
@@ -140,11 +139,25 @@ class Imu(SensorBase):
         if prim is None:
             raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
 
-        # Determine rigid source prim and (if needed) the fixed transform from that rigid prim to target prim
-        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = resolve_pose_relative_to_physx_parent(self.cfg.prim_path)
+        # Find the first matching ancestor prim that implements rigid body API
+        ancestor_prim = sim_utils.get_first_matching_ancestor_prim(
+            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
+        )
+        if ancestor_prim is None:
+            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
+        # Convert ancestor prim path to expression
+        if ancestor_prim == prim:
+            self._rigid_parent_expr = self.cfg.prim_path
+            fixed_pos_b, fixed_quat_b = None, None
+        else:
+            # Convert ancestor prim path to expression
+            relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
+            self._rigid_parent_expr = self.cfg.prim_path.replace(relative_path, "")
+            # Resolve the relative pose between the target prim and the ancestor prim
+            fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
 
         # Create the rigid body view on the ancestor
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr)
+        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
 
         # Get world gravity
         gravity = self._physics_sim_view.get_gravity()
@@ -266,7 +279,7 @@ class Imu(SensorBase):
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(

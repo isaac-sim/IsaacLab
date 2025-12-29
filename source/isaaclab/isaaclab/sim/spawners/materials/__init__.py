@@ -31,8 +31,6 @@ When parsing physics material properties on an object, the following priority is
 Usage:
     .. code-block:: python
 
-        import isaaclab.sim.utils.prims as prim_utils
-
         import isaaclab.sim as sim_utils
 
         # create a visual material

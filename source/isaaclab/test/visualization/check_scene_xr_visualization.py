@@ -72,9 +72,7 @@ def get_camera_position():
     try:
         from pxr import UsdGeom
 
-        import isaaclab.sim.utils.stage as stage_utils
-
-        stage = stage_utils.get_current_stage()
+        stage = sim_utils.get_current_stage()
         if stage is not None:
             # Get the viewport camera prim
             camera_prim_path = "/OmniverseKit_Persp"

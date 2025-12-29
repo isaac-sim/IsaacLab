@@ -3,10 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utility function for version comparison."""
+"""Utility function for versioning."""
 
 
 def compare_versions(v1: str, v2: str) -> int:
+    """Compare two version strings and return the comparison result.
+
+    The version strings are expected to be in the format "x.y.z" where x, y,
+    and z are integers. The version strings are compared lexicographically.
+
+    Args:
+        v1: The first version string.
+        v2: The second version string.
+
+    Returns:
+        An integer indicating the comparison result:
+
+        - :attr:`1` if v1 is greater
+        - :attr:`-1` if v2 is greater
+        - :attr:`0` if v1 and v2 are equal
+    """
     parts1 = list(map(int, v1.split(".")))
     parts2 = list(map(int, v2.split(".")))
 

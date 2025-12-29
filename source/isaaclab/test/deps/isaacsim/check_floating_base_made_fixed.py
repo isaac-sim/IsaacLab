@@ -33,16 +33,15 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 import logging
 import torch
 
+import isaacsim.core.utils.nucleus as nucleus_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
-
-import isaaclab.sim.utils.nucleus as nucleus_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 
 # import logger
 logger = logging.getLogger(__name__)

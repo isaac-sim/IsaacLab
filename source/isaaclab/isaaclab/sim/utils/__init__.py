@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .logger import *  # noqa: F401, F403
-from .nucleus import *  # noqa: F401, F403
+"""Utilities built around USD operations."""
+
+from .legacy import *  # noqa: F401, F403
 from .prims import *  # noqa: F401, F403
+from .queries import *  # noqa: F401, F403
 from .semantics import *  # noqa: F401, F403
 from .stage import *  # noqa: F401, F403
