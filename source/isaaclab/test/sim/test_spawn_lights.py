@@ -58,7 +58,7 @@ def test_spawn_disk_light(sim):
     _validate_properties_on_prim(prim, cfg)
 
 
-def test_spawn_distant_light(test_setup_teardown):
+def test_spawn_distant_light(sim):
     """Test spawning a distant light."""
     cfg = sim_utils.DistantLightCfg(
         color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100, angle=20
