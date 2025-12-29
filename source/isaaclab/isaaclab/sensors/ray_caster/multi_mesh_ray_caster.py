@@ -384,7 +384,7 @@ class MultiMeshRayCaster(RayCaster):
             self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
             mesh_idx += count
 
-        self._data.ray_hits_w[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
+        self._data.ray_hits_w[env_ids], ray_distance, _, _, mesh_ids = raycast_dynamic_meshes(
             self._ray_starts_w[env_ids],
             self._ray_directions_w[env_ids],
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
@@ -392,7 +392,11 @@ class MultiMeshRayCaster(RayCaster):
             mesh_positions_w=self._mesh_positions_w[env_ids],
             mesh_orientations_w=self._mesh_orientations_w[env_ids],
             return_mesh_id=self.cfg.update_mesh_ids,
+            return_distance=self.cfg.track_ray_distance,
         )
+
+        if self.cfg.track_ray_distance:
+            self._data.ray_distance[env_ids] = ray_distance.clip(max=self.cfg.max_distance)
 
         if self.cfg.update_mesh_ids:
             self._data.ray_mesh_ids[env_ids] = mesh_ids

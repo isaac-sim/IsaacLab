@@ -39,13 +39,9 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.terrains import HfDiscreteObstaclesTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.terrains import (
-    TerrainImporterCfg,
-    TerrainGeneratorCfg,
-    HfDiscreteObstaclesTerrainCfg,
-)
 
 ##
 # Pre-defined configs
@@ -95,8 +91,9 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         max_distance=10.0,
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.0)),
         ray_alignment="yaw",
-        pattern_cfg=patterns.LidarPatternCfg(channels=30, vertical_fov_range=[-10, 10],
-                                             horizontal_fov_range=[-180, 180], horizontal_res=5.0),
+        pattern_cfg=patterns.LidarPatternCfg(
+            channels=30, vertical_fov_range=[-10, 10], horizontal_fov_range=[-180, 180], horizontal_res=5.0
+        ),
         debug_vis=True,
         mesh_prim_paths=["/World/ground"],
     )
@@ -134,7 +131,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             print("[INFO]: Resetting robot state...")
         # Set desired velocity of robot
         desired_vel = torch.zeros_like(root_state[:, 7:])
-        desired_vel[:,0] = 1
+        desired_vel[:, 0] = 1
         # -- write data to sim
         scene["robot"].write_root_velocity_to_sim(desired_vel)
         scene.write_data_to_sim()
@@ -149,8 +146,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["ray_caster"])
-        print("Received max ray_distance: ", torch.max(scene["ray_caster"].data.ray_distance,dim=-1)[0].item())
-        print("Received min ray_distance: ", torch.min(scene["ray_caster"].data.ray_distance,dim=-1)[0].item())
+        print("Received max ray_distance: ", torch.max(scene["ray_caster"].data.ray_distance, dim=-1)[0].item())
+        print("Received min ray_distance: ", torch.min(scene["ray_caster"].data.ray_distance, dim=-1)[0].item())
         print("-------------------------------")
 
 

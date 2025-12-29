@@ -235,7 +235,10 @@ class RayCaster(SensorBase):
         self._ray_starts_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
         self._ray_directions_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
         if self.cfg.track_ray_distance:
-            self._data.ray_distance = torch.full((self._view.count, self.num_rays), self.cfg.max_distance, device=self._device, dtype=torch.float32)
+            self._data.ray_distance = torch.full(
+                (self._view.count, self.num_rays), self.cfg.max_distance, device=self._device, dtype=torch.float32
+            )
+
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
 

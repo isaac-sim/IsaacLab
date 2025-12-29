@@ -29,7 +29,7 @@ class RayCasterData:
     """
     ray_distance: torch.Tensor | None = None
     """Distances (in meters) of the rays until they hit a target mesh.
-    
+
     This distance is clipped to the maximum distance specified through
     :attr:`RayCasterCfg.max_distance`.
 
