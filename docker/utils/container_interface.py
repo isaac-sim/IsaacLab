@@ -69,6 +69,7 @@ class ContainerInterface:
             self.suffix = f"-{suffix}"
 
         # set names for easier reference
+        self.base_service_name = "isaac-lab-base"
         self.service_name = f"isaac-lab-{self.profile}"
         self.container_name = f"{self.service_name}{self.suffix}"
         self.image_name = f"{self.service_name}{self.suffix}:latest"
@@ -143,7 +144,7 @@ class ContainerInterface:
                 "--env-file",
                 ".env.base",
                 "build",
-                "isaac-lab-base",
+                self.base_service_name,
             ],
             check=False,
             cwd=self.context_dir,
@@ -189,7 +190,7 @@ class ContainerInterface:
                     "--env-file",
                     ".env.base",
                     "build",
-                    "isaac-lab-base",
+                    self.base_service_name,
                 ],
                 check=False,
                 cwd=self.context_dir,
@@ -237,7 +238,7 @@ class ContainerInterface:
         if self.is_container_running():
             print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
             subprocess.run(
-                ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down", "--volumes"],
+                ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["rm", "-f", "-v", self.container_name],
                 check=False,
                 cwd=self.context_dir,
                 env=self.environ,
@@ -285,7 +286,7 @@ class ContainerInterface:
                     [
                         "docker",
                         "cp",
-                        f"isaac-lab-{self.profile}{self.suffix}:{container_path}/",
+                        f"{self.container_name}:{container_path}/",
                         f"{host_path}",
                     ],
                     check=False,
