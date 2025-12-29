@@ -17,7 +17,6 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 

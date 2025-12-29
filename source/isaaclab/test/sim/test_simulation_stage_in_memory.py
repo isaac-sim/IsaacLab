@@ -26,7 +26,6 @@ from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 

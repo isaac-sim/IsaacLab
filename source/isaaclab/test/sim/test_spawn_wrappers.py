@@ -17,7 +17,6 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
