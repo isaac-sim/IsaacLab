@@ -7,13 +7,13 @@ Using VS Code Dev Containers
 
    This is optional. You do not need to use Dev Containers to develop Isaac Lab.
 
-`Visual Studio Code Dev Containers <https://code.visualstudio.com/docs/devcontainers/containers>`_ provide a consistent, 
-reproducible development environment by running your workspace inside a Docker container. This is particularly useful for 
+`Visual Studio Code Dev Containers <https://code.visualstudio.com/docs/devcontainers/containers>`_ provide a consistent,
+reproducible development environment by running your workspace inside a Docker container. This is particularly useful for
 Isaac Lab development as it encapsulates all dependencies, including Isaac Sim, NVIDIA drivers, and CUDA libraries.
 
 .. note::
 
-   Dev Containers leverage the Docker infrastructure already provided by Isaac Lab. For more information on 
+   Dev Containers leverage the Docker infrastructure already provided by Isaac Lab. For more information on
    Isaac Lab's Docker setup, please refer to the :ref:`Docker Guide <deployment-docker>`.
 
 
@@ -23,23 +23,23 @@ Prerequisites
 Before using Dev Containers with Isaac Lab, ensure you have the following installed:
 
 1. **Docker Engine** (version 26.0.0 or newer) and **Docker Compose** (version 2.25.0 or newer)
-   
+
    * Follow the `Docker installation guide <https://docs.docker.com/engine/install/>`_
    * Complete the `post-installation steps <https://docs.docker.com/engine/install/linux-postinstall/>`_ to run Docker without ``sudo``
 
 2. **NVIDIA Container Toolkit** for GPU acceleration
-   
+
    * Follow the `Container Toolkit installation guide <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>`_
 
 3. **Visual Studio Code** with the **Dev Containers extension**
-   
+
    * Download `VS Code <https://code.visualstudio.com/>`_
    * Install the `Dev Containers extension <https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers>`_
 
 .. caution::
 
-   By using Isaac Lab's Docker containers, you are implicitly agreeing to the 
-   `NVIDIA Software License Agreement <https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement>`_. 
+   By using Isaac Lab's Docker containers, you are implicitly agreeing to the
+   `NVIDIA Software License Agreement <https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement>`_.
    If you do not agree to the EULA, do not use this container.
 
 
@@ -65,7 +65,7 @@ When you open a workspace in a Dev Container, VS Code:
 Using the Dev Container Configuration
 ---------------------------------------
 
-Isaac Lab includes a pre-configured Dev Container setup in the ``.devcontainer/`` directory at the root of the repository. 
+Isaac Lab includes a pre-configured Dev Container setup in the ``.devcontainer/`` directory at the root of the repository.
 This configuration leverages Isaac Lab's existing Docker infrastructure and is ready to use out of the box.
 
 The provided Dev Container configuration:
@@ -82,20 +82,20 @@ The provided Dev Container configuration:
 .. caution::
 
    The Dev Container runs as the ``root`` user due to Isaac Sim's Docker requirements. This means:
-   
+
    * Files created inside the container will be owned by ``root``
    * Files created in mounted directories (your workspace) will also have ``root`` ownership on the host
    * You may need to use ``sudo chown`` on your host to reclaim ownership of files after working in the container
-   
-   While you can modify ``remoteUser`` in ``.devcontainer/devcontainer.json`` to use a non-root user, 
-   this is not recommended as it may cause Isaac Sim to fail. This is a limitation of the Isaac Sim 
+
+   While you can modify ``remoteUser`` in ``.devcontainer/devcontainer.json`` to use a non-root user,
+   this is not recommended as it may cause Isaac Sim to fail. This is a limitation of the Isaac Sim
    Docker image, not Isaac Lab.
 
 
 Customizing the Dev Container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The configuration file is located at ``.devcontainer/devcontainer.json``. You can customize it to suit your 
+The configuration file is located at ``.devcontainer/devcontainer.json``. You can customize it to suit your
 development needs, such as adding additional VS Code extensions or modifying editor settings.
 
 **Adding VS Code Extensions:**
@@ -142,7 +142,7 @@ To start developing in the Dev Container:
 
 .. note::
 
-   The first time you open the Dev Container, it will build the Docker image, which may take 10-30 minutes 
+   The first time you open the Dev Container, it will build the Docker image, which may take 10-30 minutes
    depending on your internet connection and system resources. Subsequent launches will be much faster.
 
 
@@ -163,14 +163,14 @@ Once inside the Dev Container, you can:
 
 .. tip::
 
-   The terminal inside VS Code is running inside the container. Any commands you run will use the 
+   The terminal inside VS Code is running inside the container. Any commands you run will use the
    container's environment, Python interpreter, and installed packages.
 
 
 Python Interpreter Configuration
 ---------------------------------
 
-The Dev Container is configured to use Isaac Sim's Python interpreter located at ``/isaac-sim/python.sh``. 
+The Dev Container is configured to use Isaac Sim's Python interpreter located at ``/isaac-sim/python.sh``.
 This ensures compatibility with Isaac Sim's dependencies and extensions.
 
 To verify the correct interpreter is selected:
@@ -185,14 +185,14 @@ The Python interpreter path is pre-configured in the ``devcontainer.json`` file,
 Using ROS2 with Dev Containers
 -------------------------------
 
-If you need ROS2 support, modify the ``.devcontainer/devcontainer.json`` file to use the ``isaac-lab-ros2`` service 
+If you need ROS2 support, modify the ``.devcontainer/devcontainer.json`` file to use the ``isaac-lab-ros2`` service
 instead of ``isaac-lab-base``:
 
 .. code-block:: json
 
    "service": "isaac-lab-ros2"
 
-Then reopen the container using the command palette (``Ctrl+Shift+P`` > ``Dev Containers: Rebuild Container``). 
+Then reopen the container using the command palette (``Ctrl+Shift+P`` > ``Dev Containers: Rebuild Container``).
 ROS2 will be sourced automatically in the terminal.
 
 
@@ -232,9 +232,9 @@ Performance Considerations
 --------------------------
 
 * **First build**: The initial container build can take significant time. Subsequent starts are much faster.
-* **Named volumes**: Isaac Lab uses named volumes for caches (Kit, pip, GL, compute). These persist between 
+* **Named volumes**: Isaac Lab uses named volumes for caches (Kit, pip, GL, compute). These persist between
   container rebuilds to speed up subsequent launches.
-* **File synchronization**: Since source files are mounted from the host, changes are immediately visible 
+* **File synchronization**: Since source files are mounted from the host, changes are immediately visible
   both inside and outside the container.
 
 
