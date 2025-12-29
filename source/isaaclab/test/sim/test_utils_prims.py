@@ -22,7 +22,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -75,7 +75,7 @@ def test_create_prim():
     assert prim.GetAttribute("size").Get() == 100
 
     # check adding USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
     # check USD reference set
     assert prim.IsValid()
@@ -132,7 +132,7 @@ def test_delete_prim():
     # check for usd reference
     prim = sim_utils.create_prim(
         "/World/Test/USDReference",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         stage=stage,
     )
     # delete prim
@@ -158,7 +158,7 @@ def test_move_prim():
     prim = sim_utils.create_prim(
         "/World/Test/Xform",
         "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         translation=(1.0, 2.0, 3.0),
         orientation=(0.0, 0.0, 0.0, 1.0),
         stage=stage,
