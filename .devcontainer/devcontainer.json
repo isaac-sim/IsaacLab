@@ -4,12 +4,6 @@
   "service": "isaac-lab-base",
   "workspaceFolder": "/workspace/isaaclab",
 
-  // Run commands after container creation
-  "postCreateCommand": "echo 'Isaac Lab development container ready! Run: ./isaaclab.sh -i'",
-
-  // Shutdown action  
-  "shutdownAction": "stopCompose",
-
   // Port forwarding for potential web services
   "forwardPorts": [8888, 6006],
   "portsAttributes": {
@@ -22,12 +16,29 @@
       "onAutoForward": "notify"
     }
   },
-
-  // Set environment variables
+  // Remote environment variables
   "remoteEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "OMNI_KIT_ALLOW_ROOT": "1",
     "PYTHONUNBUFFERED": "1",
+    "PYTHONIOENCODING": "utf-8",
     "ISAACLAB_PATH": "${containerWorkspaceFolder}"
   },
+  // Mounts
+  "mounts": [
+    "source=${localEnv:HOME}/.Xauthority,target=/root/.Xauthority,type=bind,consistency=cached"
+  ],
+  // Run arguments
+  "runArgs": [
+    "--gpus=all",
+    "--network=host"
+  ],
+  // Post create command
+  "postCreateCommand": "echo 'Isaac Lab development container ready! Run: ./isaaclab.sh -i'",
+  // Remote user
+  "remoteUser": "root",
+  // Shutdown action
+  "shutdownAction": "stopCompose",
 
   // VS Code customizations
   "customizations": {
