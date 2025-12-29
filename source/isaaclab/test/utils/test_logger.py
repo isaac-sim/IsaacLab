@@ -15,7 +15,9 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import logging
+import os
 import re
+import tempfile
 import time
 
 import pytest
@@ -504,9 +506,6 @@ def test_configure_logging_basic():
 
 def test_configure_logging_with_file():
     """Test configure_logging with file logging enabled."""
-    import os
-    import tempfile
-
     # Setup logger with file logging
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=temp_dir)
@@ -578,8 +577,6 @@ def test_configure_logging_removes_existing_handlers():
 
 def test_configure_logging_default_log_dir():
     """Test configure_logging uses temp directory when log_dir is None."""
-    import os
-    import tempfile
 
     logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=None)
 
@@ -590,7 +587,7 @@ def test_configure_logging_default_log_dir():
 
     # File should be in temp directory
     log_file_path = file_handler.baseFilename
-    assert os.path.dirname(log_file_path) == tempfile.gettempdir()
+    assert os.path.dirname(log_file_path) == os.path.join(tempfile.gettempdir(), "isaaclab", "logs")
     assert os.path.basename(log_file_path).startswith("isaaclab_")
 
     # Cleanup
@@ -600,9 +597,6 @@ def test_configure_logging_default_log_dir():
 
 def test_configure_logging_custom_log_dir():
     """Test configure_logging with custom log directory."""
-    import os
-    import tempfile
-
     with tempfile.TemporaryDirectory() as temp_dir:
         custom_log_dir = os.path.join(temp_dir, "custom_logs")
 
@@ -621,10 +615,6 @@ def test_configure_logging_custom_log_dir():
 
 def test_configure_logging_log_file_format():
     """Test that log file has correct timestamp format."""
-    import os
-    import re
-    import tempfile
-
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
 
@@ -641,8 +631,6 @@ def test_configure_logging_log_file_format():
 
 def test_configure_logging_file_formatter():
     """Test that file handler has more detailed formatter than stream handler."""
-    import tempfile
-
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
 
