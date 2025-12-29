@@ -197,7 +197,7 @@ class ContainerInterface:
                 env=self.environ,
             )
 
-        # build the image for the profile
+        # start the container and build the image if not available
         subprocess.run(
             ["docker", "compose"]
             + self.add_yamls
