@@ -30,8 +30,8 @@ from isaacsim.core.utils.viewports import set_camera_view
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.logger import configure_logging
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
