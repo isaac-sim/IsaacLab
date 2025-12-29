@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.51.1 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ObservationManager.get_active_iterable_terms`
+  to handle observation data when not concatenated along the last dimension.
+
+
 0.51.0 (2025-12-29)
 ~~~~~~~~~~~~~~~~~~~
 
