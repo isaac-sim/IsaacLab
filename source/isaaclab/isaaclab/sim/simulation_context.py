@@ -10,8 +10,6 @@ import logging
 import numpy as np
 import os
 import re
-import sys
-import tempfile
 import time
 import toml
 import torch
@@ -33,7 +31,7 @@ from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter
+from isaaclab.utils.logger import configure_logging
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -137,7 +135,11 @@ class SimulationContext(_SimulationContext):
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
         # setup logger
-        self.logger = self._setup_logger()
+        self.logger = configure_logging(
+            logging_level=self.cfg.logging_level,
+            save_logs_to_file=self.cfg.save_logs_to_file,
+            log_dir=self.cfg.log_dir,
+        )
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
@@ -1018,46 +1020,6 @@ class SimulationContext(_SimulationContext):
             while not omni.timeline.get_timeline_interface().is_playing():
                 self.render()
         return
-
-    """
-    Logger.
-    """
-
-    def _setup_logger(self):
-        """Sets up the logger."""
-        root_logger = logging.getLogger()
-        root_logger.setLevel(self.cfg.logging_level)
-
-        # remove existing handlers
-        if root_logger.hasHandlers():
-            for handler in root_logger.handlers:
-                root_logger.removeHandler(handler)
-
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(self.cfg.logging_level)
-
-        formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
-        handler.setFormatter(formatter)
-        handler.addFilter(RateLimitFilter(interval_seconds=5))
-        root_logger.addHandler(handler)
-
-        # --- File handler (optional) ---
-        if self.cfg.save_logs_to_file:
-            temp_dir = tempfile.gettempdir()
-            log_file_path = os.path.join(temp_dir, f"isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
-
-            file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
-            file_handler.setLevel(logging.DEBUG)
-            file_formatter = logging.Formatter(
-                fmt="%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-            )
-            file_handler.setFormatter(file_formatter)
-            root_logger.addHandler(file_handler)
-
-            # Print the log file path once at startup
-            print(f"[INFO] IsaacLab logging to file: {log_file_path}")
-
-        return root_logger
 
 
 @contextmanager

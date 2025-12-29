@@ -429,3 +429,10 @@ class SimulationCfg:
 
     save_logs_to_file: bool = True
     """Save logs to a file. Default is True."""
+
+    log_dir: str | None = None
+    """The directory to save the logs to. Default is None.
+
+    If :attr:`save_logs_to_file` is True, the logs will be saved to the directory specified by :attr:`log_dir`.
+    If None, the logs will be saved to the temp directory.
+    """
