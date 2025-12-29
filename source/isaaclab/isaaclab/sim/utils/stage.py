@@ -11,9 +11,8 @@ import logging
 import threading
 from collections.abc import Callable, Generator
 
-import carb
-import omni
 import omni.kit.app
+import omni.usd
 from isaacsim.core.utils import stage as sim_stage
 from pxr import Sdf, Usd, UsdUtils
 
@@ -35,6 +34,9 @@ def create_new_stage() -> Usd.Stage:
     Returns:
         Usd.Stage: The created USD stage.
 
+    Raises:
+        RuntimeError: When failed to create a new stage.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
@@ -43,7 +45,11 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    return omni.usd.get_context().new_stage()
+    result = omni.usd.get_context().new_stage()
+    if result:
+        return omni.usd.get_context().get_stage()
+    else:
+        raise RuntimeError("Failed to create a new stage. Please check if the USD context is valid.")
 
 
 def create_new_stage_in_memory() -> Usd.Stage:
@@ -66,12 +72,32 @@ def create_new_stage_in_memory() -> Usd.Stage:
     """
     if get_isaac_sim_version().major < 5:
         logger.warning(
-            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory."
-            "Falling back to creating a new stage attached to USD context."
+            "Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
+            " stage attached to USD context."
         )
         return create_new_stage()
     else:
         return Usd.Stage.CreateInMemory()
+
+
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is in memory.
+
+    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+
+    Returns:
+        Whether the current stage is in memory.
+    """
+    # grab current stage id
+    stage_id = get_current_stage_id()
+
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
+
+    # check if stage ids are the same
+    return stage_id != context_stage_id
 
 
 def open_stage(usd_path: str) -> bool:
@@ -311,7 +337,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     def _predicate_from_path(prim: Usd.Prim) -> bool:
         if predicate is None:
             return _default_predicate(prim)
-        return predicate(prim.GetPath().pathString)
+        return predicate(prim)
 
     # get all prims to delete
     if predicate is None:
@@ -325,26 +351,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
 
     if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
         omni.kit.app.get_app_interface().update()
-
-
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
 
 
 def is_stage_loading() -> bool:
@@ -426,6 +432,9 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
 
+    import carb
+    import omni.physx
+    import omni.usd
     from isaacsim.core.simulation_manager import SimulationManager
 
     from isaaclab.sim.simulation_context import SimulationContext
@@ -444,7 +453,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     physx_sim_interface.attach_stage(stage_id)
 
     # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
+    carb_setting = carb.settings.get_settings()  # type: ignore
     is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it

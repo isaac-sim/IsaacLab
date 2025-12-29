@@ -20,7 +20,7 @@ import time
 
 import pytest
 
-from isaaclab.sim.utils.logger import ColoredFormatter, RateLimitFilter
+from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter
 
 
 # Fixtures
