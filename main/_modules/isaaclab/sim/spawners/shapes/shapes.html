@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -604,9 +605,8 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">schemas</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">create_prim</span><span class="p">,</span> <span class="n">get_current_stage</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">shapes_cfg</span>
@@ -645,11 +645,13 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># spawn sphere if it doesn&#39;t exist.</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Sphere&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Sphere&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="spawn_cuboid"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.spawn_cuboid">[docs]</a><span class="nd">@clone</span>
@@ -689,14 +691,16 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># resolve the scale</span>
     <span class="n">size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
     <span class="n">scale</span> <span class="o">=</span> <span class="p">[</span><span class="n">dim</span> <span class="o">/</span> <span class="n">size</span> <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">]</span>
     <span class="c1"># spawn cuboid if it doesn&#39;t exist.</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cube&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
+    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cube&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="spawn_cylinder"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.spawn_cylinder">[docs]</a><span class="nd">@clone</span>
@@ -732,11 +736,13 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># spawn cylinder if it doesn&#39;t exist.</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="spawn_capsule"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.spawn_capsule">[docs]</a><span class="nd">@clone</span>
@@ -772,11 +778,13 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># spawn capsule if it doesn&#39;t exist.</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Capsule&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Capsule&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="spawn_cone"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.spawn_cone">[docs]</a><span class="nd">@clone</span>
@@ -812,11 +820,13 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># spawn cone if it doesn&#39;t exist.</span>
     <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cone&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cone&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -832,6 +842,7 @@
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">scale</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based prim with the given attributes.</span>
 
@@ -857,13 +868,17 @@
 <span class="sd">        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,</span>
 <span class="sd">            in which case this is set to identity.</span>
 <span class="sd">        scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.</span>
+<span class="sd">        stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.</span>
 
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">stage</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">get_current_stage</span><span class="p">()</span>
+
     <span class="c1"># spawn geometry if it doesn&#39;t exist.</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="n">prim_path</span><span class="p">):</span>
-        <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="o">=</span><span class="s2">&quot;Xform&quot;</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="o">=</span><span class="s2">&quot;Xform&quot;</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
@@ -872,7 +887,7 @@
     <span class="n">mesh_prim_path</span> <span class="o">=</span> <span class="n">geom_prim_path</span> <span class="o">+</span> <span class="s2">&quot;/mesh&quot;</span>
 
     <span class="c1"># create the geometry prim</span>
-    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="n">attributes</span><span class="p">)</span>
+    <span class="n">create_prim</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="n">attributes</span><span class="p">)</span>
     <span class="c1"># apply collision properties</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">)</span>

@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -614,7 +615,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_plane</span>
@@ -622,7 +622,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span><span class="p">,</span> <span class="n">raycast_mesh</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.prim_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">obtain_world_pose_from_view</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ray_cast_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">obtain_world_pose_from_view</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -742,7 +742,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_view</span><span class="p">()</span>
         <span class="n">prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">available_prims</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span><span class="o">.</span><span class="n">Traverse</span><span class="p">()])</span>
+            <span class="n">available_prims</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span><span class="o">.</span><span class="n">Traverse</span><span class="p">()])</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">. Available prims: </span><span class="si">{</span><span class="n">available_prims</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>

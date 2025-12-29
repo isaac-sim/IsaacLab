@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -614,7 +615,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsaacEvents</span><span class="p">,</span> <span class="n">SimulationManager</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -771,7 +771,7 @@
 
         <span class="c1"># iterate over the environment ids</span>
         <span class="k">for</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">:</span>
-            <span class="n">prim_utils</span><span class="o">.</span><span class="n">set_prim_visibility</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">env_id</span><span class="p">],</span> <span class="n">visible</span><span class="p">)</span></div>
+            <span class="n">sim_utils</span><span class="o">.</span><span class="n">set_prim_visibility</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">env_id</span><span class="p">],</span> <span class="n">visible</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="AssetBase.set_debug_vis"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.AssetBase.set_debug_vis">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets whether to visualize the asset data.</span>

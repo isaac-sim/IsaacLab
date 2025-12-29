@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -608,8 +609,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.from_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdFileCfg</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -642,7 +641,7 @@
 <span class="sd">        The created prim at the first prim path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># get stage handle</span>
-    <span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
 
     <span class="c1"># resolve: {SPAWN_NS}/AssetName</span>
     <span class="c1"># note: this assumes that the spawn namespace already exists in the stage</span>
@@ -663,8 +662,8 @@
         <span class="n">source_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">root_path</span><span class="p">]</span>
 
     <span class="c1"># find a free prim path to hold all the template prims</span>
-    <span class="n">template_prim_path</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_next_free_path</span><span class="p">(</span><span class="s2">&quot;/World/Template&quot;</span><span class="p">)</span>
-    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">,</span> <span class="s2">&quot;Scope&quot;</span><span class="p">)</span>
+    <span class="n">template_prim_path</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_next_free_prim_path</span><span class="p">(</span><span class="s2">&quot;/World/Template&quot;</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">,</span> <span class="s2">&quot;Scope&quot;</span><span class="p">)</span>
 
     <span class="c1"># spawn everything first in a &quot;Dataset&quot; prim</span>
     <span class="n">proto_prim_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
@@ -713,7 +712,7 @@
             <span class="n">Sdf</span><span class="o">.</span><span class="n">CopySpec</span><span class="p">(</span><span class="n">env_spec</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">proto_path</span><span class="p">),</span> <span class="n">env_spec</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">))</span>
 
     <span class="c1"># delete the dataset prim after spawning</span>
-    <span class="n">prim_utils</span><span class="o">.</span><span class="n">delete_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">delete_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span>
 
     <span class="c1"># set carb setting to indicate Isaac Lab&#39;s environments that different prims have been spawned</span>
     <span class="c1"># at varying prim paths. In this case, PhysX parser shouldn&#39;t optimize the stage parsing.</span>
@@ -722,7 +721,7 @@
     <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/spawn/multi_assets&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
 
 
 <div class="viewcode-block" id="spawn_multi_usd_file"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.wrappers.spawn_multi_usd_file">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">spawn_multi_usd_file</span><span class="p">(</span>

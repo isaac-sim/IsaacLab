@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -785,6 +786,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.interpolation.LinearInterpolation.__init__">(isaaclab.utils.interpolation.LinearInterpolation method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.RateLimitFilter.__init__">(isaaclab.utils.logger.RateLimitFilter method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.timer.Timer.__init__">(isaaclab.utils.timer.Timer method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions.__init__">(isaaclab.utils.types.ArticulationActions method)</a>
@@ -1040,7 +1043,13 @@
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.add_episode">add_episode() (isaaclab_mimic.datagen.DataGenInfoPool method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.add_labels">add_labels() (in module isaaclab.sim.utils.semantics)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.add_reference_to_stage">add_reference_to_stage() (in module isaaclab.sim.utils.legacy)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.add_to_episodes">add_to_episodes() (isaaclab.managers.RecorderManager method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.add_usd_reference">add_usd_reference() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.WaypointTrajectory.add_waypoint_sequence">add_waypoint_sequence() (isaaclab_mimic.datagen.WaypointTrajectory method)</a>
 </li>
@@ -1121,6 +1130,8 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.apply_delta_pose">apply_delta_pose() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.apply_external_force_torque">apply_external_force_torque() (in module isaaclab.envs.mdp.events)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.apply_nested">apply_nested() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.apply_noise_during_interpolation">apply_noise_during_interpolation (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
@@ -1256,6 +1267,8 @@
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.asyncio_lock">asyncio_lock (isaaclab_mimic.datagen.DataGenInfoPool property)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.attach_stage_to_usd_context">attach_stage_to_usd_context() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCameraCfg.attach_yaw_only">attach_yaw_only (isaaclab.sensors.MultiMeshRayCasterCameraCfg attribute)</a>
 
       <ul>
@@ -1327,6 +1340,10 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg">BinaryJointPositionActionCfg (class in isaaclab.envs.mdp.actions.actions_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg">BinaryJointVelocityActionCfg (class in isaaclab.envs.mdp.actions.actions_cfg)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.bind_physics_material">bind_physics_material() (in module isaaclab.sim.utils.prims)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.bind_visual_material">bind_visual_material() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_acc_w">body_acc_w (isaaclab.assets.ArticulationData property)</a>
 
@@ -1444,14 +1461,14 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_ang_vel_w">body_link_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_lin_vel_w">body_link_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
@@ -1684,6 +1701,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.assets.check_file_path">check_file_path() (in module isaaclab.utils.assets)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.check_missing_labels">check_missing_labels() (in module isaaclab.sim.utils.semantics)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.assets.check_usd_path_with_timeout">check_usd_path_with_timeout() (in module isaaclab.utils.assets)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.CircularBuffer">CircularBuffer (class in isaaclab.utils.buffers)</a>
@@ -1726,6 +1745,8 @@
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type">(isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.clear_stage">clear_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg.clip">clip (isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg attribute)</a>
 
       <ul>
@@ -1780,6 +1801,8 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg.clipping_range">(isaaclab.sim.spawners.sensors.PinholeCameraCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.clone">clone() (in module isaaclab.sim.utils.prims)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.clone_environments">clone_environments() (isaaclab.scene.InteractiveScene method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.clone_in_fabric">clone_in_fabric (isaaclab.scene.InteractiveSceneCfg attribute)</a>
@@ -1812,6 +1835,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.close_command_expr">(isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.close_stage">close_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.collider_type">collider_type (isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
 
       <ul>
@@ -1928,14 +1953,16 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.SphereLightCfg.color_temperature">(isaaclab.sim.spawners.lights.SphereLightCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.ColoredFormatter">ColoredFormatter (class in isaaclab.utils.logger)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.colorize_instance_id_segmentation">colorize_instance_id_segmentation (isaaclab.sensors.CameraCfg attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.colorize_instance_id_segmentation">(isaaclab.sensors.TiledCameraCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.colorize_instance_segmentation">colorize_instance_segmentation (isaaclab.sensors.CameraCfg attribute)</a>
 
       <ul>
@@ -1948,6 +1975,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.colorize_semantic_segmentation">(isaaclab.sensors.TiledCameraCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.ColoredFormatter.COLORS">COLORS (isaaclab.utils.logger.ColoredFormatter attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.com_pos_b">com_pos_b (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
@@ -1983,6 +2012,8 @@
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.CommandTerm">CommandTerm (class in isaaclab.managers)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.CommandTermCfg">CommandTermCfg (class in isaaclab.managers)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.version.compare_versions">compare_versions() (in module isaaclab.utils.version)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping">compliant_contact_damping (isaaclab.sim.spawners.materials.RigidBodyMaterialCfg attribute)</a>
 </li>
@@ -2070,6 +2101,10 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.configure_env_origins">configure_env_origins() (isaaclab.terrains.TerrainImporter method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.configure_logging">configure_logging() (in module isaaclab.utils.logger)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.seed.configure_seed">configure_seed() (in module isaaclab.utils.seed)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.constant_noise">constant_noise() (in module isaaclab.utils.noise)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.ConstantBiasNoiseCfg">ConstantBiasNoiseCfg (in module isaaclab.utils.noise)</a>
@@ -2107,6 +2142,8 @@
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.OffsetCfg.convention">convention (isaaclab.sensors.TiledCameraCfg.OffsetCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.convert_camera_frame_orientation_convention">convert_camera_frame_orientation_convention() (in module isaaclab.utils.math)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.sensors.convert_camera_intrinsics_to_usd">convert_camera_intrinsics_to_usd() (in module isaaclab.utils.sensors)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.dict.convert_dict_to_backend">convert_dict_to_backend() (in module isaaclab.utils.dict)</a>
 </li>
@@ -2193,6 +2230,14 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.copysign">copysign() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkers.count">count (isaaclab.markers.VisualizationMarkers property)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.count_total_labels">count_total_labels() (in module isaaclab.sim.utils.semantics)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.create_new_stage">create_new_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.create_new_stage_in_memory">create_new_stage_in_memory() (in module isaaclab.sim.utils.stage)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.create_prim">create_prim() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.create_prim_from_mesh">create_prim_from_mesh() (in module isaaclab.terrains.utils)</a>
 </li>
@@ -2530,6 +2575,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_mass_properties">define_mass_properties() (in module isaaclab.sim.schemas)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.define_prim">define_prim() (in module isaaclab.sim.utils.legacy)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_rigid_body_properties">define_rigid_body_properties() (in module isaaclab.sim.schemas)</a>
 </li>
   </ul></td>
@@ -2589,6 +2636,8 @@
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.DelayedPDActuator">DelayedPDActuator (class in isaaclab.actuators)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.DelayedPDActuatorCfg">DelayedPDActuatorCfg (class in isaaclab.actuators)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.delete_prim">delete_prim() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.MassPropertiesCfg.density">density (isaaclab.sim.schemas.MassPropertiesCfg attribute)</a>
 
@@ -3034,6 +3083,8 @@
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.export_policy_as_onnx">export_policy_as_onnx() (in module isaaclab_rl.rsl_rl)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.export_prim_to_file">export_prim_to_file() (in module isaaclab.sim.utils.prims)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.exported_failed_episode_count">exported_failed_episode_count (isaaclab.managers.RecorderManager property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.exported_successful_episode_count">exported_successful_episode_count (isaaclab.managers.RecorderManager property)</a>
@@ -3070,6 +3121,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation">fail_on_joint_limit_violation (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.RateLimitFilter.filter">filter() (isaaclab.utils.logger.RateLimitFilter method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.filter_collisions">filter_collisions (isaaclab.scene.InteractiveSceneCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.filter_collisions">filter_collisions() (isaaclab.scene.InteractiveScene method)</a>
@@ -3098,11 +3151,19 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformer.find_bodies">(isaaclab.sensors.FrameTransformer method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_first_matching_prim">find_first_matching_prim() (in module isaaclab.sim.utils.queries)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_fixed_tendons">find_fixed_tendons() (isaaclab.assets.Articulation method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.find_flat_patches">find_flat_patches() (in module isaaclab.terrains.utils)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_global_fixed_joint_prim">find_global_fixed_joint_prim() (in module isaaclab.sim.utils.queries)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_joints">find_joints() (isaaclab.assets.Articulation method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_matching_prim_paths">find_matching_prim_paths() (in module isaaclab.sim.utils.queries)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_matching_prims">find_matching_prims() (in module isaaclab.sim.utils.queries)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.find_objects">find_objects() (isaaclab.assets.RigidObjectCollection method)</a>
 </li>
@@ -3304,6 +3365,8 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.force_usd_conversion">(isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.ColoredFormatter.format">format() (isaaclab.utils.logger.ColoredFormatter method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.forward">forward() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.frame">frame (isaaclab.sensors.Camera property)</a>
@@ -3458,9 +3521,15 @@
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager.get_active_iterable_terms">(isaaclab.managers.TerminationManager method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.get_all_matching_child_prims">get_all_matching_child_prims() (in module isaaclab.sim.utils.queries)</a>
+</li>
       <li><a href="source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.get_checkpoint_path">get_checkpoint_path() (in module isaaclab_tasks.utils)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.CommandManager.get_command">get_command() (isaaclab.managers.CommandManager method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.get_current_stage">get_current_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.get_current_stage_id">get_current_stage_id() (in module isaaclab.sim.utils.stage)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.get_ep_meta">get_ep_meta() (isaaclab.managers.RecorderManager method)</a>
 </li>
@@ -3471,6 +3540,10 @@
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper.get_episode_rewards">get_episode_rewards() (isaaclab_rl.sb3.Sb3VecEnvWrapper method)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_expected_attached_object">get_expected_attached_object() (isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.get_first_matching_ancestor_prim">get_first_matching_ancestor_prim() (in module isaaclab.sim.utils.queries)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.get_first_matching_child_prim">get_first_matching_child_prim() (in module isaaclab.sim.utils.queries)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.WaypointTrajectory.get_full_sequence">get_full_sequence() (isaaclab_mimic.datagen.WaypointTrajectory method)</a>
 </li>
@@ -3490,12 +3563,18 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_IO_descriptors">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv property)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.get_labels">get_labels() (in module isaaclab.sim.utils.semantics)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state">get_navigation_state() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_navigation_state">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_next_free_path">get_next_free_path() (in module isaaclab.sim.utils.legacy)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.get_next_free_prim_path">get_next_free_prim_path() (in module isaaclab.sim.utils.queries)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_object_poses">get_object_poses() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -3504,6 +3583,14 @@
       </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations">get_observations() (isaaclab_rl.rsl_rl.RslRlVecEnvWrapper method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_prim_at_path">get_prim_at_path() (in module isaaclab.sim.utils.legacy)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_prim_path">get_prim_path() (in module isaaclab.sim.utils.legacy)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_prim_type_name">get_prim_type_name() (in module isaaclab.sim.utils.legacy)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase.get_requirements">get_requirements() (isaaclab.devices.RetargeterBase method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_robot_eef_pose">get_robot_eef_pose() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
@@ -3514,10 +3601,10 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_setting">get_setting() (isaaclab.sim.SimulationContext method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_stage_up_axis">get_stage_up_axis() (in module isaaclab.sim.utils.legacy)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.get_state">get_state() (isaaclab.scene.InteractiveScene method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals">get_subtask_start_signals() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -3547,6 +3634,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.timer.Timer.get_timer_info">get_timer_info() (isaaclab.utils.timer.Timer static method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.get_usd_references">get_usd_references() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_version">get_version() (isaaclab.sim.SimulationContext method)</a>
 </li>
@@ -3996,6 +4085,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.is_alive">is_alive() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.is_current_stage_in_memory">is_current_stage_in_memory() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.is_fabric_enabled">is_fabric_enabled() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.is_finite_horizon">is_finite_horizon (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
@@ -4066,7 +4157,11 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.is_lambda_expression">is_lambda_expression() (in module isaaclab.utils.string)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.is_prim_path_valid">is_prim_path_valid() (in module isaaclab.sim.utils.legacy)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.is_shared">is_shared (isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.is_stage_loading">is_stage_loading() (in module isaaclab.sim.utils.stage)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.is_terminated">is_terminated() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
@@ -4128,8 +4223,6 @@
         <li><a href="source/api/lab/isaaclab.devices.html#module-isaaclab.devices">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs
 
@@ -4158,6 +4251,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.actions.actions_cfg">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp.commands
 
@@ -4330,7 +4425,42 @@
     isaaclab.sim.utils
 
       <ul>
-        <li><a href="source/api/lab/isaaclab.sim.html#module-isaaclab.sim.utils">module</a>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.utils.legacy
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.legacy">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.utils.prims
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.prims">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.utils.queries
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.queries">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.utils.semantics
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.semantics">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.utils.stage
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.stage">module</a>
 </li>
       </ul></li>
       <li>
@@ -4397,6 +4527,13 @@
 </li>
       </ul></li>
       <li>
+    isaaclab.utils.datasets
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.datasets">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab.utils.dict
 
       <ul>
@@ -4415,6 +4552,13 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.io">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.utils.logger
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.logger">module</a>
 </li>
       </ul></li>
       <li>
@@ -4446,6 +4590,20 @@
 </li>
       </ul></li>
       <li>
+    isaaclab.utils.seed
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.seed">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.utils.sensors
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.sensors">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab.utils.string
 
       <ul>
@@ -4464,6 +4622,13 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.types">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.utils.version
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.version">module</a>
 </li>
       </ul></li>
       <li>
@@ -4827,8 +4992,6 @@
       </ul></li>
       <li><a href="source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.load_cfg_from_registry">load_cfg_from_registry() (in module isaaclab_tasks.utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.load_checkpoint">load_checkpoint (isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
 
       <ul>
@@ -4837,6 +5000,8 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.load_checkpoint">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.load_from_dataset_file">load_from_dataset_file() (isaaclab_mimic.datagen.DataGenInfoPool method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.load_managers">load_managers() (isaaclab.envs.ManagerBasedEnv method)</a>
@@ -4876,12 +5041,18 @@
 </li>
         <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir">(isaaclab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.log_dir">(isaaclab.sim.SimulationCfg attribute)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.log_dir">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.logger">logger (in module isaaclab.utils.math)</a>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.logger">logger (in module isaaclab.sim.utils.legacy)</a>
 
       <ul>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.logger">(in module isaaclab.sim.utils.prims)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.logger">(in module isaaclab.utils.math)</a>
+</li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.logger">(isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.logger">(isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg attribute)</a>
@@ -4916,6 +5087,8 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.make_pose">make_pose() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.make_quat_unique">make_quat_unique (isaaclab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.make_uninstanceable">make_uninstanceable() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ManagerBase">ManagerBase (class in isaaclab.managers)</a>
 </li>
@@ -5179,8 +5352,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">MeshPlaneTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">MeshPyramidStairsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">MeshRailsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -5191,6 +5362,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">MeshRepeatedBoxesTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">MeshRepeatedCylindersTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg">MeshRepeatedCylindersTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -5353,7 +5526,17 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#module-isaaclab.sim.spawners.wrappers">isaaclab.sim.spawners.wrappers</a>
 </li>
-        <li><a href="source/api/lab/isaaclab.sim.html#module-isaaclab.sim.utils">isaaclab.sim.utils</a>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils">isaaclab.sim.utils</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.legacy">isaaclab.sim.utils.legacy</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.prims">isaaclab.sim.utils.prims</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.queries">isaaclab.sim.utils.queries</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.semantics">isaaclab.sim.utils.semantics</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.stage">isaaclab.sim.utils.stage</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains">isaaclab.terrains</a>
 </li>
@@ -5373,11 +5556,15 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.configclass">isaaclab.utils.configclass</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.datasets">isaaclab.utils.datasets</a>
+</li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.dict">isaaclab.utils.dict</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.interpolation">isaaclab.utils.interpolation</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.io">isaaclab.utils.io</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.logger">isaaclab.utils.logger</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.math">isaaclab.utils.math</a>
 </li>
@@ -5387,11 +5574,17 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.noise">isaaclab.utils.noise</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.seed">isaaclab.utils.seed</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.sensors">isaaclab.utils.sensors</a>
+</li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.string">isaaclab.utils.string</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.timer">isaaclab.utils.timer</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.types">isaaclab.utils.types</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.version">isaaclab.utils.version</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.warp">isaaclab.utils.warp</a>
 </li>
@@ -5421,6 +5614,8 @@
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task">motion_stiffness_limits_task (isaaclab.controllers.OperationalSpaceControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task">motion_stiffness_task (isaaclab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.move_prim">move_prim() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg">MultiAssetSpawnerCfg (class in isaaclab.sim.spawners.wrappers)</a>
 </li>
@@ -5900,8 +6095,6 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.object_vel_w">object_vel_w (isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.obs_groups">obs_groups (isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg attribute)</a>
 
       <ul>
@@ -5910,6 +6103,8 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.obs_groups">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.observation_noise_model">observation_noise_model (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -5994,6 +6189,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.open_command_expr">(isaaclab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.open_stage">open_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.ConstantNoiseCfg.operation">operation (isaaclab.utils.noise.ConstantNoiseCfg attribute)</a>
 
       <ul>
@@ -6598,6 +6795,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges">(isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.RateLimitFilter">RateLimitFilter (class in isaaclab.utils.logger)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.raw_actions">raw_actions (isaaclab.managers.ActionTerm property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCameraCfg.ray_alignment">ray_alignment (isaaclab.sensors.MultiMeshRayCasterCameraCfg attribute)</a>
@@ -6706,6 +6905,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.RemotizedPDActuatorCfg">RemotizedPDActuatorCfg (class in isaaclab.actuators)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.remove_labels">remove_labels() (in module isaaclab.sim.utils.semantics)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.render">render (isaaclab.sim.SimulationCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv.render">render() (isaaclab.envs.DirectMARLEnv method)</a>
@@ -6782,6 +6983,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.rescale_to_limits">(isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.ColoredFormatter.RESET">RESET (isaaclab.utils.logger.ColoredFormatter attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBase.reset">reset() (isaaclab.actuators.ActuatorBase method)</a>
 
       <ul>
@@ -6894,10 +7097,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_scale">reset_joints_by_scale() (in module isaaclab.envs.mdp.events)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_nodal_state_uniform">reset_nodal_state_uniform() (in module isaaclab.envs.mdp.events)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_nodal_state_uniform">reset_nodal_state_uniform() (in module isaaclab.envs.mdp.events)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_root_state_from_terrain">reset_root_state_from_terrain() (in module isaaclab.envs.mdp.events)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_root_state_uniform">reset_root_state_uniform() (in module isaaclab.envs.mdp.events)</a>
@@ -6933,6 +7136,10 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.resolve_matching_names">resolve_matching_names() (in module isaaclab.utils.string)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.resolve_matching_names_values">resolve_matching_names_values() (in module isaaclab.utils.string)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.resolve_prim_pose">resolve_prim_pose() (in module isaaclab.sim.utils.prims)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.resolve_prim_scale">resolve_prim_scale() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.FixedTendonPropertiesCfg.rest_length">rest_length (isaaclab.sim.schemas.FixedTendonPropertiesCfg attribute)</a>
 </li>
@@ -7334,6 +7541,10 @@
 <h2 id="S">S</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_prim">safe_set_attribute_on_usd_prim() (in module isaaclab.sim.utils.prims)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_schema">safe_set_attribute_on_usd_schema() (in module isaaclab.sim.utils.prims)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg.sample_bias_per_component">sample_bias_per_component (isaaclab.utils.noise.NoiseModelWithAdditiveBiasCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.sample_cylinder">sample_cylinder() (in module isaaclab.utils.math)</a>
@@ -7367,6 +7578,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.save_logs_to_file">save_logs_to_file (isaaclab.sim.SimulationCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.save_stage">save_stage() (in module isaaclab.sim.utils.stage)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.Sb3VecEnvWrapper">Sb3VecEnvWrapper (class in isaaclab_rl.sb3)</a>
 </li>
@@ -7464,6 +7677,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.RandomStrategy.select_source_demo">(isaaclab_mimic.datagen.RandomStrategy method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.select_usd_variants">select_usd_variants() (in module isaaclab.sim.utils.prims)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.selection_strategy">selection_strategy (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.selection_strategy_kwargs">selection_strategy_kwargs (isaaclab.envs.SubTaskConfig attribute)</a>
@@ -7664,6 +7879,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_velocity_target">set_joint_velocity_target() (isaaclab.assets.Articulation method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.set_prim_visibility">set_prim_visibility() (in module isaaclab.sim.utils.prims)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.set_render_mode">set_render_mode() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.set_setting">set_setting() (isaaclab.sim.SimulationContext method)</a>
@@ -7752,6 +7969,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.sim">sim (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -7764,8 +7983,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_deform_gradient_w">sim_element_deform_gradient_w (isaaclab.assets.DeformableObjectData property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_quat_w">sim_element_quat_w (isaaclab.assets.DeformableObjectData property)</a>
@@ -8280,10 +8497,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.Ranges">TerrainBasedPose2dCommandCfg.Ranges (class in isaaclab.envs.mdp.commands.commands_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator">TerrainGenerator (class in isaaclab.terrains)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg">TerrainGeneratorCfg (class in isaaclab.terrains)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter">TerrainImporter (class in isaaclab.terrains)</a>
@@ -8359,6 +8576,8 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.transform_poses_from_frame_A_to_frame_B">transform_poses_from_frame_A_to_frame_B() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverterCfg.translation">translation (isaaclab.sim.converters.MeshConverterCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.traverse_stage">traverse_stage() (in module isaaclab.sim.utils.legacy)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.CylinderLightCfg.treat_as_line">treat_as_line (isaaclab.sim.spawners.lights.CylinderLightCfg attribute)</a>
 </li>
@@ -8496,6 +8715,8 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.update_stage">update_stage() (in module isaaclab.sim.utils.stage)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ViewportCameraController.update_view_location">update_view_location() (isaaclab.envs.ui.ViewportCameraController method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ViewportCameraController.update_view_to_asset_body">update_view_to_asset_body() (isaaclab.envs.ui.ViewportCameraController method)</a>
@@ -8607,6 +8828,8 @@
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss">use_mirror_loss (isaaclab_rl.rsl_rl.RslRlSymmetryCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKControllerCfg.use_relative_mode">use_relative_mode (isaaclab.controllers.DifferentialIKControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.use_stage">use_stage() (in module isaaclab.sim.utils.stage)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.use_terrain_origins">use_terrain_origins (isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>

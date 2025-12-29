@@ -425,6 +425,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -678,8 +679,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.set_render_mode"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_render_mode()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.set_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_setting()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.get_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_setting()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.get_initial_stage"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_initial_stage()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.step"><code class="docutils literal notranslate"><span class="pre">SimulationContext.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.render"><code class="docutils literal notranslate"><span class="pre">SimulationContext.render()</span></code></a></li>
 </ul>
@@ -701,6 +702,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.create_stage_in_memory</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.logging_level"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.logging_level</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.save_logs_to_file</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -753,7 +755,6 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.simulation_context.build_simulation_context"><code class="docutils literal notranslate"><span class="pre">simulation_context.build_simulation_context()</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.sim.utils">Utilities</a></li>
 </ul>
             </nav>
         </div>
@@ -798,8 +799,8 @@ as a feature request elaborating on the required application.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="isaaclab.sim.spawners.html#module-isaaclab.sim.spawners" title="isaaclab.sim.spawners"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spawners</span></code></a></p></td>
 <td><p>Sub-module containing utilities for creating prims in Omniverse.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.sim.utils" title="isaaclab.sim.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
-<td><p></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="isaaclab.sim.utils.html#module-isaaclab.sim.utils" title="isaaclab.sim.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">utils</span></code></a></p></td>
+<td><p>Utilities built around USD operations.</p></td>
 </tr>
 </tbody>
 </table>
@@ -912,11 +913,11 @@ the non-<code class="docutils literal notranslate"><span class="pre">_async</spa
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.get_setting" title="isaaclab.sim.SimulationContext.get_setting"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_setting</span></code></a>(name)</p></td>
 <td><p>Read the simulation setting using the Carbonite SDK.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.forward" title="isaaclab.sim.SimulationContext.forward"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forward</span></code></a>()</p></td>
-<td><p>Updates articulation kinematics and fabric for rendering.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.get_initial_stage" title="isaaclab.sim.SimulationContext.get_initial_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_stage</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.get_initial_stage" title="isaaclab.sim.SimulationContext.get_initial_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_stage</span></code></a>()</p></td>
 <td><p>Returns stage handle used during scene creation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.forward" title="isaaclab.sim.SimulationContext.forward"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forward</span></code></a>()</p></td>
+<td><p>Updates articulation kinematics and fabric for rendering.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationContext.step" title="isaaclab.sim.SimulationContext.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>([render])</p></td>
 <td><p>Steps the simulation.</p></td>
@@ -1077,10 +1078,21 @@ that occurs during USD read/write operations.</p>
 <p>This is a wrapper around the <code class="docutils literal notranslate"><span class="pre">isaacsim.core.version.get_version()</span></code> function.</p>
 <p>The returned tuple contains the following information:</p>
 <ul class="simple">
-<li><p>Major version (int): This is the year of the release (e.g. 2022).</p></li>
-<li><p>Minor version (int): This is the half-year of the release (e.g. 1 or 2).</p></li>
-<li><p>Patch version (int): This is the patch number of the release (e.g. 0).</p></li>
+<li><p>Major version: This is the year of the release (e.g. 2022).</p></li>
+<li><p>Minor version: This is the half-year of the release (e.g. 1 or 2).</p></li>
+<li><p>Patch version: This is the patch number of the release (e.g. 0).</p></li>
 </ul>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple containing the major, minor, and patch versions.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()</span>
+<span class="go">(2022, 1, 0)</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py method">
@@ -1165,12 +1177,6 @@ documentation.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="isaaclab.sim.SimulationContext.forward">
-<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext.forward" title="Permalink to this definition">#</a></dt>
-<dd><p>Updates articulation kinematics and fabric for rendering.</p>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.sim.SimulationContext.get_initial_stage">
 <span class="sig-name descname"><span class="pre">get_initial_stage</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">pxr.Usd.Stage</span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext.get_initial_stage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext.get_initial_stage" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns stage handle used during scene creation.</p>
@@ -1179,6 +1185,12 @@ documentation.</p>
 <dd class="field-odd"><p>The stage used during scene creation.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sim.SimulationContext.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext.forward" title="Permalink to this definition">#</a></dt>
+<dd><p>Updates articulation kinematics and fabric for rendering.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1263,6 +1275,9 @@ background. The rendering components are refreshed based on the render mode.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.save_logs_to_file" title="isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_logs_to_file</span></code></a></p></td>
 <td><p>Save logs to a file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.SimulationCfg.log_dir" title="isaaclab.sim.SimulationCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<td><p>The directory to save the logs to.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1378,6 +1393,14 @@ physics material specified on them.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.SimulationCfg.save_logs_to_file">
 <span class="sig-name descname"><span class="pre">save_logs_to_file</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.save_logs_to_file" title="Permalink to this definition">#</a></dt>
 <dd><p>Save logs to a file. Default is True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.SimulationCfg.log_dir">
+<span class="sig-name descname"><span class="pre">log_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.SimulationCfg.log_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>The directory to save the logs to. Default is None.</p>
+<p>If <a class="reference internal" href="#isaaclab.sim.SimulationCfg.save_logs_to_file" title="isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="xref py py-attr docutils literal notranslate"><span class="pre">save_logs_to_file</span></code></a> is True, the logs will be saved to the directory specified by <a class="reference internal" href="#isaaclab.sim.SimulationCfg.log_dir" title="isaaclab.sim.SimulationCfg.log_dir"><code class="xref py py-attr docutils literal notranslate"><span class="pre">log_dir</span></code></a>.
+If None, the logs will be saved to the temp directory.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1924,9 +1947,6 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 </dd></dl>
 
 </section>
-<section id="module-isaaclab.sim.utils">
-<span id="utilities"></span><h2>Utilities<a class="headerlink" href="#module-isaaclab.sim.utils" title="Permalink to this heading">#</a></h2>
-</section>
 </section>
 
 
@@ -1995,8 +2015,8 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.set_render_mode"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_render_mode()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.set_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_setting()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.get_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_setting()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.get_initial_stage"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_initial_stage()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.step"><code class="docutils literal notranslate"><span class="pre">SimulationContext.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationContext.render"><code class="docutils literal notranslate"><span class="pre">SimulationContext.render()</span></code></a></li>
 </ul>
@@ -2018,6 +2038,7 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.create_stage_in_memory</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.logging_level"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.logging_level</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.save_logs_to_file"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.save_logs_to_file</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.SimulationCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -2070,7 +2091,6 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.simulation_context.build_simulation_context"><code class="docutils literal notranslate"><span class="pre">simulation_context.build_simulation_context()</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.sim.utils">Utilities</a></li>
 </ul>
   </nav></div>
 

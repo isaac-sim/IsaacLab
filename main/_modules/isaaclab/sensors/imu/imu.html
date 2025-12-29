@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -605,12 +606,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_pose_relative_to_physx_parent</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.imu_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImuData</span>
@@ -735,11 +735,25 @@
         <span class="k">if</span> <span class="n">prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Determine rigid source prim and (if needed) the fixed transform from that rigid prim to target prim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="p">,</span> <span class="n">fixed_pos_b</span><span class="p">,</span> <span class="n">fixed_quat_b</span> <span class="o">=</span> <span class="n">resolve_pose_relative_to_physx_parent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+        <span class="c1"># Find the first matching ancestor prim that implements rigid body API</span>
+        <span class="n">ancestor_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_ancestor_prim</span><span class="p">(</span>
+            <span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">_prim</span><span class="p">:</span> <span class="n">_prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">ancestor_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a rigid body ancestor prim at path expression: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># Convert ancestor prim path to expression</span>
+        <span class="k">if</span> <span class="n">ancestor_prim</span> <span class="o">==</span> <span class="n">prim</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span>
+            <span class="n">fixed_pos_b</span><span class="p">,</span> <span class="n">fixed_quat_b</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Convert ancestor prim path to expression</span>
+            <span class="n">relative_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">MakeRelativePath</span><span class="p">(</span><span class="n">ancestor_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span><span class="o">.</span><span class="n">pathString</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">relative_path</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="c1"># Resolve the relative pose between the target prim and the ancestor prim</span>
+            <span class="n">fixed_pos_b</span><span class="p">,</span> <span class="n">fixed_quat_b</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">resolve_prim_pose</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">ancestor_prim</span><span class="p">)</span>
 
         <span class="c1"># Create the rigid body view on the ancestor</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rigid_parent_expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
 
         <span class="c1"># Get world gravity</span>
         <span class="n">gravity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">get_gravity</span><span class="p">()</span>
@@ -861,7 +875,7 @@
         <span class="n">default_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">acceleration_visualizer</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">[</span><span class="s2">&quot;arrow&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span>
         <span class="n">arrow_scale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">default_scale</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">lin_acc_b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
         <span class="c1"># get up axis of current stage</span>
-        <span class="n">up_axis</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_stage_up_axis</span><span class="p">()</span>
+        <span class="n">up_axis</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">GetStageUpAxis</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">)</span>
         <span class="c1"># arrow-direction</span>
         <span class="n">quat_opengl</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_from_matrix</span><span class="p">(</span>
             <span class="n">math_utils</span><span class="o">.</span><span class="n">create_rotation_matrix_from_view</span><span class="p">(</span>

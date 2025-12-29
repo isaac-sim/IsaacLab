@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -606,17 +607,19 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.prims</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prim_utils</span>
-
-<span class="c1"># from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated</span>
-<span class="k">try</span><span class="p">:</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">Semantics</span>
-<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Semantics</span>
-
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">select_usd_variants</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">is_current_stage_in_memory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">add_labels</span><span class="p">,</span>
+    <span class="n">bind_physics_material</span><span class="p">,</span>
+    <span class="n">bind_visual_material</span><span class="p">,</span>
+    <span class="n">clone</span><span class="p">,</span>
+    <span class="n">create_prim</span><span class="p">,</span>
+    <span class="n">get_current_stage</span><span class="p">,</span>
+    <span class="n">get_first_matching_child_prim</span><span class="p">,</span>
+    <span class="n">is_current_stage_in_memory</span><span class="p">,</span>
+    <span class="n">select_usd_variants</span><span class="p">,</span>
+    <span class="n">set_prim_visibility</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_usd_path_with_timeout</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -786,9 +789,12 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If the prim path already exists.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Obtain current stage</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
+
     <span class="c1"># Spawn Ground-plane</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="n">prim_path</span><span class="p">):</span>
-        <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">usd_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">usd_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
@@ -796,20 +802,26 @@
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">)</span>
         <span class="c1"># Apply physics material to ground plane</span>
-        <span class="n">collision_prim_path</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_path</span><span class="p">(</span>
-            <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span>
-                <span class="n">prim_path</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">from_prim_get_type_name</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;Plane&quot;</span>
-            <span class="p">)</span>
+        <span class="n">collision_prim</span> <span class="o">=</span> <span class="n">get_first_matching_child_prim</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="p">,</span>
+            <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">_prim</span><span class="p">:</span> <span class="n">_prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Plane&quot;</span><span class="p">,</span>
+            <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="k">if</span> <span class="n">collision_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No collision prim found at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+        <span class="c1"># bind physics material to the collision prim</span>
+        <span class="n">collision_prim_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">collision_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span>
         <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">collision_prim_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">)</span>
 
+    <span class="c1"># Obtain environment prim</span>
+    <span class="n">environment_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">)</span>
     <span class="c1"># Scale only the mesh</span>
     <span class="c1"># Warning: This is specific to the default grid plane asset.</span>
-    <span class="k">if</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">environment_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
         <span class="c1"># compute scale from size</span>
         <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mf">100.0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mf">100.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
         <span class="c1"># apply scale to the mesh</span>
-        <span class="n">prim_utils</span><span class="o">.</span><span class="n">set_prim_property</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:scale&quot;</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
+        <span class="n">environment_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span>
 
     <span class="c1"># Change the color of the plane</span>
     <span class="c1"># Warning: This is specific to the default grid plane asset.</span>
@@ -834,10 +846,9 @@
             <span class="p">)</span>
     <span class="c1"># Remove the light from the ground plane</span>
     <span class="c1"># It isn&#39;t bright enough and messes up with the user&#39;s lighting settings</span>
-    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ToggleVisibilitySelectedPrims&quot;</span><span class="p">,</span> <span class="n">selected_paths</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/SphereLight&quot;</span><span class="p">],</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
-    <span class="n">prim</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
     <span class="c1"># Apply semantic tags</span>
     <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;semantic_tags&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">semantic_tags</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># note: taken from replicator scripts.utils.utils.py</span>
@@ -845,15 +856,11 @@
             <span class="c1"># deal with spaces by replacing them with underscores</span>
             <span class="n">semantic_type_sanitized</span> <span class="o">=</span> <span class="n">semantic_type</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
             <span class="n">semantic_value_sanitized</span> <span class="o">=</span> <span class="n">semantic_value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-            <span class="c1"># set the semantic API for the instance</span>
-            <span class="n">instance_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">semantic_type_sanitized</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">semantic_value_sanitized</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="n">sem</span> <span class="o">=</span> <span class="n">Semantics</span><span class="o">.</span><span class="n">SemanticsAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">instance_name</span><span class="p">)</span>
-            <span class="c1"># create semantic type and data attributes</span>
-            <span class="n">sem</span><span class="o">.</span><span class="n">CreateSemanticTypeAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_type</span><span class="p">)</span>
-            <span class="n">sem</span><span class="o">.</span><span class="n">CreateSemanticDataAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">semantic_value</span><span class="p">)</span>
+            <span class="c1"># add labels to the prim</span>
+            <span class="n">add_labels</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="p">[</span><span class="n">semantic_value_sanitized</span><span class="p">],</span> <span class="n">instance_name</span><span class="o">=</span><span class="n">semantic_type_sanitized</span><span class="p">)</span>
 
     <span class="c1"># Apply visibility</span>
-    <span class="n">prim_utils</span><span class="o">.</span><span class="n">set_prim_visibility</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visible</span><span class="p">)</span>
+    <span class="n">set_prim_visibility</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visible</span><span class="p">)</span>
 
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim</span></div>
@@ -905,10 +912,12 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;USD file not found at path at: &#39;</span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
+    <span class="c1"># Obtain current stage</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="c1"># spawn asset if it doesn&#39;t exist.</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="n">prim_path</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
         <span class="c1"># add prim as reference to stage</span>
-        <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span>
+        <span class="n">create_prim</span><span class="p">(</span>
             <span class="n">prim_path</span><span class="p">,</span>
             <span class="n">usd_path</span><span class="o">=</span><span class="n">usd_path</span><span class="p">,</span>
             <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span>
@@ -962,7 +971,7 @@
         <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
 
     <span class="c1"># return the prim</span>
-    <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
 </pre></div>
 
                 </article>

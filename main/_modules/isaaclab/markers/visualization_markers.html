@@ -422,6 +422,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -624,7 +625,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">stage_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.configclass</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_quat</span>
@@ -742,9 +742,9 @@
 <span class="sd">            ValueError: When no markers are provided in the :obj:`cfg`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># get next free path for the prim</span>
-        <span class="n">prim_path</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_next_free_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+        <span class="n">prim_path</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_next_free_prim_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="c1"># create a new prim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_instancer_manager</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">PointInstancer</span><span class="o">.</span><span class="n">Define</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">)</span>
         <span class="c1"># store inputs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="n">prim_path</span>
@@ -994,7 +994,7 @@
             <span class="k">if</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Gprim</span><span class="p">):</span>
                 <span class="c1"># early attach stage to usd context if stage is in memory</span>
                 <span class="c1"># since stage in memory is not supported by the &quot;ChangePropertyCommand&quot; kit command</span>
-                <span class="n">stage_utils</span><span class="o">.</span><span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">sim_utils</span><span class="o">.</span><span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
                 <span class="c1"># invisible to secondary rays such as depth images</span>
                 <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>

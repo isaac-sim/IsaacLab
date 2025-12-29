@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
@@ -668,7 +669,7 @@ or soft bodies. For more information, please refer to the <a class="reference ex
 <p>Based on above, Isaac Lab provides a deterministic simulation that ensures consistent simulation
 results across different runs. This is achieved by using the same random seed for the
 simulation environment and the physics engine. At construction of the environment, the random seed
-is set to a fixed value using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">configure_seed()</span></code> method. This method sets the
+is set to a fixed value using the <a class="reference internal" href="../api/lab/isaaclab.utils.html#isaaclab.utils.seed.configure_seed" title="isaaclab.utils.seed.configure_seed"><code class="xref py py-meth docutils literal notranslate"><span class="pre">configure_seed()</span></code></a> method. This method sets the
 random seed for both the CPU and GPU globally across different libraries, including PyTorch and
 NumPy.</p>
 <p>In the included workflow scripts, the seed specified in the learning agent’s configuration file or the
