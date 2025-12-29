@@ -153,6 +153,7 @@ Guidelines for modifications:
 * Wei Yang
 * Xavier Nal
 * Xiaodi Yuan
+* Xiang Zhou
 * Xinjie Yao
 * Xinpeng Liu
 * Yang Jin

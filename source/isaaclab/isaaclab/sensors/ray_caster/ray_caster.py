@@ -234,6 +234,10 @@ class RayCaster(SensorBase):
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
         self._ray_starts_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
         self._ray_directions_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        if self.cfg.track_ray_distance:
+            self._data.ray_distance = torch.full(
+                (self._view.count, self.num_rays), self.cfg.max_distance, device=self.device, dtype=torch.float32
+            )
 
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
@@ -297,12 +301,16 @@ class RayCaster(SensorBase):
 
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
-        self._data.ray_hits_w[env_ids] = raycast_mesh(
+        self._data.ray_hits_w[env_ids], ray_distance, _, _ = raycast_mesh(
             self._ray_starts_w[env_ids],
             self._ray_directions_w[env_ids],
             max_dist=self.cfg.max_distance,
             mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
-        )[0]
+            return_distance=self.cfg.track_ray_distance,
+        )
+
+        if self.cfg.track_ray_distance:
+            self._data.ray_distance[env_ids] = ray_distance.clip(max=self.cfg.max_distance)
 
         # apply vertical drift to ray starting position in ray caster frame
         self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)

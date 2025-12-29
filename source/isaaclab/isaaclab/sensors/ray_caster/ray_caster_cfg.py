@@ -5,7 +5,6 @@
 
 """Configuration for the ray-cast sensor."""
 
-
 from dataclasses import MISSING
 from typing import Literal
 
@@ -71,6 +70,9 @@ class RayCasterCfg(SensorBaseCfg):
     * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination with a mapping
       package on the robot and querying ray-casts in a global frame.
     """
+
+    track_ray_distance: bool = False
+    """Whether to track the raycast distances (i.e., the distances traveled by the rays until they hit a target mesh). Defaults to False."""
 
     pattern_cfg: PatternBaseCfg = MISSING
     """The pattern that defines the local ray starting positions and directions."""
