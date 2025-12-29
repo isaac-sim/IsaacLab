@@ -80,6 +80,26 @@ def create_new_stage_in_memory() -> Usd.Stage:
         return Usd.Stage.CreateInMemory()
 
 
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is in memory.
+
+    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+
+    Returns:
+        Whether the current stage is in memory.
+    """
+    # grab current stage id
+    stage_id = get_current_stage_id()
+
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
+
+    # check if stage ids are the same
+    return stage_id != context_stage_id
+
+
 def open_stage(usd_path: str) -> bool:
     """Open the given usd file and replace currently opened stage.
 
@@ -334,26 +354,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         omni.kit.app.get_app_interface().update()
 
 
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
-
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
-
-    Returns:
-        Whether the current stage is in memory.
-    """
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
-
 def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
@@ -435,6 +435,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
 
     import carb
     import omni.physx
+    import omni.usd
     from isaacsim.core.simulation_manager import SimulationManager
 
     from isaaclab.sim.simulation_context import SimulationContext
@@ -454,7 +455,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     physx_sim_interface.attach_stage(stage_id)
 
     # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
+    carb_setting = carb.settings.get_settings()  # type: ignore
     is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
 
     # if rendering is not enabled, we don't need to attach it
