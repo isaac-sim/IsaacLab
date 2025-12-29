@@ -509,11 +509,11 @@ class ObservationManager(ManagerBase):
             )
             # check if config is dict already
             if isinstance(group_cfg, dict):
-                group_cfg_items = group_cfg.items()
+                term_cfg_items = group_cfg.items()
             else:
-                group_cfg_items = group_cfg.__dict__.items()
+                term_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
-            for term_name, term_cfg in group_cfg_items:
+            for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
                 if term_name in [
                     "enable_corruption",
