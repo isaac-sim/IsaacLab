@@ -33,6 +33,9 @@ def create_new_stage() -> Usd.Stage:
     Returns:
         Usd.Stage: The created USD stage.
 
+    Raises:
+        RuntimeError: When failed to create a new stage.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
@@ -41,7 +44,11 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    return omni.usd.get_context().new_stage()
+    result = omni.usd.get_context().new_stage()
+    if result:
+        return omni.usd.get_context().get_stage()
+    else:
+        raise RuntimeError("Failed to create a new stage. Please check if the USD context is valid.")
 
 
 def create_new_stage_in_memory() -> Usd.Stage:
@@ -311,7 +318,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     def _predicate_from_path(prim: Usd.Prim) -> bool:
         if predicate is None:
             return _default_predicate(prim)
-        return predicate(prim.GetPath().pathString)
+        return predicate(prim)
 
     # get all prims to delete
     if predicate is None:
