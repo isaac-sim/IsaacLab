@@ -16,7 +16,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh
 
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:

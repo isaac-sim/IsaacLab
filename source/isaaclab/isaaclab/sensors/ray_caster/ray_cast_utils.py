@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utility functions for ray-cast sensors."""
+
 from __future__ import annotations
 
 import torch

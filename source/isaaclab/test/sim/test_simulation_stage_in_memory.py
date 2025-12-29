@@ -3,11 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Integration tests for simulation context with stage in memory."""
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
+# FIXME (mmittal): Stage in memory requires cameras to be enabled.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
@@ -22,24 +25,19 @@ from isaacsim.core.cloner import GridCloner
 from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    # create stage in memory
     cfg = SimulationCfg(create_stage_in_memory=True)
     sim = SimulationContext(cfg=cfg)
-    # update stage
     sim_utils.update_stage()
-    # yield simulation context
     yield sim
-    # stop simulation
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()
-    # clear simulation context
     sim.clear()
     sim.clear_all_callbacks()
     sim.clear_instance()

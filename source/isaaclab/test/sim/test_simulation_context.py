@@ -13,10 +13,13 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
+from collections.abc import Generator
 
+import omni.physx
 import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -31,6 +34,25 @@ def test_setup_teardown():
 
     # Teardown: Clear the simulation context after each test
     SimulationContext.clear_instance()
+
+
+@pytest.fixture
+def sim_with_stage_in_memory() -> Generator[SimulationContext, None, None]:
+    """Create a simulation context with stage in memory."""
+    # create stage in memory
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    sim = SimulationContext(cfg=cfg)
+    # update stage
+    sim_utils.update_stage()
+    # yield simulation context
+    yield sim
+    # stop simulation
+    omni.physx.get_physx_simulation_interface().detach_stage()
+    sim.stop()
+    # clear simulation context
+    sim.clear()
+    sim.clear_all_callbacks()
+    sim.clear_instance()
 
 
 @pytest.mark.isaacsim_ci
