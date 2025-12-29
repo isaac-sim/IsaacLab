@@ -44,7 +44,8 @@ def configure_logging(
     Args:
         logging_level: The logging level.
         save_logs_to_file: Whether to save the logs to a file.
-        log_dir: The directory to save the logs to.
+        log_dir: The directory to save the logs to. Default is None, in which case the logs
+            will be saved to the temp directory with the sub-directory "isaaclab/logs".
 
     Returns:
         The root logger.
@@ -71,7 +72,7 @@ def configure_logging(
     if save_logs_to_file:
         # if log_dir is not provided, use the temp directory
         if log_dir is None:
-            log_dir = tempfile.gettempdir()
+            log_dir = os.path.join(tempfile.gettempdir(), "isaaclab", "logs")
         # create the log directory if it does not exist
         os.makedirs(log_dir, exist_ok=True)
         # create the log file path
