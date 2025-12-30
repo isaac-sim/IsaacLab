@@ -237,6 +237,25 @@ def resolve_prim_pose(
 
     Raises:
         ValueError: If the prim or ref prim is not valid.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Usd, UsdGeom
+        >>>
+        >>> # Get prim
+        >>> stage = sim_utils.get_current_stage()
+        >>> prim = stage.GetPrimAtPath("/World/ImportedAsset")
+        >>>
+        >>> # Resolve pose
+        >>> pos, quat = sim_utils.resolve_prim_pose(prim)
+        >>> print(f"Position: {pos}")
+        >>> print(f"Orientation: {quat}")
+        >>>
+        >>> # Resolve pose with respect to another prim
+        >>> ref_prim = stage.GetPrimAtPath("/World/Reference")
+        >>> pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim)
+        >>> print(f"Position: {pos}")
+        >>> print(f"Orientation: {quat}")
     """
     # check if prim is valid
     if not prim.IsValid():
@@ -285,6 +304,18 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
 
     Raises:
         ValueError: If the prim is not valid.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Usd, UsdGeom
+        >>>
+        >>> # Get prim
+        >>> stage = sim_utils.get_current_stage()
+        >>> prim = stage.GetPrimAtPath("/World/ImportedAsset")
+        >>>
+        >>> # Resolve scale
+        >>> scale = sim_utils.resolve_prim_scale(prim)
+        >>> print(f"Scale: {scale}")
     """
     # check if prim is valid
     if not prim.IsValid():
