@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+0.51.1 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.version.get_isaac_sim_version` to get the version of Isaac Sim.
+  This function caches the version of Isaac Sim and returns it immediately if it has already been computed.
+  This helps avoid parsing the VERSION file from disk multiple times.
+
+Changed
+^^^^^^^
+
+* Changed the function :meth:`~isaaclab.utils.version.compare_versions` to use :mod:`packaging.version.Version` module.
+* Changed occurrences of :func:`isaacsim.core.version.get_version` to :func:`~isaaclab.utils.version.get_isaac_sim_version`.
+
+Removed
+^^^^^^^
+
+* Removed storing of Isaac Sim version inside the environment base classes defined inside
+  :mod:`isaaclab.envs` module.
+
+
 0.51.0 (2025-12-29)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -27,11 +27,11 @@ import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
-from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -149,10 +149,6 @@ class SimulationContext(_SimulationContext):
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
-
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
 
         # apply carb physics settings
         self._apply_physics_settings()
@@ -283,7 +279,7 @@ class SimulationContext(_SimulationContext):
         self._physics_device = SimulationManager.get_physics_sim_device()
 
         # create a simulation context to control the simulator
-        if float(".".join(self._isaacsim_version[2])) < 5:
+        if get_isaac_sim_version().major < 5:
             # stage arg is not supported before isaac sim 5.0
             super().__init__(
                 stage_units_in_meters=1.0,
@@ -362,13 +358,16 @@ class SimulationContext(_SimulationContext):
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.
 
-        This is a wrapper around the ``isaacsim.core.version.get_version()`` function.
-
         The returned tuple contains the following information:
 
         * Major version: This is the year of the release (e.g. 2022).
         * Minor version: This is the half-year of the release (e.g. 1 or 2).
         * Patch version: This is the patch number of the release (e.g. 0).
+
+        .. attention::
+            This function is deprecated and will be removed in the future.
+            We recommend using :func:`isaaclab.utils.version.get_isaac_sim_version`
+            instead of this function.
 
         Returns:
             A tuple containing the major, minor, and patch versions.
@@ -378,7 +377,7 @@ class SimulationContext(_SimulationContext):
             >>> sim.get_version()
             (2022, 1, 0)
         """
-        return int(self._isaacsim_version[2]), int(self._isaacsim_version[3]), int(self._isaacsim_version[4])
+        return get_isaac_sim_version().major, get_isaac_sim_version().minor, get_isaac_sim_version().micro
 
     """
     Operations - New utilities.
@@ -748,7 +747,7 @@ class SimulationContext(_SimulationContext):
             # grab isaac lab apps path
             isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
             # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if float(".".join(self._isaacsim_version[2])) < 5:
+            if get_isaac_sim_version().major < 5:
                 isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 
             # grab preset settings

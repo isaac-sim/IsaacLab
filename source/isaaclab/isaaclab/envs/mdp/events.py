@@ -31,7 +31,7 @@ from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.version import compare_versions
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -735,8 +735,7 @@ class randomize_joint_parameters(ManagerTermBase):
             static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            major_version = int(env.sim.get_version()[0])
-            if major_version >= 5:
+            if get_isaac_sim_version().major >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.asset.data.default_joint_dynamic_friction_coeff.clone(),

@@ -44,6 +44,7 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     "flaky",
+    "packaging",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
