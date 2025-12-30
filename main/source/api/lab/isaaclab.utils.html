@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -958,6 +958,7 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.version">Version operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.version.get_isaac_sim_version"><code class="docutils literal notranslate"><span class="pre">get_isaac_sim_version()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.version.compare_versions"><code class="docutils literal notranslate"><span class="pre">compare_versions()</span></code></a></li>
 </ul>
 </li>
@@ -1037,7 +1038,7 @@
 <td><p>Sub-module for different data types.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#module-isaaclab.utils.version" title="isaaclab.utils.version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">version</span></code></a></p></td>
-<td><p>Utility function for versioning.</p></td>
+<td><p>Utility functions for versioning.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#module-isaaclab.utils.warp" title="isaaclab.utils.warp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warp</span></code></a></p></td>
 <td><p>Sub-module containing operations based on warp.</p></td>
@@ -5249,22 +5250,63 @@ to all the joints of the articulation. We use a slice to make the indexing more 
 </section>
 <section id="module-isaaclab.utils.version">
 <span id="version-operations"></span><h2>Version operations<a class="headerlink" href="#module-isaaclab.utils.version" title="Permalink to this heading">#</a></h2>
-<p>Utility function for versioning.</p>
+<p>Utility functions for versioning.</p>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.version.compare_versions" title="isaaclab.utils.version.compare_versions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_versions</span></code></a>(v1, v2)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.version.get_isaac_sim_version" title="isaaclab.utils.version.get_isaac_sim_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_isaac_sim_version</span></code></a>()</p></td>
+<td><p>Get the Isaac Sim version as a Version object, cached for performance.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.version.compare_versions" title="isaaclab.utils.version.compare_versions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_versions</span></code></a>(v1, v2)</p></td>
 <td><p>Compare two version strings and return the comparison result.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.version.get_isaac_sim_version">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.version.</span></span><span class="sig-name descname"><span class="pre">get_isaac_sim_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Version</span></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/version.html#get_isaac_sim_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.version.get_isaac_sim_version" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the Isaac Sim version as a Version object, cached for performance.</p>
+<p>This function wraps <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/source/extensions/isaacsim.core.version/docs/index.html#isaacsim.core.version.get_version" title="(in Isaac Sim)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isaacsim.core.version.get_version()</span></code></a> and caches the result
+to avoid repeated file I/O operations. The underlying Isaac Sim function reads from
+a file each time it’s called, which can be slow when called frequently.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">packaging.version.Version</span></code> object representing the Isaac Sim version.
+This object supports rich comparison operators (&lt;, &lt;=, &gt;, &gt;=, ==, !=).</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">packaging.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">Version</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">isaac_version</span> <span class="o">=</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">isaac_version</span><span class="p">)</span>
+<span class="go">5.0.0</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Natural version comparisons</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">isaac_version</span> <span class="o">&gt;=</span> <span class="n">Version</span><span class="p">(</span><span class="s2">&quot;5.0.0&quot;</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Isaac Sim 5.0 or later&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Access components</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">isaac_version</span><span class="o">.</span><span class="n">major</span><span class="p">,</span> <span class="n">isaac_version</span><span class="o">.</span><span class="n">minor</span><span class="p">,</span> <span class="n">isaac_version</span><span class="o">.</span><span class="n">micro</span><span class="p">)</span>
+<span class="go">5 0 0</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.version.compare_versions">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.version.</span></span><span class="sig-name descname"><span class="pre">compare_versions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">v2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/version.html#compare_versions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.version.compare_versions" title="Permalink to this definition">#</a></dt>
 <dd><p>Compare two version strings and return the comparison result.</p>
 <p>The version strings are expected to be in the format “x.y.z” where x, y,
 and z are integers. The version strings are compared lexicographically.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function is provided for backward compatibility. For new code,
+prefer using <code class="xref py py-class docutils literal notranslate"><span class="pre">packaging.version.Version</span></code> objects directly with
+comparison operators (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>, <code class="docutils literal notranslate"><span class="pre">&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>, <code class="docutils literal notranslate"><span class="pre">==</span></code>, <code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p>
+</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -5284,6 +5326,21 @@ and z are integers. The version strings are compared lexicographically.</p>
 <dd class="field-odd"><p>An integer indicating the comparison result</p>
 </dd>
 </dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">compare_versions</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">compare_versions</span><span class="p">(</span><span class="s2">&quot;5.0.0&quot;</span><span class="p">,</span> <span class="s2">&quot;4.5.0&quot;</span><span class="p">)</span>
+<span class="go">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">compare_versions</span><span class="p">(</span><span class="s2">&quot;4.5.0&quot;</span><span class="p">,</span> <span class="s2">&quot;5.0.0&quot;</span><span class="p">)</span>
+<span class="go">-1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">compare_versions</span><span class="p">(</span><span class="s2">&quot;5.0.0&quot;</span><span class="p">,</span> <span class="s2">&quot;5.0.0&quot;</span><span class="p">)</span>
+<span class="go">0</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Better: use Version objects directly</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">packaging.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">Version</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Version</span><span class="p">(</span><span class="s2">&quot;5.0.0&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">Version</span><span class="p">(</span><span class="s2">&quot;4.5.0&quot;</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </section>
@@ -5795,6 +5852,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.version">Version operations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.version.get_isaac_sim_version"><code class="docutils literal notranslate"><span class="pre">get_isaac_sim_version()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.version.compare_versions"><code class="docutils literal notranslate"><span class="pre">compare_versions()</span></code></a></li>
 </ul>
 </li>
@@ -5838,7 +5896,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

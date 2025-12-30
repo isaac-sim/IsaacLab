@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -601,13 +601,16 @@
 
 <span class="sd">&quot;&quot;&quot;Configuration for the ray-cast camera sensor.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.multi_mesh_ray_caster_camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiMeshRayCasterCamera</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.multi_mesh_ray_caster_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiMeshRayCasterCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ray_caster_camera_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">RayCasterCameraCfg</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="MultiMeshRayCasterCameraCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCameraCfg">[docs]</a><span class="nd">@configclass</span>
@@ -621,7 +624,7 @@
 
         <span class="c1"># Camera only supports &#39;base&#39; ray alignment. Ensure this is set correctly.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ray_alignment</span> <span class="o">!=</span> <span class="s2">&quot;base&quot;</span><span class="p">:</span>
-            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Ray alignment for MultiMeshRayCasterCameraCfg only supports &#39;base&#39; alignment. Overriding from&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ray_alignment</span><span class="si">}</span><span class="s2">&#39; to &#39;base&#39;.&quot;</span>
             <span class="p">)</span>
@@ -673,7 +676,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

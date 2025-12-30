@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -609,12 +609,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">packaging</span><span class="w"> </span><span class="kn">import</span> <span class="n">version</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.openxr.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">HAND_JOINT_NAMES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.devices.retargeter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargeterBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..device_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeviceBase</span><span class="p">,</span> <span class="n">DeviceCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.xr_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">XrCfg</span>
@@ -666,10 +667,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">retargeters</span><span class="p">)</span>
         <span class="c1"># Enforce minimum Isaac Sim version (&gt;= 5.1)</span>
-        <span class="n">version_info</span> <span class="o">=</span> <span class="n">get_version</span><span class="p">()</span>
-        <span class="n">major</span><span class="p">,</span> <span class="n">minor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">version_info</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">version_info</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">major</span> <span class="o">==</span> <span class="mi">5</span> <span class="ow">and</span> <span class="n">minor</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ManusVive requires Isaac Sim &gt;= 5.1. Detected version </span><span class="si">{</span><span class="n">major</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">minor</span><span class="si">}</span><span class="s2">. &quot;</span><span class="p">)</span>
+        <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="n">version</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;5.1&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ManusVive requires Isaac Sim &gt;= 5.1. Detected version: &#39;</span><span class="si">{</span><span class="n">isaac_sim_version</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_xr_cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">xr_cfg</span> <span class="ow">or</span> <span class="n">XrCfg</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_additional_callbacks</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_vc_subscription</span> <span class="o">=</span> <span class="p">(</span>
@@ -883,7 +883,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

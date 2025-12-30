@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -609,7 +609,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
@@ -764,7 +763,7 @@
             <span class="n">target_prim_path</span> <span class="o">=</span> <span class="n">target_cfg</span><span class="o">.</span><span class="n">prim_expr</span>
             <span class="c1"># # check if mesh already casted into warp mesh and skip if so.</span>
             <span class="k">if</span> <span class="n">target_prim_path</span> <span class="ow">in</span> <span class="n">multi_mesh_ids</span><span class="p">:</span>
-                <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Mesh at target prim path &#39;</span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2">&#39; already exists in the mesh cache. Duplicate entries&quot;</span>
                     <span class="s2">&quot; in `mesh_prim_paths`? This mesh will be skipped.&quot;</span>
                 <span class="p">)</span>
@@ -810,7 +809,7 @@
                     <span class="p">)</span>
                     <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_all_matching_child_prims</span><span class="p">(</span><span class="n">target_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="k">lambda</span> <span class="n">prim</span><span class="p">:</span> <span class="kc">True</span><span class="p">):</span>
                         <span class="n">warn_msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2"> - Available prim &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; of type &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
-                    <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="n">warn_msg</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">warn_msg</span><span class="p">)</span>
                     <span class="k">continue</span>
 
                 <span class="n">trimesh_meshes</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1068,7 +1067,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

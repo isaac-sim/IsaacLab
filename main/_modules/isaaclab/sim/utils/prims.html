@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -615,11 +615,11 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>  <span class="c1"># noqa: F401</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">Cloner</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">omni.usd.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeletePrimsCommand</span><span class="p">,</span> <span class="n">MovePrimCommand</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdShade</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_matching_prim_paths</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_labels</span>
@@ -1274,8 +1274,7 @@
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">prim_paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">cloner</span> <span class="o">=</span> <span class="n">Cloner</span><span class="p">(</span><span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
             <span class="c1"># check version of Isaac Sim to determine whether clone_in_fabric is valid</span>
-            <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
-            <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="c1"># clone the prim</span>
                 <span class="n">cloner</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span>
                     <span class="n">prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">prim_paths</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">copy_from_source</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">copy_from_source</span>
@@ -1475,10 +1474,8 @@
             <span class="p">)</span>
         <span class="k">return</span> <span class="n">prim</span>
 
-    <span class="c1"># get isaac sim version</span>
-    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
     <span class="c1"># Compatibility with Isaac Sim 4.5 where omni.metrics is not available</span>
-    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
 
     <span class="c1"># check if the USD file is valid and add reference to the prim</span>
@@ -1654,7 +1651,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -623,11 +623,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.api.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.viewports</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_camera_view</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.simulation_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.spawners</span><span class="w"> </span><span class="kn">import</span> <span class="n">DomeLightCfg</span><span class="p">,</span> <span class="n">GroundPlaneCfg</span>
@@ -745,10 +745,6 @@
 
         <span class="c1"># acquire settings interface</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
-
-        <span class="c1"># read isaac sim version (this includes build tag, release tag etc.)</span>
-        <span class="c1"># note: we do it once here because it reads the VERSION file from disk and is not expected to change.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span> <span class="o">=</span> <span class="n">get_version</span><span class="p">()</span>
 
         <span class="c1"># apply carb physics settings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_physics_settings</span><span class="p">()</span>
@@ -879,7 +875,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_device</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_device</span><span class="p">()</span>
 
         <span class="c1"># create a simulation context to control the simulator</span>
-        <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="c1"># stage arg is not supported before isaac sim 5.0</span>
             <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
                 <span class="n">stage_units_in_meters</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
@@ -958,13 +954,16 @@
 <div class="viewcode-block" id="SimulationContext.get_version"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_version">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the version of the simulator.</span>
 
-<span class="sd">        This is a wrapper around the ``isaacsim.core.version.get_version()`` function.</span>
-
 <span class="sd">        The returned tuple contains the following information:</span>
 
 <span class="sd">        * Major version: This is the year of the release (e.g. 2022).</span>
 <span class="sd">        * Minor version: This is the half-year of the release (e.g. 1 or 2).</span>
 <span class="sd">        * Patch version: This is the patch number of the release (e.g. 0).</span>
+
+<span class="sd">        .. attention::</span>
+<span class="sd">            This function is deprecated and will be removed in the future.</span>
+<span class="sd">            We recommend using :func:`isaaclab.utils.version.get_isaac_sim_version`</span>
+<span class="sd">            instead of this function.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A tuple containing the major, minor, and patch versions.</span>
@@ -974,7 +973,7 @@
 <span class="sd">            &gt;&gt;&gt; sim.get_version()</span>
 <span class="sd">            (2022, 1, 0)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span></div>
+        <span class="k">return</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span><span class="p">,</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">minor</span><span class="p">,</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">micro</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - New utilities.</span>
@@ -1344,7 +1343,7 @@
             <span class="c1"># grab isaac lab apps path</span>
             <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="s2">&quot;..&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
             <span class="c1"># for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder</span>
-            <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaacsim_4_5&quot;</span><span class="p">)</span>
 
             <span class="c1"># grab preset settings</span>
@@ -1766,7 +1765,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

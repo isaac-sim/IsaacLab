@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -610,6 +610,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
@@ -627,10 +628,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">,</span> <span class="n">SceneEntityCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">compare_versions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">compare_versions</span><span class="p">,</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_scale"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_scale">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">randomize_rigid_body_scale</span><span class="p">(</span>
@@ -1331,8 +1335,7 @@
             <span class="n">static_friction_coeff</span> <span class="o">=</span> <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids_for_slice</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span>
 
             <span class="c1"># if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient</span>
-            <span class="n">major_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="k">if</span> <span class="n">major_version</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="c1"># Randomize raw tensors</span>
                 <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_dynamic_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
@@ -2058,7 +2061,7 @@
             <span class="c1"># This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims</span>
             <span class="c1"># whether they end in /visuals or have other structures.</span>
             <span class="n">prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asset_main_prim_path</span><span class="si">}</span><span class="s2">/.*&quot;</span>
-            <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Pattern &#39;</span><span class="si">{</span><span class="n">pattern_with_visuals</span><span class="si">}</span><span class="s2">&#39; found no prims. Falling back to &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39; for texture&quot;</span>
                 <span class="s2">&quot; randomization.&quot;</span>
             <span class="p">)</span>
@@ -2454,7 +2457,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

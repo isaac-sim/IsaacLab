@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -612,7 +612,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
@@ -620,6 +619,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActuatorBase</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span> <span class="n">ImplicitActuator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationActions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..asset_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.articulation_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationData</span>
@@ -1477,7 +1477,7 @@
         <span class="n">physx_envs_ids_cpu</span> <span class="o">=</span> <span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
 
         <span class="c1"># set into simulation</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_friction_coefficients</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_envs_ids_cpu</span>
             <span class="p">)</span>
@@ -1505,7 +1505,7 @@
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Setting joint dynamic friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="c1"># resolve indices</span>
@@ -1531,7 +1531,7 @@
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Setting joint viscous friction coefficients are not supported in Isaac Sim &lt; 5.0&quot;</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="c1"># resolve indices</span>
@@ -1930,7 +1930,7 @@
 <span class="sd">            spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).</span>
 <span class="sd">            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
@@ -1961,7 +1961,7 @@
 <span class="sd">            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).</span>
 <span class="sd">            env_ids: The environment indices to set the damping for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
@@ -1992,7 +1992,7 @@
 <span class="sd">            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).</span>
 <span class="sd">            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
@@ -2023,7 +2023,7 @@
 <span class="sd">            spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).</span>
 <span class="sd">            env_ids: The environment indices to set the offset for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0. Please update to Isaac Sim 5.0 or later.&quot;</span>
             <span class="p">)</span>
@@ -2116,7 +2116,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">_backend</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create articulation at: </span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">. Please check PhysX logs.&quot;</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;Spatial tendons are not supported in Isaac Sim &lt; 5.0: patching spatial-tendon getter&quot;</span>
                 <span class="s2">&quot; and setter to use dummy value&quot;</span>
@@ -2178,7 +2178,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_stiffness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_stiffnesses</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_damping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_dampings</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_armature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_armatures</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_friction_coeff</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_friction_coefficients</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="p">)</span>
@@ -2340,7 +2340,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_velocity_limit_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">velocity_limit_sim</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_friction_coefficient_to_sim</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_joint_dynamic_friction_coefficient_to_sim</span><span class="p">(</span>
                     <span class="n">actuator</span><span class="o">.</span><span class="n">dynamic_friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span>
                 <span class="p">)</span>
@@ -2354,7 +2354,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_damping</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">damping</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_armature</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">armature</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_friction_coeff</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">friction</span>
-            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_dynamic_friction_coeff</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">dynamic_friction</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_viscous_friction_coeff</span><span class="p">[:,</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">viscous_friction</span>
 
@@ -2528,7 +2528,7 @@
         <span class="n">dampings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_dampings</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="c1"># -- properties</span>
         <span class="n">armatures</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_armatures</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">static_frictions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_friction_coefficients</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">friction_props</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_friction_properties</span><span class="p">()</span>
@@ -2542,7 +2542,7 @@
         <span class="c1"># create table for term information</span>
         <span class="n">joint_table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">()</span>
         <span class="n">joint_table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Joint Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">joint_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="s2">&quot;Index&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;Name&quot;</span><span class="p">,</span>
@@ -2574,7 +2574,7 @@
         <span class="n">joint_table</span><span class="o">.</span><span class="n">align</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;l&quot;</span>
         <span class="c1"># add info on each term</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="n">joint_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
                     <span class="n">index</span><span class="p">,</span>
                     <span class="n">name</span><span class="p">,</span>
@@ -2779,7 +2779,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

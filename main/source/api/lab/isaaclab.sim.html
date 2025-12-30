@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -1075,13 +1075,18 @@ that occurs during USD read/write operations.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.SimulationContext.get_version">
 <span class="sig-name descname"><span class="pre">get_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext.get_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext.get_version" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the version of the simulator.</p>
-<p>This is a wrapper around the <code class="docutils literal notranslate"><span class="pre">isaacsim.core.version.get_version()</span></code> function.</p>
 <p>The returned tuple contains the following information:</p>
 <ul class="simple">
 <li><p>Major version: This is the year of the release (e.g. 2022).</p></li>
 <li><p>Minor version: This is the half-year of the release (e.g. 1 or 2).</p></li>
 <li><p>Patch version: This is the patch number of the release (e.g. 0).</p></li>
 </ul>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>This function is deprecated and will be removed in the future.
+We recommend using <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.version.get_isaac_sim_version" title="isaaclab.utils.version.get_isaac_sim_version"><code class="xref py py-func docutils literal notranslate"><span class="pre">isaaclab.utils.version.get_isaac_sim_version()</span></code></a>
+instead of this function.</p>
+</div>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>A tuple containing the major, minor, and patch versions.</p>
@@ -2124,7 +2129,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

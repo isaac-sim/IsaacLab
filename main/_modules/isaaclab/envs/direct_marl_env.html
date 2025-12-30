@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -616,7 +616,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span>
@@ -625,6 +624,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoiseModel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.seed</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_seed</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.timer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Timer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionType</span><span class="p">,</span> <span class="n">AgentID</span><span class="p">,</span> <span class="n">EnvStepReturn</span><span class="p">,</span> <span class="n">ObsType</span><span class="p">,</span> <span class="n">StateType</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.direct_marl_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectMARLEnvCfg</span>
@@ -659,7 +659,6 @@
 
     <span class="n">metadata</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;render_modes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;human&quot;</span><span class="p">,</span> <span class="s2">&quot;rgb_array&quot;</span><span class="p">],</span>
-        <span class="s2">&quot;isaac_sim_version&quot;</span><span class="p">:</span> <span class="n">get_version</span><span class="p">(),</span>
     <span class="p">}</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Metadata for the environment.&quot;&quot;&quot;</span>
 
@@ -1139,7 +1138,7 @@
                 <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewport_camera_controller</span>
 
             <span class="c1"># clear callbacks and instance</span>
-            <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">create_stage_in_memory</span><span class="p">:</span>
                     <span class="c1"># detach physx stage</span>
                     <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">get_physx_simulation_interface</span><span class="p">()</span><span class="o">.</span><span class="n">detach_stage</span><span class="p">()</span>
@@ -1398,7 +1397,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

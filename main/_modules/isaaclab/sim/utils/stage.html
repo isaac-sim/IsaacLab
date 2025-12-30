@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -610,8 +610,9 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">stage</span> <span class="k">as</span> <span class="n">sim_stage</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdUtils</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="c1"># import logger</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -665,8 +666,7 @@
 <span class="sd">                       sessionLayer=Sdf.Find(&#39;anon:0xf7cd2e0:tmp-session.usda&#39;),</span>
 <span class="sd">                       pathResolverContext=&lt;invalid repr&gt;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
-    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">&quot;Isaac Sim &lt; 5.0 does not support creating a new stage in memory. Falling back to creating a new&quot;</span>
             <span class="s2">&quot; stage attached to USD context.&quot;</span>
@@ -756,8 +756,7 @@
 <span class="sd">        ...    pass</span>
 <span class="sd">        &gt;&gt;&gt; # operate on the default stage attached to the USD context</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
-    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Isaac Sim &lt; 5.0 does not support thread-local stage contexts. Skipping use_stage().&quot;</span><span class="p">)</span>
         <span class="k">yield</span>  <span class="c1"># no-op</span>
     <span class="k">else</span><span class="p">:</span>
@@ -861,15 +860,13 @@
 <span class="sd">        True if operation is successful, otherwise False.</span>
 
 <span class="sd">    Example:</span>
-
-<span class="sd">    .. code-block:: python</span>
-
 <span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; sim_utils.close_stage()</span>
 <span class="sd">        True</span>
 <span class="sd">        &gt;&gt;&gt;</span>
-<span class="sd">        &gt;&gt;&gt;</span>
+
+<span class="sd">    Example with callback function:</span>
 <span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; def callback(*args, **kwargs):</span>
@@ -1037,8 +1034,7 @@
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 
     <span class="c1"># if Isaac Sim version is less than 5.0, stage in memory is not supported</span>
-    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
-    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
         <span class="k">return</span>
 
     <span class="c1"># if stage is not in memory, we can return early</span>
@@ -1130,7 +1126,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Dec 29, 2025"/>
+    <meta name="docbuild:last-update" content="Dec 30, 2025"/>
   </head>
   
   
@@ -599,7 +599,47 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="sd">&quot;&quot;&quot;Utility function for versioning.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;Utility functions for versioning.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">packaging.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">Version</span>
+
+
+<div class="viewcode-block" id="get_isaac_sim_version"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.version.get_isaac_sim_version">[docs]</a><span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_isaac_sim_version</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Version</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the Isaac Sim version as a Version object, cached for performance.</span>
+
+<span class="sd">    This function wraps :func:`isaacsim.core.version.get_version()` and caches the result</span>
+<span class="sd">    to avoid repeated file I/O operations. The underlying Isaac Sim function reads from</span>
+<span class="sd">    a file each time it&#39;s called, which can be slow when called frequently.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A :class:`packaging.version.Version` object representing the Isaac Sim version.</span>
+<span class="sd">        This object supports rich comparison operators (&lt;, &lt;=, &gt;, &gt;=, ==, !=).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from isaaclab.utils import get_isaac_sim_version</span>
+<span class="sd">        &gt;&gt;&gt; from packaging.version import Version</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; isaac_version = get_isaac_sim_version()</span>
+<span class="sd">        &gt;&gt;&gt; print(isaac_version)</span>
+<span class="sd">        5.0.0</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Natural version comparisons</span>
+<span class="sd">        &gt;&gt;&gt; if isaac_version &gt;= Version(&quot;5.0.0&quot;):</span>
+<span class="sd">        ...     print(&quot;Using Isaac Sim 5.0 or later&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Access components</span>
+<span class="sd">        &gt;&gt;&gt; print(isaac_version.major, isaac_version.minor, isaac_version.micro)</span>
+<span class="sd">        5 0 0</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
+
+    <span class="n">version_tuple</span> <span class="o">=</span> <span class="n">get_version</span><span class="p">()</span>
+    <span class="c1"># version_tuple[2] = major (year), [3] = minor (release), [4] = micro (patch)</span>
+    <span class="k">return</span> <span class="n">Version</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">version_tuple</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">version_tuple</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">version_tuple</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="compare_versions"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.version.compare_versions">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">compare_versions</span><span class="p">(</span><span class="n">v1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">v2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -607,6 +647,11 @@
 
 <span class="sd">    The version strings are expected to be in the format &quot;x.y.z&quot; where x, y,</span>
 <span class="sd">    and z are integers. The version strings are compared lexicographically.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is provided for backward compatibility. For new code,</span>
+<span class="sd">        prefer using :class:`packaging.version.Version` objects directly with</span>
+<span class="sd">        comparison operators (``&lt;``, ``&lt;=``, ``&gt;``, ``&gt;=``, ``==``, ``!=``).</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        v1: The first version string.</span>
@@ -618,21 +663,30 @@
 <span class="sd">        - :attr:`1` if v1 is greater</span>
 <span class="sd">        - :attr:`-1` if v2 is greater</span>
 <span class="sd">        - :attr:`0` if v1 and v2 are equal</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from isaaclab.utils import compare_versions</span>
+<span class="sd">        &gt;&gt;&gt; compare_versions(&quot;5.0.0&quot;, &quot;4.5.0&quot;)</span>
+<span class="sd">        1</span>
+<span class="sd">        &gt;&gt;&gt; compare_versions(&quot;4.5.0&quot;, &quot;5.0.0&quot;)</span>
+<span class="sd">        -1</span>
+<span class="sd">        &gt;&gt;&gt; compare_versions(&quot;5.0.0&quot;, &quot;5.0.0&quot;)</span>
+<span class="sd">        0</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Better: use Version objects directly</span>
+<span class="sd">        &gt;&gt;&gt; from packaging.version import Version</span>
+<span class="sd">        &gt;&gt;&gt; Version(&quot;5.0.0&quot;) &gt; Version(&quot;4.5.0&quot;)</span>
+<span class="sd">        True</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">parts1</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">v1</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)))</span>
-    <span class="n">parts2</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">v2</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)))</span>
+    <span class="n">ver1</span> <span class="o">=</span> <span class="n">Version</span><span class="p">(</span><span class="n">v1</span><span class="p">)</span>
+    <span class="n">ver2</span> <span class="o">=</span> <span class="n">Version</span><span class="p">(</span><span class="n">v2</span><span class="p">)</span>
 
-    <span class="c1"># Pad the shorter version with zeros (e.g. 1.2 vs 1.2.0)</span>
-    <span class="n">length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parts1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts2</span><span class="p">))</span>
-    <span class="n">parts1</span> <span class="o">+=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">length</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts1</span><span class="p">))</span>
-    <span class="n">parts2</span> <span class="o">+=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">length</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts2</span><span class="p">))</span>
-
-    <span class="k">if</span> <span class="n">parts1</span> <span class="o">&gt;</span> <span class="n">parts2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="mi">1</span>  <span class="c1"># v1 is greater</span>
-    <span class="k">elif</span> <span class="n">parts1</span> <span class="o">&lt;</span> <span class="n">parts2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>  <span class="c1"># v2 is greater</span>
+    <span class="k">if</span> <span class="n">ver1</span> <span class="o">&gt;</span> <span class="n">ver2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">elif</span> <span class="n">ver1</span> <span class="o">&lt;</span> <span class="n">ver2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="mi">0</span>  <span class="c1"># versions are equal</span></div>
+        <span class="k">return</span> <span class="mi">0</span></div>
 </pre></div>
 
                 </article>
@@ -680,7 +734,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 29, 2025.
+  Last updated on Dec 30, 2025.
   <br/>
 </p>
   </div>
