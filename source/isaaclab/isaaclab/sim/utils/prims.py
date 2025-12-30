@@ -873,6 +873,9 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
 
     Returns:
         A list of USD reference paths.
+
+    Raises:
+        ValueError: If the prim at the specified path is not valid.
     """
     # get stage handle
     stage = get_current_stage() if stage is None else stage
