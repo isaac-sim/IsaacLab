@@ -80,9 +80,9 @@ import os
 import random
 import time
 from datetime import datetime
+from packaging import version
 
 import skrl
-from packaging import version
 
 # check for minimum supported skrl version
 SKRL_VERSION = "1.4.3"

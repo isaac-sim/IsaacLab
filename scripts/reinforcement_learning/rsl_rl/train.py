@@ -55,7 +55,6 @@ simulation_app = app_launcher.app
 
 import importlib.metadata as metadata
 import platform
-
 from packaging import version
 
 # check minimum supported rsl-rl version

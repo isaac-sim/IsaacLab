@@ -19,11 +19,11 @@ import omni.kit.commands
 import omni.usd
 import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
-from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
@@ -678,8 +678,7 @@ def clone(func: Callable) -> Callable:
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
             # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
+            if get_isaac_sim_version().major < 5:
                 # clone the prim
                 cloner.clone(
                     prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
@@ -879,10 +878,8 @@ def add_usd_reference(
             )
         return prim
 
-    # get isaac sim version
-    isaac_sim_version = float(".".join(get_version()[2]))
     # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         return _add_reference_to_prim(prim)
 
     # check if the USD file is valid and add reference to the prim
