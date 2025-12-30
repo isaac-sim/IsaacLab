@@ -161,12 +161,15 @@ Spawning ground plane.
 
 @configclass
 class UsdFileWithCompliantContactCfg(UsdFileCfg):
-    """USD file to spawn asset from with physics material.
+    """Configuration for spawning a USD asset with compliant contact physics material.
 
-    It uses the :meth:`spawn_from_usd_with_compliant_contact` function to spawn the USD file and apply the physics material.
+    This class extends :class:`UsdFileCfg` to support applying compliant contact properties
+    (stiffness and damping) to specific prims in the spawned asset. It uses the
+    :meth:`spawn_from_usd_with_compliant_contact_material` function to perform the spawning and
+    material application.
     """
 
-    func: Callable = from_files.spawn_from_usd_with_compliant_contact
+    func: Callable = from_files.spawn_from_usd_with_compliant_contact_material
 
     compliant_contact_stiffness: float | None = None
     """Stiffness of the compliant contact. Defaults to None.

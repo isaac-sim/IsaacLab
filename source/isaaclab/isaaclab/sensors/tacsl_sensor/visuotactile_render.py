@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import os
 import scipy
@@ -12,9 +13,11 @@ import torch
 from typing import TYPE_CHECKING
 
 import cv2
-import omni.log
 
 from isaaclab.utils.assets import retrieve_file_path
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import GelSightRenderCfg
@@ -45,6 +48,7 @@ def compute_tactile_shear_image(
     """
     nrows = tactile_normal_force.shape[0]
     ncols = tactile_normal_force.shape[1]
+    print("tactile_normal_force", tactile_normal_force)
 
     imgs_tactile = np.zeros((nrows * resolution, ncols * resolution, 3), dtype=float)
 
@@ -157,7 +161,7 @@ class GelsightRender:
         # Pre-allocate buffer for RGB output (will be resized if needed)
         self._sim_img_rgb_buffer = torch.empty((1, image_height, image_width, 3), device=self.device)
 
-        omni.log.info("Gelsight initialization done!")
+        logger.info("Gelsight initialization done!")
 
     def render(self, heightMap: torch.Tensor) -> torch.Tensor:
         """Render the height map using the GelSight sensor (tensorized version).

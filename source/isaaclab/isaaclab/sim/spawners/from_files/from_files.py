@@ -12,6 +12,7 @@ import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
 from isaaclab.sim import converters, schemas
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -375,11 +376,11 @@ def _spawn_from_usd_file(
         bind_visual_material(prim_path, material_path)
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
-def spawn_from_usd_with_compliant_contact(
+def spawn_from_usd_with_compliant_contact_material(
     prim_path: str,
     cfg: from_files_cfg.UsdFileWithCompliantContactCfg,
     translation: tuple[float, float, float] | None = None,
@@ -413,7 +414,7 @@ def spawn_from_usd_with_compliant_contact(
     stiff = cfg.compliant_contact_stiffness
     damp = cfg.compliant_contact_damping
     if cfg.physics_material_prim_path is None:
-        omni.log.warn("No physics material prim path specified. Skipping physics material application.")
+        logger.warning("No physics material prim path specified. Skipping physics material application.")
         return prim
 
     if isinstance(cfg.physics_material_prim_path, str):
@@ -444,10 +445,9 @@ def spawn_from_usd_with_compliant_contact(
                 rigid_body_prim_path,
                 material_path,
             )
-            omni.log.info(
+            logger.info(
                 f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
                 f" compliance damping: {damp}."
             )
 
     return prim
-    return stage.GetPrimAtPath(prim_path)

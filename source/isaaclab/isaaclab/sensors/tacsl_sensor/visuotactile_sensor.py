@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import numpy as np
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import isaacsim.core.utils.torch as torch_utils
-import omni.log
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
 
 import trimesh
+
+logger = logging.getLogger(__name__)
 
 
 class VisuoTactileSensor(SensorBase):
@@ -245,7 +247,7 @@ class VisuoTactileSensor(SensorBase):
                 f"Camera configuration data types are not supported. Data types: {self.cfg.camera_cfg.data_types}"
             )
         if self.cfg.camera_cfg.update_period != self.cfg.update_period:
-            omni.log.warn(
+            logger.warning(
                 f"Camera configuration update period ({self.cfg.camera_cfg.update_period}) is not equal to sensor"
                 f" update period ({self.cfg.update_period}), changing camera update period to match sensor update"
                 " period"
@@ -271,7 +273,7 @@ class VisuoTactileSensor(SensorBase):
             (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 1), device=self._device
         )
 
-        omni.log.info("Camera-based tactile sensing initialized.")
+        logger.info("Camera-based tactile sensing initialized.")
 
     def _initialize_force_field(self):
         """Initialize force field tactile sensing components.
@@ -299,7 +301,7 @@ class VisuoTactileSensor(SensorBase):
 
         # Initialize force field data buffers
         self._initialize_force_field_buffers()
-        omni.log.info("Force field tactile sensing initialized.")
+        logger.info("Force field tactile sensing initialized.")
 
     def _create_physx_views(self) -> None:
         """Create PhysX views for contact object and elastomer bodies.
@@ -416,7 +418,7 @@ class VisuoTactileSensor(SensorBase):
         if elastomer_mesh_prim is None:
             raise RuntimeError(f"No visual mesh found under elastomer at path: {elastomer_prim_path}")
 
-        omni.log.info(f"Generating tactile points from USD mesh: {elastomer_mesh_prim.GetPath().pathString}")
+        logger.info(f"Generating tactile points from USD mesh: {elastomer_mesh_prim.GetPath().pathString}")
 
         # Extract mesh data
         usd_mesh = UsdGeom.Mesh(elastomer_mesh_prim)
@@ -502,7 +504,7 @@ class VisuoTactileSensor(SensorBase):
             .repeat(len(tactile_points), 1)
         )
 
-        omni.log.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
+        logger.info(f"Generated {len(tactile_points)} tactile points from USD mesh using ray casting")
 
     def _initialize_force_field_buffers(self):
         """Initialize data buffers for force field sensing."""
@@ -656,6 +658,7 @@ class VisuoTactileSensor(SensorBase):
         # Store in data
         self._data.tactile_points_pos_w = tactile_pos_w
         self._data.tactile_points_quat_w = tactile_quat_w
+
 
     def _transform_points_to_contact_object_local(
         self, world_points: torch.Tensor, contact_object_pos_w: torch.Tensor, contact_object_quat_w: torch.Tensor

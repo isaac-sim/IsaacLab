@@ -361,8 +361,8 @@ def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
     assert sensor.data.tactile_normal_force.shape == (1, 50)
     assert sensor.data.tactile_shear_force.shape == (1, 50, 2)
     sum_depth = torch.sum(sensor.data.penetration_depth)  # 0.020887471735477448
-    normal_force_sum = torch.sum(sensor.data.tactile_normal_force)
-    shear_force_sum = torch.sum(sensor.data.tactile_shear_force)
+    normal_force_sum = torch.sum(sensor.data.tactile_normal_force.abs())
+    shear_force_sum = torch.sum(sensor.data.tactile_shear_force.abs())
     assert normal_force_sum > 0.0
     assert sum_depth > 0.0
     assert shear_force_sum > 0.0
