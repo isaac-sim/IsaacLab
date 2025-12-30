@@ -659,7 +659,6 @@ class VisuoTactileSensor(SensorBase):
         self._data.tactile_points_pos_w = tactile_pos_w
         self._data.tactile_points_quat_w = tactile_quat_w
 
-
     def _transform_points_to_contact_object_local(
         self, world_points: torch.Tensor, contact_object_pos_w: torch.Tensor, contact_object_quat_w: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:

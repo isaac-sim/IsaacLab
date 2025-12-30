@@ -79,7 +79,7 @@ def compute_penetration_depth(
     Args:
         penetration_depth_img: Image of penetration depth. Shape: (H, W).
         resolution: Resolution for the upsampling; each pixel expands to a (res x res) block. Defaults to 5.
-        depth_multiplier: Multiplier for the depth values. Defaults to 300.0 (scales ~3.3mm to 1.0). 
+        depth_multiplier: Multiplier for the depth values. Defaults to 300.0 (scales ~3.3mm to 1.0).
             (e.g. typical Gelsight sensors have maximum penetration depths < 2.5mm,
             see https://dspace.mit.edu/handle/1721.1/114627).
 
