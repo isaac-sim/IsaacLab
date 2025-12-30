@@ -174,14 +174,14 @@ def standardize_xform_ops(
         if not xform_op_orient:
             xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
 
-        # Set the transform operation order: translate -> orient -> scale
-        # This is the standard USD convention and ensures consistent behavior
-        xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
-
         # Set the transform values using the new standardized transform operations
         # Convert tuples to Gf types for USD
         xform_op_translate.Set(xform_pos)
         xform_op_orient.Set(xform_quat)
         xform_op_scale.Set(xform_scale)
+
+        # Set the transform operation order: translate -> orient -> scale
+        # This is the standard USD convention and ensures consistent behavior
+        xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
 
     return True
