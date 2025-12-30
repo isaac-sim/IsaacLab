@@ -12,7 +12,6 @@ from typing import Any
 
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
@@ -21,6 +20,7 @@ from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
@@ -529,7 +529,7 @@ class ManagerBasedEnv:
             del self.scene
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

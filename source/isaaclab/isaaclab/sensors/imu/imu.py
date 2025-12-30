@@ -112,6 +112,8 @@ class Imu(SensorBase):
         self._data.ang_vel_b[env_ids] = 0.0
         self._data.lin_acc_b[env_ids] = 0.0
         self._data.ang_acc_b[env_ids] = 0.0
+        self._prev_lin_vel_w[env_ids] = 0.0
+        self._prev_ang_vel_w[env_ids] = 0.0
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
