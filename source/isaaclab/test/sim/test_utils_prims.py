@@ -14,6 +14,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import math
+import numpy as np
+import torch
 
 import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
@@ -113,6 +115,137 @@ def test_create_prim():
     # check xform operation order
     op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+
+@pytest.mark.parametrize(
+    "input_type",
+    ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+    ids=["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+)
+def test_create_prim_with_different_input_types(input_type: str):
+    """Test create_prim() with different input types (list, tuple, numpy array, torch tensor)."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Define test values
+    translation_vals = [1.0, 2.0, 3.0]
+    orientation_vals = [1.0, 0.0, 0.0, 0.0]  # w, x, y, z
+    scale_vals = [2.0, 3.0, 4.0]
+
+    # Convert to the specified input type
+    if input_type == "list":
+        translation = translation_vals
+        orientation = orientation_vals
+        scale = scale_vals
+    elif input_type == "tuple":
+        translation = tuple(translation_vals)
+        orientation = tuple(orientation_vals)
+        scale = tuple(scale_vals)
+    elif input_type == "numpy":
+        translation = np.array(translation_vals)
+        orientation = np.array(orientation_vals)
+        scale = np.array(scale_vals)
+    elif input_type == "torch_cpu":
+        translation = torch.tensor(translation_vals)
+        orientation = torch.tensor(orientation_vals)
+        scale = torch.tensor(scale_vals)
+    elif input_type == "torch_cuda":
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA not available")
+        translation = torch.tensor(translation_vals, device="cuda")
+        orientation = torch.tensor(orientation_vals, device="cuda")
+        scale = torch.tensor(scale_vals, device="cuda")
+
+    # Create prim with translation (local space)
+    prim = sim_utils.create_prim(
+        f"/World/Test/Xform_{input_type}",
+        "Xform",
+        stage=stage,
+        translation=translation,
+        orientation=orientation,
+        scale=scale,
+    )
+
+    # Verify prim was created correctly
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == f"/World/Test/Xform_{input_type}"
+
+    # Verify transform values
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(*translation_vals)
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*orientation_vals))
+    assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(*scale_vals)
+
+    # Verify xform operation order
+    op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
+    assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+
+@pytest.mark.parametrize(
+    "input_type",
+    ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+    ids=["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+)
+def test_create_prim_with_world_position_different_types(input_type: str):
+    """Test create_prim() with world position using different input types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a parent prim
+    _ = sim_utils.create_prim(
+        "/World/Parent",
+        "Xform",
+        stage=stage,
+        translation=(5.0, 10.0, 15.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+    )
+
+    # Define world position and orientation values
+    world_pos_vals = [10.0, 20.0, 30.0]
+    world_orient_vals = [0.7071068, 0.0, 0.7071068, 0.0]  # 90 deg around Y
+
+    # Convert to the specified input type
+    if input_type == "list":
+        world_pos = world_pos_vals
+        world_orient = world_orient_vals
+    elif input_type == "tuple":
+        world_pos = tuple(world_pos_vals)
+        world_orient = tuple(world_orient_vals)
+    elif input_type == "numpy":
+        world_pos = np.array(world_pos_vals)
+        world_orient = np.array(world_orient_vals)
+    elif input_type == "torch_cpu":
+        world_pos = torch.tensor(world_pos_vals)
+        world_orient = torch.tensor(world_orient_vals)
+    elif input_type == "torch_cuda":
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA not available")
+        world_pos = torch.tensor(world_pos_vals, device="cuda")
+        world_orient = torch.tensor(world_orient_vals, device="cuda")
+
+    # Create child prim with world position
+    child = sim_utils.create_prim(
+        f"/World/Parent/Child_{input_type}",
+        "Xform",
+        stage=stage,
+        position=world_pos,  # Using position (world space)
+        orientation=world_orient,
+    )
+
+    # Verify prim was created
+    assert child.IsValid()
+
+    # Verify world pose matches what we specified
+    world_pose = sim_utils.resolve_prim_pose(child)
+    pos_result, quat_result = world_pose
+
+    # Check position (should be close to world_pos_vals)
+    for i in range(3):
+        assert math.isclose(pos_result[i], world_pos_vals[i], abs_tol=1e-4)
+
+    # Check orientation (quaternions may have sign flipped)
+    quat_match = all(math.isclose(quat_result[i], world_orient_vals[i], abs_tol=1e-4) for i in range(4))
+    quat_match_neg = all(math.isclose(quat_result[i], -world_orient_vals[i], abs_tol=1e-4) for i in range(4))
+    assert quat_match or quat_match_neg
 
 
 def test_delete_prim():

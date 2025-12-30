@@ -45,10 +45,10 @@ General Utils
 def create_prim(
     prim_path: str,
     prim_type: str = "Xform",
-    position: Sequence[float] | None = None,
-    translation: Sequence[float] | None = None,
-    orientation: Sequence[float] | None = None,
-    scale: Sequence[float] | None = None,
+    position: Any | None = None,
+    translation: Any | None = None,
+    orientation: Any | None = None,
+    scale: Any | None = None,
     usd_path: str | None = None,
     semantic_label: str | None = None,
     semantic_type: str = "class",
@@ -67,6 +67,9 @@ def create_prim(
     * If ``translation`` is provided, it is assumed the orientation is provided in the local frame as well.
 
     The scale is always applied in the local frame.
+
+    The function handles various sequence types (list, tuple, numpy array, torch tensor)
+    and converts them to properly-typed tuples for operations on the prim.
 
     .. note::
         Transform operations are standardized to the USD convention: translate, orient (quaternion),
@@ -157,23 +160,20 @@ def create_prim(
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
+    # convert input arguments to tuples
+    position = _to_tuple(position) if position is not None else None
+    translation = _to_tuple(translation) if translation is not None else None
+    orientation = _to_tuple(orientation) if orientation is not None else None
+    scale = _to_tuple(scale) if scale is not None else None
+
     # convert position and orientation to translation and orientation
     # world --> local
     if position is not None:
-        # convert position to tuple
-        position = tuple(position)
-        # convert orientation to tuple
-        orientation = tuple(orientation) if orientation is not None else None
         # this means that user provided pose in the world frame
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
 
-    # Convert sequences to properly-typed tuples for standardize_xform_ops
-    translation_tuple = None if translation is None else tuple(translation)
-    orientation_tuple = None if orientation is None else tuple(orientation)
-    scale_tuple = None if scale is None else tuple(scale)
-
     # standardize the xform ops
-    standardize_xform_ops(prim, translation_tuple, orientation_tuple, scale_tuple)
+    standardize_xform_ops(prim, translation, orientation, scale)
 
     return prim
 
@@ -960,3 +960,36 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
+
+
+"""
+Internal Helpers.
+"""
+
+
+def _to_tuple(value: Any) -> tuple[float, ...]:
+    """Convert various sequence types (list, tuple, numpy array, torch tensor) to tuple.
+
+    This function handles conversion from different array-like types to Python tuples.
+    It validates dimensionality and automatically moves CUDA tensors to CPU if necessary.
+
+    Args:
+        value: A sequence-like object containing floats. It can be a list, tuple,
+            numpy array, or a torch tensor.
+
+    Returns:
+        A tuple of floats.
+
+    Raises:
+        ValueError: If the input value is not one dimensional.
+    """
+    # check if it is a torch tensor or numpy array (both have tolist())
+    if hasattr(value, "tolist"):
+        # ensure that it is one dimensional
+        if hasattr(value, "ndim") and value.ndim != 1:
+            raise ValueError(f"Input value is not one dimensional: {value.shape}")
+
+        return tuple(value.tolist())  # type: ignore
+    else:
+        # otherwise assume it is already a sequence (list, tuple, etc.)
+        return tuple(value)
