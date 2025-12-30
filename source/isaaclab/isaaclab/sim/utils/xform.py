@@ -42,64 +42,87 @@ def standardize_xform_ops(
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
 ) -> bool:
-    """Standardize and normalize the transform operations on a USD prim.
+    """Standardize the transform operation stack on a USD prim to a canonical form.
 
-    This function standardizes a prim's transform stack to use the common transform operation
-    order: translate, orient (quaternion rotation), and scale. It performs the following:
+    This function converts a prim's transform stack to use the standard USD transform operation
+    order: [translate, orient, scale]. The function performs the following operations:
 
-    1. Captures the current local pose of the prim (relative to parent)
-    2. Clears all existing transform operations
-    3. Removes deprecated/non-standard transform operations (e.g., rotateXYZ, transform matrix)
-    4. Establishes the standard transform stack: [translate, orient, scale]
-    5. Handles unit resolution for scale attributes
-    6. Restores the original local pose using the new standardized operations
+    1. Validates that the prim is Xformable
+    2. Captures the current local transform (translation, rotation, scale)
+    3. Resolves and bakes unit scale conversions (xformOp:scale:unitsResolve)
+    4. Creates or reuses standard transform operations (translate, orient, scale)
+    5. Sets the transform operation order to [translate, orient, scale]
+    6. Applies the preserved or user-specified transform values
 
-    This is particularly useful when importing assets from different sources that may use
-    various transform operation conventions, ensuring a consistent and predictable transform
-    stack across all prims in the scene.
+    The entire modification is performed within an ``Sdf.ChangeBlock`` for optimal performance
+    when processing multiple prims.
 
     .. note::
-        The standard transform operation order follows USD best practices:
+        **Standard Transform Order:** The function enforces the USD best practice order:
         ``xformOp:translate``, ``xformOp:orient``, ``xformOp:scale``. This order is
-        compatible with most USD tools and workflows.
+        compatible with most USD tools and workflows, and uses quaternions for rotation
+        (avoiding gimbal lock issues).
+
+    .. note::
+        **Pose Preservation:** By default, the function preserves the prim's local transform
+        (relative to its parent). The world-space position of the prim remains unchanged
+        unless explicit ``translation``, ``orientation``, or ``scale`` values are provided.
 
     .. warning::
-        This function modifies the prim's transform stack in place. While it preserves
-        the local pose by default, any animation or time-sampled transform data will be lost
-        as only the current (default) time code values are preserved.
+        **Animation Data Loss:** This function only preserves transform values at the default
+        time code (``Usd.TimeCode.Default()``). Any animation or time-sampled transform data
+        will be lost. Use this function during asset import or preparation, not on animated prims.
+
+    .. warning::
+        **Unit Scale Resolution:** If the prim has a ``xformOp:scale:unitsResolve`` attribute
+        (common in imported assets with unit mismatches), it will be baked into the scale
+        and removed. For example, a scale of (1, 1, 1) with unitsResolve of (100, 100, 100)
+        becomes a final scale of (100, 100, 100).
 
     Args:
-        prim: The USD prim to standardize transform operations for. Must be a valid
-            prim that supports the Xformable schema.
-        translation: Optional translation (x, y, z) to set. If None, preserves current
+        prim: The USD prim to standardize. Must be a valid prim that supports the
+            UsdGeom.Xformable schema (e.g., Xform, Mesh, Cube, etc.). Material and
+            Shader prims are not Xformable and will return False.
+        translation: Optional translation vector (x, y, z) in local space. If provided,
+            overrides the prim's current translation. If None, preserves the current
             local translation. Defaults to None.
-        orientation: Optional orientation quaternion (w, x, y, z) to set. If None, preserves
-            current local orientation. Defaults to None.
-        scale: Optional scale (x, y, z) to set. If None, preserves current scale or uses
-            (1.0, 1.0, 1.0) if no scale exists. Defaults to None.
+        orientation: Optional orientation quaternion (w, x, y, z) in local space. If provided,
+            overrides the prim's current orientation. If None, preserves the current
+            local orientation. Defaults to None.
+        scale: Optional scale vector (x, y, z). If provided, overrides the prim's current scale.
+            If None, preserves the current scale (after unit resolution) or uses (1, 1, 1)
+            if no scale exists. Defaults to None.
 
     Returns:
-        True if the transform operations were standardized successfully, False otherwise.
+        bool: True if the transform operations were successfully standardized. False if the
+            prim is not Xformable (e.g., Material, Shader prims). The function will log an
+            error message when returning False.
 
     Raises:
-        ValueError: If the prim is not valid or does not support transform operations.
+        ValueError: If the prim is not valid (i.e., does not exist or is an invalid prim).
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> # Get a prim with non-standard transform operations
-        >>> prim = stage.GetPrimAtPath("/World/Asset")
-        >>> # Standardize its transform stack while preserving pose
-        >>> sim_utils.standardize_xform_ops(prim)
-        >>> # The prim now uses: translate, orient, scale in that order
+        >>> # Standardize a prim with non-standard transform operations
+        >>> prim = stage.GetPrimAtPath("/World/ImportedAsset")
+        >>> result = sim_utils.standardize_xform_ops(prim)
+        >>> if result:
+        ...     print("Transform stack standardized successfully")
+        >>> # The prim now uses: [translate, orient, scale] in that order
         >>>
-        >>> # Or standardize and set new transform values
+        >>> # Standardize and set new transform values
         >>> sim_utils.standardize_xform_ops(
         ...     prim,
         ...     translation=(1.0, 2.0, 3.0),
-        ...     orientation=(1.0, 0.0, 0.0, 0.0),
+        ...     orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation (w, x, y, z)
         ...     scale=(2.0, 2.0, 2.0)
         ... )
+        >>>
+        >>> # Batch processing for performance
+        >>> prims_to_standardize = [stage.GetPrimAtPath(p) for p in prim_paths]
+        >>> for prim in prims_to_standardize:
+        ...     sim_utils.standardize_xform_ops(prim)  # Each call uses Sdf.ChangeBlock
     """
     # Validate prim
     if not prim.IsValid():
