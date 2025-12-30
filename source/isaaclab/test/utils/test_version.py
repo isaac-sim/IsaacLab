@@ -14,9 +14,78 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from packaging.version import Version
+
 import pytest
 
-from isaaclab.utils.version import compare_versions
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version
+
+
+def test_get_isaac_sim_version():
+    """Test that get_isaac_sim_version returns cached Version object."""
+    # Call twice to ensure caching works
+    version1 = get_isaac_sim_version()
+    version2 = get_isaac_sim_version()
+
+    # Should return the same object (cached)
+    assert version1 is version2
+
+    # Should return a packaging.version.Version object
+    assert isinstance(version1, Version)
+
+    # Major version should be reasonable
+    assert version1.major >= 4
+
+    # Minor and micro should be non-negative
+    assert version1.minor >= 0
+    assert version1.micro >= 0
+
+
+def test_get_isaac_sim_version_format():
+    """Test that get_isaac_sim_version returns correct format."""
+    isaac_version = get_isaac_sim_version()
+
+    # Should be able to convert to string
+    version_str = str(isaac_version)
+    assert isinstance(version_str, str)
+
+    # Should have proper format (e.g., "5.0.0")
+    parts = version_str.split(".")
+    assert len(parts) >= 3
+
+    # Can access components
+    assert hasattr(isaac_version, "major")
+    assert hasattr(isaac_version, "minor")
+    assert hasattr(isaac_version, "micro")
+
+
+def test_version_caching_performance():
+    """Test that caching improves performance for version checks."""
+    # First call (will cache)
+    version1 = get_isaac_sim_version()
+
+    # Subsequent calls should be instant (from cache)
+    for _ in range(100):
+        version = get_isaac_sim_version()
+        assert version == version1
+        assert version is version1  # Should be the exact same object
+
+
+def test_version_comparison_operators():
+    """Test that Version objects support natural comparisons."""
+    isaac_version = get_isaac_sim_version()
+
+    # Should support comparison operators
+    assert isaac_version >= Version("4.0.0")
+    assert isaac_version == isaac_version
+
+    # Test less than
+    if isaac_version.major >= 5:
+        assert isaac_version > Version("4.5.0")
+        assert isaac_version >= Version("5.0.0")
+
+    # Test not equal
+    assert isaac_version != Version("0.0.1")
 
 
 @pytest.mark.parametrize(

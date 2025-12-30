@@ -22,11 +22,11 @@ import omni.usd
 import pytest
 import usdrt
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.fixture
@@ -52,8 +52,7 @@ def test_stage_in_memory_with_shapes(sim):
     """Test spawning of shapes with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # define parameters
@@ -117,8 +116,7 @@ def test_stage_in_memory_with_usds(sim):
     """Test spawning of USDs with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # define parameters
@@ -183,8 +181,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     """Test cloning in fabric with stage in memory."""
 
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # define parameters

@@ -11,13 +11,13 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
+from packaging import version
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
 import omni.kit.commands
 import omni.usd
 from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -29,6 +29,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -146,10 +147,9 @@ class Camera(SensorBase):
         # Create empty variables for storing output data
         self._data = CameraData()
 
-        # HACK: we need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        isaac_sim_version = get_version()
+        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
-        if int(isaac_sim_version[2]) == 4 and int(isaac_sim_version[3]) == 5:
+        if get_isaac_sim_version() == version.parse("4.5"):
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
                 logger.warning(
                     "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"

@@ -16,7 +16,7 @@ from pxr import Usd, UsdGeom
 with contextlib.suppress(ModuleNotFoundError, ImportError):
     from pxr import UsdSemantics
 
-from isaacsim.core.version import get_version
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .stage import get_current_stage
 
@@ -55,7 +55,7 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         return
     except (ModuleNotFoundError, ImportError) as e:
         # check if we are using isaac sim 5.0
-        if float(".".join(get_version()[2])) >= 5:
+        if get_isaac_sim_version().major >= 5:
             logger.warning(
                 f"Failed to add labels to prim {prim.GetPath()} using Replicator API: {e}. "
                 "\nPlease ensure Replicator API is enabled by passing '--enable_cameras' to the AppLauncher."
