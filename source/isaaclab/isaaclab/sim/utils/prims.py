@@ -21,7 +21,7 @@ import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
 

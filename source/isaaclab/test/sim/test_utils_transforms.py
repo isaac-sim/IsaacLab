@@ -838,9 +838,7 @@ def test_convert_world_pose_to_local_none_orientation():
     world_position = (10.0, 10.0, 10.0)
 
     # Convert with None orientation
-    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
-        world_position, None, parent_prim
-    )
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(world_position, None, parent_prim)
 
     # Orientation should be None
     assert local_orientation is None
