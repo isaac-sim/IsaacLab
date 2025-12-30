@@ -323,6 +323,30 @@ USD references and variants.
 """
 
 
+def test_get_usd_references():
+    """Test get_usd_references() function."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim without USD reference
+    sim_utils.create_prim("/World/NoReference", "Xform", stage=stage)
+    # Check that it has no references
+    refs = sim_utils.get_usd_references("/World/NoReference", stage=stage)
+    assert len(refs) == 0
+
+    # Create a prim with a USD reference
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
+    # Check that it has the expected reference
+    refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
+    assert len(refs) == 1
+    assert refs == [franka_usd]
+
+    # Test with invalid prim path
+    with pytest.raises(ValueError, match="not valid"):
+        sim_utils.get_usd_references("/World/NonExistent", stage=stage)
+
+
 def test_select_usd_variants():
     """Test select_usd_variants() function."""
     stage = sim_utils.get_current_stage()

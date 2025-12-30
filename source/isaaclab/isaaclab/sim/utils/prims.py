@@ -883,7 +883,8 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
     # get USD references
     references = []
     for prim_spec in prim.GetPrimStack():
-        references.extend(prim_spec.referenceList.prependedItems.assetPath)
+        for ref in prim_spec.referenceList.prependedItems:
+            references.append(str(ref.assetPath))
     return references
 
 
