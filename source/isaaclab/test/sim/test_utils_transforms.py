@@ -852,7 +852,7 @@ def test_convert_world_pose_to_local_complex_hierarchy():
     stage = sim_utils.get_current_stage()
 
     # Create a complex hierarchy
-    grandparent = sim_utils.create_prim(
+    _ = sim_utils.create_prim(
         "/World/Grandparent",
         "Xform",
         translation=(10.0, 0.0, 0.0),
