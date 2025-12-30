@@ -14,10 +14,9 @@ transforms in a consistent way across different USD assets.
 
 from __future__ import annotations
 
-__all__ = ["standardize_xform_ops"]
-
 import logging
-from pxr import Gf, Usd, UsdGeom
+
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -145,39 +144,44 @@ def standardize_xform_ops(
         # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
 
-    # Clear the existing transform operation order
+    # Verify if xform stack is reset
     has_reset = xformable.GetResetXformStack()
-    for prop_name in prop_names:
-        if prop_name in _INVALID_XFORM_OPS:
-            prim.RemoveProperty(prop_name)
+    # Batch the operations
+    with Sdf.ChangeBlock():
+        # Clear the existing transform operation order
+        for prop_name in prop_names:
+            if prop_name in _INVALID_XFORM_OPS:
+                prim.RemoveProperty(prop_name)
 
-    # Remove unitsResolve attribute if present (already handled in scale resolution above)
-    if "xformOp:scale:unitsResolve" in prop_names:
-        prim.RemoveProperty("xformOp:scale:unitsResolve")
+        # Remove unitsResolve attribute if present (already handled in scale resolution above)
+        if "xformOp:scale:unitsResolve" in prop_names:
+            prim.RemoveProperty("xformOp:scale:unitsResolve")
 
-    # Set up or retrieve scale operation
-    xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
-    if not xform_op_scale:
-        xform_op_scale = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "")
+        # Set up or retrieve scale operation
+        xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
+        if not xform_op_scale:
+            xform_op_scale = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "")
 
-    # Set up or retrieve translate operation
-    xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
-    if not xform_op_translate:
-        xform_op_translate = xformable.AddXformOp(UsdGeom.XformOp.TypeTranslate, UsdGeom.XformOp.PrecisionDouble, "")
+        # Set up or retrieve translate operation
+        xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
+        if not xform_op_translate:
+            xform_op_translate = xformable.AddXformOp(
+                UsdGeom.XformOp.TypeTranslate, UsdGeom.XformOp.PrecisionDouble, ""
+            )
 
-    # Set up or retrieve orient (quaternion rotation) operation
-    xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
-    if not xform_op_orient:
-        xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
+        # Set up or retrieve orient (quaternion rotation) operation
+        xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
+        if not xform_op_orient:
+            xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
 
-    # Set the transform operation order: translate -> orient -> scale
-    # This is the standard USD convention and ensures consistent behavior
-    xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
+        # Set the transform operation order: translate -> orient -> scale
+        # This is the standard USD convention and ensures consistent behavior
+        xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
 
-    # Set the transform values using the new standardized transform operations
-    # Convert tuples to Gf types for USD
-    xform_op_translate.Set(xform_pos)
-    xform_op_orient.Set(xform_quat)
-    xform_op_scale.Set(xform_scale)
+        # Set the transform values using the new standardized transform operations
+        # Convert tuples to Gf types for USD
+        xform_op_translate.Set(xform_pos)
+        xform_op_orient.Set(xform_quat)
+        xform_op_scale.Set(xform_scale)
 
     return True
