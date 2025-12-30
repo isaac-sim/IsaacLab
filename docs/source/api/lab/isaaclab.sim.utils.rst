@@ -10,6 +10,7 @@
     stage
     queries
     prims
+    transforms
     semantics
     legacy
 
@@ -31,6 +32,13 @@ Prims
 -----
 
 .. automodule:: isaaclab.sim.utils.prims
+  :members:
+  :show-inheritance:
+
+Transforms
+----------
+
+.. automodule:: isaaclab.sim.utils.transforms
   :members:
   :show-inheritance:
 
