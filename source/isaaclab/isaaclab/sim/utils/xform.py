@@ -38,9 +38,9 @@ _INVALID_XFORM_OPS = [
 
 def standardize_xform_ops(
     prim: Usd.Prim,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    scale: tuple[float, float, float] | None = None,
+    translation: tuple[float, ...] | None = None,
+    orientation: tuple[float, ...] | None = None,
+    scale: tuple[float, ...] | None = None,
 ) -> bool:
     """Standardize the transform operation stack on a USD prim to a canonical form.
 
