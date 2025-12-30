@@ -5,11 +5,16 @@
 
 """Configuration terms for different managers."""
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
-from isaaclab.scene import InteractiveScene
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 
 @configclass

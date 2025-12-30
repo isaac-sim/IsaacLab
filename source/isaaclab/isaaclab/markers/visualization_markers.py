@@ -29,7 +29,6 @@ import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
@@ -147,9 +146,9 @@ class VisualizationMarkers:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
         # get next free path for the prim
-        prim_path = stage_utils.get_next_free_path(cfg.prim_path)
+        prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         # create a new prim
-        self.stage = stage_utils.get_current_stage()
+        self.stage = sim_utils.get_current_stage()
         self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
         # store inputs
         self.prim_path = prim_path
@@ -399,7 +398,7 @@ class VisualizationMarkers:
             if child_prim.IsA(UsdGeom.Gprim):
                 # early attach stage to usd context if stage is in memory
                 # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                stage_utils.attach_stage_to_usd_context(attaching_early=True)
+                sim_utils.attach_stage_to_usd_context(attaching_early=True)
 
                 # invisible to secondary rays such as depth images
                 omni.kit.commands.execute(

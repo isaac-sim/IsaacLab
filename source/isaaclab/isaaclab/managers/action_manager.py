@@ -18,13 +18,13 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 
-from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import AssetBase
     from isaaclab.envs import ManagerBasedEnv
 
 

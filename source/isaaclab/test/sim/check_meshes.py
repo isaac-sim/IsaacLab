@@ -41,7 +41,6 @@ import torch
 import tqdm
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -75,7 +74,7 @@ def design_scene():
     # create new xform prims for all objects to be spawned under
     origins = define_origins(num_origins=4, spacing=5.5)
     for idx, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
 
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(

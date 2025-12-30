@@ -24,7 +24,7 @@ from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_m
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:

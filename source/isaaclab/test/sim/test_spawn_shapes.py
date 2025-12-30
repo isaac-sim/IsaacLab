@@ -16,17 +16,15 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 
 
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear()
@@ -43,12 +41,12 @@ def test_spawn_cone(sim):
     """Test spawning of UsdGeom.Cone prim."""
     cfg = sim_utils.ConeCfg(radius=1.0, height=2.0, axis="Y")
     prim = cfg.func("/World/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cone")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Cone"
     assert prim.GetAttribute("radius").Get() == cfg.radius
     assert prim.GetAttribute("height").Get() == cfg.height
@@ -59,10 +57,13 @@ def test_spawn_capsule(sim):
     """Test spawning of UsdGeom.Capsule prim."""
     cfg = sim_utils.CapsuleCfg(radius=1.0, height=2.0, axis="Y")
     prim = cfg.func("/World/Capsule", cfg)
+
+    # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Capsule")
+    assert sim.stage.GetPrimAtPath("/World/Capsule").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
-    prim = prim_utils.get_prim_at_path("/World/Capsule/geometry/mesh")
+    # Check properties
+    prim = sim.stage.GetPrimAtPath("/World/Capsule/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Capsule"
     assert prim.GetAttribute("radius").Get() == cfg.radius
     assert prim.GetAttribute("height").Get() == cfg.height
@@ -73,12 +74,13 @@ def test_spawn_cylinder(sim):
     """Test spawning of UsdGeom.Cylinder prim."""
     cfg = sim_utils.CylinderCfg(radius=1.0, height=2.0, axis="Y")
     prim = cfg.func("/World/Cylinder", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cylinder")
+    assert sim.stage.GetPrimAtPath("/World/Cylinder").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cylinder/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Cylinder/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Cylinder"
     assert prim.GetAttribute("radius").Get() == cfg.radius
     assert prim.GetAttribute("height").Get() == cfg.height
@@ -89,12 +91,13 @@ def test_spawn_cuboid(sim):
     """Test spawning of UsdGeom.Cube prim."""
     cfg = sim_utils.CuboidCfg(size=(1.0, 2.0, 3.0))
     prim = cfg.func("/World/Cube", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cube")
+    assert sim.stage.GetPrimAtPath("/World/Cube").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cube/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Cube/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Cube"
     assert prim.GetAttribute("size").Get() == min(cfg.size)
 
@@ -103,12 +106,13 @@ def test_spawn_sphere(sim):
     """Test spawning of UsdGeom.Sphere prim."""
     cfg = sim_utils.SphereCfg(radius=1.0)
     prim = cfg.func("/World/Sphere", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Sphere")
+    assert sim.stage.GetPrimAtPath("/World/Sphere").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Sphere/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Sphere/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Sphere"
     assert prim.GetAttribute("radius").Get() == cfg.radius
 
@@ -133,11 +137,12 @@ def test_spawn_cone_with_rigid_props(sim):
         ),
     )
     prim = cfg.func("/World/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cone")
+    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cone")
+    prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == cfg.rigid_props.rigid_body_enabled
     assert (
         prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get()
@@ -157,11 +162,12 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     )
     prim = cfg.func("/World/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cone")
+    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cone")
+    prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
 
     # check sim playing
@@ -188,11 +194,12 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
         collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
     )
     prim = cfg.func("/World/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cone")
+    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
-    prim = prim_utils.get_prim_at_path("/World/Cone")
+    prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
 
     # check sim playing
@@ -213,16 +220,17 @@ def test_spawn_cone_with_all_props(sim):
         physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
     )
     prim = cfg.func("/World/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Cone")
-    assert prim_utils.is_prim_path_valid("/World/Cone/geometry/material")
+    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
+    assert sim.stage.GetPrimAtPath("/World/Cone/geometry/material").IsValid()
     # Check properties
     # -- rigid body properties
-    prim = prim_utils.get_prim_at_path("/World/Cone")
+    prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
     # -- collision properties
-    prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
 
     # check sim playing
@@ -240,7 +248,7 @@ def test_spawn_cone_clones_invalid_paths(sim):
     """Test spawning of cone clones on invalid cloning paths."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
     # Spawn cone on invalid cloning path -- should raise an error
     cfg = sim_utils.ConeCfg(radius=1.0, height=2.0, copy_from_source=True)
     with pytest.raises(RuntimeError):
@@ -251,13 +259,14 @@ def test_spawn_cone_clones(sim):
     """Test spawning of cone clones."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
     # Spawn cone on valid cloning path
     cfg = sim_utils.ConeCfg(radius=1.0, height=2.0, copy_from_source=True)
     prim = cfg.func("/World/env_.*/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
+    assert str(prim.GetPath()) == "/World/env_0/Cone"
     # find matching prims
     prims = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prims) == num_clones
@@ -267,7 +276,7 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     """Test spawning of cone clones with global material reference."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
     # Spawn cone on valid cloning path
     cfg = sim_utils.ConeCfg(
         radius=1.0,
@@ -281,9 +290,10 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
         physics_material_path="/Looks/physicsMaterial",
     )
     prim = cfg.func("/World/env_.*/Cone", cfg)
+
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
+    assert str(prim.GetPath()) == "/World/env_0/Cone"
     # find matching prims
     prims = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prims) == num_clones

@@ -19,7 +19,6 @@ import torch
 import pytest
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -203,7 +202,7 @@ class MySceneCfg(InteractiveSceneCfg):
 def setup_sim():
     """Create a simulation context and scene."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Load simulation context
     sim_cfg = sim_utils.SimulationCfg(dt=0.001)
     sim_cfg.physx.solver_type = 0  # 0: PGS, 1: TGS --> use PGS for more accurate results
@@ -716,7 +715,7 @@ def test_attachment_validity(setup_sim):
     with pytest.raises(RuntimeError) as exc_info:
         imu_world = Imu(imu_world_cfg)
         imu_world._initialize_impl()
-    assert exc_info.type is RuntimeError and "no primitive in tree" in str(exc_info.value)
+    assert exc_info.type is RuntimeError and "find a rigid body ancestor prim" in str(exc_info.value)
 
 
 @pytest.mark.isaacsim_ci

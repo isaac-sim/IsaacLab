@@ -19,7 +19,6 @@ import torch
 import pytest
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -76,7 +75,7 @@ class MySceneCfg(InteractiveSceneCfg):
 def sim():
     """Create a simulation context."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Load kit helper
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, device="cpu"))
     # Set main camera
