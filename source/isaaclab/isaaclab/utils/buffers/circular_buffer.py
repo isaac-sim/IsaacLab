@@ -104,7 +104,7 @@ class CircularBuffer:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
         self._num_pushes[batch_ids] = 0
-        # re-initialization is required
+        # reset is needed on next update to fill entire buffer with initial data
         self._need_reset = True
         if self._buffer is not None:
             # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
@@ -135,13 +135,13 @@ class CircularBuffer:
         # add the new data to the last layer
         self._buffer[self._pointer] = data
         # Check for batches with zero pushes and initialize all values in batch to first append
-        # Only check if we haven't confirmed all batches are initialized (avoids GPU sync in hot path)
+        # Only check if we haven't confirmed all batches are reset (avoids unnecessary checks if no reset done)
         if self._need_reset:
             is_first_push = self._num_pushes == 0
             if is_first_push.any().item():
                 self._buffer[:, is_first_push] = data[is_first_push]
             else:
-                # All batches now initialized, skip this check in future calls
+                # mark all the batches to be available
                 self._need_reset = False
         # increment number of number of pushes for all batches
         self._num_pushes += 1
