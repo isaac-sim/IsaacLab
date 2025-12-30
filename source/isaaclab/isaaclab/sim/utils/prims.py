@@ -21,13 +21,14 @@ import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
 from isaacsim.core.version import get_version
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.utils.string import to_camel_case
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
 from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
+from .xform import standardize_xform_ops
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -57,40 +58,82 @@ def create_prim(
     """Creates a prim in the provided USD stage.
 
     The method applies the specified transforms, the semantic label and sets the specified attributes.
+    The transform can be specified either in world space (using ``position``) or local space (using
+    ``translation``).
+
+    The function determines the coordinate system of the transform based on the provided arguments.
+
+    * If ``position`` is provided, it is assumed the orientation is provided in the world frame as well.
+    * If ``translation`` is provided, it is assumed the orientation is provided in the local frame as well.
+
+    The scale is always applied in the local frame.
+
+    .. note::
+        Transform operations are standardized to the USD convention: translate, orient (quaternion),
+        and scale, in that order. See :func:`standardize_xform_ops` for more details.
 
     Args:
-        prim_path: The path of the new prim.
-        prim_type: Prim type name
-        position: prim position (applied last)
-        translation: prim translation (applied last)
-        orientation: prim rotation as quaternion
-        scale: scaling factor in x, y, z.
-        usd_path: Path to the USD that this prim will reference.
-        semantic_label: Semantic label.
-        semantic_type: set to "class" unless otherwise specified.
-        attributes: Key-value pairs of prim attributes to set.
-        stage: The stage to create the prim in. Defaults to None, in which case the current stage is used.
+        prim_path:
+            The path of the new prim.
+        prim_type:
+            Prim type name. Defaults to "Xform", in which case a simple Xform prim is created.
+        position:
+            Prim position in world space as (x, y, z). If the prim has a parent, this is
+            automatically converted to local space relative to the parent. Cannot be used with
+            ``translation``. Defaults to None, in which case no position is applied.
+        translation:
+            Prim translation in local space as (x, y, z). This is applied directly without
+            any coordinate transformation. Cannot be used with ``position``. Defaults to None,
+            in which case no translation is applied.
+        orientation:
+            Prim rotation as a quaternion (w, x, y, z). When used with ``position``, the
+            orientation is also converted from world space to local space. When used with ``translation``,
+            it is applied directly as local orientation. Defaults to None.
+        scale:
+            Scaling factor in x, y, z. Applied in local space. Defaults to None,
+            in which case a uniform scale of 1.0 is applied.
+        usd_path:
+            Path to the USD file that this prim will reference. Defaults to None.
+        semantic_label:
+            Semantic label to apply to the prim. Defaults to None, in which case no label is added.
+        semantic_type:
+            Semantic type for the label. Defaults to "class".
+        attributes:
+            Key-value pairs of prim attributes to set. Defaults to None, in which case no attributes are set.
+        stage:
+            The stage to create the prim in. Defaults to None, in which case the current stage is used.
 
     Returns:
         The created USD prim.
 
     Raises:
-        ValueError: If there is already a prim at the provided prim_path.
+        ValueError: If there is already a prim at the provided prim path.
+        ValueError: If both position and translation are provided.
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> # create a cube (/World/Cube) of size 2 centered at (1.0, 0.5, 0.0)
+        >>> # Create a cube at world position (1.0, 0.5, 0.0)
         >>> sim_utils.create_prim(
-        ...     prim_path="/World/Cube",
+        ...     prim_path="/World/Parent/Cube",
         ...     prim_type="Cube",
         ...     position=(1.0, 0.5, 0.0),
         ...     attributes={"size": 2.0}
         ... )
-        Usd.Prim(</World/Cube>)
+        Usd.Prim(</World/Parent/Cube>)
+        >>>
+        >>> # Create a sphere with local translation relative to its parent
+        >>> sim_utils.create_prim(
+        ...     prim_path="/World/Parent/Sphere",
+        ...     prim_type="Sphere",
+        ...     translation=(0.5, 0.0, 0.0),
+        ...     scale=(2.0, 2.0, 2.0)
+        ... )
+        Usd.Prim(</World/Parent/Sphere>)
     """
-    # Note: Imported here to prevent cyclic dependency in the module.
-    from isaacsim.core.prims import XFormPrim
+    # Ensure that user doesn't provide both position and translation
+    if position is not None and translation is not None:
+        raise ValueError("Cannot provide both position and translation. Please provide only one.")
 
     # obtain stage handle
     stage = get_current_stage() if stage is None else stage
@@ -114,26 +157,47 @@ def create_prim(
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
-    # apply the transformations
-    from isaacsim.core.api.simulation_context.simulation_context import SimulationContext
-
-    if SimulationContext.instance() is None:
-        # FIXME: remove this, we should never even use backend utils  especially not numpy ones
-        import isaacsim.core.utils.numpy as backend_utils
-
-        device = "cpu"
-    else:
-        backend_utils = SimulationContext.instance().backend_utils
-        device = SimulationContext.instance().device
+    # convert position and orientation to translation and orientation
+    # world --> local
     if position is not None:
-        position = backend_utils.expand_dims(backend_utils.convert(position, device), 0)
-    if translation is not None:
-        translation = backend_utils.expand_dims(backend_utils.convert(translation, device), 0)
-    if orientation is not None:
-        orientation = backend_utils.expand_dims(backend_utils.convert(orientation, device), 0)
-    if scale is not None:
-        scale = backend_utils.expand_dims(backend_utils.convert(scale, device), 0)
-    XFormPrim(prim_path, positions=position, translations=translation, orientations=orientation, scales=scale)
+        # this means that user provided pose in the world frame
+        # obtain parent transform
+        parent_prim = prim.GetParent()
+        if parent_prim.IsValid() and parent_prim.GetPath() != Sdf.Path.absoluteRootPath:
+            # Get parent's world transform
+            parent_xformable = UsdGeom.Xformable(parent_prim)
+            parent_world_tf = parent_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+
+            # Create world transform for the desired position and orientation
+            desired_world_tf = Gf.Matrix4d()
+            desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
+
+            if orientation is not None:
+                # Set rotation from quaternion (w, x, y, z)
+                quat = Gf.Quatd(*orientation)
+                desired_world_tf.SetRotateOnly(quat)
+
+            # Convert world transform to local: local = inv(parent_world) * world
+            parent_world_tf_inv = parent_world_tf.GetInverse()
+            local_tf = desired_world_tf * parent_world_tf_inv
+
+            # Extract local translation and orientation
+            local_transform = Gf.Transform(local_tf)
+            translation = tuple(local_transform.GetTranslation())
+            if orientation is not None:
+                quat_result = local_transform.GetRotation().GetQuat()
+                orientation = (quat_result.GetReal(), *quat_result.GetImaginary())
+        else:
+            # No parent or parent is root, position is already in local space
+            translation = position
+
+    # Convert sequences to properly-typed tuples for standardize_xform_ops
+    translation_tuple = None if translation is None else tuple(translation)
+    orientation_tuple = None if orientation is None else tuple(orientation)
+    scale_tuple = None if scale is None else tuple(scale)
+
+    # standardize the xform ops
+    standardize_xform_ops(prim, translation_tuple, orientation_tuple, scale_tuple)
 
     return prim
 
