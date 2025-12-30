@@ -294,3 +294,96 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
     world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
     # extract scale
     return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
+
+
+def convert_world_pose_to_local(
+    position: tuple[float, ...],
+    orientation: tuple[float, ...] | None,
+    ref_prim: Usd.Prim,
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float] | None]:
+    """Convert a world-space pose to local-space pose relative to a reference prim.
+
+    This function takes a position and orientation in world space and converts them to local space
+    relative to the given reference prim. This is useful when creating or positioning prims where you
+    know the desired world position but need to set local transform attributes relative to another prim.
+
+    The conversion uses the standard USD transformation math:
+    ``local_transform = world_transform * inverse(ref_world_transform)``
+
+    .. note::
+        If the reference prim is invalid or is the root path, the position and orientation are returned
+        unchanged, as they are already effectively in local/world space.
+
+    Args:
+        position: The world-space position as (x, y, z).
+        orientation: The world-space orientation as quaternion (w, x, y, z). If None, only position is converted
+            and None is returned for orientation.
+        ref_prim: The reference USD prim to compute the local transform relative to. If this is invalid or
+            is the root path, the world pose is returned unchanged.
+
+    Returns:
+        A tuple of (local_translation, local_orientation) where:
+
+        - local_translation is a tuple of (x, y, z) in local space relative to ref_prim
+        - local_orientation is a tuple of (w, x, y, z) in local space relative to ref_prim, or None if no orientation was provided
+
+    Raises:
+        ValueError: If the reference prim is not a valid USD prim.
+        ValueError: If the reference prim is not a valid USD Xformable.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Usd, UsdGeom
+        >>>
+        >>> # Get reference prim
+        >>> stage = sim_utils.get_current_stage()
+        >>> ref_prim = stage.GetPrimAtPath("/World/Reference")
+        >>>
+        >>> # Convert world pose to local (relative to ref_prim)
+        >>> world_pos = (10.0, 5.0, 0.0)
+        >>> world_quat = (1.0, 0.0, 0.0, 0.0)  # identity rotation
+        >>> local_pos, local_quat = sim_utils.convert_world_pose_to_local(
+        ...     world_pos, world_quat, ref_prim
+        ... )
+        >>> print(f"Local position: {local_pos}")
+        >>> print(f"Local orientation: {local_quat}")
+    """
+    # Check if prim is valid
+    if not ref_prim.IsValid():
+        raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not valid.")
+
+    # If reference prim is the root, return world pose as-is
+    if ref_prim.GetPath() == Sdf.Path.absoluteRootPath:
+        return position, orientation  # type: ignore
+
+    # Check if reference prim is a valid xformable
+    ref_xformable = UsdGeom.Xformable(ref_prim)
+    if not ref_xformable:
+        raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not a valid xformable.")
+
+    # Get reference prim's world transform
+    ref_world_tf = ref_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+
+    # Create world transform for the desired position and orientation
+    desired_world_tf = Gf.Matrix4d()
+    desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
+
+    if orientation is not None:
+        # Set rotation from quaternion (w, x, y, z)
+        quat = Gf.Quatd(*orientation)
+        desired_world_tf.SetRotateOnly(quat)
+
+    # Convert world transform to local: local = world * inv(ref_world)
+    ref_world_tf_inv = ref_world_tf.GetInverse()
+    local_tf = desired_world_tf * ref_world_tf_inv
+
+    # Extract local translation and orientation
+    local_transform = Gf.Transform(local_tf)
+    local_translation = tuple(local_transform.GetTranslation())
+
+    local_orientation = None
+    if orientation is not None:
+        quat_result = local_transform.GetRotation().GetQuat()
+        local_orientation = (quat_result.GetReal(), *quat_result.GetImaginary())
+
+    return local_translation, local_orientation

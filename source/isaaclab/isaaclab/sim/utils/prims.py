@@ -28,7 +28,7 @@ from isaaclab.utils.string import to_camel_case
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
 from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
-from .xform import standardize_xform_ops
+from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -160,36 +160,12 @@ def create_prim(
     # convert position and orientation to translation and orientation
     # world --> local
     if position is not None:
+        # convert position to tuple
+        position = tuple(position)
+        # convert orientation to tuple
+        orientation = tuple(orientation) if orientation is not None else None
         # this means that user provided pose in the world frame
-        # obtain parent transform
-        parent_prim = prim.GetParent()
-        if parent_prim.IsValid() and parent_prim.GetPath() != Sdf.Path.absoluteRootPath:
-            # Get parent's world transform
-            parent_xformable = UsdGeom.Xformable(parent_prim)
-            parent_world_tf = parent_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-
-            # Create world transform for the desired position and orientation
-            desired_world_tf = Gf.Matrix4d()
-            desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
-
-            if orientation is not None:
-                # Set rotation from quaternion (w, x, y, z)
-                quat = Gf.Quatd(*orientation)
-                desired_world_tf.SetRotateOnly(quat)
-
-            # Convert world transform to local: local = inv(parent_world) * world
-            parent_world_tf_inv = parent_world_tf.GetInverse()
-            local_tf = desired_world_tf * parent_world_tf_inv
-
-            # Extract local translation and orientation
-            local_transform = Gf.Transform(local_tf)
-            translation = tuple(local_transform.GetTranslation())
-            if orientation is not None:
-                quat_result = local_transform.GetRotation().GetQuat()
-                orientation = (quat_result.GetReal(), *quat_result.GetImaginary())
-        else:
-            # No parent or parent is root, position is already in local space
-            translation = position
+        translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
 
     # Convert sequences to properly-typed tuples for standardize_xform_ops
     translation_tuple = None if translation is None else tuple(translation)

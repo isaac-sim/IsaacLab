@@ -668,6 +668,236 @@ def test_standardize_xform_ops_with_complex_hierarchy():
         assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
 
 
+def test_convert_world_pose_to_local_basic():
+    """Test basic world-to-local pose conversion."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create parent and child prims
+    parent_prim = sim_utils.create_prim(
+        "/World/Parent",
+        "Xform",
+        translation=(5.0, 0.0, 0.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # World pose we want to achieve for a child
+    world_position = (10.0, 3.0, 0.0)
+    world_orientation = (1.0, 0.0, 0.0, 0.0)  # identity rotation
+
+    # Convert to local space
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, parent_prim
+    )
+    # Assert orientation is not None
+    assert local_orientation is not None
+
+    # The expected local translation is world_position - parent_position = (10-5, 3-0, 0-0) = (5, 3, 0)
+    assert_vec3_close(Gf.Vec3d(*local_translation), (5.0, 3.0, 0.0), eps=1e-5)
+    assert_quat_close(Gf.Quatd(*local_orientation), (1.0, 0.0, 0.0, 0.0), eps=1e-5)
+
+
+def test_convert_world_pose_to_local_with_rotation():
+    """Test world-to-local conversion with parent rotation."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create parent with 90-degree rotation around Z axis
+    parent_prim = sim_utils.create_prim(
+        "/World/RotatedParent",
+        "Xform",
+        translation=(0.0, 0.0, 0.0),
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # World pose: position at (1, 0, 0) with identity rotation
+    world_position = (1.0, 0.0, 0.0)
+    world_orientation = (1.0, 0.0, 0.0, 0.0)
+
+    # Convert to local space
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, parent_prim
+    )
+
+    # Create a child with the local transform and verify world pose
+    child_prim = sim_utils.create_prim(
+        "/World/RotatedParent/Child",
+        "Xform",
+        translation=local_translation,
+        orientation=local_orientation,
+        stage=stage,
+    )
+
+    # Get world pose of child
+    child_world_pos, child_world_quat = sim_utils.resolve_prim_pose(child_prim)
+
+    # Verify it matches the desired world pose
+    assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-5)
+    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-5)
+
+
+def test_convert_world_pose_to_local_with_scale():
+    """Test world-to-local conversion with parent scale."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create parent with non-uniform scale
+    parent_prim = sim_utils.create_prim(
+        "/World/ScaledParent",
+        "Xform",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(2.0, 2.0, 2.0),
+        stage=stage,
+    )
+
+    # World pose we want
+    world_position = (5.0, 6.0, 7.0)
+    world_orientation = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
+
+    # Convert to local space
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, parent_prim
+    )
+
+    # Create child and verify
+    child_prim = sim_utils.create_prim(
+        "/World/ScaledParent/Child",
+        "Xform",
+        translation=local_translation,
+        orientation=local_orientation,
+        stage=stage,
+    )
+
+    # Get world pose
+    child_world_pos, child_world_quat = sim_utils.resolve_prim_pose(child_prim)
+
+    # Verify (may have some tolerance due to scale effects on rotation)
+    assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-4)
+    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
+
+
+def test_convert_world_pose_to_local_invalid_parent():
+    """Test world-to-local conversion with invalid parent returns world pose unchanged."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Get an invalid prim
+    invalid_prim = stage.GetPrimAtPath("/World/NonExistent")
+    assert not invalid_prim.IsValid()
+
+    world_position = (10.0, 20.0, 30.0)
+    world_orientation = (0.7071068, 0.0, 0.7071068, 0.0)
+
+    # Convert with invalid reference prim
+    with pytest.raises(ValueError):
+        sim_utils.convert_world_pose_to_local(world_position, world_orientation, invalid_prim)
+
+
+def test_convert_world_pose_to_local_root_parent():
+    """Test world-to-local conversion with root as parent returns world pose unchanged."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Get the pseudo-root prim
+    root_prim = stage.GetPrimAtPath("/")
+
+    world_position = (15.0, 25.0, 35.0)
+    world_orientation = (0.9238795, 0.3826834, 0.0, 0.0)
+
+    # Convert with root parent
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, root_prim
+    )
+    # Assert orientation is not None
+    assert local_orientation is not None
+
+    # Should return unchanged
+    assert_vec3_close(Gf.Vec3d(*local_translation), world_position, eps=1e-10)
+    assert_quat_close(Gf.Quatd(*local_orientation), world_orientation, eps=1e-10)
+
+
+def test_convert_world_pose_to_local_none_orientation():
+    """Test world-to-local conversion with None orientation."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create parent
+    parent_prim = sim_utils.create_prim(
+        "/World/ParentNoOrient",
+        "Xform",
+        translation=(3.0, 4.0, 5.0),
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        stage=stage,
+    )
+
+    world_position = (10.0, 10.0, 10.0)
+
+    # Convert with None orientation
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, None, parent_prim
+    )
+
+    # Orientation should be None
+    assert local_orientation is None
+    # Translation should still be converted
+    assert local_translation is not None
+
+
+def test_convert_world_pose_to_local_complex_hierarchy():
+    """Test world-to-local conversion in a complex hierarchy."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a complex hierarchy
+    grandparent = sim_utils.create_prim(
+        "/World/Grandparent",
+        "Xform",
+        translation=(10.0, 0.0, 0.0),
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        scale=(2.0, 2.0, 2.0),
+        stage=stage,
+    )
+
+    parent = sim_utils.create_prim(
+        "/World/Grandparent/Parent",
+        "Xform",
+        translation=(5.0, 0.0, 0.0),  # local to grandparent
+        orientation=(0.7071068, 0.7071068, 0.0, 0.0),  # 90 deg around X
+        scale=(0.5, 0.5, 0.5),
+        stage=stage,
+    )
+
+    # World pose we want to achieve
+    world_position = (20.0, 15.0, 10.0)
+    world_orientation = (1.0, 0.0, 0.0, 0.0)
+
+    # Convert to local space relative to parent
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, parent
+    )
+
+    # Create child with the computed local transform
+    child = sim_utils.create_prim(
+        "/World/Grandparent/Parent/Child",
+        "Xform",
+        translation=local_translation,
+        orientation=local_orientation,
+        stage=stage,
+    )
+
+    # Verify world pose
+    child_world_pos, child_world_quat = sim_utils.resolve_prim_pose(child)
+
+    # Should match the desired world pose (with some tolerance for complex transforms)
+    assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-4)
+    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
+
+
 """
 Performance Benchmarking Tests
 """
