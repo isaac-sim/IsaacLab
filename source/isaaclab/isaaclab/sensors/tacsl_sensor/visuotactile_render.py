@@ -29,6 +29,10 @@ def compute_tactile_shear_image(
 ) -> np.ndarray:
     """Visualize the tactile shear field.
 
+    This function creates a visualization of tactile forces using arrows to represent shear forces
+    and color coding to represent normal forces. The thresholds are used to normalize forces for
+    visualization, chosen empirically to provide clear visual representation.
+
     Args:
         tactile_normal_force: Array of tactile normal forces. Shape: (H, W).
         tactile_shear_force: Array of tactile shear forces. Shape: (H, W, 2).
@@ -70,8 +74,10 @@ def compute_penetration_depth(
 
     Args:
         penetration_depth_img: Image of penetration depth. Shape: (H, W).
-        resolution: Resolution for the upsampling. Defaults to 5.
-        depth_multiplier: Multiplier for the depth values. Defaults to 300.0.
+        resolution: Resolution for the upsampling; each pixel expands to a (res x res) block. Defaults to 5.
+        depth_multiplier: Multiplier for the depth values. Defaults to 300.0 (scales ~3.3mm to 1.0). 
+            (e.g. typical Gelsight sensors have maximum penetration depths < 2.5mm,
+            see https://dspace.mit.edu/handle/1721.1/114627).
 
     Returns:
         Upsampled image visualizing the penetration depth. Shape: (H * resolution, W * resolution).
