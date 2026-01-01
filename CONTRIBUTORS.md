@@ -132,6 +132,7 @@ Guidelines for modifications:
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
 * Sergey Grizan
@@ -151,6 +152,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
 * Yang Jin
@@ -166,6 +168,8 @@ Guidelines for modifications:
 * David Leon
 * Song Yi
 * Weihua Zhang
+* Tsz Ki GAO
+* Anke Zhao
 
 ## Acknowledgements
 

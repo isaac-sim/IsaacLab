@@ -10,12 +10,13 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
-import isaaclab.sim.utils.stage as stage_utils
+from pxr import UsdGeom
+
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh
 
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -228,7 +229,7 @@ class RayCasterCamera(RayCaster):
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # camera position and rotation in opengl convention
         orientations = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=self._device)

@@ -14,7 +14,7 @@ from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
 from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
 from pxr import Gf
 
-from isaaclab.sim.utils.prims import delete_prim, get_prim_at_path
+import isaaclab.sim as sim_utils
 
 Vec3Type: TypeAlias = Gf.Vec3f | Gf.Vec3d
 
@@ -167,9 +167,11 @@ def show_instruction(
         container.root.clear()
         del camera_facing_widget_container[target_prim_path]
 
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
     # Clean up existing widget
-    if get_prim_at_path(target_prim_path):
-        delete_prim(target_prim_path)
+    if stage.GetPrimAtPath(target_prim_path).IsValid():
+        sim_utils.delete_prim(target_prim_path)
 
     width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
 

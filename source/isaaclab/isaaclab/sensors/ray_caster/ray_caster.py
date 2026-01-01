@@ -19,7 +19,6 @@ from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
@@ -27,7 +26,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -147,7 +146,7 @@ class RayCaster(SensorBase):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
-            available_prims = ",".join([str(p.GetPath()) for p in stage_utils.get_current_stage().Traverse()])
+            available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
             raise RuntimeError(
                 f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
             )

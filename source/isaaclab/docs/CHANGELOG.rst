@@ -1,6 +1,86 @@
 Changelog
 ---------
 
+0.51.2 (2025-12-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ObservationManager.get_active_iterable_terms`
+  to handle observation data when not concatenated along the last dimension.
+
+
+0.51.1 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.version.get_isaac_sim_version` to get the version of Isaac Sim.
+  This function caches the version of Isaac Sim and returns it immediately if it has already been computed.
+  This helps avoid parsing the VERSION file from disk multiple times.
+
+Changed
+^^^^^^^
+
+* Changed the function :meth:`~isaaclab.utils.version.compare_versions` to use :mod:`packaging.version.Version` module.
+* Changed occurrences of :func:`isaacsim.core.version.get_version` to :func:`~isaaclab.utils.version.get_isaac_sim_version`.
+
+Removed
+^^^^^^^
+
+* Removed storing of Isaac Sim version inside the environment base classes defined inside
+  :mod:`isaaclab.envs` module.
+
+
+0.51.0 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tests for the :mod:`isaaclab.sim.utils.prims` module.
+* Added tests for the :mod:`isaaclab.sim.utils.stage` module.
+* Created :mod:`isaaclab.sim.utils.legacy` sub-module to keep deprecated functions.
+
+Removed
+^^^^^^^
+
+* Removed many unused USD prim and stage related operations from the :mod:`isaaclab.sim.utils` module.
+* Moved :mod:`isaaclab.sim.utils.nucleus` sub-module to the ``tests/deps/isaacsim`` directory as it
+  is only being used for Isaac Sim check scripts.
+
+Changed
+^^^^^^^
+
+* Changed the organization of the :mod:`isaaclab.sim.utils` module to make it clearer which functions
+  are related to the stage and which are related to the prims.
+* Modified imports of :mod:`~isaaclab.sim.utils.stage` and :mod:`~isaaclab.sim.utils.prims` modules
+  to only use the :mod:`isaaclab.sim.utils` module.
+* Moved ``logger.py`` to the :mod:`isaaclab.utils` module.
+
+
+0.50.7 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved ``pretrained_checkpoint.py`` to the :mod:`isaaclab_rl.utils` module.
+
+
+0.50.6 (2025-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue where :meth:~isaaclab.envs.mdp.observations.body_pose_w` was modifying the original body pose data
+  when using slice or int for body_ids in the observation config. A clone of the data is now created to avoid modifying
+  the original data.
+
+
 0.50.5 (2025-12-15)
 ~~~~~~~~~~~~~~~~~~~
 

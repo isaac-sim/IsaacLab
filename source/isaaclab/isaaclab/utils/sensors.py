@@ -19,15 +19,13 @@ def convert_camera_intrinsics_to_usd(
             The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).
         width: Width of the image (in pixels).
         height: Height of the image (in pixels).
-        focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None
-                focal_length will be calculated 1 / width.
+        focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None,
+            in which case, the focal length will be calculated as 1 / width.
 
     Returns:
         A dictionary of USD camera parameters for focal_length, horizontal_aperture, vertical_aperture,
-            horizontal_aperture_offset, and vertical_aperture_offset.
+        horizontal_aperture_offset, and vertical_aperture_offset.
     """
-    usd_params = dict
-
     # extract parameters from matrix
     f_x = intrinsic_matrix[0]
     f_y = intrinsic_matrix[4]

@@ -36,7 +36,6 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationContext
@@ -55,7 +54,7 @@ def design_scene():
     # Each group will have a robot in it
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
 
     # Deformable Object
     cfg = DeformableObjectCfg(
