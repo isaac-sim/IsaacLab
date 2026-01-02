@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -666,6 +666,69 @@ def test_standardize_xform_ops_with_complex_hierarchy():
         pos_after, quat_after = poses_after[name]
         assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
         assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+
+
+def test_standardize_xform_ops_preserves_float_precision():
+    """Test that standardize_xform_ops preserves float precision when it already exists."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim manually with FLOAT precision operations (not double)
+    prim_path = "/World/TestFloatPrecision"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add xform operations with FLOAT precision (not the default double)
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionFloat)
+    translate_op.Set(Gf.Vec3f(1.0, 2.0, 3.0))
+
+    orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat)
+    orient_op.Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+
+    scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionFloat)
+    scale_op.Set(Gf.Vec3f(1.0, 1.0, 1.0))
+
+    # Verify operations exist with float precision
+    assert translate_op.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+    assert orient_op.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+    assert scale_op.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+
+    # Now apply standardize_xform_ops with new values (provided as double precision Python floats)
+    new_translation = (5.0, 10.0, 15.0)
+    new_orientation = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
+    new_scale = (2.0, 3.0, 4.0)
+
+    result = sim_utils.standardize_xform_ops(
+        prim, translation=new_translation, orientation=new_orientation, scale=new_scale
+    )
+    assert result is True
+
+    # Verify the precision is STILL float (not converted to double)
+    translate_op_after = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
+    orient_op_after = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
+    scale_op_after = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
+
+    assert translate_op_after.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+    assert orient_op_after.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+    assert scale_op_after.GetPrecision() == UsdGeom.XformOp.PrecisionFloat
+
+    # Verify the VALUES are set correctly (cast to float, so they're Gf.Vec3f and Gf.Quatf)
+    translate_value = prim.GetAttribute("xformOp:translate").Get()
+    assert isinstance(translate_value, Gf.Vec3f), f"Expected Gf.Vec3f, got {type(translate_value)}"
+    assert_vec3_close(translate_value, new_translation, eps=1e-5)
+
+    orient_value = prim.GetAttribute("xformOp:orient").Get()
+    assert isinstance(orient_value, Gf.Quatf), f"Expected Gf.Quatf, got {type(orient_value)}"
+    assert_quat_close(orient_value, new_orientation, eps=1e-5)
+
+    scale_value = prim.GetAttribute("xformOp:scale").Get()
+    assert isinstance(scale_value, Gf.Vec3f), f"Expected Gf.Vec3f, got {type(scale_value)}"
+    assert_vec3_close(scale_value, new_scale, eps=1e-5)
+
+    # Verify the world pose matches what we set
+    pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
+    assert_vec3_close(Gf.Vec3d(*pos_after), new_translation, eps=1e-4)
+    assert_quat_close(Gf.Quatd(*quat_after), new_orientation, eps=1e-4)
 
 
 def test_convert_world_pose_to_local_basic():
