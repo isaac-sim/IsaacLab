@@ -47,12 +47,17 @@ class XformPrimView:
         time-sampled keyframes separately.
     """
 
-    def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None):
+    def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None, validate_xform_ops: bool = True):
         """Initialize the view with matching prims.
 
         This method searches the USD stage for all prims matching the provided path pattern,
         validates that they are Xformable with standard transform operations, and stores
         references for efficient batch operations.
+
+        We generally recommend to validate the xform operations, as it ensures that the prims are in a consistent state
+        and have the standard transform operations (translate, orient, scale in that order).
+        However, if you are sure that the prims are in a consistent state, you can set this to False to improve
+        performance. This can save around 45-50% of the time taken to initialize the view.
 
         Args:
             prim_path: USD prim path pattern to match prims. Supports wildcards (``*``) and
@@ -62,6 +67,8 @@ class XformPrimView:
                 ``"cuda:0"``. Defaults to ``"cpu"``.
             stage: USD stage to search for prims. If None, uses the current active stage
                 from the simulation context. Defaults to None.
+            validate_xform_ops: Whether to validate that the prims have standard xform operations.
+                Defaults to True.
 
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
@@ -77,13 +84,14 @@ class XformPrimView:
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
 
         # Validate all prims have standard xform operations
-        for prim in self._prims:
-            if not sim_utils.validate_standard_xform_ops(prim):
-                raise ValueError(
-                    f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
-                    f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
-                    " Use sim_utils.standardize_xform_ops() to prepare the prim."
-                )
+        if validate_xform_ops:
+            for prim in self._prims:
+                if not sim_utils.validate_standard_xform_ops(prim):
+                    raise ValueError(
+                        f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
+                        f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
+                        " Use sim_utils.standardize_xform_ops() to prepare the prim."
+                    )
 
     """
     Properties.
