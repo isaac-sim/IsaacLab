@@ -152,7 +152,7 @@ def standardize_xform_ops(
     # Handle scale resolution
     if scale is not None:
         # User provided scale
-        xform_scale = scale
+        xform_scale = Gf.Vec3d(scale)
     elif "xformOp:scale" in prop_names:
         # Handle unit resolution for scale if present
         # This occurs when assets are imported with different unit scales
@@ -161,8 +161,6 @@ def standardize_xform_ops(
             units_resolve = prim.GetAttribute("xformOp:scale:unitsResolve").Get()
             for i in range(3):
                 xform_scale[i] = xform_scale[i] * units_resolve[i]
-        # Convert to tuple
-        xform_scale = tuple(xform_scale)
     else:
         # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
@@ -197,11 +195,16 @@ def standardize_xform_ops(
         if not xform_op_orient:
             xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
 
-        # Set the transform values using the new standardized transform operations
-        # Convert tuples to Gf types for USD
-        xform_op_translate.Set(xform_pos)
-        xform_op_orient.Set(xform_quat)
-        xform_op_scale.Set(xform_scale)
+        # Handle different floating point precisions
+        # Existing Xform operations might have floating or double precision.
+        # We need to cast the data to the correct type to avoid setting the wrong type.
+        xform_ops = [xform_op_translate, xform_op_orient, xform_op_scale]
+        xform_values = [xform_pos, xform_quat, xform_scale]
+        for xform_op, value in zip(xform_ops, xform_values):
+            # Get current value to determine precision type
+            current_value = xform_op.Get()
+            # Cast to existing type to preserve precision (float/double)
+            xform_op.Set(type(current_value)(value) if current_value is not None else value)
 
         # Set the transform operation order: translate -> orient -> scale
         # This is the standard USD convention and ensures consistent behavior

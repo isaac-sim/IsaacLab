@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ import functools
 import inspect
 import logging
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -972,28 +973,51 @@ Internal Helpers.
 
 
 def _to_tuple(value: Any) -> tuple[float, ...]:
-    """Convert various sequence types (list, tuple, numpy array, torch tensor) to tuple.
+    """Convert various sequence types to a Python tuple of floats.
 
-    This function handles conversion from different array-like types to Python tuples.
-    It validates dimensionality and automatically moves CUDA tensors to CPU if necessary.
+    This function provides robust conversion from different array-like types (list, tuple, numpy array,
+    torch tensor) to Python tuples. It handles edge cases like malformed sequences, CUDA tensors,
+    and arrays with singleton dimensions.
 
     Args:
-        value: A sequence-like object containing floats. It can be a list, tuple,
-            numpy array, or a torch tensor.
+        value: A sequence-like object containing floats. Supported types include:
+            - Python list or tuple
+            - NumPy array (any device)
+            - PyTorch tensor (CPU or CUDA)
+            - Mixed sequences with numpy/torch scalar items and float values
 
     Returns:
-        A tuple of floats.
+        A one-dimensional tuple of floats.
 
     Raises:
-        ValueError: If the input value is not one dimensional.
-    """
-    # check if it is a torch tensor or numpy array (both have tolist())
-    if hasattr(value, "tolist"):
-        # ensure that it is one dimensional
-        if hasattr(value, "ndim") and value.ndim != 1:
-            raise ValueError(f"Input value is not one dimensional: {value.shape}")
+        ValueError: If the input value is not one-dimensional after squeezing singleton dimensions.
 
-        return tuple(value.tolist())  # type: ignore
-    else:
-        # otherwise assume it is already a sequence (list, tuple, etc.)
-        return tuple(value)
+    Example:
+        >>> import torch
+        >>> import numpy as np
+        >>>
+        >>> _to_tuple([1.0, 2.0, 3.0])
+        (1.0, 2.0, 3.0)
+        >>> _to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
+        (1.0, 2.0)
+        >>> _to_tuple(np.array([1.0, 2.0, 3.0]))
+        (1.0, 2.0, 3.0)
+        >>> _to_tuple((1.0, 2.0, 3.0))
+        (1.0, 2.0, 3.0)
+
+    """
+    # Normalize to tensor if value is a plain sequence (list with mixed types, etc.)
+    # This handles cases like [np.float32(1.0), 2.0, torch.tensor(3.0)]
+    if not hasattr(value, "tolist"):
+        value = torch.tensor(value, device="cpu", dtype=torch.float)
+
+    # Remove leading singleton dimension if present (e.g., shape (1, 3) -> (3,))
+    # This is common when batched operations produce single-item batches
+    if value.ndim != 1:
+        value = value.squeeze()
+    # Validate that the result is one-dimensional
+    if value.ndim != 1:
+        raise ValueError(f"Input value is not one dimensional: {value.shape}")
+
+    # Convert to tuple - works for both numpy arrays and torch tensors
+    return tuple(value.tolist())

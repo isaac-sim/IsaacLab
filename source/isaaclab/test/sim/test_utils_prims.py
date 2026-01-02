@@ -21,6 +21,7 @@ import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -364,3 +365,78 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+
+"""
+Internal Helpers.
+"""
+
+
+def test_to_tuple_basic():
+    """Test _to_tuple() with basic input types."""
+    # Test with list
+    result = _to_tuple([1.0, 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+    assert isinstance(result, tuple)
+
+    # Test with tuple
+    result = _to_tuple((1.0, 2.0, 3.0))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test with numpy array
+    result = _to_tuple(np.array([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test with torch tensor (CPU)
+    result = _to_tuple(torch.tensor([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test squeezing first dimension (batch size 1)
+    result = _to_tuple(torch.tensor([[1.0, 2.0]]))
+    assert result == (1.0, 2.0)
+
+    result = _to_tuple(np.array([[1.0, 2.0, 3.0]]))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_raises_error():
+    """Test _to_tuple() raises an error for N-dimensional arrays."""
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
+
+    with pytest.raises(ValueError, match="only one element tensors can be converted"):
+        _to_tuple((torch.tensor([1.0, 2.0]), 3.0))
+
+
+def test_to_tuple_mixed_sequences():
+    """Test _to_tuple() with mixed type sequences."""
+
+    # Mixed list with numpy and floats
+    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
+    assert len(result) == 3
+    assert all(isinstance(x, float) for x in result)
+
+    # Mixed tuple with torch tensor items and floats
+    result = _to_tuple([torch.tensor(1.0), 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+
+    # Mixed tuple with numpy array items and torch tensor
+    result = _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0)))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_precision():
+    """Test _to_tuple() maintains numerical precision."""
+    from isaaclab.sim.utils.prims import _to_tuple
+
+    # Test with high precision values
+    high_precision = [1.123456789, 2.987654321, 3.141592653]
+    result = _to_tuple(torch.tensor(high_precision, dtype=torch.float64))
+
+    # Check that precision is maintained reasonably well
+    for i, val in enumerate(high_precision):
+        assert math.isclose(result[i], val, abs_tol=1e-6)
