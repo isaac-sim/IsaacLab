@@ -29,7 +29,7 @@ from isaaclab.assets import (
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
-from isaaclab.sim.views import XFormPrimView
+from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.utils.version import get_isaac_sim_version
 
@@ -406,10 +406,10 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
-    def extras(self) -> dict[str, XFormPrimView]:
+    def extras(self) -> dict[str, XformPrimView]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the :class:`~isaaclab.sim.utils.views.XFormPrimView`
+        The keys are the names of the miscellaneous objects, and the values are the :class:`~isaaclab.sim.utils.views.XformPrimView`
         of the corresponding prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
@@ -777,7 +777,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrimView(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, reset_xform_properties=False)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths

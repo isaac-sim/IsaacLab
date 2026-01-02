@@ -21,7 +21,7 @@ from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.sim.views import XFormPrimView
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -405,7 +405,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

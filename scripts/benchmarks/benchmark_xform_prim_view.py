@@ -10,7 +10,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script comparing Isaac Lab's XFormPrimView against Isaac Sim's XFormPrimView.
+"""Benchmark script comparing Isaac Lab's XformPrimView against Isaac Sim's XformPrimView.
 
 This script tests the performance of batched transform operations using either
 Isaac Lab's implementation or Isaac Sim's implementation.
@@ -23,8 +23,8 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile --headless
 
     # Then visualize with snakeviz:
-    snakeviz profile_results/isaaclab_xformprimview.prof
-    snakeviz profile_results/isaacsim_xformprimview.prof
+    snakeviz profile_results/isaaclab_XformPrimView.prof
+    snakeviz profile_results/isaacsim_XformPrimView.prof
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from isaaclab.app import AppLauncher
 # parse the arguments
 args_cli = argparse.Namespace()
 
-parser = argparse.ArgumentParser(description="This script can help you benchmark the performance of XFormPrimView.")
+parser = argparse.ArgumentParser(description="This script can help you benchmark the performance of XformPrimView.")
 
 parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
@@ -123,9 +123,9 @@ def benchmark_xform_prim_view(
     # Create view
     start_time = time.perf_counter()
     if api == "isaaclab":
-        xform_view = IsaacLabXFormPrimView(pattern, device=args_cli.device)
+        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device)
     elif api == "isaacsim":
-        xform_view = IsaacSimXFormPrimView(pattern)
+        xform_view = IsaacSimXformPrimView(pattern)
     else:
         raise ValueError(f"Invalid API: {api}")
     timing_results["init"] = time.perf_counter() - start_time

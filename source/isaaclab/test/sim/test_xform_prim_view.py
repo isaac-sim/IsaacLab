@@ -17,12 +17,12 @@ import torch
 import pytest
 
 try:
-    from isaacsim.core.prims import XFormPrim as _IsaacSimXFormPrimView
+    from isaacsim.core.prims import XFormPrim as _IsaacSimXformPrimView
 except (ModuleNotFoundError, ImportError):
-    _IsaacSimXFormPrimView = None
+    _IsaacSimXformPrimView = None
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.views import XFormPrimView as XFormPrimView
+from isaaclab.sim.views import XformPrimView as XformPrimView
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -47,7 +47,7 @@ Tests - Initialization.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_xform_prim_view_initialization_single_prim(device):
-    """Test XFormPrimView initialization with a single prim."""
+    """Test XformPrimView initialization with a single prim."""
     # check if CUDA is available
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
@@ -57,7 +57,7 @@ def test_xform_prim_view_initialization_single_prim(device):
     sim_utils.create_prim("/World/Object", "Xform", translation=(1.0, 2.0, 3.0), stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object", device=device)
+    view = XformPrimView("/World/Object", device=device)
 
     # Verify properties
     assert view.count == 1
@@ -68,7 +68,7 @@ def test_xform_prim_view_initialization_single_prim(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_xform_prim_view_initialization_multiple_prims(device):
-    """Test XFormPrimView initialization with multiple prims using pattern matching."""
+    """Test XformPrimView initialization with multiple prims using pattern matching."""
     # check if CUDA is available
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
@@ -80,7 +80,7 @@ def test_xform_prim_view_initialization_multiple_prims(device):
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=(i * 2.0, 0.0, 1.0), stage=stage)
 
     # Create view with pattern
-    view = XFormPrimView("/World/Env_.*/Object", device=device)
+    view = XformPrimView("/World/Env_.*/Object", device=device)
 
     # Verify properties
     assert view.count == num_prims
@@ -90,7 +90,7 @@ def test_xform_prim_view_initialization_multiple_prims(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_xform_prim_view_initialization_invalid_prim(device):
-    """Test XFormPrimView initialization fails for non-xformable prims."""
+    """Test XformPrimView initialization fails for non-xformable prims."""
     # check if CUDA is available
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
@@ -100,14 +100,14 @@ def test_xform_prim_view_initialization_invalid_prim(device):
     # Create a prim with non-standard xform operations
     stage.DefinePrim("/World/InvalidPrim", "Xform")
 
-    # XFormPrimView should raise ValueError because prim doesn't have standard operations
+    # XformPrimView should raise ValueError because prim doesn't have standard operations
     with pytest.raises(ValueError, match="not a xformable prim"):
-        XFormPrimView("/World/InvalidPrim", device=device)
+        XformPrimView("/World/InvalidPrim", device=device)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_xform_prim_view_initialization_empty_pattern(device):
-    """Test XFormPrimView initialization with pattern that matches no prims."""
+    """Test XformPrimView initialization with pattern that matches no prims."""
     # check if CUDA is available
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
@@ -115,7 +115,7 @@ def test_xform_prim_view_initialization_empty_pattern(device):
     sim_utils.create_new_stage()
 
     # Create view with pattern that matches nothing
-    view = XFormPrimView("/World/NonExistent_.*", device=device)
+    view = XformPrimView("/World/NonExistent_.*", device=device)
 
     # Should have zero count
     assert view.count == 0
@@ -129,7 +129,7 @@ Tests - Get/Set World Poses.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_world_poses(device):
-    """Test getting world poses from XFormPrimView."""
+    """Test getting world poses from XformPrimView."""
     if device.startswith("cuda") and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -143,7 +143,7 @@ def test_get_world_poses(device):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Get world poses
     positions, orientations = view.get_world_poses()
@@ -168,7 +168,7 @@ def test_get_world_poses(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_set_world_poses(device):
-    """Test setting world poses in XFormPrimView."""
+    """Test setting world poses in XformPrimView."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -180,7 +180,7 @@ def test_set_world_poses(device):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Set new world poses
     new_positions = torch.tensor(
@@ -227,7 +227,7 @@ def test_set_world_poses_only_positions(device):
         )
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Get initial orientations
     _, initial_orientations = view.get_world_poses()
@@ -262,7 +262,7 @@ def test_set_world_poses_only_orientations(device):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Get initial positions
     initial_positions, _ = view.get_world_poses()
@@ -306,7 +306,7 @@ def test_set_world_poses_with_hierarchy(device):
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view for children
-    view = XFormPrimView("/World/Parent_.*/Child", device=device)
+    view = XformPrimView("/World/Parent_.*/Child", device=device)
 
     # Set world poses for children
     desired_world_positions = torch.tensor([[5.0, 5.0, 0.0], [15.0, 5.0, 0.0], [25.0, 5.0, 0.0]], device=device)
@@ -334,7 +334,7 @@ Tests - Get/Set Local Poses.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_local_poses(device):
-    """Test getting local poses from XFormPrimView."""
+    """Test getting local poses from XformPrimView."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -355,7 +355,7 @@ def test_get_local_poses(device):
         sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Parent/Child_.*", device=device)
+    view = XformPrimView("/World/Parent/Child_.*", device=device)
 
     # Get local poses
     translations, orientations = view.get_local_poses()
@@ -380,7 +380,7 @@ def test_get_local_poses(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_set_local_poses(device):
-    """Test setting local poses in XFormPrimView."""
+    """Test setting local poses in XformPrimView."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -395,7 +395,7 @@ def test_set_local_poses(device):
         sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Parent/Child_.*", device=device)
+    view = XformPrimView("/World/Parent/Child_.*", device=device)
 
     # Set new local poses
     new_translations = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0], [4.0, 4.0, 4.0]], device=device)
@@ -440,7 +440,7 @@ def test_set_local_poses_only_translations(device):
         )
 
     # Create view
-    view = XFormPrimView("/World/Parent/Child_.*", device=device)
+    view = XformPrimView("/World/Parent/Child_.*", device=device)
 
     # Get initial orientations
     _, initial_orientations = view.get_local_poses()
@@ -469,7 +469,7 @@ Tests - Get/Set Scales.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_scales(device):
-    """Test getting scales from XFormPrimView."""
+    """Test getting scales from XformPrimView."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -482,7 +482,7 @@ def test_get_scales(device):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=scale, stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Get scales
     scales = view.get_scales()
@@ -495,7 +495,7 @@ def test_get_scales(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_set_scales(device):
-    """Test setting scales in XFormPrimView."""
+    """Test setting scales in XformPrimView."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -507,7 +507,7 @@ def test_set_scales(device):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=(1.0, 1.0, 1.0), stage=stage)
 
     # Create view
-    view = XFormPrimView("/World/Object_.*", device=device)
+    view = XformPrimView("/World/Object_.*", device=device)
 
     # Set new scales
     new_scales = torch.tensor(
@@ -530,7 +530,7 @@ Tests - Integration.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_with_franka_robots(device):
-    """Test XFormPrimView with real Franka robot USD assets."""
+    """Test XformPrimView with real Franka robot USD assets."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -544,7 +544,7 @@ def test_with_franka_robots(device):
     sim_utils.create_prim("/World/Franka_2", "Xform", usd_path=franka_usd_path, stage=stage)
 
     # Create view for both Frankas
-    frankas_view = XFormPrimView("/World/Franka_.*", device=device)
+    frankas_view = XformPrimView("/World/Franka_.*", device=device)
 
     # Verify count
     assert frankas_view.count == 2
@@ -596,8 +596,8 @@ def test_with_nested_targets(device):
         sim_utils.create_prim(f"/World/Frame_{i}/Target", "Xform", stage=stage)
 
     # Create views
-    frames_view = XFormPrimView("/World/Frame_.*", device=device)
-    targets_view = XFormPrimView("/World/Frame_.*/Target", device=device)
+    frames_view = XformPrimView("/World/Frame_.*", device=device)
+    targets_view = XformPrimView("/World/Frame_.*/Target", device=device)
 
     assert frames_view.count == 3
     assert targets_view.count == 3
@@ -629,7 +629,7 @@ def test_compare_get_world_poses_with_isaacsim():
     stage = sim_utils.get_current_stage()
 
     # Check if Isaac Sim is available
-    if _IsaacSimXFormPrimView is None:
+    if _IsaacSimXformPrimView is None:
         pytest.skip("Isaac Sim is not available")
 
     # Create prims with various poses
@@ -648,8 +648,8 @@ def test_compare_get_world_poses_with_isaacsim():
     pattern = "/World/Env_.*/Object"
 
     # Create both views
-    isaaclab_view = XFormPrimView(pattern, device="cpu")
-    isaacsim_view = _IsaacSimXFormPrimView(pattern, reset_xform_properties=False)
+    isaaclab_view = XformPrimView(pattern, device="cpu")
+    isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Get world poses from both
     isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()
@@ -676,7 +676,7 @@ def test_compare_set_world_poses_with_isaacsim():
     stage = sim_utils.get_current_stage()
 
     # Check if Isaac Sim is available
-    if _IsaacSimXFormPrimView is None:
+    if _IsaacSimXformPrimView is None:
         pytest.skip("Isaac Sim is not available")
 
     # Create prims
@@ -687,8 +687,8 @@ def test_compare_set_world_poses_with_isaacsim():
     pattern = "/World/Env_.*/Object"
 
     # Create both views
-    isaaclab_view = XFormPrimView(pattern, device="cpu")
-    isaacsim_view = _IsaacSimXFormPrimView(pattern, reset_xform_properties=False)
+    isaaclab_view = XformPrimView(pattern, device="cpu")
+    isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Generate new poses
     new_positions = torch.randn(num_prims, 3) * 10.0
@@ -721,7 +721,7 @@ def test_compare_get_local_poses_with_isaacsim():
     stage = sim_utils.get_current_stage()
 
     # Check if Isaac Sim is available
-    if _IsaacSimXFormPrimView is None:
+    if _IsaacSimXformPrimView is None:
         pytest.skip("Isaac Sim is not available")
 
     # Create hierarchical prims
@@ -739,8 +739,8 @@ def test_compare_get_local_poses_with_isaacsim():
     pattern = "/World/Env_.*/Object"
 
     # Create both views
-    isaaclab_view = XFormPrimView(pattern, device="cpu")
-    isaacsim_view = _IsaacSimXFormPrimView(pattern, reset_xform_properties=False)
+    isaaclab_view = XformPrimView(pattern, device="cpu")
+    isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Get local poses from both
     isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses()
@@ -765,7 +765,7 @@ def test_compare_set_local_poses_with_isaacsim():
     stage = sim_utils.get_current_stage()
 
     # Check if Isaac Sim is available
-    if _IsaacSimXFormPrimView is None:
+    if _IsaacSimXformPrimView is None:
         pytest.skip("Isaac Sim is not available")
 
     # Create hierarchical prims
@@ -777,8 +777,8 @@ def test_compare_set_local_poses_with_isaacsim():
     pattern = "/World/Env_.*/Object"
 
     # Create both views
-    isaaclab_view = XFormPrimView(pattern, device="cpu")
-    isaacsim_view = _IsaacSimXFormPrimView(pattern, reset_xform_properties=False)
+    isaaclab_view = XformPrimView(pattern, device="cpu")
+    isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Generate new local poses
     new_translations = torch.randn(num_prims, 3) * 5.0

@@ -16,7 +16,7 @@ import carb
 import warp as wp
 from pxr import UsdGeom
 
-from isaaclab.sim.views import XFormPrimView
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
@@ -150,7 +150,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

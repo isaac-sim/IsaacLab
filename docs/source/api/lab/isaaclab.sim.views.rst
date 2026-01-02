@@ -7,11 +7,11 @@
 
   .. autosummary::
 
-    XFormPrimView
+    XformPrimView
 
 XForm Prim View
 ---------------
 
-.. autoclass:: XFormPrimView
+.. autoclass:: XformPrimView
     :members:
     :show-inheritance:

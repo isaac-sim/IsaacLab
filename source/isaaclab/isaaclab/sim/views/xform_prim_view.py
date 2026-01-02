@@ -13,7 +13,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 
-class XFormPrimView:
+
+class XformPrimView:
     """Optimized batched interface for reading and writing transforms of multiple USD prims.
 
     This class provides efficient batch operations for getting and setting poses (position and orientation)
