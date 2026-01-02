@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 import torch
@@ -31,10 +32,13 @@ from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.version import compare_versions
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def randomize_rigid_body_scale(
@@ -735,8 +739,7 @@ class randomize_joint_parameters(ManagerTermBase):
             static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            major_version = int(env.sim.get_version()[0])
-            if major_version >= 5:
+            if get_isaac_sim_version().major >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.asset.data.default_joint_dynamic_friction_coeff.clone(),
@@ -1462,7 +1465,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             # This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims
             # whether they end in /visuals or have other structures.
             prim_path = f"{asset_main_prim_path}/.*"
-            carb.log_info(
+            logging.info(
                 f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture"
                 " randomization."
             )
