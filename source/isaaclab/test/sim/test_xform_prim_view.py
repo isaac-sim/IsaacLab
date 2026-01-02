@@ -537,7 +537,7 @@ def test_with_franka_robots(device):
     stage = sim_utils.get_current_stage()
 
     # Load Franka robot assets
-    franka_usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd"
+    franka_usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 
     # Add two Franka robots to the stage
     sim_utils.create_prim("/World/Franka_1", "Xform", usd_path=franka_usd_path, stage=stage)
