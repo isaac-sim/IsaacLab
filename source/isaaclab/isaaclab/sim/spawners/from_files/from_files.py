@@ -198,7 +198,7 @@ def spawn_ground_plane(
 
     # Spawn Ground-plane
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -327,6 +327,7 @@ def _spawn_from_usd_file(
             translation=translation,
             orientation=orientation,
             scale=cfg.scale,
+            stage=stage,
         )
     else:
         logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
