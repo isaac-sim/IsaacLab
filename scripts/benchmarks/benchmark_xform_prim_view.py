@@ -68,17 +68,21 @@ import time
 import torch
 from typing import Literal
 
-from isaacsim.core.prims import XFormPrim as IsaacSimXFormPrimView
+from isaacsim.core.utils.extensions import enable_extension
+
+# compare against latest Isaac Sim implementation
+enable_extension("isaacsim.core.experimental.prims")
+from isaacsim.core.experimental.prims import XformPrim as IsaacSimXformPrimView
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.views import XFormPrimView as IsaacLabXFormPrimView
+from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
 
 
 @torch.no_grad()
 def benchmark_xform_prim_view(
     api: Literal["isaaclab", "isaacsim"], num_iterations: int
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
-    """Benchmark the XFormPrimView class from either Isaac Lab or Isaac Sim.
+    """Benchmark the Xform view class from either Isaac Lab or Isaac Sim.
 
     Args:
         api: Which API to benchmark ("isaaclab" or "isaacsim").
@@ -121,24 +125,28 @@ def benchmark_xform_prim_view(
     if api == "isaaclab":
         xform_view = IsaacLabXFormPrimView(pattern, device=args_cli.device)
     elif api == "isaacsim":
-        xform_view = IsaacSimXFormPrimView(pattern, reset_xform_properties=False)
+        xform_view = IsaacSimXFormPrimView(pattern)
     else:
         raise ValueError(f"Invalid API: {api}")
     timing_results["init"] = time.perf_counter() - start_time
 
-    print(f"  XFormPrimView managing {xform_view.count} prims")
+    if api == "isaaclab":
+        num_prims = xform_view.count
+    elif api == "isaacsim":
+        num_prims = len(xform_view.prims)
+    print(f"  XformPrimView managing {num_prims} prims")
 
     # Benchmark get_world_poses
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         positions, orientations = xform_view.get_world_poses()
-    timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
+        # Ensure tensors are torch tensors
+        if not isinstance(positions, torch.Tensor):
+            positions = torch.tensor(positions, dtype=torch.float32)
+        if not isinstance(orientations, torch.Tensor):
+            orientations = torch.tensor(orientations, dtype=torch.float32)
 
-    # Ensure tensors are torch tensors
-    if not isinstance(positions, torch.Tensor):
-        positions = torch.tensor(positions, dtype=torch.float32)
-    if not isinstance(orientations, torch.Tensor):
-        orientations = torch.tensor(orientations, dtype=torch.float32)
+    timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Store initial world poses
     computed_results["initial_world_positions"] = positions.clone()
@@ -149,7 +157,10 @@ def benchmark_xform_prim_view(
     new_positions[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        xform_view.set_world_poses(new_positions, orientations)
+        if api == "isaaclab":
+            xform_view.set_world_poses(new_positions, orientations)
+        elif api == "isaacsim":
+            xform_view.set_world_poses(new_positions.cpu().numpy(), orientations.cpu().numpy())
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Get world poses after setting to verify
@@ -165,13 +176,13 @@ def benchmark_xform_prim_view(
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         translations, orientations_local = xform_view.get_local_poses()
-    timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
+        # Ensure tensors are torch tensors
+        if not isinstance(translations, torch.Tensor):
+            translations = torch.tensor(translations, dtype=torch.float32, device=args_cli.device)
+        if not isinstance(orientations_local, torch.Tensor):
+            orientations_local = torch.tensor(orientations_local, dtype=torch.float32, device=args_cli.device)
 
-    # Ensure tensors are torch tensors
-    if not isinstance(translations, torch.Tensor):
-        translations = torch.tensor(translations, dtype=torch.float32)
-    if not isinstance(orientations_local, torch.Tensor):
-        orientations_local = torch.tensor(orientations_local, dtype=torch.float32)
+    timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Store initial local poses
     computed_results["initial_local_translations"] = translations.clone()
@@ -182,7 +193,10 @@ def benchmark_xform_prim_view(
     new_translations[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        xform_view.set_local_poses(new_translations, orientations_local)
+        if api == "isaaclab":
+            xform_view.set_local_poses(new_translations, orientations_local)
+        elif api == "isaacsim":
+            xform_view.set_local_poses(new_translations.cpu().numpy(), orientations_local.cpu().numpy())
     timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Get local poses after setting to verify
@@ -215,8 +229,8 @@ def compare_results(
     """Compare computed results between Isaac Lab and Isaac Sim implementations.
 
     Args:
-        isaaclab_computed: Computed values from Isaac Lab's XFormPrimView.
-        isaacsim_computed: Computed values from Isaac Sim's XFormPrimView.
+        isaaclab_computed: Computed values from Isaac Lab's XformPrimView.
+        isaacsim_computed: Computed values from Isaac Sim's XformPrimView.
         tolerance: Tolerance for numerical comparison.
 
     Returns:
@@ -294,8 +308,8 @@ def print_results(
     """Print benchmark results in a formatted table.
 
     Args:
-        isaaclab_results: Results from Isaac Lab's XFormPrimView benchmark.
-        isaacsim_results: Results from Isaac Sim's XFormPrimView benchmark.
+        isaaclab_results: Results from Isaac Lab's XformPrimView benchmark.
+        isaacsim_results: Results from Isaac Sim's XformPrimView benchmark.
         num_prims: Number of prims tested.
         num_iterations: Number of iterations run.
     """
@@ -350,7 +364,7 @@ def print_results(
 def main():
     """Main benchmark function."""
     print("=" * 100)
-    print("XFormPrimView Benchmark")
+    print("XformPrimView Benchmark")
     print("=" * 100)
     print("Configuration:")
     print(f"  Number of environments: {args_cli.num_envs}")
@@ -367,8 +381,8 @@ def main():
 
         os.makedirs(args_cli.profile_dir, exist_ok=True)
 
-    # Benchmark Isaac Lab XFormPrimView
-    print("Benchmarking XFormPrimView from Isaac Lab...")
+    # Benchmark Isaac Lab XformPrimView
+    print("Benchmarking XformPrimView from Isaac Lab...")
     if args_cli.profile:
         profiler_isaaclab = cProfile.Profile()
         profiler_isaaclab.enable()
@@ -379,15 +393,15 @@ def main():
 
     if args_cli.profile:
         profiler_isaaclab.disable()
-        profile_file_isaaclab = f"{args_cli.profile_dir}/isaaclab_xformprimview.prof"
+        profile_file_isaaclab = f"{args_cli.profile_dir}/isaaclab_XformPrimView.prof"
         profiler_isaaclab.dump_stats(profile_file_isaaclab)
         print(f"  Profile saved to: {profile_file_isaaclab}")
 
     print("  Done!")
     print()
 
-    # Benchmark Isaac Sim XFormPrimView
-    print("Benchmarking Isaac Sim XFormPrimView...")
+    # Benchmark Isaac Sim XformPrimView
+    print("Benchmarking Isaac Sim XformPrimView...")
     if args_cli.profile:
         profiler_isaacsim = cProfile.Profile()
         profiler_isaacsim.enable()
@@ -398,7 +412,7 @@ def main():
 
     if args_cli.profile:
         profiler_isaacsim.disable()
-        profile_file_isaacsim = f"{args_cli.profile_dir}/isaacsim_xformprimview.prof"
+        profile_file_isaacsim = f"{args_cli.profile_dir}/isaacsim_XformPrimView.prof"
         profiler_isaacsim.dump_stats(profile_file_isaacsim)
         print(f"  Profile saved to: {profile_file_isaacsim}")
 

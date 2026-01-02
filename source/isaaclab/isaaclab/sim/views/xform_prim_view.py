@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
-
+import isaaclab.utils.math as math_utils
 
 class XFormPrimView:
     """Optimized batched interface for reading and writing transforms of multiple USD prims.
@@ -46,7 +47,7 @@ class XFormPrimView:
     """
 
     def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None):
-        """Initialize the XFormPrimView with matching prims.
+        """Initialize the view with matching prims.
 
         This method searches the USD stage for all prims matching the provided path pattern,
         validates that they are Xformable with standard transform operations, and stores
@@ -138,18 +139,18 @@ class XFormPrimView:
                     f"Expected positions shape ({self.count}, 3), got {positions.shape}. "
                     "Number of positions must match the number of prims in the view."
                 )
-            positions_list = positions.tolist() if positions is not None else None
+            positions_array = Vt.Vec3dArray.FromNumpy(positions.cpu().numpy())
         else:
-            positions_list = None
+            positions_array = None
         if orientations is not None:
             if orientations.shape != (self.count, 4):
                 raise ValueError(
                     f"Expected orientations shape ({self.count}, 4), got {orientations.shape}. "
                     "Number of orientations must match the number of prims in the view."
                 )
-            orientations_list = orientations.tolist() if orientations is not None else None
+            orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
         else:
-            orientations_list = None
+            orientations_array = None
 
         # Set poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
@@ -159,38 +160,46 @@ class XFormPrimView:
                 parent_prim = prim.GetParent()
 
                 # Determine what to set
-                world_pos = tuple(positions_list[idx]) if positions_list is not None else None
-                world_quat = tuple(orientations_list[idx]) if orientations_list is not None else None
+                world_pos = positions_array[idx] if positions_array is not None else None
+                world_quat = orientations_array[idx] if orientations_array is not None else None
 
                 # Convert world pose to local if we have a valid parent
                 if parent_prim.IsValid() and parent_prim.GetPath() != Sdf.Path.absoluteRootPath:
                     # Get current world pose if we're only setting one component
-                    if world_pos is None or world_quat is None:
-                        current_pos, current_quat = sim_utils.resolve_prim_pose(prim)
-
-                        if world_pos is None:
-                            world_pos = current_pos
-                        if world_quat is None:
-                            world_quat = current_quat
+                    if positions_array is None or orientations_array is None:
+                        # get prim xform
+                        prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+                        # sanitize quaternion
+                        # this is needed, otherwise the quaternion might be non-normalized
+                        prim_tf.Orthonormalize()
+                        # populate desired world transform
+                        if world_pos is not None:
+                            prim_tf.SetTranslateOnly(world_pos)
+                        if world_quat is not None:
+                            prim_tf.SetRotateOnly(world_quat)
+                    else:
+                        # Both position and orientation are provided, create new transform
+                        prim_tf = Gf.Matrix4d()
+                        prim_tf.SetTranslateOnly(world_pos)
+                        prim_tf.SetRotateOnly(world_quat)
 
                     # Convert to local space
-                    local_pos, local_quat = sim_utils.convert_world_pose_to_local(world_pos, world_quat, parent_prim)
+                    parent_world_tf = UsdGeom.Xformable(parent_prim).ComputeLocalToWorldTransform(
+                        Usd.TimeCode.Default()
+                    )
+                    local_tf = prim_tf * parent_world_tf.GetInverse()
+                    local_pos = local_tf.ExtractTranslation()
+                    local_quat = local_tf.ExtractRotationQuat()
                 else:
                     # No parent or parent is root, world == local
                     local_pos = world_pos
                     local_quat = world_quat
 
                 # Get or create the standard transform operations
-                xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
-                xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
-
-                # set the data
-                xform_ops = [xform_op_translate, xform_op_orient]
-                xform_values = [Gf.Vec3d(*local_pos), Gf.Quatd(*local_quat)]  # type: ignore
-                for xform_op, value in zip(xform_ops, xform_values):
-                    if value is not None:
-                        current_value = xform_op.Get()
-                        xform_op.Set(type(current_value)(value) if current_value is not None else value)
+                if local_pos is not None:
+                    prim.GetAttribute("xformOp:translate").Set(local_pos)
+                if local_quat is not None:
+                    prim.GetAttribute("xformOp:orient").Set(local_quat)
 
     def set_local_poses(
         self, translations: torch.Tensor | None = None, orientations: torch.Tensor | None = None
@@ -221,36 +230,28 @@ class XFormPrimView:
                     f"Expected translations shape ({self.count}, 3), got {translations.shape}. "
                     "Number of translations must match the number of prims in the view."
                 )
-            translations_list = translations.tolist() if translations is not None else None
+            translations_array = Vt.Vec3dArray.FromNumpy(translations.cpu().numpy())
         else:
-            translations_list = None
+            translations_array = None
         if orientations is not None:
             if orientations.shape != (self.count, 4):
                 raise ValueError(
                     f"Expected orientations shape ({self.count}, 4), got {orientations.shape}. "
                     "Number of orientations must match the number of prims in the view."
                 )
-            orientations_list = orientations.tolist() if orientations is not None else None
+            orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
         else:
-            orientations_list = None
+            orientations_array = None
         # Set local poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
             for idx, prim in enumerate(self._prims):
-                local_pos = Gf.Vec3d(*translations_list[idx]) if translations_list is not None else None
-                local_quat = Gf.Quatd(*orientations_list[idx]) if orientations_list is not None else None
-
-                # Get or create the standard transform operations
-                xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
-                xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
-
-                # set the data
-                xform_ops = [xform_op_translate, xform_op_orient]
-                xform_values = [local_pos, local_quat]
-                for xform_op, value in zip(xform_ops, xform_values):
-                    if value is not None:
-                        current_value = xform_op.Get()
-                        xform_op.Set(type(current_value)(value) if current_value is not None else value)
+                if translations_array is not None:
+                    local_pos = translations_array[idx]
+                    prim.GetAttribute("xformOp:translate").Set(local_pos)
+                if orientations_array is not None:
+                    local_quat = orientations_array[idx]
+                    prim.GetAttribute("xformOp:orient").Set(local_quat)
 
     def set_scales(self, scales: torch.Tensor):
         """Set scales for all prims in the view.
@@ -264,15 +265,13 @@ class XFormPrimView:
         if scales.shape != (self.count, 3):
             raise ValueError(f"Expected scales shape ({self.count}, 3), got {scales.shape}.")
 
-        scales_list = scales.tolist()
+        scales_array = Vt.Vec3dArray.FromNumpy(scales.cpu().numpy())
         # Set scales for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
             for idx, prim in enumerate(self._prims):
-                scale = Gf.Vec3d(*scales_list[idx])
-                xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
-                current_value = xform_op_scale.Get()
-                xform_op_scale.Set(type(current_value)(*scale) if current_value is not None else scale)
+                scale = scales_array[idx]
+                prim.GetAttribute("xformOp:scale").Set(scale)
 
     """
     Operations - Getters.
@@ -293,19 +292,25 @@ class XFormPrimView:
             - positions: Torch tensor of shape (N, 3) containing world-space positions (x, y, z)
             - orientations: Torch tensor of shape (N, 4) containing world-space quaternions (w, x, y, z)
         """
-        positions = []
-        orientations = []
+        positions = Vt.Vec3dArray(self.count)
+        orientations = Vt.QuatdArray(self.count)
 
-        for prim in self._prims:
-            pos, quat = sim_utils.resolve_prim_pose(prim)
-            positions.append(pos)
-            orientations.append(quat)
+        for idx, prim in enumerate(self._prims):
+            # get prim xform
+            prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            # sanitize quaternion
+            # this is needed, otherwise the quaternion might be non-normalized
+            prim_tf.Orthonormalize()
+            # extract position and orientation
+            positions[idx] = prim_tf.ExtractTranslation()
+            orientations[idx] = prim_tf.ExtractRotationQuat()
 
-        # Convert to tensors
-        positions_tensor = torch.tensor(positions, dtype=torch.float32, device=self._device)
-        orientations_tensor = torch.tensor(orientations, dtype=torch.float32, device=self._device)
+        # move to torch tensors
+        positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
+        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        orientations = math_utils.convert_quat(orientations, to="wxyz")
 
-        return positions_tensor, orientations_tensor
+        return positions, orientations
 
     def get_local_poses(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get local-space poses for all prims in the view.
@@ -322,19 +327,25 @@ class XFormPrimView:
             - translations: Torch tensor of shape (N, 3) containing local-space translations (x, y, z)
             - orientations: Torch tensor of shape (N, 4) containing local-space quaternions (w, x, y, z)
         """
-        translations = []
-        orientations = []
+        translations = Vt.Vec3dArray(self.count)
+        orientations = Vt.QuatdArray(self.count)
 
-        for prim in self._prims:
-            local_pos, local_quat = sim_utils.resolve_prim_pose(prim, ref_prim=prim.GetParent())
-            translations.append(local_pos)
-            orientations.append(local_quat)
+        for idx, prim in enumerate(self._prims):
+            # get prim xform
+            prim_tf = UsdGeom.Xformable(prim).GetLocalTransformation(Usd.TimeCode.Default())
+            # sanitize quaternion
+            # this is needed, otherwise the quaternion might be non-normalized
+            prim_tf.Orthonormalize()
+            # extract position and orientation
+            translations[idx] = prim_tf.ExtractTranslation()
+            orientations[idx] = prim_tf.ExtractRotationQuat()
 
-        # Convert to tensors
-        translations_tensor = torch.tensor(translations, dtype=torch.float32, device=self._device)
-        orientations_tensor = torch.tensor(orientations, dtype=torch.float32, device=self._device)
+        # move to torch tensors
+        translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
+        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        orientations = math_utils.convert_quat(orientations, to="wxyz")
 
-        return translations_tensor, orientations_tensor
+        return translations, orientations
 
     def get_scales(self) -> torch.Tensor:
         """Get scales for all prims in the view.
@@ -344,11 +355,11 @@ class XFormPrimView:
         Returns:
             A tensor of shape (N, 3) containing the scales of each prim.
         """
-        scales = []
-        for prim in self._prims:
-            scale = sim_utils.resolve_prim_scale(prim)
-            scales.append(scale)
+        scales = Vt.Vec3dArray(self.count)
+
+        for idx, prim in enumerate(self._prims):
+            scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
         # Convert to tensor
-        scales_tensor = torch.tensor(scales, dtype=torch.float32, device=self._device)
-        return scales_tensor
+        scales = torch.tensor(np.array(scales), dtype=torch.float32, device=self._device)
+        return scales
