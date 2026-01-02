@@ -10,13 +10,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script comparing Isaac Lab's XformPrimView against Isaac Sim's XformPrimView.
+"""Benchmark script comparing XformPrimView implementations across different APIs.
 
-This script tests the performance of batched transform operations using either
-Isaac Lab's implementation or Isaac Sim's implementation.
+This script tests the performance of batched transform operations using:
+- Isaac Lab's XformPrimView implementation
+- Isaac Sim's XformPrimView implementation (legacy)
+- Isaac Sim Experimental's XformPrim implementation (latest)
 
 Usage:
-    # Basic benchmark
+    # Basic benchmark (all APIs)
     ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0 --headless
 
     # With profiling enabled (for snakeviz visualization)
@@ -25,6 +27,7 @@ Usage:
     # Then visualize with snakeviz:
     snakeviz profile_results/isaaclab_XformPrimView.prof
     snakeviz profile_results/isaacsim_XformPrimView.prof
+    snakeviz profile_results/isaacsim_experimental_XformPrim.prof
 """
 
 from __future__ import annotations
@@ -68,11 +71,12 @@ import time
 import torch
 from typing import Literal
 
+from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
 from isaacsim.core.utils.extensions import enable_extension
 
 # compare against latest Isaac Sim implementation
 enable_extension("isaacsim.core.experimental.prims")
-from isaacsim.core.experimental.prims import XformPrim as IsaacSimXformPrimView
+from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
@@ -80,12 +84,12 @@ from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
 
 @torch.no_grad()
 def benchmark_xform_prim_view(
-    api: Literal["isaaclab", "isaacsim"], num_iterations: int
+    api: Literal["isaaclab", "isaacsim", "isaacsim-exp"], num_iterations: int
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
-    """Benchmark the Xform view class from either Isaac Lab or Isaac Sim.
+    """Benchmark the Xform view class from Isaac Lab, Isaac Sim, or Isaac Sim Experimental.
 
     Args:
-        api: Which API to benchmark ("isaaclab" or "isaacsim").
+        api: Which API to benchmark ("isaaclab", "isaacsim", or "isaacsim-exp").
         num_iterations: Number of iterations to run.
 
     Returns:
@@ -123,18 +127,20 @@ def benchmark_xform_prim_view(
     # Create view
     start_time = time.perf_counter()
     if api == "isaaclab":
-        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device)
+        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
     elif api == "isaacsim":
-        xform_view = IsaacSimXformPrimView(pattern)
+        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False)
+    elif api == "isaacsim-exp":
+        xform_view = IsaacSimExperimentalXformPrimView(pattern)
     else:
         raise ValueError(f"Invalid API: {api}")
     timing_results["init"] = time.perf_counter() - start_time
 
-    if api == "isaaclab":
+    if api in ("isaaclab", "isaacsim"):
         num_prims = xform_view.count
-    elif api == "isaacsim":
+    elif api == "isaacsim-exp":
         num_prims = len(xform_view.prims)
-    print(f"  XformPrimView managing {num_prims} prims")
+    print(f"  XformView managing {num_prims} prims")
 
     # Benchmark get_world_poses
     start_time = time.perf_counter()
@@ -157,9 +163,9 @@ def benchmark_xform_prim_view(
     new_positions[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api == "isaaclab":
+        if api in ("isaaclab", "isaacsim"):
             xform_view.set_world_poses(new_positions, orientations)
-        elif api == "isaacsim":
+        elif api == "isaacsim-exp":
             xform_view.set_world_poses(new_positions.cpu().numpy(), orientations.cpu().numpy())
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -193,9 +199,9 @@ def benchmark_xform_prim_view(
     new_translations[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api == "isaaclab":
+        if api in ("isaaclab", "isaacsim"):
             xform_view.set_local_poses(new_translations, orientations_local)
-        elif api == "isaacsim":
+        elif api == "isaacsim-exp":
             xform_view.set_local_poses(new_translations.cpu().numpy(), orientations_local.cpu().numpy())
     timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -224,92 +230,108 @@ def benchmark_xform_prim_view(
 
 
 def compare_results(
-    isaaclab_computed: dict[str, torch.Tensor], isaacsim_computed: dict[str, torch.Tensor], tolerance: float = 1e-4
-) -> dict[str, dict[str, float]]:
-    """Compare computed results between Isaac Lab and Isaac Sim implementations.
+    results_dict: dict[str, dict[str, torch.Tensor]], tolerance: float = 1e-4
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Compare computed results across multiple implementations.
 
     Args:
-        isaaclab_computed: Computed values from Isaac Lab's XformPrimView.
-        isaacsim_computed: Computed values from Isaac Sim's XformPrimView.
+        results_dict: Dictionary mapping API names to their computed values.
         tolerance: Tolerance for numerical comparison.
 
     Returns:
-        Dictionary containing comparison statistics (max difference, mean difference, etc.) for each result.
+        Nested dictionary: {comparison_pair: {metric: {stats}}}, e.g.,
+        {"isaaclab_vs_isaacsim": {"initial_world_positions": {"max_diff": 0.001, ...}}}
     """
     comparison_stats = {}
+    api_names = list(results_dict.keys())
 
-    for key in isaaclab_computed.keys():
-        if key not in isaacsim_computed:
-            print(f"  Warning: Key '{key}' not found in Isaac Sim results")
-            continue
+    # Compare each pair of APIs
+    for i, api1 in enumerate(api_names):
+        for api2 in api_names[i + 1 :]:
+            pair_key = f"{api1}_vs_{api2}"
+            comparison_stats[pair_key] = {}
 
-        isaaclab_val = isaaclab_computed[key]
-        isaacsim_val = isaacsim_computed[key]
+            computed1 = results_dict[api1]
+            computed2 = results_dict[api2]
 
-        # Compute differences
-        diff = torch.abs(isaaclab_val - isaacsim_val)
-        max_diff = torch.max(diff).item()
-        mean_diff = torch.mean(diff).item()
+            for key in computed1.keys():
+                if key not in computed2:
+                    print(f"  Warning: Key '{key}' not found in {api2} results")
+                    continue
 
-        # Check if within tolerance
-        all_close = torch.allclose(isaaclab_val, isaacsim_val, atol=tolerance, rtol=0)
+                val1 = computed1[key]
+                val2 = computed2[key]
 
-        comparison_stats[key] = {
-            "max_diff": max_diff,
-            "mean_diff": mean_diff,
-            "all_close": all_close,
-        }
+                # Compute differences
+                diff = torch.abs(val1 - val2)
+                max_diff = torch.max(diff).item()
+                mean_diff = torch.mean(diff).item()
+
+                # Check if within tolerance
+                all_close = torch.allclose(val1, val2, atol=tolerance, rtol=0)
+
+                comparison_stats[pair_key][key] = {
+                    "max_diff": max_diff,
+                    "mean_diff": mean_diff,
+                    "all_close": all_close,
+                }
 
     return comparison_stats
 
 
-def print_comparison_results(comparison_stats: dict[str, dict[str, float]], tolerance: float):
-    """Print comparison results between implementations.
+def print_comparison_results(comparison_stats: dict[str, dict[str, dict[str, float]]], tolerance: float):
+    """Print comparison results across implementations.
 
     Args:
-        comparison_stats: Dictionary containing comparison statistics.
+        comparison_stats: Nested dictionary containing comparison statistics for each API pair.
         tolerance: Tolerance used for comparison.
     """
-    # Check if all results match
-    all_match = all(stats["all_close"] for stats in comparison_stats.values())
+    for pair_key, pair_stats in comparison_stats.items():
+        # Format the pair key for display (e.g., "isaaclab_vs_isaacsim" -> "Isaac Lab vs Isaac Sim")
+        api1, api2 = pair_key.split("_vs_")
+        display_api1 = api1.replace("-", " ").title()
+        display_api2 = api2.replace("-", " ").title()
+        comparison_title = f"{display_api1} vs {display_api2}"
 
-    if all_match:
-        # Compact output when everything matches
-        print("\n" + "=" * 100)
-        print("RESULT COMPARISON: Isaac Lab vs Isaac Sim")
-        print("=" * 100)
-        print(f"✓ All computed values match within tolerance ({tolerance})")
-        print("=" * 100)
-        print()
-    else:
-        # Detailed output when there are mismatches
-        print("\n" + "=" * 100)
-        print("RESULT COMPARISON: Isaac Lab vs Isaac Sim")
-        print("=" * 100)
-        print(f"{'Computed Value':<40} {'Max Diff':<15} {'Mean Diff':<15} {'Match':<10}")
-        print("-" * 100)
+        # Check if all results match
+        all_match = all(stats["all_close"] for stats in pair_stats.values())
 
-        for key, stats in comparison_stats.items():
-            # Format the key for display
-            display_key = key.replace("_", " ").title()
-            match_str = "✓ Yes" if stats["all_close"] else "✗ No"
+        if all_match:
+            # Compact output when everything matches
+            print("\n" + "=" * 100)
+            print(f"RESULT COMPARISON: {comparison_title}")
+            print("=" * 100)
+            print(f"✓ All computed values match within tolerance ({tolerance})")
+            print("=" * 100)
+        else:
+            # Detailed output when there are mismatches
+            print("\n" + "=" * 100)
+            print(f"RESULT COMPARISON: {comparison_title}")
+            print("=" * 100)
+            print(f"{'Computed Value':<40} {'Max Diff':<15} {'Mean Diff':<15} {'Match':<10}")
+            print("-" * 100)
 
-            print(f"{display_key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}")
+            for key, stats in pair_stats.items():
+                # Format the key for display
+                display_key = key.replace("_", " ").title()
+                match_str = "✓ Yes" if stats["all_close"] else "✗ No"
 
-        print("=" * 100)
-        print(f"\n✗ Some results differ beyond tolerance ({tolerance})")
-        print("  This may indicate implementation differences between Isaac Lab and Isaac Sim")
-        print()
+                print(
+                    f"{display_key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}"
+                )
+
+            print("=" * 100)
+            print(f"\n✗ Some results differ beyond tolerance ({tolerance})")
+            print(f"  This may indicate implementation differences between {display_api1} and {display_api2}")
+
+    print()
 
 
-def print_results(
-    isaaclab_results: dict[str, float], isaacsim_results: dict[str, float], num_prims: int, num_iterations: int
-):
+def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num_iterations: int):
     """Print benchmark results in a formatted table.
 
     Args:
-        isaaclab_results: Results from Isaac Lab's XformPrimView benchmark.
-        isaacsim_results: Results from Isaac Sim's XformPrimView benchmark.
+        results_dict: Dictionary mapping API names to their timing results.
         num_prims: Number of prims tested.
         num_iterations: Number of iterations run.
     """
@@ -317,8 +339,18 @@ def print_results(
     print(f"BENCHMARK RESULTS: {num_prims} prims, {num_iterations} iterations")
     print("=" * 100)
 
+    api_names = list(results_dict.keys())
+    # Format API names for display
+    display_names = [name.replace("-", " ").replace("_", " ").title() for name in api_names]
+
+    # Calculate column width based on number of APIs
+    col_width = 20
+
     # Print header
-    print(f"{'Operation':<25} {'Isaac Lab (ms)':<25} {'Isaac Sim (ms)':<25} {'Speedup':<15}")
+    header = f"{'Operation':<25}"
+    for display_name in display_names:
+        header += f" {display_name + ' (ms)':<{col_width}}"
+    print(header)
     print("-" * 100)
 
     # Print each operation
@@ -332,39 +364,74 @@ def print_results(
     ]
 
     for op_name, op_key in operations:
-        isaaclab_time = isaaclab_results.get(op_key, 0) * 1000  # Convert to ms
-        isaacsim_time = isaacsim_results.get(op_key, 0) * 1000  # Convert to ms
-
-        if isaaclab_time > 0 and isaacsim_time > 0:
-            speedup = isaacsim_time / isaaclab_time
-            print(f"{op_name:<25} {isaaclab_time:>20.4f}    {isaacsim_time:>20.4f}    {speedup:>10.2f}x")
-        else:
-            print(f"{op_name:<25} {isaaclab_time:>20.4f}    {'N/A':<20}    {'N/A':<15}")
+        row = f"{op_name:<25}"
+        for api_name in api_names:
+            api_time = results_dict[api_name].get(op_key, 0) * 1000  # Convert to ms
+            row += f" {api_time:>{col_width-1}.4f}"
+        print(row)
 
     print("=" * 100)
 
     # Calculate and print total time
-    if isaaclab_results and isaacsim_results:
-        total_isaaclab = sum(isaaclab_results.values()) * 1000
-        total_isaacsim = sum(isaacsim_results.values()) * 1000
-        overall_speedup = total_isaacsim / total_isaaclab if total_isaaclab > 0 else 0
-        print(f"\n{'Total Time':<25} {total_isaaclab:>20.4f}    {total_isaacsim:>20.4f}    {overall_speedup:>10.2f}x")
-    else:
-        total_isaaclab = sum(isaaclab_results.values()) * 1000
-        print(f"\n{'Total Time':<25} {total_isaaclab:>20.4f}    {'N/A':<20}    {'N/A':<15}")
+    total_row = f"{'Total Time':<25}"
+    for api_name in api_names:
+        total_time = sum(results_dict[api_name].values()) * 1000
+        total_row += f" {total_time:>{col_width-1}.4f}"
+    print(f"\n{total_row}")
 
+    # Calculate speedups relative to Isaac Lab
+    if "isaaclab" in api_names:
+        print("\n" + "=" * 100)
+        print("SPEEDUP vs Isaac Lab")
+        print("=" * 100)
+        print(f"{'Operation':<25}", end="")
+        for display_name in display_names:
+            if "isaaclab" not in display_name.lower():
+                print(f" {display_name + ' Speedup':<{col_width}}", end="")
+        print()
+        print("-" * 100)
+
+        isaaclab_results = results_dict["isaaclab"]
+        for op_name, op_key in operations:
+            print(f"{op_name:<25}", end="")
+            isaaclab_time = isaaclab_results.get(op_key, 0)
+            for api_name, display_name in zip(api_names, display_names):
+                if api_name != "isaaclab":
+                    api_time = results_dict[api_name].get(op_key, 0)
+                    if isaaclab_time > 0 and api_time > 0:
+                        speedup = api_time / isaaclab_time
+                        print(f" {speedup:>{col_width-1}.2f}x", end="")
+                    else:
+                        print(f" {'N/A':>{col_width}}", end="")
+            print()
+
+        # Overall speedup
+        print("=" * 100)
+        print(f"{'Overall Speedup':<25}", end="")
+        total_isaaclab = sum(isaaclab_results.values())
+        for api_name, display_name in zip(api_names, display_names):
+            if api_name != "isaaclab":
+                total_api = sum(results_dict[api_name].values())
+                if total_isaaclab > 0 and total_api > 0:
+                    overall_speedup = total_api / total_isaaclab
+                    print(f" {overall_speedup:>{col_width-1}.2f}x", end="")
+                else:
+                    print(f" {'N/A':>{col_width}}", end="")
+        print()
+
+    print("\n" + "=" * 100)
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
-    print("  - Speedup = (Isaac Sim time) / (Isaac Lab time)")
+    print("  - Speedup = (Other API time) / (Isaac Lab time)")
     print("  - Speedup > 1.0 means Isaac Lab is faster")
-    print("  - Speedup < 1.0 means Isaac Sim is faster")
+    print("  - Speedup < 1.0 means the other API is faster")
     print()
 
 
 def main():
     """Main benchmark function."""
     print("=" * 100)
-    print("XformPrimView Benchmark")
+    print("XformPrimView Benchmark - Comparing Multiple APIs")
     print("=" * 100)
     print("Configuration:")
     print(f"  Number of environments: {args_cli.num_envs}")
@@ -381,50 +448,51 @@ def main():
 
         os.makedirs(args_cli.profile_dir, exist_ok=True)
 
-    # Benchmark Isaac Lab XformPrimView
-    print("Benchmarking XformPrimView from Isaac Lab...")
-    if args_cli.profile:
-        profiler_isaaclab = cProfile.Profile()
-        profiler_isaaclab.enable()
+    # Dictionary to store all results
+    all_timing_results = {}
+    all_computed_results = {}
+    profile_files = {}
 
-    isaaclab_timing, isaaclab_computed = benchmark_xform_prim_view(
-        api="isaaclab", num_iterations=args_cli.num_iterations
-    )
+    # APIs to benchmark
+    apis_to_test = [
+        ("isaaclab", "Isaac Lab XformPrimView"),
+        ("isaacsim", "Isaac Sim XformPrimView (Legacy)"),
+        ("isaacsim-exp", "Isaac Sim Experimental XformPrim"),
+    ]
 
-    if args_cli.profile:
-        profiler_isaaclab.disable()
-        profile_file_isaaclab = f"{args_cli.profile_dir}/isaaclab_XformPrimView.prof"
-        profiler_isaaclab.dump_stats(profile_file_isaaclab)
-        print(f"  Profile saved to: {profile_file_isaaclab}")
+    # Benchmark each API
+    for api_key, api_name in apis_to_test:
+        print(f"Benchmarking {api_name}...")
 
-    print("  Done!")
-    print()
+        if args_cli.profile:
+            profiler = cProfile.Profile()
+            profiler.enable()
 
-    # Benchmark Isaac Sim XformPrimView
-    print("Benchmarking Isaac Sim XformPrimView...")
-    if args_cli.profile:
-        profiler_isaacsim = cProfile.Profile()
-        profiler_isaacsim.enable()
+        # Cast api_key to Literal type for type checker
+        timing, computed = benchmark_xform_prim_view(
+            api=api_key,  # type: ignore[arg-type]
+            num_iterations=args_cli.num_iterations,
+        )
 
-    isaacsim_timing, isaacsim_computed = benchmark_xform_prim_view(
-        api="isaacsim", num_iterations=args_cli.num_iterations
-    )
+        if args_cli.profile:
+            profiler.disable()
+            profile_file = f"{args_cli.profile_dir}/{api_key.replace('-', '_')}_benchmark.prof"
+            profiler.dump_stats(profile_file)
+            profile_files[api_key] = profile_file
+            print(f"  Profile saved to: {profile_file}")
 
-    if args_cli.profile:
-        profiler_isaacsim.disable()
-        profile_file_isaacsim = f"{args_cli.profile_dir}/isaacsim_XformPrimView.prof"
-        profiler_isaacsim.dump_stats(profile_file_isaacsim)
-        print(f"  Profile saved to: {profile_file_isaacsim}")
+        all_timing_results[api_key] = timing
+        all_computed_results[api_key] = computed
 
-    print("  Done!")
-    print()
+        print("  Done!")
+        print()
 
     # Print timing results
-    print_results(isaaclab_timing, isaacsim_timing, args_cli.num_envs, args_cli.num_iterations)
+    print_results(all_timing_results, args_cli.num_envs, args_cli.num_iterations)
 
     # Compare computed results
-    print("\nComparing computed results...")
-    comparison_stats = compare_results(isaaclab_computed, isaacsim_computed, tolerance=1e-6)
+    print("\nComparing computed results across APIs...")
+    comparison_stats = compare_results(all_computed_results, tolerance=1e-6)
     print_comparison_results(comparison_stats, tolerance=1e-4)
 
     # Print profiling instructions if enabled
@@ -433,10 +501,12 @@ def main():
         print("PROFILING RESULTS")
         print("=" * 100)
         print("Profile files have been saved. To visualize with snakeviz, run:")
-        print(f"  snakeviz {profile_file_isaaclab}")
-        print(f"  snakeviz {profile_file_isaacsim}")
+        for api_key, profile_file in profile_files.items():
+            api_display = api_key.replace("-", " ").title()
+            print(f"  # {api_display}")
+            print(f"  snakeviz {profile_file}")
         print("\nAlternatively, use pstats to analyze in terminal:")
-        print(f"  python -m pstats {profile_file_isaaclab}")
+        print("  python -m pstats <profile_file>")
         print("=" * 100)
         print()
 
