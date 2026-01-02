@@ -186,11 +186,11 @@ class XFormPrimView:
 
                 # set the data
                 xform_ops = [xform_op_translate, xform_op_orient]
-                xform_values = [local_pos, local_quat]
+                xform_values = [Gf.Vec3d(*local_pos), Gf.Quatd(*local_quat)]  # type: ignore
                 for xform_op, value in zip(xform_ops, xform_values):
                     if value is not None:
                         current_value = xform_op.Get()
-                        xform_op.Set(type(current_value)(*value) if current_value is not None else value)
+                        xform_op.Set(type(current_value)(value) if current_value is not None else value)
 
     def set_local_poses(
         self, translations: torch.Tensor | None = None, orientations: torch.Tensor | None = None
@@ -250,7 +250,7 @@ class XFormPrimView:
                 for xform_op, value in zip(xform_ops, xform_values):
                     if value is not None:
                         current_value = xform_op.Get()
-                        xform_op.Set(type(current_value)(*value) if current_value is not None else value)
+                        xform_op.Set(type(current_value)(value) if current_value is not None else value)
 
     def set_scales(self, scales: torch.Tensor):
         """Set scales for all prims in the view.
