@@ -65,8 +65,8 @@ class XformPrimView:
                 :func:`isaaclab.sim.utils.find_matching_prims` for pattern syntax.
             device: Device to place the tensors on. Can be ``"cpu"`` or CUDA devices like
                 ``"cuda:0"``. Defaults to ``"cpu"``.
-            stage: USD stage to search for prims. If None, uses the current active stage
-                from the simulation context. Defaults to None.
+            stage: USD stage to search for prims. Defaults to None, in which case the current active stage
+                from the simulation context is used.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
 
@@ -82,6 +82,10 @@ class XformPrimView:
 
         # Find and validate matching prims
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+
+        # Create indices buffer
+        # Since we iterate over the indices, we need to use range instead of torch tensor
+        self._ALL_INDICES = list(range(len(self._prims)))
 
         # Validate all prims have standard xform operations
         if validate_xform_ops:
@@ -125,8 +129,8 @@ class XformPrimView:
     Operations - Setters.
     """
 
-    def set_world_poses(self, positions: torch.Tensor | None = None, orientations: torch.Tensor | None = None) -> None:
-        """Set world-space poses for all prims in the view.
+    def set_world_poses(self, positions: torch.Tensor | None = None, orientations: torch.Tensor | None = None, indices: torch.Tensor | None = None):
+        """Set world-space poses for prims in the view.
 
         This method sets the position and/or orientation of each prim in world space. The world pose
         is computed by considering the prim's parent transforms. If a prim has a parent, this method
@@ -136,31 +140,38 @@ class XformPrimView:
             This operation writes to USD at the default time code. Any animation data will not be affected.
 
         Args:
-            positions: World-space positions as a tensor of shape (N, 3) where N is the number of prims.
-                If None, positions are not modified. Defaults to None.
-            orientations: World-space orientations as quaternions (w, x, y, z) with shape (N, 4).
-                If None, orientations are not modified. Defaults to None.
+            positions: World-space positions as a tensor of shape (M, 3) where M is the number of prims
+                to set (either all prims if indices is None, or the number of indices provided).
+                Defaults to None, in which case positions are not modified.
+            orientations: World-space orientations as quaternions (w, x, y, z) with shape (M, 4).
+                Defaults to None, in which case orientations are not modified.
+            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set
+                for all prims in the view.
 
         Raises:
-            ValueError: If positions shape is not (N, 3) or orientations shape is not (N, 4).
-            ValueError: If the number of poses doesn't match the number of prims in the view.
+            ValueError: If positions shape is not (M, 3) or orientations shape is not (M, 4).
+            ValueError: If the number of poses doesn't match the number of indices provided.
         """
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+
         # Validate inputs
         if positions is not None:
-            if positions.shape != (self.count, 3):
+            if positions.shape != (len(indices_list), 3):
                 raise ValueError(
-                    f"Expected positions shape ({self.count}, 3), got {positions.shape}. "
+                    f"Expected positions shape ({len(indices_list)}, 3), got {positions.shape}. "
                     "Number of positions must match the number of prims in the view."
                 )
             positions_array = Vt.Vec3dArray.FromNumpy(positions.cpu().numpy())
         else:
             positions_array = None
         if orientations is not None:
-            if orientations.shape != (self.count, 4):
+            if orientations.shape != (len(indices_list), 4):
                 raise ValueError(
-                    f"Expected orientations shape ({self.count}, 4), got {orientations.shape}. "
+                    f"Expected orientations shape ({len(indices_list)}, 4), got {orientations.shape}. "
                     "Number of orientations must match the number of prims in the view."
                 )
+            # Vt expects quaternions in xyzw order
             orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
         else:
             orientations_array = None
@@ -168,7 +179,9 @@ class XformPrimView:
         # Set poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx, prim in enumerate(self._prims):
+            for idx in indices_list:
+                # Get prim
+                prim = self._prims[idx]
                 # Get parent prim for local space conversion
                 parent_prim = prim.GetParent()
 
@@ -215,9 +228,9 @@ class XformPrimView:
                     prim.GetAttribute("xformOp:orient").Set(local_quat)
 
     def set_local_poses(
-        self, translations: torch.Tensor | None = None, orientations: torch.Tensor | None = None
+        self, translations: torch.Tensor | None = None, orientations: torch.Tensor | None = None, indices: torch.Tensor | None = None
     ) -> None:
-        """Set local-space poses for all prims in the view.
+        """Set local-space poses for prims in the view.
 
         This method sets the position and/or orientation of each prim in local space (relative to
         their parent prims). This is useful when you want to directly manipulate the prim's transform
@@ -227,71 +240,90 @@ class XformPrimView:
             This operation writes to USD at the default time code. Any animation data will not be affected.
 
         Args:
-            translations: Local-space translations as a tensor of shape (N, 3) where N is the number of prims.
-                If None, translations are not modified. Defaults to None.
-            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (N, 4).
-                If None, orientations are not modified. Defaults to None.
+            translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims
+                to set (either all prims if indices is None, or the number of indices provided).
+                Defaults to None, in which case translations are not modified.
+            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (M, 4).
+                Defaults to None, in which case orientations are not modified.
+            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set
+                for all prims in the view.
 
         Raises:
-            ValueError: If translations shape is not (N, 3) or orientations shape is not (N, 4).
-            ValueError: If the number of poses doesn't match the number of prims in the view.
+            ValueError: If translations shape is not (M, 3) or orientations shape is not (M, 4).
+            ValueError: If the number of poses doesn't match the number of indices provided.
         """
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+
         # Validate inputs
         if translations is not None:
-            if translations.shape != (self.count, 3):
+            if translations.shape != (len(indices_list), 3):
                 raise ValueError(
-                    f"Expected translations shape ({self.count}, 3), got {translations.shape}. "
+                    f"Expected translations shape ({len(indices_list)}, 3), got {translations.shape}. "
                     "Number of translations must match the number of prims in the view."
                 )
             translations_array = Vt.Vec3dArray.FromNumpy(translations.cpu().numpy())
         else:
             translations_array = None
         if orientations is not None:
-            if orientations.shape != (self.count, 4):
+            if orientations.shape != (len(indices_list), 4):
                 raise ValueError(
-                    f"Expected orientations shape ({self.count}, 4), got {orientations.shape}. "
+                    f"Expected orientations shape ({len(indices_list)}, 4), got {orientations.shape}. "
                     "Number of orientations must match the number of prims in the view."
                 )
+            # Vt expects quaternions in xyzw order
             orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
         else:
             orientations_array = None
         # Set local poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx, prim in enumerate(self._prims):
+            for idx in indices_list:
+                # Get prim
+                prim = self._prims[idx]
+                # Set attributes if provided
                 if translations_array is not None:
-                    local_pos = translations_array[idx]
-                    prim.GetAttribute("xformOp:translate").Set(local_pos)
+                    prim.GetAttribute("xformOp:translate").Set(translations_array[idx])
                 if orientations_array is not None:
-                    local_quat = orientations_array[idx]
-                    prim.GetAttribute("xformOp:orient").Set(local_quat)
+                    prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: torch.Tensor):
-        """Set scales for all prims in the view.
+    def set_scales(self, scales: torch.Tensor, indices: torch.Tensor | None = None):
+        """Set scales for prims in the view.
 
         This method sets the scale of each prim in the view.
 
         Args:
-            scales: Scales as a tensor of shape (N, 3) where N is the number of prims.
+            scales: Scales as a tensor of shape (M, 3) where M is the number of prims
+                to set (either all prims if indices is None, or the number of indices provided).
+            indices: Indices of prims to set scales for. Defaults to None, in which case scales are set
+                for all prims in the view.
+
+        Raises:
+            ValueError: If scales shape is not (M, 3).
         """
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+
         # Validate inputs
-        if scales.shape != (self.count, 3):
-            raise ValueError(f"Expected scales shape ({self.count}, 3), got {scales.shape}.")
+        if scales.shape != (len(indices_list), 3):
+            raise ValueError(f"Expected scales shape ({len(indices_list)}, 3), got {scales.shape}.")
 
         scales_array = Vt.Vec3dArray.FromNumpy(scales.cpu().numpy())
         # Set scales for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx, prim in enumerate(self._prims):
-                scale = scales_array[idx]
-                prim.GetAttribute("xformOp:scale").Set(scale)
+            for idx in indices_list:
+                # Get prim
+                prim = self._prims[idx]
+                # Set scale attribute
+                prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
 
     """
     Operations - Getters.
     """
 
-    def get_world_poses(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get world-space poses for all prims in the view.
+    def get_world_poses(self, indices: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get world-space poses for prims in the view.
 
         This method retrieves the position and orientation of each prim in world space by computing
         the full transform hierarchy from the prim to the world root.
@@ -299,16 +331,26 @@ class XformPrimView:
         Note:
             Scale and skew are ignored. The returned poses contain only translation and rotation.
 
+        Args:
+            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
+                for all prims in the view.
+
         Returns:
             A tuple of (positions, orientations) where:
 
-            - positions: Torch tensor of shape (N, 3) containing world-space positions (x, y, z)
-            - orientations: Torch tensor of shape (N, 4) containing world-space quaternions (w, x, y, z)
+            - positions: Torch tensor of shape (M, 3) containing world-space positions (x, y, z),
+              where M is the number of prims queried.
+            - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)
         """
-        positions = Vt.Vec3dArray(self.count)
-        orientations = Vt.QuatdArray(self.count)
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        # Create buffers
+        positions = Vt.Vec3dArray(len(indices_list))
+        orientations = Vt.QuatdArray(len(indices_list))
 
-        for idx, prim in enumerate(self._prims):
+        for idx in indices_list:
+            # Get prim
+            prim = self._prims[idx]
             # get prim xform
             prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
             # sanitize quaternion
@@ -321,12 +363,13 @@ class XformPrimView:
         # move to torch tensors
         positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        # underlying data is in xyzw order, convert to wxyz order
         orientations = math_utils.convert_quat(orientations, to="wxyz")
 
         return positions, orientations  # type: ignore
 
-    def get_local_poses(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get local-space poses for all prims in the view.
+    def get_local_poses(self, indices: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get local-space poses for prims in the view.
 
         This method retrieves the position and orientation of each prim in local space (relative to
         their parent prims). These are the raw transform values stored on each prim.
@@ -334,16 +377,26 @@ class XformPrimView:
         Note:
             Scale is ignored. The returned poses contain only translation and rotation.
 
+        Args:
+            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
+                for all prims in the view.
+
         Returns:
             A tuple of (translations, orientations) where:
 
-            - translations: Torch tensor of shape (N, 3) containing local-space translations (x, y, z)
-            - orientations: Torch tensor of shape (N, 4) containing local-space quaternions (w, x, y, z)
+            - translations: Torch tensor of shape (M, 3) containing local-space translations (x, y, z),
+              where M is the number of prims queried.
+            - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)
         """
-        translations = Vt.Vec3dArray(self.count)
-        orientations = Vt.QuatdArray(self.count)
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        # Create buffers
+        translations = Vt.Vec3dArray(len(indices_list))
+        orientations = Vt.QuatdArray(len(indices_list))
 
-        for idx, prim in enumerate(self._prims):
+        for idx in indices_list:
+            # Get prim
+            prim = self._prims[idx]
             # get prim xform
             prim_tf = UsdGeom.Xformable(prim).GetLocalTransformation(Usd.TimeCode.Default())
             # sanitize quaternion
@@ -356,21 +409,31 @@ class XformPrimView:
         # move to torch tensors
         translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        # underlying data is in xyzw order, convert to wxyz order
         orientations = math_utils.convert_quat(orientations, to="wxyz")
 
         return translations, orientations  # type: ignore
 
-    def get_scales(self) -> torch.Tensor:
-        """Get scales for all prims in the view.
+    def get_scales(self, indices: torch.Tensor | None = None) -> torch.Tensor:
+        """Get scales for prims in the view.
 
         This method retrieves the scale of each prim in the view.
 
-        Returns:
-            A tensor of shape (N, 3) containing the scales of each prim.
-        """
-        scales = Vt.Vec3dArray(self.count)
+        Args:
+            indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved
+                for all prims in the view.
 
-        for idx, prim in enumerate(self._prims):
+        Returns:
+            A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.
+        """
+        # Resolve indices
+        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        # Create buffers
+        scales = Vt.Vec3dArray(len(indices_list))
+
+        for idx in indices_list:
+            # Get prim
+            prim = self._prims[idx]
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
         # Convert to tensor
