@@ -300,19 +300,16 @@ def resolve_prim_pose(
     prim_tf = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
     # sanitize quaternion
     # this is needed, otherwise the quaternion might be non-normalized
-    prim_tf = prim_tf.GetOrthonormalized()
+    prim_tf.Orthonormalize()
 
     if ref_prim is not None:
-        # check if ref prim is valid
-        if not ref_prim.IsValid():
-            raise ValueError(f"Ref prim at path '{ref_prim.GetPath().pathString}' is not valid.")
         # if reference prim is the root, we can skip the computation
         if ref_prim.GetPath() != Sdf.Path.absoluteRootPath:
             # get ref prim xform
             ref_xform = UsdGeom.Xformable(ref_prim)
             ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
             # make sure ref tf is orthonormal
-            ref_tf = ref_tf.GetOrthonormalized()
+            ref_tf.Orthonormalize()
             # compute relative transform to get prim in ref frame
             prim_tf = prim_tf * ref_tf.GetInverse()
 
