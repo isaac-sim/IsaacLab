@@ -151,7 +151,6 @@ class TiledCamera(Camera):
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
         self._view = XFormPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
-        self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
