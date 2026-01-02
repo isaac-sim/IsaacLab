@@ -274,13 +274,15 @@ def resolve_prim_pose(
         # check if ref prim is valid
         if not ref_prim.IsValid():
             raise ValueError(f"Ref prim at path '{ref_prim.GetPath().pathString}' is not valid.")
-        # get ref prim xform
-        ref_xform = UsdGeom.Xformable(ref_prim)
-        ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        # make sure ref tf is orthonormal
-        ref_tf = ref_tf.GetOrthonormalized()
-        # compute relative transform to get prim in ref frame
-        prim_tf = prim_tf * ref_tf.GetInverse()
+        # if reference prim is the root, we can skip the computation
+        if ref_prim.GetPath() != Sdf.Path.absoluteRootPath:
+            # get ref prim xform
+            ref_xform = UsdGeom.Xformable(ref_prim)
+            ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            # make sure ref tf is orthonormal
+            ref_tf = ref_tf.GetOrthonormalized()
+            # compute relative transform to get prim in ref frame
+            prim_tf = prim_tf * ref_tf.GetInverse()
 
     # extract position and orientation
     prim_pos = [*prim_tf.ExtractTranslation()]
