@@ -379,15 +379,15 @@ def convert_world_pose_to_local(
     ``local_transform = world_transform * inverse(ref_world_transform)``
 
     .. note::
-        If the reference prim is invalid or is the root path, the position and orientation are returned
+        If the reference prim is the root prim ("/"), the position and orientation are returned
         unchanged, as they are already effectively in local/world space.
 
     Args:
         position: The world-space position as (x, y, z).
         orientation: The world-space orientation as quaternion (w, x, y, z). If None, only position is converted
             and None is returned for orientation.
-        ref_prim: The reference USD prim to compute the local transform relative to. If this is invalid or
-            is the root path, the world pose is returned unchanged.
+        ref_prim: The reference USD prim to compute the local transform relative to. If this is
+            the root prim ("/"), the world pose is returned unchanged.
 
     Returns:
         A tuple of (local_translation, local_orientation) where:
@@ -397,7 +397,6 @@ def convert_world_pose_to_local(
 
     Raises:
         ValueError: If the reference prim is not a valid USD prim.
-        ValueError: If the reference prim is not a valid USD Xformable.
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -426,9 +425,6 @@ def convert_world_pose_to_local(
 
     # Check if reference prim is a valid xformable
     ref_xformable = UsdGeom.Xformable(ref_prim)
-    if not ref_xformable:
-        raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not a valid xformable.")
-
     # Get reference prim's world transform
     ref_world_tf = ref_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
 
