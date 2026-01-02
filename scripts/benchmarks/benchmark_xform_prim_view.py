@@ -316,9 +316,7 @@ def print_comparison_results(comparison_stats: dict[str, dict[str, dict[str, flo
                 display_key = key.replace("_", " ").title()
                 match_str = "✓ Yes" if stats["all_close"] else "✗ No"
 
-                print(
-                    f"{display_key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}"
-                )
+                print(f"{display_key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}")
 
             print("=" * 100)
             print(f"\n✗ Some results differ beyond tolerance ({tolerance})")
