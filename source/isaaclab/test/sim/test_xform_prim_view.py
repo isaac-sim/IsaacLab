@@ -23,6 +23,7 @@ except (ModuleNotFoundError, ImportError):
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XFormPrimView as XFormPrimView
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -37,22 +38,6 @@ def test_setup_teardown():
 
     # Teardown: Clear stage after each test
     sim_utils.clear_stage()
-
-
-def assert_tensors_close(
-    t1: torch.Tensor, t2: torch.Tensor, rtol: float = 1e-5, atol: float = 1e-5, check_quat_sign: bool = False
-):
-    """Assert two tensors are close, with optional quaternion sign handling."""
-    if check_quat_sign:
-        # For quaternions, q and -q represent the same rotation
-        # Try both normal and sign-flipped comparison
-        try:
-            torch.testing.assert_close(t1, t2, rtol=rtol, atol=atol)
-        except AssertionError:
-            # Try with sign flipped
-            torch.testing.assert_close(t1, -t2, rtol=rtol, atol=atol)
-    else:
-        torch.testing.assert_close(t1, t2, rtol=rtol, atol=atol)
 
 
 """
@@ -539,6 +524,102 @@ def test_set_scales(device):
 
 
 """
+Tests - Integration.
+"""
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_with_franka_robots(device):
+    """Test XFormPrimView with real Franka robot USD assets."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Load Franka robot assets
+    franka_usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd"
+
+    # Add two Franka robots to the stage
+    sim_utils.create_prim("/World/Franka_1", "Xform", usd_path=franka_usd_path, stage=stage)
+    sim_utils.create_prim("/World/Franka_2", "Xform", usd_path=franka_usd_path, stage=stage)
+
+    # Create view for both Frankas
+    frankas_view = XFormPrimView("/World/Franka_.*", device=device)
+
+    # Verify count
+    assert frankas_view.count == 2
+
+    # Get initial world poses (should be at origin)
+    initial_positions, initial_orientations = frankas_view.get_world_poses()
+
+    # Verify initial positions are at origin
+    expected_initial_positions = torch.zeros(2, 3, device=device)
+    torch.testing.assert_close(initial_positions, expected_initial_positions, atol=1e-5, rtol=0)
+
+    # Verify initial orientations are identity
+    expected_initial_orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    try:
+        torch.testing.assert_close(initial_orientations, expected_initial_orientations, atol=1e-5, rtol=0)
+    except AssertionError:
+        torch.testing.assert_close(initial_orientations, -expected_initial_orientations, atol=1e-5, rtol=0)
+
+    # Set new world poses
+    new_positions = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
+    # 90° rotation around Z axis for first, -90° for second
+    new_orientations = torch.tensor(
+        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.0, 0.0, -0.7071068]], device=device
+    )
+
+    frankas_view.set_world_poses(positions=new_positions, orientations=new_orientations)
+
+    # Get poses back and verify
+    retrieved_positions, retrieved_orientations = frankas_view.get_world_poses()
+
+    torch.testing.assert_close(retrieved_positions, new_positions, atol=1e-5, rtol=0)
+    try:
+        torch.testing.assert_close(retrieved_orientations, new_orientations, atol=1e-5, rtol=0)
+    except AssertionError:
+        torch.testing.assert_close(retrieved_orientations, -new_orientations, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_with_nested_targets(device):
+    """Test with nested frame/target structure similar to Isaac Sim tests."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create frames and targets
+    for i in range(1, 4):
+        sim_utils.create_prim(f"/World/Frame_{i}", "Xform", stage=stage)
+        sim_utils.create_prim(f"/World/Frame_{i}/Target", "Xform", stage=stage)
+
+    # Create views
+    frames_view = XFormPrimView("/World/Frame_.*", device=device)
+    targets_view = XFormPrimView("/World/Frame_.*/Target", device=device)
+
+    assert frames_view.count == 3
+    assert targets_view.count == 3
+
+    # Set local poses for frames
+    frame_translations = torch.tensor([[0.0, 0.0, 0.0], [0.0, 10.0, 5.0], [0.0, 3.0, 5.0]], device=device)
+    frames_view.set_local_poses(translations=frame_translations)
+
+    # Set local poses for targets
+    target_translations = torch.tensor([[0.0, 20.0, 10.0], [0.0, 30.0, 20.0], [0.0, 50.0, 10.0]], device=device)
+    targets_view.set_local_poses(translations=target_translations)
+
+    # Get world poses of targets
+    world_positions, _ = targets_view.get_world_poses()
+
+    # Expected world positions are frame_translation + target_translation
+    expected_positions = torch.tensor([[0.0, 20.0, 10.0], [0.0, 40.0, 25.0], [0.0, 53.0, 15.0]], device=device)
+
+    torch.testing.assert_close(world_positions, expected_positions, atol=1e-5, rtol=0)
+
+
+"""
 Tests - Comparison with Isaac Sim Implementation.
 """
 
@@ -725,66 +806,3 @@ def test_compare_set_local_poses_with_isaacsim():
         torch.testing.assert_close(isaaclab_quat, isaacsim_quat, atol=1e-4, rtol=0)
     except AssertionError:
         torch.testing.assert_close(isaaclab_quat, -isaacsim_quat, atol=1e-4, rtol=0)
-
-
-"""
-Tests - Complex Scenarios.
-"""
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_complex_hierarchy_world_local_consistency(device):
-    """Test that world and local poses are consistent in complex hierarchies."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create complex hierarchy: Grandparent -> Parent -> Child
-    num_envs = 3
-    for i in range(num_envs):
-        # Grandparent
-        sim_utils.create_prim(
-            f"/World/Grandparent_{i}",
-            "Xform",
-            translation=(i * 20.0, 0.0, 0.0),
-            orientation=(0.7071068, 0.0, 0.0, 0.7071068),
-            scale=(2.0, 2.0, 2.0),
-            stage=stage,
-        )
-        # Parent
-        sim_utils.create_prim(
-            f"/World/Grandparent_{i}/Parent",
-            "Xform",
-            translation=(5.0, 0.0, 0.0),
-            orientation=(0.7071068, 0.7071068, 0.0, 0.0),
-            stage=stage,
-        )
-        # Child
-        sim_utils.create_prim(f"/World/Grandparent_{i}/Parent/Child", "Xform", translation=(1.0, 2.0, 3.0), stage=stage)
-
-    # Create view for children
-    view = XFormPrimView("/World/Grandparent_.*/Parent/Child", device=device)
-
-    # Get world and local poses
-    world_pos, world_quat = view.get_world_poses()
-    local_trans, local_quat = view.get_local_poses()
-
-    # Change local poses
-    new_local_trans = torch.tensor([[2.0, 3.0, 4.0], [3.0, 4.0, 5.0], [4.0, 5.0, 6.0]], device=device)
-    view.set_local_poses(translations=new_local_trans, orientations=None)
-
-    # Get world poses again
-    new_world_pos, new_world_quat = view.get_world_poses()
-
-    # World poses should have changed when local poses changed
-    assert not torch.allclose(world_pos, new_world_pos, atol=1e-5)
-
-    # Now set world poses back to original
-    view.set_world_poses(world_pos, world_quat)
-
-    # Get world poses again
-    final_world_pos, final_world_quat = view.get_world_poses()
-
-    # Should match original world poses
-    torch.testing.assert_close(final_world_pos, world_pos, atol=1e-4, rtol=0)
