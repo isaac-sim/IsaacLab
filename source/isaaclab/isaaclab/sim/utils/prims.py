@@ -11,6 +11,7 @@ import functools
 import inspect
 import logging
 import re
+import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +21,7 @@ import omni.usd
 import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import get_isaac_sim_version
@@ -28,6 +29,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
 from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
+from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
@@ -44,10 +46,10 @@ General Utils
 def create_prim(
     prim_path: str,
     prim_type: str = "Xform",
-    position: Sequence[float] | None = None,
-    translation: Sequence[float] | None = None,
-    orientation: Sequence[float] | None = None,
-    scale: Sequence[float] | None = None,
+    position: Any | None = None,
+    translation: Any | None = None,
+    orientation: Any | None = None,
+    scale: Any | None = None,
     usd_path: str | None = None,
     semantic_label: str | None = None,
     semantic_type: str = "class",
@@ -57,40 +59,85 @@ def create_prim(
     """Creates a prim in the provided USD stage.
 
     The method applies the specified transforms, the semantic label and sets the specified attributes.
+    The transform can be specified either in world space (using ``position``) or local space (using
+    ``translation``).
+
+    The function determines the coordinate system of the transform based on the provided arguments.
+
+    * If ``position`` is provided, it is assumed the orientation is provided in the world frame as well.
+    * If ``translation`` is provided, it is assumed the orientation is provided in the local frame as well.
+
+    The scale is always applied in the local frame.
+
+    The function handles various sequence types (list, tuple, numpy array, torch tensor)
+    and converts them to properly-typed tuples for operations on the prim.
+
+    .. note::
+        Transform operations are standardized to the USD convention: translate, orient (quaternion),
+        and scale, in that order. See :func:`standardize_xform_ops` for more details.
 
     Args:
-        prim_path: The path of the new prim.
-        prim_type: Prim type name
-        position: prim position (applied last)
-        translation: prim translation (applied last)
-        orientation: prim rotation as quaternion
-        scale: scaling factor in x, y, z.
-        usd_path: Path to the USD that this prim will reference.
-        semantic_label: Semantic label.
-        semantic_type: set to "class" unless otherwise specified.
-        attributes: Key-value pairs of prim attributes to set.
-        stage: The stage to create the prim in. Defaults to None, in which case the current stage is used.
+        prim_path:
+            The path of the new prim.
+        prim_type:
+            Prim type name. Defaults to "Xform", in which case a simple Xform prim is created.
+        position:
+            Prim position in world space as (x, y, z). If the prim has a parent, this is
+            automatically converted to local space relative to the parent. Cannot be used with
+            ``translation``. Defaults to None, in which case no position is applied.
+        translation:
+            Prim translation in local space as (x, y, z). This is applied directly without
+            any coordinate transformation. Cannot be used with ``position``. Defaults to None,
+            in which case no translation is applied.
+        orientation:
+            Prim rotation as a quaternion (w, x, y, z). When used with ``position``, the
+            orientation is also converted from world space to local space. When used with ``translation``,
+            it is applied directly as local orientation. Defaults to None.
+        scale:
+            Scaling factor in x, y, z. Applied in local space. Defaults to None,
+            in which case a uniform scale of 1.0 is applied.
+        usd_path:
+            Path to the USD file that this prim will reference. Defaults to None.
+        semantic_label:
+            Semantic label to apply to the prim. Defaults to None, in which case no label is added.
+        semantic_type:
+            Semantic type for the label. Defaults to "class".
+        attributes:
+            Key-value pairs of prim attributes to set. Defaults to None, in which case no attributes are set.
+        stage:
+            The stage to create the prim in. Defaults to None, in which case the current stage is used.
 
     Returns:
         The created USD prim.
 
     Raises:
-        ValueError: If there is already a prim at the provided prim_path.
+        ValueError: If there is already a prim at the provided prim path.
+        ValueError: If both position and translation are provided.
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> # create a cube (/World/Cube) of size 2 centered at (1.0, 0.5, 0.0)
+        >>> # Create a cube at world position (1.0, 0.5, 0.0)
         >>> sim_utils.create_prim(
-        ...     prim_path="/World/Cube",
+        ...     prim_path="/World/Parent/Cube",
         ...     prim_type="Cube",
         ...     position=(1.0, 0.5, 0.0),
         ...     attributes={"size": 2.0}
         ... )
-        Usd.Prim(</World/Cube>)
+        Usd.Prim(</World/Parent/Cube>)
+        >>>
+        >>> # Create a sphere with local translation relative to its parent
+        >>> sim_utils.create_prim(
+        ...     prim_path="/World/Parent/Sphere",
+        ...     prim_type="Sphere",
+        ...     translation=(0.5, 0.0, 0.0),
+        ...     scale=(2.0, 2.0, 2.0)
+        ... )
+        Usd.Prim(</World/Parent/Sphere>)
     """
-    # Note: Imported here to prevent cyclic dependency in the module.
-    from isaacsim.core.prims import XFormPrim
+    # Ensure that user doesn't provide both position and translation
+    if position is not None and translation is not None:
+        raise ValueError("Cannot provide both position and translation. Please provide only one.")
 
     # obtain stage handle
     stage = get_current_stage() if stage is None else stage
@@ -114,26 +161,20 @@ def create_prim(
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
-    # apply the transformations
-    from isaacsim.core.api.simulation_context.simulation_context import SimulationContext
+    # convert input arguments to tuples
+    position = _to_tuple(position) if position is not None else None
+    translation = _to_tuple(translation) if translation is not None else None
+    orientation = _to_tuple(orientation) if orientation is not None else None
+    scale = _to_tuple(scale) if scale is not None else None
 
-    if SimulationContext.instance() is None:
-        # FIXME: remove this, we should never even use backend utils  especially not numpy ones
-        import isaacsim.core.utils.numpy as backend_utils
-
-        device = "cpu"
-    else:
-        backend_utils = SimulationContext.instance().backend_utils
-        device = SimulationContext.instance().device
+    # convert position and orientation to translation and orientation
+    # world --> local
     if position is not None:
-        position = backend_utils.expand_dims(backend_utils.convert(position, device), 0)
-    if translation is not None:
-        translation = backend_utils.expand_dims(backend_utils.convert(translation, device), 0)
-    if orientation is not None:
-        orientation = backend_utils.expand_dims(backend_utils.convert(orientation, device), 0)
-    if scale is not None:
-        scale = backend_utils.expand_dims(backend_utils.convert(scale, device), 0)
-    XFormPrim(prim_path, positions=position, translations=translation, orientations=orientation, scales=scale)
+        # this means that user provided pose in the world frame
+        translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
+
+    # standardize the xform ops
+    standardize_xform_ops(prim, translation, orientation, scale)
 
     return prim
 
@@ -156,6 +197,12 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         prim_path = [prim_path]
     # get stage handle
     stage = get_current_stage() if stage is None else stage
+    # the prim command looks for the stage ID in the stage cache
+    # so we need to ensure the stage is cached
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_id = stage_cache.GetId(stage).ToLongInt()
+    if stage_id < 0:
+        stage_id = stage_cache.Insert(stage).ToLongInt()
     # delete prims
     DeletePrimsCommand(prim_path, stage=stage).do()
 
@@ -238,97 +285,6 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             child_prim.SetInstanceable(False)
         # add children to list
         all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-
-
-def resolve_prim_pose(
-    prim: Usd.Prim, ref_prim: Usd.Prim | None = None
-) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
-    """Resolve the pose of a prim with respect to another prim.
-
-    Note:
-        This function ignores scale and skew by orthonormalizing the transformation
-        matrix at the final step. However, if any ancestor prim in the hierarchy
-        has non-uniform scale, that scale will still affect the resulting position
-        and orientation of the prim (because it's baked into the transform before
-        scale removal).
-
-        In other words: scale **is not removed hierarchically**. If you need
-        completely scale-free poses, you must walk the transform chain and strip
-        scale at each level. Please open an issue if you need this functionality.
-
-    Args:
-        prim: The USD prim to resolve the pose for.
-        ref_prim: The USD prim to compute the pose with respect to.
-            Defaults to None, in which case the world frame is used.
-
-    Returns:
-        A tuple containing the position (as a 3D vector) and the quaternion orientation
-        in the (w, x, y, z) format.
-
-    Raises:
-        ValueError: If the prim or ref prim is not valid.
-    """
-    # check if prim is valid
-    if not prim.IsValid():
-        raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
-    # get prim xform
-    xform = UsdGeom.Xformable(prim)
-    prim_tf = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    # sanitize quaternion
-    # this is needed, otherwise the quaternion might be non-normalized
-    prim_tf = prim_tf.GetOrthonormalized()
-
-    if ref_prim is not None:
-        # check if ref prim is valid
-        if not ref_prim.IsValid():
-            raise ValueError(f"Ref prim at path '{ref_prim.GetPath().pathString}' is not valid.")
-        # get ref prim xform
-        ref_xform = UsdGeom.Xformable(ref_prim)
-        ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        # make sure ref tf is orthonormal
-        ref_tf = ref_tf.GetOrthonormalized()
-        # compute relative transform to get prim in ref frame
-        prim_tf = prim_tf * ref_tf.GetInverse()
-
-    # extract position and orientation
-    prim_pos = [*prim_tf.ExtractTranslation()]
-    prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
-    return tuple(prim_pos), tuple(prim_quat)
-
-
-def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
-    """Resolve the scale of a prim in the world frame.
-
-    At an attribute level, a USD prim's scale is a scaling transformation applied to the prim with
-    respect to its parent prim. This function resolves the scale of the prim in the world frame,
-    by computing the local to world transform of the prim. This is equivalent to traversing up
-    the prim hierarchy and accounting for the rotations and scales of the prims.
-
-    For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),
-    then the scale of the prim in the world frame is (4, 10, 18).
-
-    Args:
-        prim: The USD prim to resolve the scale for.
-
-    Returns:
-        The scale of the prim in the x, y, and z directions in the world frame.
-
-    Raises:
-        ValueError: If the prim is not valid.
-    """
-    # check if prim is valid
-    if not prim.IsValid():
-        raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
-    # compute local to world transform
-    xform = UsdGeom.Xformable(prim)
-    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    # extract scale
-    return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
-
-
-"""
-Attribute - Setters.
-"""
 
 
 def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
@@ -921,6 +877,9 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
 
     Returns:
         A list of USD reference paths.
+
+    Raises:
+        ValueError: If the prim at the specified path is not valid.
     """
     # get stage handle
     stage = get_current_stage() if stage is None else stage
@@ -931,7 +890,8 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
     # get USD references
     references = []
     for prim_spec in prim.GetPrimStack():
-        references.extend(prim_spec.referenceList.prependedItems.assetPath)
+        for ref in prim_spec.referenceList.prependedItems:
+            references.append(str(ref.assetPath))
     return references
 
 
@@ -1008,3 +968,59 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
+
+
+"""
+Internal Helpers.
+"""
+
+
+def _to_tuple(value: Any) -> tuple[float, ...]:
+    """Convert various sequence types to a Python tuple of floats.
+
+    This function provides robust conversion from different array-like types (list, tuple, numpy array,
+    torch tensor) to Python tuples. It handles edge cases like malformed sequences, CUDA tensors,
+    and arrays with singleton dimensions.
+
+    Args:
+        value: A sequence-like object containing floats. Supported types include:
+            - Python list or tuple
+            - NumPy array (any device)
+            - PyTorch tensor (CPU or CUDA)
+            - Mixed sequences with numpy/torch scalar items and float values
+
+    Returns:
+        A one-dimensional tuple of floats.
+
+    Raises:
+        ValueError: If the input value is not one-dimensional after squeezing singleton dimensions.
+
+    Example:
+        >>> import torch
+        >>> import numpy as np
+        >>>
+        >>> _to_tuple([1.0, 2.0, 3.0])
+        (1.0, 2.0, 3.0)
+        >>> _to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
+        (1.0, 2.0)
+        >>> _to_tuple(np.array([1.0, 2.0, 3.0]))
+        (1.0, 2.0, 3.0)
+        >>> _to_tuple((1.0, 2.0, 3.0))
+        (1.0, 2.0, 3.0)
+
+    """
+    # Normalize to tensor if value is a plain sequence (list with mixed types, etc.)
+    # This handles cases like [np.float32(1.0), 2.0, torch.tensor(3.0)]
+    if not hasattr(value, "tolist"):
+        value = torch.tensor(value, device="cpu", dtype=torch.float)
+
+    # Remove leading singleton dimension if present (e.g., shape (1, 3) -> (3,))
+    # This is common when batched operations produce single-item batches
+    if value.ndim != 1:
+        value = value.squeeze()
+    # Validate that the result is one-dimensional
+    if value.ndim != 1:
+        raise ValueError(f"Input value is not one dimensional: {value.shape}")
+
+    # Convert to tuple - works for both numpy arrays and torch tensors
+    return tuple(value.tolist())

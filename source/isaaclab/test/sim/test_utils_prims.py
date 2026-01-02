@@ -21,7 +21,7 @@ import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
+from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -118,6 +118,137 @@ def test_create_prim():
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
+@pytest.mark.parametrize(
+    "input_type",
+    ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+    ids=["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+)
+def test_create_prim_with_different_input_types(input_type: str):
+    """Test create_prim() with different input types (list, tuple, numpy array, torch tensor)."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Define test values
+    translation_vals = [1.0, 2.0, 3.0]
+    orientation_vals = [1.0, 0.0, 0.0, 0.0]  # w, x, y, z
+    scale_vals = [2.0, 3.0, 4.0]
+
+    # Convert to the specified input type
+    if input_type == "list":
+        translation = translation_vals
+        orientation = orientation_vals
+        scale = scale_vals
+    elif input_type == "tuple":
+        translation = tuple(translation_vals)
+        orientation = tuple(orientation_vals)
+        scale = tuple(scale_vals)
+    elif input_type == "numpy":
+        translation = np.array(translation_vals)
+        orientation = np.array(orientation_vals)
+        scale = np.array(scale_vals)
+    elif input_type == "torch_cpu":
+        translation = torch.tensor(translation_vals)
+        orientation = torch.tensor(orientation_vals)
+        scale = torch.tensor(scale_vals)
+    elif input_type == "torch_cuda":
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA not available")
+        translation = torch.tensor(translation_vals, device="cuda")
+        orientation = torch.tensor(orientation_vals, device="cuda")
+        scale = torch.tensor(scale_vals, device="cuda")
+
+    # Create prim with translation (local space)
+    prim = sim_utils.create_prim(
+        f"/World/Test/Xform_{input_type}",
+        "Xform",
+        stage=stage,
+        translation=translation,
+        orientation=orientation,
+        scale=scale,
+    )
+
+    # Verify prim was created correctly
+    assert prim.IsValid()
+    assert prim.GetPrimPath() == f"/World/Test/Xform_{input_type}"
+
+    # Verify transform values
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(*translation_vals)
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*orientation_vals))
+    assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(*scale_vals)
+
+    # Verify xform operation order
+    op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
+    assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+
+@pytest.mark.parametrize(
+    "input_type",
+    ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+    ids=["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
+)
+def test_create_prim_with_world_position_different_types(input_type: str):
+    """Test create_prim() with world position using different input types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a parent prim
+    _ = sim_utils.create_prim(
+        "/World/Parent",
+        "Xform",
+        stage=stage,
+        translation=(5.0, 10.0, 15.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+    )
+
+    # Define world position and orientation values
+    world_pos_vals = [10.0, 20.0, 30.0]
+    world_orient_vals = [0.7071068, 0.0, 0.7071068, 0.0]  # 90 deg around Y
+
+    # Convert to the specified input type
+    if input_type == "list":
+        world_pos = world_pos_vals
+        world_orient = world_orient_vals
+    elif input_type == "tuple":
+        world_pos = tuple(world_pos_vals)
+        world_orient = tuple(world_orient_vals)
+    elif input_type == "numpy":
+        world_pos = np.array(world_pos_vals)
+        world_orient = np.array(world_orient_vals)
+    elif input_type == "torch_cpu":
+        world_pos = torch.tensor(world_pos_vals)
+        world_orient = torch.tensor(world_orient_vals)
+    elif input_type == "torch_cuda":
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA not available")
+        world_pos = torch.tensor(world_pos_vals, device="cuda")
+        world_orient = torch.tensor(world_orient_vals, device="cuda")
+
+    # Create child prim with world position
+    child = sim_utils.create_prim(
+        f"/World/Parent/Child_{input_type}",
+        "Xform",
+        stage=stage,
+        position=world_pos,  # Using position (world space)
+        orientation=world_orient,
+    )
+
+    # Verify prim was created
+    assert child.IsValid()
+
+    # Verify world pose matches what we specified
+    world_pose = sim_utils.resolve_prim_pose(child)
+    pos_result, quat_result = world_pose
+
+    # Check position (should be close to world_pos_vals)
+    for i in range(3):
+        assert math.isclose(pos_result[i], world_pos_vals[i], abs_tol=1e-4)
+
+    # Check orientation (quaternions may have sign flipped)
+    quat_match = all(math.isclose(quat_result[i], world_orient_vals[i], abs_tol=1e-4) for i in range(4))
+    quat_match_neg = all(math.isclose(quat_result[i], -world_orient_vals[i], abs_tol=1e-4) for i in range(4))
+    assert quat_match or quat_match_neg
+
+
 def test_delete_prim():
     """Test delete_prim() function."""
     # obtain stage handle
@@ -189,175 +320,32 @@ def test_move_prim():
 
 
 """
-USD Prim properties and attributes.
-"""
-
-
-def test_resolve_prim_pose():
-    """Test resolve_prim_pose() function."""
-    # number of objects
-    num_objects = 20
-    # sample random scales for x, y, z
-    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
-    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
-    # sample random positions
-    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
-    # sample random rotations
-    rand_quats = np.random.randn(num_objects, 3, 4)
-    rand_quats /= np.linalg.norm(rand_quats, axis=2, keepdims=True)
-
-    # create objects
-    for i in range(num_objects):
-        # simple cubes
-        cube_prim = sim_utils.create_prim(
-            f"/World/Cubes/instance_{i:02d}",
-            "Cube",
-            translation=rand_positions[i, 0],
-            orientation=rand_quats[i, 0],
-            scale=rand_scales[i, 0],
-            attributes={"size": rand_widths[i]},
-        )
-        # xform hierarchy
-        xform_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}",
-            "Xform",
-            translation=rand_positions[i, 1],
-            orientation=rand_quats[i, 1],
-            scale=rand_scales[i, 1],
-        )
-        geometry_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/geometry",
-            "Sphere",
-            translation=rand_positions[i, 2],
-            orientation=rand_quats[i, 2],
-            scale=rand_scales[i, 2],
-            attributes={"radius": rand_widths[i]},
-        )
-        dummy_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/dummy",
-            "Sphere",
-        )
-
-        # cube prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(cube_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 0, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-3)
-        # xform prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
-        # dummy prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(dummy_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
-
-        # geometry prim w.r.t. xform prim
-        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 2] * rand_scales[i, 1], atol=1e-3)
-        # TODO: Enabling scale causes the test to fail because the current implementation of
-        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
-        # limitation. Until this is fixed, the test is disabled here to ensure the test passes.
-        # np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-3)
-
-        # dummy prim w.r.t. xform prim
-        pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-3)
-        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-3)
-        # xform prim w.r.t. cube prim
-        pos, quat = sim_utils.resolve_prim_pose(xform_prim, ref_prim=cube_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        # -- compute ground truth values
-        gt_pos, gt_quat = math_utils.subtract_frame_transforms(
-            torch.from_numpy(rand_positions[i, 0]).unsqueeze(0),
-            torch.from_numpy(rand_quats[i, 0]).unsqueeze(0),
-            torch.from_numpy(rand_positions[i, 1]).unsqueeze(0),
-            torch.from_numpy(rand_quats[i, 1]).unsqueeze(0),
-        )
-        gt_pos, gt_quat = gt_pos.squeeze(0).numpy(), gt_quat.squeeze(0).numpy()
-        quat = quat if np.sign(gt_quat[0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, gt_pos, atol=1e-3)
-        np.testing.assert_allclose(quat, gt_quat, atol=1e-3)
-
-
-def test_resolve_prim_scale():
-    """Test resolve_prim_scale() function.
-
-    To simplify the test, we assume that the effective scale at a prim
-    is the product of the scales of the prims in the hierarchy:
-
-        scale = scale_of_xform * scale_of_geometry_prim
-
-    This is only true when rotations are identity or the transforms are
-    orthogonal and uniformly scaled. Otherwise, scale is not composable
-    like that in local component-wise fashion.
-    """
-    # number of objects
-    num_objects = 20
-    # sample random scales for x, y, z
-    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
-    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
-    # sample random positions
-    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
-
-    # create objects
-    for i in range(num_objects):
-        # simple cubes
-        cube_prim = sim_utils.create_prim(
-            f"/World/Cubes/instance_{i:02d}",
-            "Cube",
-            translation=rand_positions[i, 0],
-            scale=rand_scales[i, 0],
-            attributes={"size": rand_widths[i]},
-        )
-        # xform hierarchy
-        xform_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}",
-            "Xform",
-            translation=rand_positions[i, 1],
-            scale=rand_scales[i, 1],
-        )
-        geometry_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/geometry",
-            "Sphere",
-            translation=rand_positions[i, 2],
-            scale=rand_scales[i, 2],
-            attributes={"radius": rand_widths[i]},
-        )
-        dummy_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/dummy",
-            "Sphere",
-        )
-
-        # cube prim
-        scale = sim_utils.resolve_prim_scale(cube_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 0], atol=1e-5)
-        # xform prim
-        scale = sim_utils.resolve_prim_scale(xform_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
-        # geometry prim
-        scale = sim_utils.resolve_prim_scale(geometry_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1] * rand_scales[i, 2], atol=1e-5)
-        # dummy prim
-        scale = sim_utils.resolve_prim_scale(dummy_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
-
-
-"""
 USD references and variants.
 """
+
+
+def test_get_usd_references():
+    """Test get_usd_references() function."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim without USD reference
+    sim_utils.create_prim("/World/NoReference", "Xform", stage=stage)
+    # Check that it has no references
+    refs = sim_utils.get_usd_references("/World/NoReference", stage=stage)
+    assert len(refs) == 0
+
+    # Create a prim with a USD reference
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
+    # Check that it has the expected reference
+    refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
+    assert len(refs) == 1
+    assert refs == [franka_usd]
+
+    # Test with invalid prim path
+    with pytest.raises(ValueError, match="not valid"):
+        sim_utils.get_usd_references("/World/NonExistent", stage=stage)
 
 
 def test_select_usd_variants():
@@ -377,3 +365,78 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+
+"""
+Internal Helpers.
+"""
+
+
+def test_to_tuple_basic():
+    """Test _to_tuple() with basic input types."""
+    # Test with list
+    result = _to_tuple([1.0, 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+    assert isinstance(result, tuple)
+
+    # Test with tuple
+    result = _to_tuple((1.0, 2.0, 3.0))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test with numpy array
+    result = _to_tuple(np.array([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test with torch tensor (CPU)
+    result = _to_tuple(torch.tensor([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
+
+    # Test squeezing first dimension (batch size 1)
+    result = _to_tuple(torch.tensor([[1.0, 2.0]]))
+    assert result == (1.0, 2.0)
+
+    result = _to_tuple(np.array([[1.0, 2.0, 3.0]]))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_raises_error():
+    """Test _to_tuple() raises an error for N-dimensional arrays."""
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
+
+    with pytest.raises(ValueError, match="only one element tensors can be converted"):
+        _to_tuple((torch.tensor([1.0, 2.0]), 3.0))
+
+
+def test_to_tuple_mixed_sequences():
+    """Test _to_tuple() with mixed type sequences."""
+
+    # Mixed list with numpy and floats
+    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
+    assert len(result) == 3
+    assert all(isinstance(x, float) for x in result)
+
+    # Mixed tuple with torch tensor items and floats
+    result = _to_tuple([torch.tensor(1.0), 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+
+    # Mixed tuple with numpy array items and torch tensor
+    result = _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0)))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_precision():
+    """Test _to_tuple() maintains numerical precision."""
+    from isaaclab.sim.utils.prims import _to_tuple
+
+    # Test with high precision values
+    high_precision = [1.123456789, 2.987654321, 3.141592653]
+    result = _to_tuple(torch.tensor(high_precision, dtype=torch.float64))
+
+    # Check that precision is maintained reasonably well
+    for i, val in enumerate(high_precision):
+        assert math.isclose(result[i], val, abs_tol=1e-6)

@@ -282,7 +282,7 @@ def _spawn_geom_from_prim_type(
 
     # spawn geometry if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
+        create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -291,7 +291,7 @@ def _spawn_geom_from_prim_type(
     mesh_prim_path = geom_prim_path + "/mesh"
 
     # create the geometry prim
-    create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
+    create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     # apply collision properties
     if cfg.collision_props is not None:
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
