@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import torch
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 
@@ -24,35 +24,63 @@ class XFormPrimView:
     - **World poses**: Positions and orientations in the global world frame
     - **Local poses**: Positions and orientations relative to each prim's parent
 
-    Note:
-        All prims in the view must be Xformable (support transforms). Non-xformable prims
-        (such as materials or shaders) will raise a ValueError during initialization.
+    .. note::
+        **Performance Considerations:**
 
+        * Tensor operations are performed on the specified device (CPU/CUDA)
+        * USD write operations use ``Sdf.ChangeBlock`` for batched updates
+        * Getting poses involves USD API calls and cannot be fully accelerated on GPU
+        * For maximum performance, minimize get/set operations within tight loops
+
+    .. note::
+        **Transform Requirements:**
+
+        All prims in the view must be Xformable and have standardized transform operations:
+        ``[translate, orient, scale]``. Non-standard prims will raise a ValueError during
+        initialization. Use :func:`isaaclab.sim.utils.standardize_xform_ops` to prepare prims.
+
+    .. warning::
+        This class operates at the USD default time code. Any animation or time-sampled data
+        will not be affected by write operations. For animated transforms, you need to handle
+        time-sampled keyframes separately.
     """
 
     def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None):
         """Initialize the XFormPrimView with matching prims.
 
+        This method searches the USD stage for all prims matching the provided path pattern,
+        validates that they are Xformable with standard transform operations, and stores
+        references for efficient batch operations.
+
         Args:
-            prim_path: USD prim path pattern to match prims.
-            device: Device to place the tensors on. Defaults to "cpu".
-            stage: USD stage to search for prims. If None, uses the current active stage.
+            prim_path: USD prim path pattern to match prims. Supports wildcards (``*``) and
+                regex patterns (e.g., ``"/World/Env_.*/Robot"``). See
+                :func:`isaaclab.sim.utils.find_matching_prims` for pattern syntax.
+            device: Device to place the tensors on. Can be ``"cpu"`` or CUDA devices like
+                ``"cuda:0"``. Defaults to ``"cpu"``.
+            stage: USD stage to search for prims. If None, uses the current active stage
+                from the simulation context. Defaults to None.
 
         Raises:
-            ValueError: If any matched prim is not Xformable.
+            ValueError: If any matched prim is not Xformable or doesn't have standardized
+                transform operations (translate, orient, scale in that order).
         """
         stage = sim_utils.get_current_stage() if stage is None else stage
 
+        # Store configuration
         self._prim_path = prim_path
-        self._prims = sim_utils.find_matching_prims(prim_path)
         self._device = device
 
-        # check all prims are xformable with standard transform operations
+        # Find and validate matching prims
+        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+
+        # Validate all prims have standard xform operations
         for prim in self._prims:
             if not sim_utils.validate_standard_xform_ops(prim):
                 raise ValueError(
                     f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
-                    f" operations. Received type: '{prim.GetTypeName()}'."
+                    f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
+                    " Use sim_utils.standardize_xform_ops() to prepare the prim."
                 )
 
     @property
@@ -63,6 +91,21 @@ class XFormPrimView:
             The number of prims being managed by this view.
         """
         return len(self._prims)
+
+    @property
+    def prim_path(self) -> str:
+        """Prim path pattern used to match prims."""
+        return self._prim_path
+
+    @property
+    def prims(self) -> list[Usd.Prim]:
+        """List of USD prims being managed by this view."""
+        return self._prims
+
+    @property
+    def device(self) -> str:
+        """Device where tensors are allocated (cpu or cuda)."""
+        return self._device
 
     """
     Operations - Setters.
@@ -109,6 +152,7 @@ class XFormPrimView:
             orientations_list = None
 
         # Set poses for each prim
+        # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
             for idx, prim in enumerate(self._prims):
                 # Get parent prim for local space conversion
@@ -190,10 +234,11 @@ class XFormPrimView:
         else:
             orientations_list = None
         # Set local poses for each prim
+        # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
             for idx, prim in enumerate(self._prims):
-                local_pos = tuple(translations_list[idx]) if translations_list is not None else None
-                local_quat = tuple(orientations_list[idx]) if orientations_list is not None else None
+                local_pos = Gf.Vec3d(*translations_list[idx]) if translations_list is not None else None
+                local_quat = Gf.Quatd(*orientations_list[idx]) if orientations_list is not None else None
 
                 # Get or create the standard transform operations
                 xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
@@ -206,6 +251,28 @@ class XFormPrimView:
                     if value is not None:
                         current_value = xform_op.Get()
                         xform_op.Set(type(current_value)(*value) if current_value is not None else value)
+
+    def set_scales(self, scales: torch.Tensor):
+        """Set scales for all prims in the view.
+
+        This method sets the scale of each prim in the view.
+
+        Args:
+            scales: Scales as a tensor of shape (N, 3) where N is the number of prims.
+        """
+        # Validate inputs
+        if scales.shape != (self.count, 3):
+            raise ValueError(f"Expected scales shape ({self.count}, 3), got {scales.shape}.")
+
+        scales_list = scales.tolist()
+        # Set scales for each prim
+        # We use Sdf.ChangeBlock to minimize notification overhead.
+        with Sdf.ChangeBlock():
+            for idx, prim in enumerate(self._prims):
+                scale = Gf.Vec3d(*scales_list[idx])
+                xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
+                current_value = xform_op_scale.Get()
+                xform_op_scale.Set(type(current_value)(*scale) if current_value is not None else scale)
 
     """
     Operations - Getters.
@@ -268,3 +335,20 @@ class XFormPrimView:
         orientations_tensor = torch.tensor(orientations, dtype=torch.float32, device=self._device)
 
         return translations_tensor, orientations_tensor
+
+    def get_scales(self) -> torch.Tensor:
+        """Get scales for all prims in the view.
+
+        This method retrieves the scale of each prim in the view.
+
+        Returns:
+            A tensor of shape (N, 3) containing the scales of each prim.
+        """
+        scales = []
+        for prim in self._prims:
+            scale = sim_utils.resolve_prim_scale(prim)
+            scales.append(scale)
+
+        # Convert to tensor
+        scales_tensor = torch.tensor(scales, dtype=torch.float32, device=self._device)
+        return scales_tensor

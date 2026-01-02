@@ -16,7 +16,15 @@ This script tests the performance of batched transform operations using either
 Isaac Lab's implementation or Isaac Sim's implementation.
 
 Usage:
+    # Basic benchmark
     ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0 --headless
+
+    # With profiling enabled (for snakeviz visualization)
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile --headless
+
+    # Then visualize with snakeviz:
+    snakeviz profile_results/isaaclab_xformprimview.prof
+    snakeviz profile_results/isaacsim_xformprimview.prof
 """
 
 from __future__ import annotations
@@ -34,6 +42,17 @@ parser = argparse.ArgumentParser(description="This script can help you benchmark
 
 parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
+parser.add_argument(
+    "--profile",
+    action="store_true",
+    help="Enable profiling with cProfile. Results saved as .prof files for snakeviz visualization.",
+)
+parser.add_argument(
+    "--profile-dir",
+    type=str,
+    default="./profile_results",
+    help="Directory to save profile results. Default: ./profile_results",
+)
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -44,6 +63,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import cProfile
 import time
 import torch
 from typing import Literal
@@ -51,7 +71,7 @@ from typing import Literal
 from isaacsim.core.prims import XFormPrim as IsaacSimXFormPrimView
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils.xform_prim_view import XFormPrimView as IsaacLabXFormPrimView
+from isaaclab.sim.views import XFormPrimView as IsaacLabXFormPrimView
 
 
 @torch.no_grad()
@@ -77,8 +97,11 @@ def benchmark_xform_prim_view(
     # Clear stage
     sim_utils.create_new_stage()
     # Create simulation context
+    start_time = time.perf_counter()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=args_cli.device))
     stage = sim_utils.get_current_stage()
+
+    print(f"  Time taken to create simulation context: {time.perf_counter() - start_time} seconds")
 
     # Create prims
     prim_paths = []
@@ -333,21 +356,52 @@ def main():
     print(f"  Number of environments: {args_cli.num_envs}")
     print(f"  Iterations per test: {args_cli.num_iterations}")
     print(f"  Device: {args_cli.device}")
+    print(f"  Profiling: {'Enabled' if args_cli.profile else 'Disabled'}")
+    if args_cli.profile:
+        print(f"  Profile directory: {args_cli.profile_dir}")
     print()
 
-    # Benchmark XFormPrimView
+    # Create profile directory if profiling is enabled
+    if args_cli.profile:
+        import os
+
+        os.makedirs(args_cli.profile_dir, exist_ok=True)
+
+    # Benchmark Isaac Lab XFormPrimView
     print("Benchmarking XFormPrimView from Isaac Lab...")
+    if args_cli.profile:
+        profiler_isaaclab = cProfile.Profile()
+        profiler_isaaclab.enable()
+
     isaaclab_timing, isaaclab_computed = benchmark_xform_prim_view(
         api="isaaclab", num_iterations=args_cli.num_iterations
     )
+
+    if args_cli.profile:
+        profiler_isaaclab.disable()
+        profile_file_isaaclab = f"{args_cli.profile_dir}/isaaclab_xformprimview.prof"
+        profiler_isaaclab.dump_stats(profile_file_isaaclab)
+        print(f"  Profile saved to: {profile_file_isaaclab}")
+
     print("  Done!")
     print()
 
     # Benchmark Isaac Sim XFormPrimView
     print("Benchmarking Isaac Sim XFormPrimView...")
+    if args_cli.profile:
+        profiler_isaacsim = cProfile.Profile()
+        profiler_isaacsim.enable()
+
     isaacsim_timing, isaacsim_computed = benchmark_xform_prim_view(
         api="isaacsim", num_iterations=args_cli.num_iterations
     )
+
+    if args_cli.profile:
+        profiler_isaacsim.disable()
+        profile_file_isaacsim = f"{args_cli.profile_dir}/isaacsim_xformprimview.prof"
+        profiler_isaacsim.dump_stats(profile_file_isaacsim)
+        print(f"  Profile saved to: {profile_file_isaacsim}")
+
     print("  Done!")
     print()
 
@@ -358,6 +412,19 @@ def main():
     print("\nComparing computed results...")
     comparison_stats = compare_results(isaaclab_computed, isaacsim_computed, tolerance=1e-6)
     print_comparison_results(comparison_stats, tolerance=1e-4)
+
+    # Print profiling instructions if enabled
+    if args_cli.profile:
+        print("\n" + "=" * 100)
+        print("PROFILING RESULTS")
+        print("=" * 100)
+        print("Profile files have been saved. To visualize with snakeviz, run:")
+        print(f"  snakeviz {profile_file_isaaclab}")
+        print(f"  snakeviz {profile_file_isaacsim}")
+        print("\nAlternatively, use pstats to analyze in terminal:")
+        print(f"  python -m pstats {profile_file_isaaclab}")
+        print("=" * 100)
+        print()
 
     # Clean up
     sim_utils.SimulationContext.clear_instance()
