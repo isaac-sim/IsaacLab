@@ -1054,6 +1054,220 @@ def test_resolve_prim_pose():
         np.testing.assert_allclose(quat, gt_quat, atol=1e-3)
 
 
+def test_validate_standard_xform_ops_valid():
+    """Test validate_standard_xform_ops returns True for standardized prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with standard operations
+    prim = sim_utils.create_prim(
+        "/World/TestValid",
+        "Xform",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # Standardize the prim
+    sim_utils.standardize_xform_ops(prim)
+
+    # Validate it
+    assert sim_utils.validate_standard_xform_ops(prim) is True
+
+
+def test_validate_standard_xform_ops_invalid_order():
+    """Test validate_standard_xform_ops returns False for non-standard operation order."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim and manually set up xform ops in wrong order
+    prim_path = "/World/TestInvalidOrder"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add operations in wrong order: scale, translate, orient (should be translate, orient, scale)
+    scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
+    scale_op.Set(Gf.Vec3d(1.0, 1.0, 1.0))
+
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+    orient_op.Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_with_deprecated_ops():
+    """Test validate_standard_xform_ops returns False when deprecated operations exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with deprecated rotateXYZ operation
+    prim_path = "/World/TestDeprecated"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add deprecated rotateXYZ operation
+    rotate_xyz_op = xformable.AddRotateXYZOp(UsdGeom.XformOp.PrecisionDouble)
+    rotate_xyz_op.Set(Gf.Vec3d(45.0, 30.0, 60.0))
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_missing_operations():
+    """Test validate_standard_xform_ops returns False when standard operations are missing."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with only translate operation (missing orient and scale)
+    prim_path = "/World/TestMissing"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    # Validate it - should return False (missing orient and scale)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_invalid_prim():
+    """Test validate_standard_xform_ops returns False for invalid prim."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Get an invalid prim
+    invalid_prim = stage.GetPrimAtPath("/World/NonExistent")
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(invalid_prim) is False
+
+
+def test_validate_standard_xform_ops_non_xformable():
+    """Test validate_standard_xform_ops returns False for non-Xformable prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a Material prim (not Xformable)
+    from pxr import UsdShade
+
+    material_prim = UsdShade.Material.Define(stage, "/World/TestMaterial").GetPrim()
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(material_prim) is False
+
+
+def test_validate_standard_xform_ops_with_transform_matrix():
+    """Test validate_standard_xform_ops returns False when transform matrix operation exists."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with transform matrix
+    prim_path = "/World/TestTransformMatrix"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add transform matrix operation
+    transform_op = xformable.AddTransformOp(UsdGeom.XformOp.PrecisionDouble)
+    matrix = Gf.Matrix4d().SetTranslate(Gf.Vec3d(5.0, 10.0, 15.0))
+    transform_op.Set(matrix)
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_extra_operations():
+    """Test validate_standard_xform_ops returns False when extra operations exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with standard operations
+    prim = sim_utils.create_prim(
+        "/World/TestExtra",
+        "Xform",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # Standardize it
+    sim_utils.standardize_xform_ops(prim)
+
+    # Add an extra operation
+    xformable = UsdGeom.Xformable(prim)
+    extra_op = xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble)
+    extra_op.Set(45.0)
+
+    # Validate it - should return False (has extra operation)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_after_standardization():
+    """Test validate_standard_xform_ops returns True after standardization of non-standard prim."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with non-standard operations
+    prim_path = "/World/TestBeforeAfter"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add deprecated operations
+    rotate_x_op = xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble)
+    rotate_x_op.Set(45.0)
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    # Validate before standardization - should be False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+    # Standardize the prim
+    sim_utils.standardize_xform_ops(prim)
+
+    # Validate after standardization - should be True
+    assert sim_utils.validate_standard_xform_ops(prim) is True
+
+
+def test_validate_standard_xform_ops_on_geometry():
+    """Test validate_standard_xform_ops works correctly on geometry prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a cube with standard operations
+    cube_prim = sim_utils.create_prim(
+        "/World/TestCube",
+        "Cube",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(2.0, 2.0, 2.0),
+        stage=stage,
+    )
+
+    # Standardize it
+    sim_utils.standardize_xform_ops(cube_prim)
+
+    # Validate it - should be True
+    assert sim_utils.validate_standard_xform_ops(cube_prim) is True
+
+
+def test_validate_standard_xform_ops_empty_prim():
+    """Test validate_standard_xform_ops on prim with no xform operations."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a bare prim with no xform operations
+    prim_path = "/World/TestEmpty"
+    prim = stage.DefinePrim(prim_path, "Xform")
+
+    # Validate it - should return False (no operations at all)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
 def test_resolve_prim_scale():
     """Test resolve_prim_scale() function.
 

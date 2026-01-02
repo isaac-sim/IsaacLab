@@ -213,6 +213,38 @@ def standardize_xform_ops(
     return True
 
 
+def validate_standard_xform_ops(prim: Usd.Prim) -> bool:
+    """Validate if the transform operations on a prim are standardized.
+
+    This function checks if the transform operations on a prim are standardized to the canonical form:
+    [translate, orient, scale].
+
+    Args:
+        prim: The USD prim to validate.
+    """
+    # check if prim is valid
+    if not prim.IsValid():
+        logger.error(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
+        return False
+    # check if prim is an xformable
+    if not prim.IsA(UsdGeom.Xformable):
+        logger.error(f"Prim at path '{prim.GetPath().pathString}' is not an xformable.")
+        return False
+    # get the xformable interface
+    xformable = UsdGeom.Xformable(prim)
+    # get the xform operation order
+    xform_op_order = xformable.GetOrderedXformOps()
+    xform_op_order = [op.GetOpName() for op in xform_op_order]
+    # check if the xform operation order is the canonical form
+    if xform_op_order != ["xformOp:translate", "xformOp:orient", "xformOp:scale"]:
+        msg = f"Xform operation order for prim at path '{prim.GetPath().pathString}' is not the canonical form."
+        msg += f" Received order: {xform_op_order}"
+        msg += " Expected order: ['xformOp:translate', 'xformOp:orient', 'xformOp:scale']"
+        logger.error(msg)
+        return False
+    return True
+
+
 def resolve_prim_pose(
     prim: Usd.Prim, ref_prim: Usd.Prim | None = None
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
