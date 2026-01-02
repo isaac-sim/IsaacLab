@@ -183,6 +183,9 @@ class XformPrimView:
         else:
             orientations_array = None
 
+        # Create xform cache instance
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+
         # Set poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
@@ -201,7 +204,7 @@ class XformPrimView:
                     # Get current world pose if we're only setting one component
                     if positions_array is None or orientations_array is None:
                         # get prim xform
-                        prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+                        prim_tf = xform_cache.GetLocalToWorldTransform(prim)
                         # sanitize quaternion
                         # this is needed, otherwise the quaternion might be non-normalized
                         prim_tf.Orthonormalize()
@@ -217,9 +220,7 @@ class XformPrimView:
                         prim_tf.SetRotateOnly(world_quat)
 
                     # Convert to local space
-                    parent_world_tf = UsdGeom.Xformable(parent_prim).ComputeLocalToWorldTransform(
-                        Usd.TimeCode.Default()
-                    )
+                    parent_world_tf = xform_cache.GetLocalToWorldTransform(parent_prim)
                     local_tf = prim_tf * parent_world_tf.GetInverse()
                     local_pos = local_tf.ExtractTranslation()
                     local_quat = local_tf.ExtractRotationQuat()
@@ -357,12 +358,14 @@ class XformPrimView:
         # Create buffers
         positions = Vt.Vec3dArray(len(indices_list))
         orientations = Vt.QuatdArray(len(indices_list))
+        # Create xform cache instance
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         for idx in indices_list:
             # Get prim
             prim = self._prims[idx]
             # get prim xform
-            prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            prim_tf = xform_cache.GetLocalToWorldTransform(prim)
             # sanitize quaternion
             # this is needed, otherwise the quaternion might be non-normalized
             prim_tf.Orthonormalize()
@@ -403,12 +406,14 @@ class XformPrimView:
         # Create buffers
         translations = Vt.Vec3dArray(len(indices_list))
         orientations = Vt.QuatdArray(len(indices_list))
+        # Create xform cache instance
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         for idx in indices_list:
             # Get prim
             prim = self._prims[idx]
             # get prim xform
-            prim_tf = UsdGeom.Xformable(prim).GetLocalTransformation(Usd.TimeCode.Default())
+            prim_tf = xform_cache.GetLocalTransformation(prim)[0]
             # sanitize quaternion
             # this is needed, otherwise the quaternion might be non-normalized
             prim_tf.Orthonormalize()
