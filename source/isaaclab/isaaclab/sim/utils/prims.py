@@ -21,7 +21,7 @@ import omni.usd
 import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
 from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import get_isaac_sim_version
@@ -197,6 +197,12 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         prim_path = [prim_path]
     # get stage handle
     stage = get_current_stage() if stage is None else stage
+    # the prim command looks for the stage ID in the stage cache
+    # so we need to ensure the stage is cached
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_id = stage_cache.GetId(stage).ToLongInt()
+    if stage_id < 0:
+        stage_id = stage_cache.Insert(stage).ToLongInt()
     # delete prims
     DeletePrimsCommand(prim_path, stage=stage).do()
 
