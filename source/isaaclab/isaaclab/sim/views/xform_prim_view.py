@@ -200,6 +200,8 @@ class XformPrimView:
                 world_quat = orientations_array[idx] if orientations_array is not None else None
 
                 # Convert world pose to local if we have a valid parent
+                # Note: We don't use :func:`isaaclab.sim.utils.transforms.convert_world_pose_to_local`
+                #   here since it isn't optimized for batch operations.
                 if parent_prim.IsValid() and parent_prim.GetPath() != Sdf.Path.absoluteRootPath:
                     # Get current world pose if we're only setting one component
                     if positions_array is None or orientations_array is None:
@@ -361,6 +363,8 @@ class XformPrimView:
         # Create xform cache instance
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
+        # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
+        #   here since it isn't optimized for batch operations.
         for idx in indices_list:
             # Get prim
             prim = self._prims[idx]
@@ -409,6 +413,8 @@ class XformPrimView:
         # Create xform cache instance
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
+        # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
+        #   here since it isn't optimized for batch operations.
         for idx in indices_list:
             # Get prim
             prim = self._prims[idx]
