@@ -68,7 +68,7 @@ def get_xform_ops(prim: Usd.Prim) -> list[str]:
 
 
 """
-Tests.
+Test standardize_xform_ops() function.
 """
 
 
@@ -731,6 +731,402 @@ def test_standardize_xform_ops_preserves_float_precision():
     assert_quat_close(Gf.Quatd(*quat_after), new_orientation, eps=1e-4)
 
 
+"""
+Test validate_standard_xform_ops() function.
+"""
+
+
+def test_validate_standard_xform_ops_valid():
+    """Test validate_standard_xform_ops returns True for standardized prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with standard operations
+    prim = sim_utils.create_prim(
+        "/World/TestValid",
+        "Xform",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # Standardize the prim
+    sim_utils.standardize_xform_ops(prim)
+
+    # Validate it
+    assert sim_utils.validate_standard_xform_ops(prim) is True
+
+
+def test_validate_standard_xform_ops_invalid_order():
+    """Test validate_standard_xform_ops returns False for non-standard operation order."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim and manually set up xform ops in wrong order
+    prim_path = "/World/TestInvalidOrder"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add operations in wrong order: scale, translate, orient (should be translate, orient, scale)
+    scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
+    scale_op.Set(Gf.Vec3d(1.0, 1.0, 1.0))
+
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+    orient_op.Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_with_deprecated_ops():
+    """Test validate_standard_xform_ops returns False when deprecated operations exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with deprecated rotateXYZ operation
+    prim_path = "/World/TestDeprecated"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add deprecated rotateXYZ operation
+    rotate_xyz_op = xformable.AddRotateXYZOp(UsdGeom.XformOp.PrecisionDouble)
+    rotate_xyz_op.Set(Gf.Vec3d(45.0, 30.0, 60.0))
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_missing_operations():
+    """Test validate_standard_xform_ops returns False when standard operations are missing."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with only translate operation (missing orient and scale)
+    prim_path = "/World/TestMissing"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    # Validate it - should return False (missing orient and scale)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_invalid_prim():
+    """Test validate_standard_xform_ops returns False for invalid prim."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Get an invalid prim
+    invalid_prim = stage.GetPrimAtPath("/World/NonExistent")
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(invalid_prim) is False
+
+
+def test_validate_standard_xform_ops_non_xformable():
+    """Test validate_standard_xform_ops returns False for non-Xformable prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a Material prim (not Xformable)
+    from pxr import UsdShade
+
+    material_prim = UsdShade.Material.Define(stage, "/World/TestMaterial").GetPrim()
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(material_prim) is False
+
+
+def test_validate_standard_xform_ops_with_transform_matrix():
+    """Test validate_standard_xform_ops returns False when transform matrix operation exists."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with transform matrix
+    prim_path = "/World/TestTransformMatrix"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add transform matrix operation
+    transform_op = xformable.AddTransformOp(UsdGeom.XformOp.PrecisionDouble)
+    matrix = Gf.Matrix4d().SetTranslate(Gf.Vec3d(5.0, 10.0, 15.0))
+    transform_op.Set(matrix)
+
+    # Validate it - should return False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_extra_operations():
+    """Test validate_standard_xform_ops returns False when extra operations exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with standard operations
+    prim = sim_utils.create_prim(
+        "/World/TestExtra",
+        "Xform",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(1.0, 1.0, 1.0),
+        stage=stage,
+    )
+
+    # Standardize it
+    sim_utils.standardize_xform_ops(prim)
+
+    # Add an extra operation
+    xformable = UsdGeom.Xformable(prim)
+    extra_op = xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble)
+    extra_op.Set(45.0)
+
+    # Validate it - should return False (has extra operation)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+def test_validate_standard_xform_ops_after_standardization():
+    """Test validate_standard_xform_ops returns True after standardization of non-standard prim."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a prim with non-standard operations
+    prim_path = "/World/TestBeforeAfter"
+    prim = stage.DefinePrim(prim_path, "Xform")
+    xformable = UsdGeom.Xformable(prim)
+
+    # Add deprecated operations
+    rotate_x_op = xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble)
+    rotate_x_op.Set(45.0)
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    # Validate before standardization - should be False
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+    # Standardize the prim
+    sim_utils.standardize_xform_ops(prim)
+
+    # Validate after standardization - should be True
+    assert sim_utils.validate_standard_xform_ops(prim) is True
+
+
+def test_validate_standard_xform_ops_on_geometry():
+    """Test validate_standard_xform_ops works correctly on geometry prims."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a cube with standard operations
+    cube_prim = sim_utils.create_prim(
+        "/World/TestCube",
+        "Cube",
+        translation=(1.0, 2.0, 3.0),
+        orientation=(1.0, 0.0, 0.0, 0.0),
+        scale=(2.0, 2.0, 2.0),
+        stage=stage,
+    )
+
+    # Standardize it
+    sim_utils.standardize_xform_ops(cube_prim)
+
+    # Validate it - should be True
+    assert sim_utils.validate_standard_xform_ops(cube_prim) is True
+
+
+def test_validate_standard_xform_ops_empty_prim():
+    """Test validate_standard_xform_ops on prim with no xform operations."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Create a bare prim with no xform operations
+    prim_path = "/World/TestEmpty"
+    prim = stage.DefinePrim(prim_path, "Xform")
+
+    # Validate it - should return False (no operations at all)
+    assert sim_utils.validate_standard_xform_ops(prim) is False
+
+
+"""
+Test resolve_prim_pose() function.
+"""
+
+
+def test_resolve_prim_pose():
+    """Test resolve_prim_pose() function."""
+    # number of objects
+    num_objects = 20
+    # sample random scales for x, y, z
+    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
+    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
+    # sample random positions
+    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
+    # sample random rotations
+    rand_quats = np.random.randn(num_objects, 3, 4)
+    rand_quats /= np.linalg.norm(rand_quats, axis=2, keepdims=True)
+
+    # create objects
+    for i in range(num_objects):
+        # simple cubes
+        cube_prim = sim_utils.create_prim(
+            f"/World/Cubes/instance_{i:02d}",
+            "Cube",
+            translation=rand_positions[i, 0],
+            orientation=rand_quats[i, 0],
+            scale=rand_scales[i, 0],
+            attributes={"size": rand_widths[i]},
+        )
+        # xform hierarchy
+        xform_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}",
+            "Xform",
+            translation=rand_positions[i, 1],
+            orientation=rand_quats[i, 1],
+            scale=rand_scales[i, 1],
+        )
+        geometry_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/geometry",
+            "Sphere",
+            translation=rand_positions[i, 2],
+            orientation=rand_quats[i, 2],
+            scale=rand_scales[i, 2],
+            attributes={"radius": rand_widths[i]},
+        )
+        dummy_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/dummy",
+            "Sphere",
+        )
+
+        # cube prim w.r.t. world frame
+        pos, quat = sim_utils.resolve_prim_pose(cube_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 0, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-3)
+        # xform prim w.r.t. world frame
+        pos, quat = sim_utils.resolve_prim_pose(xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
+        # dummy prim w.r.t. world frame
+        pos, quat = sim_utils.resolve_prim_pose(dummy_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
+
+        # geometry prim w.r.t. xform prim
+        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 2] * rand_scales[i, 1], atol=1e-3)
+        # TODO: Enabling scale causes the test to fail because the current implementation of
+        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
+        # limitation. Until this is fixed, the test is disabled here to ensure the test passes.
+        # np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-3)
+
+        # dummy prim w.r.t. xform prim
+        pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-3)
+        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-3)
+        # xform prim w.r.t. cube prim
+        pos, quat = sim_utils.resolve_prim_pose(xform_prim, ref_prim=cube_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        # -- compute ground truth values
+        gt_pos, gt_quat = math_utils.subtract_frame_transforms(
+            torch.from_numpy(rand_positions[i, 0]).unsqueeze(0),
+            torch.from_numpy(rand_quats[i, 0]).unsqueeze(0),
+            torch.from_numpy(rand_positions[i, 1]).unsqueeze(0),
+            torch.from_numpy(rand_quats[i, 1]).unsqueeze(0),
+        )
+        gt_pos, gt_quat = gt_pos.squeeze(0).numpy(), gt_quat.squeeze(0).numpy()
+        quat = quat if np.sign(gt_quat[0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, gt_pos, atol=1e-3)
+        np.testing.assert_allclose(quat, gt_quat, atol=1e-3)
+
+
+"""
+Test resolve_prim_scale() function.
+"""
+
+
+def test_resolve_prim_scale():
+    """Test resolve_prim_scale() function.
+
+    To simplify the test, we assume that the effective scale at a prim
+    is the product of the scales of the prims in the hierarchy:
+
+        scale = scale_of_xform * scale_of_geometry_prim
+
+    This is only true when rotations are identity or the transforms are
+    orthogonal and uniformly scaled. Otherwise, scale is not composable
+    like that in local component-wise fashion.
+    """
+    # number of objects
+    num_objects = 20
+    # sample random scales for x, y, z
+    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
+    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
+    # sample random positions
+    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
+
+    # create objects
+    for i in range(num_objects):
+        # simple cubes
+        cube_prim = sim_utils.create_prim(
+            f"/World/Cubes/instance_{i:02d}",
+            "Cube",
+            translation=rand_positions[i, 0],
+            scale=rand_scales[i, 0],
+            attributes={"size": rand_widths[i]},
+        )
+        # xform hierarchy
+        xform_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}",
+            "Xform",
+            translation=rand_positions[i, 1],
+            scale=rand_scales[i, 1],
+        )
+        geometry_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/geometry",
+            "Sphere",
+            translation=rand_positions[i, 2],
+            scale=rand_scales[i, 2],
+            attributes={"radius": rand_widths[i]},
+        )
+        dummy_prim = sim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/dummy",
+            "Sphere",
+        )
+
+        # cube prim
+        scale = sim_utils.resolve_prim_scale(cube_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 0], atol=1e-5)
+        # xform prim
+        scale = sim_utils.resolve_prim_scale(xform_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
+        # geometry prim
+        scale = sim_utils.resolve_prim_scale(geometry_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1] * rand_scales[i, 2], atol=1e-5)
+        # dummy prim
+        scale = sim_utils.resolve_prim_scale(dummy_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
+
+
+"""
+Test convert_world_pose_to_local() function.
+"""
+
+
 def test_convert_world_pose_to_local_basic():
     """Test basic world-to-local pose conversion."""
     # obtain stage handle
@@ -959,163 +1355,57 @@ def test_convert_world_pose_to_local_complex_hierarchy():
     assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
 
 
-def test_resolve_prim_pose():
-    """Test resolve_prim_pose() function."""
-    # number of objects
-    num_objects = 20
-    # sample random scales for x, y, z
-    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
-    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
-    # sample random positions
-    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
-    # sample random rotations
-    rand_quats = np.random.randn(num_objects, 3, 4)
-    rand_quats /= np.linalg.norm(rand_quats, axis=2, keepdims=True)
+def test_convert_world_pose_to_local_with_mixed_prim_types():
+    """Test world-to-local conversion with mixed prim types (Xform, Scope, Mesh)."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
 
-    # create objects
-    for i in range(num_objects):
-        # simple cubes
-        cube_prim = sim_utils.create_prim(
-            f"/World/Cubes/instance_{i:02d}",
-            "Cube",
-            translation=rand_positions[i, 0],
-            orientation=rand_quats[i, 0],
-            scale=rand_scales[i, 0],
-            attributes={"size": rand_widths[i]},
-        )
-        # xform hierarchy
-        xform_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}",
-            "Xform",
-            translation=rand_positions[i, 1],
-            orientation=rand_quats[i, 1],
-            scale=rand_scales[i, 1],
-        )
-        geometry_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/geometry",
-            "Sphere",
-            translation=rand_positions[i, 2],
-            orientation=rand_quats[i, 2],
-            scale=rand_scales[i, 2],
-            attributes={"radius": rand_widths[i]},
-        )
-        dummy_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/dummy",
-            "Sphere",
-        )
+    # Create a hierarchy with different prim types
+    # Grandparent: Xform with transform
+    sim_utils.create_prim(
+        "/World/Grandparent",
+        "Xform",
+        translation=(5.0, 3.0, 2.0),
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        scale=(2.0, 2.0, 2.0),
+        stage=stage,
+    )
 
-        # cube prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(cube_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 0, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-3)
-        # xform prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
-        # dummy prim w.r.t. world frame
-        pos, quat = sim_utils.resolve_prim_pose(dummy_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
+    # Parent: Scope prim (organizational, typically has no transform)
+    parent = stage.DefinePrim("/World/Grandparent/Parent", "Scope")
 
-        # geometry prim w.r.t. xform prim
-        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 2] * rand_scales[i, 1], atol=1e-3)
-        # TODO: Enabling scale causes the test to fail because the current implementation of
-        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
-        # limitation. Until this is fixed, the test is disabled here to ensure the test passes.
-        # np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-3)
+    # Obtain parent prim pose (should be grandparent's transform)
+    parent_pos, parent_quat = sim_utils.resolve_prim_pose(parent)
+    assert_vec3_close(Gf.Vec3d(*parent_pos), (5.0, 3.0, 2.0), eps=1e-5)
+    assert_quat_close(Gf.Quatd(*parent_quat), (0.7071068, 0.0, 0.0, 0.7071068), eps=1e-5)
 
-        # dummy prim w.r.t. xform prim
-        pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-3)
-        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-3)
-        # xform prim w.r.t. cube prim
-        pos, quat = sim_utils.resolve_prim_pose(xform_prim, ref_prim=cube_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        # -- compute ground truth values
-        gt_pos, gt_quat = math_utils.subtract_frame_transforms(
-            torch.from_numpy(rand_positions[i, 0]).unsqueeze(0),
-            torch.from_numpy(rand_quats[i, 0]).unsqueeze(0),
-            torch.from_numpy(rand_positions[i, 1]).unsqueeze(0),
-            torch.from_numpy(rand_quats[i, 1]).unsqueeze(0),
-        )
-        gt_pos, gt_quat = gt_pos.squeeze(0).numpy(), gt_quat.squeeze(0).numpy()
-        quat = quat if np.sign(gt_quat[0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, gt_pos, atol=1e-3)
-        np.testing.assert_allclose(quat, gt_quat, atol=1e-3)
+    # Child: Mesh prim (geometry)
+    child = sim_utils.create_prim("/World/Grandparent/Parent/Child", "Mesh", stage=stage)
 
+    # World pose we want to achieve for the child
+    world_position = (10.0, 5.0, 3.0)
+    world_orientation = (1.0, 0.0, 0.0, 0.0)  # identity rotation
 
-def test_resolve_prim_scale():
-    """Test resolve_prim_scale() function.
+    # Convert to local space relative to parent (Scope)
+    local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
+        world_position, world_orientation, child
+    )
 
-    To simplify the test, we assume that the effective scale at a prim
-    is the product of the scales of the prims in the hierarchy:
+    # Verify orientation is not None
+    assert local_orientation is not None, "Expected orientation to be computed"
 
-        scale = scale_of_xform * scale_of_geometry_prim
+    # Set the local transform on the child (Mesh)
+    xformable = UsdGeom.Xformable(child)
+    translate_op = xformable.GetTranslateOp()
+    translate_op.Set(Gf.Vec3d(*local_translation))
+    orient_op = xformable.GetOrientOp()
+    orient_op.Set(Gf.Quatd(*local_orientation))
 
-    This is only true when rotations are identity or the transforms are
-    orthogonal and uniformly scaled. Otherwise, scale is not composable
-    like that in local component-wise fashion.
-    """
-    # number of objects
-    num_objects = 20
-    # sample random scales for x, y, z
-    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
-    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
-    # sample random positions
-    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
+    # Verify world pose of child
+    child_world_pos, child_world_quat = sim_utils.resolve_prim_pose(child)
 
-    # create objects
-    for i in range(num_objects):
-        # simple cubes
-        cube_prim = sim_utils.create_prim(
-            f"/World/Cubes/instance_{i:02d}",
-            "Cube",
-            translation=rand_positions[i, 0],
-            scale=rand_scales[i, 0],
-            attributes={"size": rand_widths[i]},
-        )
-        # xform hierarchy
-        xform_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}",
-            "Xform",
-            translation=rand_positions[i, 1],
-            scale=rand_scales[i, 1],
-        )
-        geometry_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/geometry",
-            "Sphere",
-            translation=rand_positions[i, 2],
-            scale=rand_scales[i, 2],
-            attributes={"radius": rand_widths[i]},
-        )
-        dummy_prim = sim_utils.create_prim(
-            f"/World/Xform/instance_{i:02d}/dummy",
-            "Sphere",
-        )
-
-        # cube prim
-        scale = sim_utils.resolve_prim_scale(cube_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 0], atol=1e-5)
-        # xform prim
-        scale = sim_utils.resolve_prim_scale(xform_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
-        # geometry prim
-        scale = sim_utils.resolve_prim_scale(geometry_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1] * rand_scales[i, 2], atol=1e-5)
-        # dummy prim
-        scale = sim_utils.resolve_prim_scale(dummy_prim)
-        scale = np.array(scale)
-        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
+    # Should match the desired world pose
+    # Note: Scope prims typically have no transform, so the child's world pose should account
+    # for the grandparent's transform
+    assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-10)
+    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-10)

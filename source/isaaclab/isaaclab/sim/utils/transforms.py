@@ -213,6 +213,38 @@ def standardize_xform_ops(
     return True
 
 
+def validate_standard_xform_ops(prim: Usd.Prim) -> bool:
+    """Validate if the transform operations on a prim are standardized.
+
+    This function checks if the transform operations on a prim are standardized to the canonical form:
+    [translate, orient, scale].
+
+    Args:
+        prim: The USD prim to validate.
+    """
+    # check if prim is valid
+    if not prim.IsValid():
+        logger.error(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
+        return False
+    # check if prim is an xformable
+    if not prim.IsA(UsdGeom.Xformable):
+        logger.error(f"Prim at path '{prim.GetPath().pathString}' is not an xformable.")
+        return False
+    # get the xformable interface
+    xformable = UsdGeom.Xformable(prim)
+    # get the xform operation order
+    xform_op_order = xformable.GetOrderedXformOps()
+    xform_op_order = [op.GetOpName() for op in xform_op_order]
+    # check if the xform operation order is the canonical form
+    if xform_op_order != ["xformOp:translate", "xformOp:orient", "xformOp:scale"]:
+        msg = f"Xform operation order for prim at path '{prim.GetPath().pathString}' is not the canonical form."
+        msg += f" Received order: {xform_op_order}"
+        msg += " Expected order: ['xformOp:translate', 'xformOp:orient', 'xformOp:scale']"
+        logger.error(msg)
+        return False
+    return True
+
+
 def resolve_prim_pose(
     prim: Usd.Prim, ref_prim: Usd.Prim | None = None
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
@@ -274,13 +306,15 @@ def resolve_prim_pose(
         # check if ref prim is valid
         if not ref_prim.IsValid():
             raise ValueError(f"Ref prim at path '{ref_prim.GetPath().pathString}' is not valid.")
-        # get ref prim xform
-        ref_xform = UsdGeom.Xformable(ref_prim)
-        ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        # make sure ref tf is orthonormal
-        ref_tf = ref_tf.GetOrthonormalized()
-        # compute relative transform to get prim in ref frame
-        prim_tf = prim_tf * ref_tf.GetInverse()
+        # if reference prim is the root, we can skip the computation
+        if ref_prim.GetPath() != Sdf.Path.absoluteRootPath:
+            # get ref prim xform
+            ref_xform = UsdGeom.Xformable(ref_prim)
+            ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            # make sure ref tf is orthonormal
+            ref_tf = ref_tf.GetOrthonormalized()
+            # compute relative transform to get prim in ref frame
+            prim_tf = prim_tf * ref_tf.GetInverse()
 
     # extract position and orientation
     prim_pos = [*prim_tf.ExtractTranslation()]
@@ -345,15 +379,15 @@ def convert_world_pose_to_local(
     ``local_transform = world_transform * inverse(ref_world_transform)``
 
     .. note::
-        If the reference prim is invalid or is the root path, the position and orientation are returned
+        If the reference prim is the root prim ("/"), the position and orientation are returned
         unchanged, as they are already effectively in local/world space.
 
     Args:
         position: The world-space position as (x, y, z).
         orientation: The world-space orientation as quaternion (w, x, y, z). If None, only position is converted
             and None is returned for orientation.
-        ref_prim: The reference USD prim to compute the local transform relative to. If this is invalid or
-            is the root path, the world pose is returned unchanged.
+        ref_prim: The reference USD prim to compute the local transform relative to. If this is
+            the root prim ("/"), the world pose is returned unchanged.
 
     Returns:
         A tuple of (local_translation, local_orientation) where:
@@ -363,7 +397,6 @@ def convert_world_pose_to_local(
 
     Raises:
         ValueError: If the reference prim is not a valid USD prim.
-        ValueError: If the reference prim is not a valid USD Xformable.
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -392,9 +425,6 @@ def convert_world_pose_to_local(
 
     # Check if reference prim is a valid xformable
     ref_xformable = UsdGeom.Xformable(ref_prim)
-    if not ref_xformable:
-        raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not a valid xformable.")
-
     # Get reference prim's world transform
     ref_world_tf = ref_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
 
