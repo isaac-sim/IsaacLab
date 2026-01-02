@@ -85,6 +85,10 @@ class XformPrimView:
                     " Use sim_utils.standardize_xform_ops() to prepare the prim."
                 )
 
+    """
+    Properties.
+    """
+
     @property
     def count(self) -> int:
         """Number of prims in this view.
@@ -311,7 +315,7 @@ class XformPrimView:
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
         orientations = math_utils.convert_quat(orientations, to="wxyz")
 
-        return positions, orientations
+        return positions, orientations  # type: ignore
 
     def get_local_poses(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get local-space poses for all prims in the view.
@@ -346,7 +350,7 @@ class XformPrimView:
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
         orientations = math_utils.convert_quat(orientations, to="wxyz")
 
-        return translations, orientations
+        return translations, orientations  # type: ignore
 
     def get_scales(self) -> torch.Tensor:
         """Get scales for all prims in the view.
