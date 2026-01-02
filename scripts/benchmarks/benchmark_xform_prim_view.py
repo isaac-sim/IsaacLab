@@ -358,7 +358,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         row = f"{op_name:<25}"
         for api_name in api_names:
             api_time = results_dict[api_name].get(op_key, 0) * 1000  # Convert to ms
-            row += f" {api_time:>{col_width-1}.4f}"
+            row += f" {api_time:>{col_width - 1}.4f}"
         print(row)
 
     print("=" * 100)
@@ -367,7 +367,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     total_row = f"{'Total Time':<25}"
     for api_name in api_names:
         total_time = sum(results_dict[api_name].values()) * 1000
-        total_row += f" {total_time:>{col_width-1}.4f}"
+        total_row += f" {total_time:>{col_width - 1}.4f}"
     print(f"\n{total_row}")
 
     # Calculate speedups relative to Isaac Lab
@@ -391,7 +391,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
                     api_time = results_dict[api_name].get(op_key, 0)
                     if isaaclab_time > 0 and api_time > 0:
                         speedup = api_time / isaaclab_time
-                        print(f" {speedup:>{col_width-1}.2f}x", end="")
+                        print(f" {speedup:>{col_width - 1}.2f}x", end="")
                     else:
                         print(f" {'N/A':>{col_width}}", end="")
             print()
@@ -405,7 +405,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
                 total_api = sum(results_dict[api_name].values())
                 if total_isaaclab > 0 and total_api > 0:
                     overall_speedup = total_api / total_isaaclab
-                    print(f" {overall_speedup:>{col_width-1}.2f}x", end="")
+                    print(f" {overall_speedup:>{col_width - 1}.2f}x", end="")
                 else:
                     print(f" {'N/A':>{col_width}}", end="")
         print()
