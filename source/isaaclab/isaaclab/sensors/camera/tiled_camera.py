@@ -164,19 +164,20 @@ class TiledCamera(Camera):
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
+        cam_prim_paths = []
+        for cam_prim in self._view.prims:
             # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+            cam_prim_paths.append(cam_prim_path)
 
         # Create replicator tiled render product
         rp = rep.create.render_product_tiled(
-            cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
+            cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
         )
         self._render_product_paths = [rp.path]
 

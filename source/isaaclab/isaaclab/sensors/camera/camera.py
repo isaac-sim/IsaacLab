@@ -423,9 +423,9 @@ class Camera(SensorBase):
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
-            # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+        for cam_prim in self._view.prims:
+            # Obtain the prim path
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
