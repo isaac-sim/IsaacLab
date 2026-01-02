@@ -125,6 +125,11 @@ UR10_SHORT_SUCTION_CFG.spawn.variants = {"Gripper": "Short_Suction"}
 """Configuration of UR10 arm with short suction gripper."""
 
 UR10e_ROBOTIQ_GRIPPER_CFG = UR10e_CFG.copy()
+"""Configuration of UR10e arm with Robotiq_2f_140 gripper.
+
+FIXME: Something is wrong with selecting the variant for the Robotiq_2f_140 gripper.
+Even when tried on Isaac Sim GUI, the variant is not selected correctly.
+"""
 UR10e_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2f_140"}
 UR10e_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
 UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos["finger_joint"] = 0.0
