@@ -176,9 +176,7 @@ class TiledCamera(Camera):
             cam_prim_paths.append(cam_prim_path)
 
         # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
-        )
+        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
         self._render_product_paths = [rp.path]
 
         # Define the annotators based on requested data types

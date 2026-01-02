@@ -47,7 +47,9 @@ class XformPrimView:
         time-sampled keyframes separately.
     """
 
-    def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None, validate_xform_ops: bool = True):
+    def __init__(
+        self, prim_path: str, device: str = "cpu", validate_xform_ops: bool = True, stage: Usd.Stage | None = None
+    ):
         """Initialize the view with matching prims.
 
         This method searches the USD stage for all prims matching the provided path pattern,
@@ -65,10 +67,10 @@ class XformPrimView:
                 :func:`isaaclab.sim.utils.find_matching_prims` for pattern syntax.
             device: Device to place the tensors on. Can be ``"cpu"`` or CUDA devices like
                 ``"cuda:0"``. Defaults to ``"cpu"``.
-            stage: USD stage to search for prims. Defaults to None, in which case the current active stage
-                from the simulation context is used.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
+            stage: USD stage to search for prims. Defaults to None, in which case the current active stage
+                from the simulation context is used.
 
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
@@ -129,7 +131,12 @@ class XformPrimView:
     Operations - Setters.
     """
 
-    def set_world_poses(self, positions: torch.Tensor | None = None, orientations: torch.Tensor | None = None, indices: torch.Tensor | None = None):
+    def set_world_poses(
+        self,
+        positions: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ):
         """Set world-space poses for prims in the view.
 
         This method sets the position and/or orientation of each prim in world space. The world pose
@@ -228,7 +235,10 @@ class XformPrimView:
                     prim.GetAttribute("xformOp:orient").Set(local_quat)
 
     def set_local_poses(
-        self, translations: torch.Tensor | None = None, orientations: torch.Tensor | None = None, indices: torch.Tensor | None = None
+        self,
+        translations: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
     ) -> None:
         """Set local-space poses for prims in the view.
 
