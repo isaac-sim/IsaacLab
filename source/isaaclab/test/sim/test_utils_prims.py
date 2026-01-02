@@ -21,9 +21,8 @@ import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
