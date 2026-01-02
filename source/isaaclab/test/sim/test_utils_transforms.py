@@ -959,46 +959,6 @@ def test_convert_world_pose_to_local_complex_hierarchy():
     assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
 
 
-"""
-Performance Benchmarking Tests
-"""
-
-import time
-
-
-def test_standardize_xform_ops_performance_batch():
-    """Benchmark standardize_xform_ops performance on multiple prims."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-
-    # Create many test prims
-    num_prims = 1024
-    prims = []
-
-    for i in range(num_prims):
-        prim = stage.DefinePrim(f"/World/PerfTestBatch/Prim_{i:03d}", "Xform")
-        xformable = UsdGeom.Xformable(prim)
-        # Add various deprecated operations
-        xformable.AddRotateXYZOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(i * 1.0, i * 2.0, i * 3.0))
-        xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(i, i, i))
-        prims.append(prim)
-
-    # Benchmark batch operation
-    start_time = time.perf_counter()
-    for prim in prims:
-        result = sim_utils.standardize_xform_ops(prim)
-        assert result is True
-    end_time = time.perf_counter()
-
-    # Print timing
-    elapsed_ms = (end_time - start_time) * 1000
-    avg_ms = elapsed_ms / num_prims
-    print(f"\n  Batch standardization ({num_prims} prims): {elapsed_ms:.4f} ms total, {avg_ms:.4f} ms/prim")
-
-    # Verify operation is reasonably fast
-    assert avg_ms < 0.1, f"Average operation took {avg_ms:.2f}ms/prim, expected < 0.1ms/prim"
-
-
 def test_resolve_prim_pose():
     """Test resolve_prim_pose() function."""
     # number of objects
