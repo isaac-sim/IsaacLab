@@ -104,6 +104,7 @@ def spawn_camera(
             value=True,
             prev=None,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
+            usd_context_name=stage,
         )
     # decide the custom attributes to add
     if cfg.projection_type == "pinhole":

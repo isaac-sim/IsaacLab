@@ -338,6 +338,7 @@ def _spawn_mesh_geom_from_mesh(
             "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
             "subdivisionScheme": "bilinear",
         },
+        stage=stage,
     )
 
     # note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.
@@ -345,9 +346,9 @@ def _spawn_mesh_geom_from_mesh(
     if cfg.deformable_props is not None:
         # apply mass properties
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(mesh_prim_path, cfg.mass_props)
+            schemas.define_mass_properties(mesh_prim_path, cfg.mass_props, stage=stage)
         # apply deformable body properties
-        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props)
+        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props, stage=stage)
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
         if cfg.__class__.__name__ == "MeshSphereCfg":
@@ -362,7 +363,7 @@ def _spawn_mesh_geom_from_mesh(
         mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
         mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
         # apply collision properties
-        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
+        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -373,7 +374,7 @@ def _spawn_mesh_geom_from_mesh(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(mesh_prim_path, material_path)
+        bind_visual_material(mesh_prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:
@@ -384,12 +385,12 @@ def _spawn_mesh_geom_from_mesh(
         # create material
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path)
+        bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     if cfg.rigid_props is not None:
         # apply mass properties
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(prim_path, cfg.mass_props)
+            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
         # apply rigid properties
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

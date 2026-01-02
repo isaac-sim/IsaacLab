@@ -67,7 +67,7 @@ def spawn_multi_asset(
 
     # find a free prim path to hold all the template prims
     template_prim_path = sim_utils.get_next_free_prim_path("/World/Template", stage=stage)
-    sim_utils.create_prim(template_prim_path, "Scope")
+    sim_utils.create_prim(template_prim_path, "Scope", stage=stage)
 
     # spawn everything first in a "Dataset" prim
     proto_prim_paths = list()
@@ -116,7 +116,7 @@ def spawn_multi_asset(
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
     # delete the dataset prim after spawning
-    sim_utils.delete_prim(template_prim_path)
+    sim_utils.delete_prim(template_prim_path, stage=stage)
 
     # set carb setting to indicate Isaac Lab's environments that different prims have been spawned
     # at varying prim paths. In this case, PhysX parser shouldn't optimize the stage parsing.
