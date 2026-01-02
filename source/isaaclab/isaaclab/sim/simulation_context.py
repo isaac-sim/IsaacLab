@@ -624,6 +624,22 @@ class SimulationContext(_SimulationContext):
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
+    def clear(self):
+        """Clear the current USD stage."""
+
+        def _predicate(prim: Usd.Prim) -> bool:
+            """Check if the prim should be deleted.
+
+            It adds a check for '/World' and 'PhysicsScene' prims.
+            """
+            if prim.GetPath().pathString == "/World":
+                return False
+            if prim.GetTypeName() == "PhysicsScene":
+                return False
+            return True
+
+        sim_utils.clear_stage(predicate=_predicate)
+
     """
     Operations - Override (extension)
     """
