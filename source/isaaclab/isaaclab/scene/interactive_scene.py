@@ -409,8 +409,8 @@ class InteractiveScene:
     def extras(self) -> dict[str, XformPrimView]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the :class:`~isaaclab.sim.utils.views.XformPrimView`
-        of the corresponding prims.
+        The keys are the names of the miscellaneous objects, and the values are the
+        :class:`~isaaclab.sim.views.XformPrimView` instances of the corresponding prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -777,7 +777,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths
