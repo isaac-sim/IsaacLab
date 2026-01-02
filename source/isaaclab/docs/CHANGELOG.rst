@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.52.0 (2026-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`~isaaclab.sim.utils.transforms` module to handle USD Xform operations.
+* Added passing of ``stage`` to the :func:`~isaaclab.sim.utils.prims.create_prim` function
+  inside spawning functions to allow for the creation of prims in a specific stage.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.sim.utils.prims.create_prim` function to use the :mod:`~isaaclab.sim.utils.transforms`
+  module for USD Xform operations. It removes the usage of Isaac Sim's XformPrim class.
+
+
 0.51.2 (2025-12-30)
 ~~~~~~~~~~~~~~~~~~~
 
