@@ -604,23 +604,21 @@ class SimulationContext:
         # play the simulation
         self._timeline_iface.play()
         self._timeline_iface.commit()
-        # check for callback exceptions
-        self._check_for_callback_exceptions()
         # perform one step to propagate all physics handles properly
         self.set_setting("/app/player/playSimulations", False)
         self._app_iface.update()
         self.set_setting("/app/player/playSimulations", True)
+        # check for callback exceptions
+        self._check_for_callback_exceptions()
 
     def pause(self) -> None:
         """Pause the simulation."""
         # pause the simulation
         self._timeline_iface.pause()
+        self._timeline_iface.commit()
+        # we don't need to propagate physics handles since no callbacks are triggered during pause
         # check for callback exceptions
         self._check_for_callback_exceptions()
-        # perform one step to propagate all physics handles properly
-        self.set_setting("/app/player/playSimulations", False)
-        self._app_iface.update()
-        self.set_setting("/app/player/playSimulations", True)
 
     def stop(self) -> None:
         """Stop the simulation.
@@ -630,12 +628,13 @@ class SimulationContext:
         """
         # stop the simulation
         self._timeline_iface.stop()
-        # check for callback exceptions
-        self._check_for_callback_exceptions()
+        self._timeline_iface.commit()
         # perform one step to propagate all physics handles properly
         self.set_setting("/app/player/playSimulations", False)
         self._app_iface.update()
         self.set_setting("/app/player/playSimulations", True)
+        # check for callback exceptions
+        self._check_for_callback_exceptions()
 
     """
     Operations - Override (standalone)
@@ -787,8 +786,12 @@ class SimulationContext:
             if prim.GetTypeName() == "PhysicsScene":
                 return False
             return True
-
-        sim_utils.clear_stage(predicate=_predicate)
+        # clear the stage
+        if cls._instance is not None:
+            stage = cls._instance._initial_stage
+            sim_utils.clear_stage(stage=stage, predicate=_predicate)
+        else:
+            logger.error("Simulation context is not initialized. Unable to clear the stage.")
 
     """
     Helper Functions
