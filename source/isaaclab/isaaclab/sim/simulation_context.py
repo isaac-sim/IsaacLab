@@ -1098,10 +1098,13 @@ class SimulationContext:
             self._fabric_iface = None
 
         # set carb settings for fabric
+        self.carb_settings.set_bool("/physics/fabricEnabled", self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateToUsd", not self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateParticlesToUsd", not self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateVelocitiesToUsd", not self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateForceSensorsToUsd", not self.cfg.use_fabric)
+        # disable simulation output window visibility
+        self.carb_settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
 
     def _check_for_callback_exceptions(self):
         """Checks for callback exceptions and raises them if found."""
