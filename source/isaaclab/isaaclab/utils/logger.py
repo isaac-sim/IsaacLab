@@ -95,7 +95,7 @@ def configure_logging(
         root_logger.addHandler(file_handler)
 
         # print the log file path once at startup with nice formatting
-        border = "=" * 85
+        border = "=" * 86
         cyan = "\033[36m"  # cyan color
         bold = "\033[1m"  # bold text
         reset = "\033[0m"  # reset formatting
