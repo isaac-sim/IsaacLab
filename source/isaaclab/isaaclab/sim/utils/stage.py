@@ -5,6 +5,8 @@
 
 """Utilities for operating on the USD stage."""
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import threading
