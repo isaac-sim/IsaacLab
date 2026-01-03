@@ -345,13 +345,13 @@ class SimulationContext:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
             # detach the stage from physx
-            if cls._instance._physx_sim_iface is not None:
-                cls._instance._physx_sim_iface.detach_stage()
+            # if cls._instance._physx_sim_iface is not None:
+            #     cls._instance._physx_sim_iface.detach_stage()
             # detach the stage from the USD stage cache
-            stage_cache = UsdUtils.StageCache.Get()
-            stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
-            if stage_id > 0:
-                stage_cache.Erase(cls._instance._initial_stage)
+            # stage_cache = UsdUtils.StageCache.Get()
+            # stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
+            # if stage_id > 0:
+            #     stage_cache.Erase(cls._instance._initial_stage)
             # clear the instance and the flag
             cls._instance = None
             cls._is_initialized = False
