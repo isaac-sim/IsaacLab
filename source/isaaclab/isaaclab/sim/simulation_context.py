@@ -324,15 +324,13 @@ class SimulationContext:
     """
 
     @classmethod
-    def instance(cls) -> SimulationContext:
+    def instance(cls) -> SimulationContext | None:
         """Returns the instance of the simulation context.
 
         Returns:
-            SimulationContext: The instance of the simulation context.
+            The instance of the simulation context. None if the instance is not initialized.
         """
-        if cls._instance is None:
-            logging.error("Simulation context is not initialized. Please create a new instance using the constructor.")
-        return cls._instance  # type: ignore
+        return cls._instance
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -465,6 +463,14 @@ class SimulationContext:
             The physics time step of the simulation.
         """
         return self.cfg.dt
+
+    def get_rendering_dt(self) -> float:
+        """Returns the rendering time step of the simulation.
+
+        Returns:
+            The rendering time step of the simulation.
+        """
+        return self.cfg.dt * self.cfg.render_interval
 
     """
     Operations - Utilities.
