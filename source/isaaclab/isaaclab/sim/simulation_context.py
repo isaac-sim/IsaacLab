@@ -324,9 +324,7 @@ class SimulationContext:
             SimulationContext: The instance of the simulation context.
         """
         if cls._instance is None:
-            logging.error(
-                "Simulation context is not initialized. Please create a new instance using the constructor."
-            )
+            logging.error("Simulation context is not initialized. Please create a new instance using the constructor.")
         return cls._instance  # type: ignore
 
     @classmethod
@@ -394,7 +392,7 @@ class SimulationContext:
 
         .. _NVIDIA RTX documentation: https://developer.nvidia.com/rendering-technologies
         """
-        return self._settings.get_as_bool("/isaaclab/render/rtx_sensors")
+        return self.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled.
@@ -899,7 +897,9 @@ class SimulationContext:
         gravity = self._gravity_tensor
         gravity_magnitude = torch.norm(gravity).item()
         # avoid division by zero
-        gravity_direction = gravity / (gravity_magnitude + 1e-6)
+        if gravity_magnitude == 0.0:
+            gravity_magnitude = 1.0
+        gravity_direction = gravity / gravity_magnitude
         gravity_direction = gravity_direction.tolist()
 
         self._physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))

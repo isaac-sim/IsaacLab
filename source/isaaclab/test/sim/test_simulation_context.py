@@ -43,11 +43,11 @@ def test_singleton():
     sim2.clear_instance()
     assert sim1.instance() is None
     # create new instance
-    sim4 = SimulationContext()
-    assert sim1 is not sim4
-    assert sim1.instance() is sim4.instance()
+    sim3 = SimulationContext()
+    assert sim1 is not sim3
+    assert sim1.instance() is sim3.instance()
     # clear instance
-    sim4.clear_instance()
+    sim3.clear_instance()
 
 
 @pytest.mark.isaacsim_ci
@@ -60,14 +60,20 @@ def test_initialization():
     # sim = SimulationContext(cfg=cfg)
 
     # check valid settings
-    assert sim.get_physics_dt() == cfg.dt
-    assert sim.get_rendering_dt() == cfg.dt * cfg.render_interval
+    physics_hz = sim._physx_scene_api.GetTimeStepsPerSecondAttr().Get()
+    physics_dt = 1.0 / physics_hz
+    rendering_dt = cfg.dt * cfg.render_interval
+    assert physics_dt == cfg.dt
+    assert rendering_dt == cfg.dt * cfg.render_interval
     assert not sim.has_rtx_sensors()
     # check valid paths
     assert sim.stage.GetPrimAtPath("/Physics/PhysX").IsValid()
     assert sim.stage.GetPrimAtPath("/Physics/PhysX/defaultMaterial").IsValid()
     # check valid gravity
-    gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
+    gravity_dir, gravity_mag = (
+        sim._physics_scene.GetGravityDirectionAttr().Get(),
+        sim._physics_scene.GetGravityMagnitudeAttr().Get(),
+    )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
 
@@ -137,6 +143,9 @@ def test_zero_gravity():
 
     sim = SimulationContext(cfg)
 
-    gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
+    gravity_dir, gravity_mag = (
+        sim._physics_scene.GetGravityDirectionAttr().Get(),
+        sim._physics_scene.GetGravityMagnitudeAttr().Get(),
+    )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
