@@ -5,4 +5,4 @@
 
 """Views for manipulating USD prims."""
 
-from .xform_prim_view import XFormPrimView
+from .xform_prim_view import XformPrimView
