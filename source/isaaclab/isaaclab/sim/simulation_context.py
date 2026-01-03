@@ -896,13 +896,11 @@ class SimulationContext:
         # --------------------------
 
         # set gravity
-        gravity = np.asarray(self.cfg.gravity)
-        gravity_magnitude = np.linalg.norm(gravity)
+        gravity = self._gravity_tensor
+        gravity_magnitude = torch.norm(gravity).item()
         # avoid division by zero
-        if gravity_magnitude != 0.0:
-            gravity_direction = gravity / gravity_magnitude
-        else:
-            gravity_direction = gravity
+        gravity_direction = gravity / (gravity_magnitude + 1e-6)
+        gravity_direction = gravity_direction.cpu().numpy()
 
         self._physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
         self._physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
