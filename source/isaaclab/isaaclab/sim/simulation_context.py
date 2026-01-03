@@ -253,15 +253,12 @@ class SimulationContext:
 
         # add callback to deal the simulation app when simulation is stopped.
         # this is needed because physics views go invalid once we stop the simulation
-        if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-            self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.STOP),
-                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
-                order=15,
-            )
-        else:
-            self._app_control_on_stop_handle = None
+        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            int(omni.timeline.TimelineEventType.STOP),
+            lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
+            order=15,
+        )
         self._disable_app_control_on_stop_handle = False
 
         # obtain interfaces for simulation
@@ -610,10 +607,9 @@ class SimulationContext:
         # check for callback exceptions
         self._check_for_callback_exceptions()
         # perform one step to propagate all physics handles properly
-        if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            self.set_setting("/app/player/playSimulations", False)
-            self._app_iface.update()
-            self.set_setting("/app/player/playSimulations", True)
+        self.set_setting("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self.set_setting("/app/player/playSimulations", True)
 
     def pause(self) -> None:
         """Pause the simulation."""
@@ -621,11 +617,10 @@ class SimulationContext:
         self._timeline_iface.pause()
         # check for callback exceptions
         self._check_for_callback_exceptions()
-        # set the play simulations setting
-        if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            self.set_setting("/app/player/playSimulations", False)
-            self._app_iface.update()
-            self.set_setting("/app/player/playSimulations", True)
+        # perform one step to propagate all physics handles properly
+        self.set_setting("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self.set_setting("/app/player/playSimulations", True)
 
     def stop(self) -> None:
         """Stop the simulation.
@@ -637,11 +632,10 @@ class SimulationContext:
         self._timeline_iface.stop()
         # check for callback exceptions
         self._check_for_callback_exceptions()
-        # set the play simulations setting
-        if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            self.set_setting("/app/player/playSimulations", False)
-            self._app_iface.update()
-            self.set_setting("/app/player/playSimulations", True)
+        # perform one step to propagate all physics handles properly
+        self.set_setting("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self.set_setting("/app/player/playSimulations", True)
 
     """
     Operations - Override (standalone)
