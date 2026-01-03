@@ -295,7 +295,7 @@ class SimulationContext:
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
-            self._app.update()
+            self._app_iface.update()
             self.set_setting("/app/player/playSimulations", True)
             # load flatcache/fabric interface
             self._load_fabric_interface()
@@ -564,7 +564,7 @@ class SimulationContext:
         Returns:
             True if the simulator is playing.
         """
-        return self._timeline.is_playing()
+        return self._timeline_iface.is_playing()
 
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped.
@@ -572,27 +572,27 @@ class SimulationContext:
         Returns:
             True if the simulator is stopped.
         """
-        return self._timeline.is_stopped()
+        return self._timeline_iface.is_stopped()
 
     def play(self) -> None:
         """Start playing the simulation."""
         # play the simulation
-        self._timeline.play()
-        self._timeline.commit()
+        self._timeline_iface.play()
+        self._timeline_iface.commit()
         # perform one step to propagate all physics handles properly
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
-            self._app.update()
+            self._app_iface.update()
             self.set_setting("/app/player/playSimulations", True)
 
     def pause(self) -> None:
         """Pause the simulation."""
         # pause the simulation
-        self._timeline.pause()
+        self._timeline_iface.pause()
         # set the play simulations setting
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
-            self._app.update()
+            self._app_iface.update()
             self.set_setting("/app/player/playSimulations", True)
 
     def stop(self) -> None:
@@ -602,11 +602,11 @@ class SimulationContext:
             Stopping the simulation will lead to the simulation state being lost.
         """
         # stop the simulation
-        self._timeline.stop()
+        self._timeline_iface.stop()
         # set the play simulations setting
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
-            self._app.update()
+            self._app_iface.update()
             self.set_setting("/app/player/playSimulations", True)
 
     """
@@ -699,7 +699,7 @@ class SimulationContext:
             is_anim_recording_finished = self._update_anim_recording()
             if is_anim_recording_finished:
                 logger.warning("[INFO][SimulationContext]: Animation recording finished. Closing app.")
-                self._app.shutdown()
+                self._app_iface.shutdown()
 
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
@@ -757,7 +757,7 @@ class SimulationContext:
                 self._render_throttle_counter = 0
                 # here we don't render viewport so don't need to flush fabric data
                 self.set_setting("/app/player/playSimulations", False)
-                self._app.update()
+                self._app_iface.update()
                 self.set_setting("/app/player/playSimulations", True)
         else:
             # manually flush the fabric data to update Hydra textures
@@ -766,7 +766,7 @@ class SimulationContext:
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.set_setting("/app/player/playSimulations", False)
-            self._app.update()
+            self._app_iface.update()
             self.set_setting("/app/player/playSimulations", True)
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
