@@ -306,6 +306,11 @@ class SimulationContext:
             # load flatcache/fabric interface
             self._load_fabric_interface()
 
+            # attach stage to physx
+            current_attached_stage = self._physx_sim_iface.get_attached_stage()
+            if current_attached_stage != self._initial_stage_id:
+                self._physx_sim_iface.attach_stage(self._initial_stage_id)
+
     def __new__(cls, *args, **kwargs) -> SimulationContext:
         """Returns the instance of the simulation context.
 
@@ -346,6 +351,9 @@ class SimulationContext:
             if cls._instance._app_control_on_stop_handle is not None:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
+            # detach the stage from physx
+            if cls._instance._physx_sim_iface is not None:
+                cls._instance._physx_sim_iface.detach_stage()
             # detach the stage from the USD stage cache
             stage_cache = UsdUtils.StageCache.Get()
             stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
@@ -657,8 +665,12 @@ class SimulationContext:
 
         # reset the simulation
         if not soft:
+            # disable app control on stop handle
+            self._disable_app_control_on_stop_handle = True
             if not self.is_stopped():
                 self.stop()
+            self._disable_app_control_on_stop_handle = False
+            # play the simulation
             self.play()
             # initialize the physics simulation
             self._physx_iface.force_load_physics_from_usd()
