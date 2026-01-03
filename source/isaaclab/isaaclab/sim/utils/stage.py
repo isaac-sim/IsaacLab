@@ -5,7 +5,6 @@
 
 """Utilities for operating on the USD stage."""
 
-import builtins
 import contextlib
 import logging
 import threading
@@ -344,9 +343,8 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
     delete_prim(prim_paths_to_delete)
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
-        omni.kit.app.get_app_interface().update()
+    # update stage
+    update_stage()
 
 
 def is_stage_loading() -> bool:
