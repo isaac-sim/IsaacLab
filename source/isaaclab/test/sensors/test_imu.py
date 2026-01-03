@@ -214,7 +214,6 @@ def setup_sim():
     sim.reset()
     yield sim, scene
     # Cleanup
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

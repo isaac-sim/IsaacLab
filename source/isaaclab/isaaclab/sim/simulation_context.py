@@ -324,10 +324,10 @@ class SimulationContext:
             SimulationContext: The instance of the simulation context.
         """
         if cls._instance is None:
-            raise RuntimeError(
+            logging.error(
                 "Simulation context is not initialized. Please create a new instance using the constructor."
             )
-        return cls._instance
+        return cls._instance  # type: ignore
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -937,7 +937,9 @@ class SimulationContext:
         self._physx_scene_api.CreateSolverTypeAttr(solver_type)
 
         # set solve articulation contact last
-        attr = self._physx_scene_api.GetPrim().CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool)
+        attr = self._physx_scene_api.GetPrim().CreateAttribute(
+            "physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool
+        )
         attr.Set(self.cfg.physx.solve_articulation_contact_last)
 
         # iterate over all the settings and set them

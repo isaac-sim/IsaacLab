@@ -13,13 +13,9 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
-from collections.abc import Generator
 
-import omni.physx
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
-import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -36,33 +32,12 @@ def test_setup_teardown():
     SimulationContext.clear_instance()
 
 
-@pytest.fixture
-def sim_with_stage_in_memory() -> Generator[SimulationContext, None, None]:
-    """Create a simulation context with stage in memory."""
-    # create stage in memory
-    cfg = SimulationCfg(create_stage_in_memory=True)
-    sim = SimulationContext(cfg=cfg)
-    # update stage
-    sim_utils.update_stage()
-    # yield simulation context
-    yield sim
-    # stop simulation
-    omni.physx.get_physx_simulation_interface().detach_stage()
-    sim.stop()
-    # clear simulation context
-    sim.clear()
-    sim.clear_all_callbacks()
-    sim.clear_instance()
-
-
 @pytest.mark.isaacsim_ci
 def test_singleton():
     """Tests that the singleton is working."""
     sim1 = SimulationContext()
     sim2 = SimulationContext()
-    sim3 = IsaacSimulationContext()
     assert sim1 is sim2
-    assert sim1 is sim3
 
     # try to delete the singleton
     sim2.clear_instance()
@@ -70,11 +45,9 @@ def test_singleton():
     # create new instance
     sim4 = SimulationContext()
     assert sim1 is not sim4
-    assert sim3 is not sim4
     assert sim1.instance() is sim4.instance()
-    assert sim3.instance() is sim4.instance()
     # clear instance
-    sim3.clear_instance()
+    sim4.clear_instance()
 
 
 @pytest.mark.isaacsim_ci
@@ -138,7 +111,7 @@ def test_headless_mode():
 #     """
 #     sim = SimulationContext()
 #     # manually set the boundedness to 1? -- this is not possible because of Isaac Sim.
-#     sim.clear_all_callbacks()
+#
 #     sim._stage_open_callback = None
 #     sim._physics_timer_callback = None
 #     sim._event_timer_callback = None
