@@ -1008,7 +1008,10 @@ def test_exception_in_callback_on_reset():
 
     # create a callback that raises an exception
     def on_physics_ready_with_exception(event):
-        raise RuntimeError("Test exception in callback during reset!")
+        try:
+            raise RuntimeError("Test exception in callback during reset!")
+        except Exception as e:
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
 
     # register callback that will raise an exception
     callback_id = SimulationManager.register_callback(
@@ -1042,8 +1045,11 @@ def test_exception_in_callback_on_play():
     callback_state = {"called": False}
 
     def on_play_with_exception(event):
-        callback_state["called"] = True
-        raise ValueError("Test exception in play callback!")
+        try:
+            callback_state["called"] = True
+            raise ValueError("Test exception in play callback!")
+        except Exception as e:
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
 
     # register callback via timeline
     timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
@@ -1081,7 +1087,10 @@ def test_exception_in_callback_on_stop():
     sim.play()
 
     def on_stop_with_exception(event):
-        raise OSError("Test exception in stop callback!")
+        try:
+            raise OSError("Test exception in stop callback!")
+        except Exception as e:
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
 
     # register callback via timeline
     timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
@@ -1094,7 +1103,7 @@ def test_exception_in_callback_on_stop():
         sim._disable_app_control_on_stop_handle = True  # type: ignore
 
         # stop should capture and re-raise the exception
-        with pytest.raises(IOError, match="Test exception in stop callback!"):
+        with pytest.raises(OSError, match="Test exception in stop callback!"):
             sim.stop()
 
         # verify the exception was cleared
