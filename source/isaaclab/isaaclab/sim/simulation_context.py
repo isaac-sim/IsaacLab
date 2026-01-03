@@ -270,8 +270,6 @@ class SimulationContext:
         self._physx_iface = omni.physx.get_physx_interface()
         self._physx_sim_iface = omni.physx.get_physx_simulation_interface()
         self._timeline_iface = omni.timeline.get_timeline_interface()
-        # create interfaces that are initialized on 'reset
-        self._physics_sim_view = None
 
         # set timeline auto update to True
         self._timeline_iface.set_auto_update(True)
@@ -383,7 +381,7 @@ class SimulationContext:
     @property
     def physics_sim_view(self) -> omni.physics.tensors.SimulationView:
         """Physics simulation view with torch backend."""
-        return self._physics_sim_view
+        return SimulationManager.get_physics_sim_view()
 
     """
     Operations - Simulation Information.
@@ -673,17 +671,6 @@ class SimulationContext:
             # initialize the physics simulation
             if SimulationManager.get_physics_sim_view() is None:
                 SimulationManager.initialize_physics()
-            # self._physx_iface.force_load_physics_from_usd()
-            # self._physx_iface.start_simulation()
-            # self._physx_iface.update_simulation(self.cfg.dt, 0.0)
-            # # attach stage to physx
-            # current_attached_stage = self._physx_sim_iface.get_attached_stage()
-            # if current_attached_stage != self._initial_stage_id:
-            #     self._physx_sim_iface.attach_stage(self._initial_stage_id)
-            # # fetch results
-            # self._physx_sim_iface.fetch_results()
-            # self._message_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
-
             # check for callback exceptions
             self._check_for_callback_exceptions()
 
@@ -691,21 +678,9 @@ class SimulationContext:
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
-        # create the simulation view
-        # SimulationManager._create_simulation_view(None)
-        # self._physics_sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=self._initial_stage_id)
-        # self._physics_sim_view.set_subspace_roots("/")
-        # self._physx_iface.update_simulation(self.cfg.dt, 0.0)
-        # # TODO: Remove these once we don't rely on Isaac Sim internals.
-        # self._message_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
-        # SimulationManager._simulation_view_created = True
-        # SimulationManager._physics_sim_view = self._physics_sim_view
-        # self._message_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-
         # enable kinematic rendering with fabric
-        if self._physics_sim_view:
-            self._physics_sim_view._backend.initialize_kinematic_bodies()
+        if self.physics_sim_view is not None:
+            self.physics_sim_view._backend.initialize_kinematic_bodies()
         # perform additional rendering steps to warm up replicator buffers
         # this is only needed for the first time we set the simulation
         if not soft:
@@ -749,7 +724,7 @@ class SimulationContext:
             # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
-            self.app.update()
+            self._app_iface.update()
 
         # step the simulation
         if render:
@@ -1378,8 +1353,6 @@ def build_simulation_context(
 
         # Clear the stage
         sim.clear_instance()
-        # check if we need to raise an exception that was raised in a callback
-        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-            raise exception_to_raise
+        # Check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:  # type: ignore
+            raise builtins.ISAACLAB_CALLBACK_EXCEPTION  # type: ignore
