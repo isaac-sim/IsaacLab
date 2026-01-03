@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 02, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 03, 2026"/>
   </head>
   
   
@@ -890,7 +890,7 @@
     <span class="n">create_prim</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="n">attributes</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># apply collision properties</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">)</span>
+        <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># apply visual material</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
@@ -900,7 +900,7 @@
         <span class="c1"># create material</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">material_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="p">)</span>
         <span class="c1"># apply material</span>
-        <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
+        <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># apply physics material</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
@@ -910,15 +910,15 @@
         <span class="c1"># create material</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">material_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">)</span>
         <span class="c1"># apply material</span>
-        <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
+        <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
     <span class="c1"># note: we apply rigid properties in the end to later make the instanceable prim</span>
     <span class="c1"># apply mass properties</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">)</span>
+        <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="c1"># apply rigid body properties</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">schemas</span><span class="o">.</span><span class="n">define_rigid_body_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span><span class="p">)</span>
+        <span class="n">schemas</span><span class="o">.</span><span class="n">define_rigid_body_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 </pre></div>
 
                 </article>
@@ -966,7 +966,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 02, 2026.
+  Last updated on Jan 03, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 02, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 03, 2026"/>
   </head>
   
   
@@ -654,7 +654,8 @@
 <span class="sd">        The root logger.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">root_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
-    <span class="n">root_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging_level</span><span class="p">)</span>
+    <span class="c1"># the root logger must be the lowest level to ensure that all messages are logged</span>
+    <span class="n">root_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
 
     <span class="c1"># remove existing handlers</span>
     <span class="c1"># Note: iterate over a copy [:] to avoid modifying list during iteration</span>
@@ -690,8 +691,15 @@
         <span class="n">file_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">file_formatter</span><span class="p">)</span>
         <span class="n">root_logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">file_handler</span><span class="p">)</span>
 
-        <span class="c1"># print the log file path once at startup</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] [IsaacLab] Logging to file: </span><span class="si">{</span><span class="n">log_file_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># print the log file path once at startup with nice formatting</span>
+        <span class="n">cyan</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[36m&quot;</span>  <span class="c1"># cyan color</span>
+        <span class="n">bold</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[1m&quot;</span>  <span class="c1"># bold text</span>
+        <span class="n">reset</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span>  <span class="c1"># reset formatting</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;[INFO][IsaacLab]: Logging to file: </span><span class="si">{</span><span class="n">log_file_path</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">border</span> <span class="o">=</span> <span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="si">{</span><span class="n">cyan</span><span class="si">}{</span><span class="n">border</span><span class="si">}{</span><span class="n">reset</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cyan</span><span class="si">}{</span><span class="n">bold</span><span class="si">}{</span><span class="n">message</span><span class="si">}{</span><span class="n">reset</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cyan</span><span class="si">}{</span><span class="n">border</span><span class="si">}{</span><span class="n">reset</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="c1"># return the root logger</span>
     <span class="k">return</span> <span class="n">root_logger</span></div>
@@ -706,7 +714,7 @@
     <span class="n">COLORS</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;WARNING&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[33m&quot;</span><span class="p">,</span>  <span class="c1"># orange/yellow</span>
         <span class="s2">&quot;ERROR&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span><span class="p">,</span>  <span class="c1"># red</span>
-        <span class="s2">&quot;CRITICAL&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[31m&quot;</span><span class="p">,</span>  <span class="c1"># red</span>
+        <span class="s2">&quot;CRITICAL&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[1;31m&quot;</span><span class="p">,</span>  <span class="c1"># bold red</span>
         <span class="s2">&quot;INFO&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span><span class="p">,</span>  <span class="c1"># reset</span>
         <span class="s2">&quot;DEBUG&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\033</span><span class="s2">[0m&quot;</span><span class="p">,</span>
     <span class="p">}</span>
@@ -815,7 +823,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 02, 2026.
+  Last updated on Jan 03, 2026.
   <br/>
 </p>
   </div>

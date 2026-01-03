@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 02, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 03, 2026"/>
   </head>
   
   
@@ -2522,6 +2522,22 @@
 
 <span class="sd">        Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># define custom formatters for large numbers and limit ranges</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">format_large_number</span><span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Format large numbers using scientific notation.&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mf">1e3</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">format_limits</span><span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Format limit ranges using scientific notation.&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="mf">1e3</span> <span class="ow">or</span> <span class="nb">abs</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="mf">1e3</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2">]&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]&quot;</span>
+
         <span class="c1"># read out all joint parameters from simulation</span>
         <span class="c1"># -- gains</span>
         <span class="n">stiffnesses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_stiffnesses</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
@@ -2542,64 +2558,40 @@
         <span class="c1"># create table for term information</span>
         <span class="n">joint_table</span> <span class="o">=</span> <span class="n">PrettyTable</span><span class="p">()</span>
         <span class="n">joint_table</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Simulation Joint Information (Prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="c1"># build field names based on Isaac Sim version</span>
+        <span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Index&quot;</span><span class="p">,</span> <span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="s2">&quot;Stiffness&quot;</span><span class="p">,</span> <span class="s2">&quot;Damping&quot;</span><span class="p">,</span> <span class="s2">&quot;Armature&quot;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="n">joint_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
-                <span class="s2">&quot;Index&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Name&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Stiffness&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Damping&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Armature&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Static Friction&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Position Limits&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Velocity Limits&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Effort Limits&quot;</span><span class="p">,</span>
-            <span class="p">]</span>
+            <span class="n">field_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Static Friction&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">joint_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span>
-                <span class="s2">&quot;Index&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Name&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Stiffness&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Damping&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Armature&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Static Friction&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Dynamic Friction&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Viscous Friction&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Position Limits&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Velocity Limits&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;Effort Limits&quot;</span><span class="p">,</span>
-            <span class="p">]</span>
-        <span class="n">joint_table</span><span class="o">.</span><span class="n">float_format</span> <span class="o">=</span> <span class="s2">&quot;.3&quot;</span>
-        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Position Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]&quot;</span>
+            <span class="n">field_names</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;Static Friction&quot;</span><span class="p">,</span> <span class="s2">&quot;Dynamic Friction&quot;</span><span class="p">,</span> <span class="s2">&quot;Viscous Friction&quot;</span><span class="p">])</span>
+        <span class="n">field_names</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;Position Limits&quot;</span><span class="p">,</span> <span class="s2">&quot;Velocity Limits&quot;</span><span class="p">,</span> <span class="s2">&quot;Effort Limits&quot;</span><span class="p">])</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">field_names</span> <span class="o">=</span> <span class="n">field_names</span>
+
+        <span class="c1"># apply custom formatters to numeric columns</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Stiffness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Damping&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Armature&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Static Friction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Dynamic Friction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+            <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Viscous Friction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Position Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_limits</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Velocity Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+        <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Effort Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+
         <span class="c1"># set alignment of table columns</span>
         <span class="n">joint_table</span><span class="o">.</span><span class="n">align</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;l&quot;</span>
         <span class="c1"># add info on each term</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="p">):</span>
+            <span class="c1"># build row data based on Isaac Sim version</span>
+            <span class="n">row_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">index</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">armatures</span><span class="p">[</span><span class="n">index</span><span class="p">]]</span>
             <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-                <span class="n">joint_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
-                    <span class="n">index</span><span class="p">,</span>
-                    <span class="n">name</span><span class="p">,</span>
-                    <span class="n">stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">armatures</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">static_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">position_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">velocity_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">effort_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                <span class="p">])</span>
+                <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">static_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">joint_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
-                    <span class="n">index</span><span class="p">,</span>
-                    <span class="n">name</span><span class="p">,</span>
-                    <span class="n">stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">armatures</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">static_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">dynamic_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">viscous_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">position_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">velocity_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">effort_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                <span class="p">])</span>
+                <span class="n">row_data</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">static_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">dynamic_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">viscous_frictions</span><span class="p">[</span><span class="n">index</span><span class="p">]])</span>
+            <span class="n">row_data</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">position_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">velocity_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">effort_limits</span><span class="p">[</span><span class="n">index</span><span class="p">]])</span>
+            <span class="c1"># add row to table</span>
+            <span class="n">joint_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">(</span><span class="n">row_data</span><span class="p">)</span>
         <span class="c1"># convert table to string</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Simulation parameters for joints in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">joint_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">())</span>
 
@@ -2626,7 +2618,15 @@
                 <span class="s2">&quot;Offset&quot;</span><span class="p">,</span>
             <span class="p">]</span>
             <span class="n">tendon_table</span><span class="o">.</span><span class="n">float_format</span> <span class="o">=</span> <span class="s2">&quot;.3&quot;</span>
-            <span class="n">joint_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">]&quot;</span>
+
+            <span class="c1"># apply custom formatters to tendon table columns</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Stiffness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Damping&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Limit Stiffness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Limits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_limits</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Rest Length&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+            <span class="n">tendon_table</span><span class="o">.</span><span class="n">custom_format</span><span class="p">[</span><span class="s2">&quot;Offset&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_large_number</span>
+
             <span class="c1"># add info on each term</span>
             <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">):</span>
                 <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
@@ -2779,7 +2779,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 02, 2026.
+  Last updated on Jan 03, 2026.
   <br/>
 </p>
   </div>

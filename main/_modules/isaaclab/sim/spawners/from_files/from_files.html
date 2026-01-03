@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 02, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 03, 2026"/>
   </head>
   
   
@@ -811,7 +811,7 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No collision prim found at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
         <span class="c1"># bind physics material to the collision prim</span>
         <span class="n">collision_prim_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">collision_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">())</span>
-        <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">collision_prim_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">)</span>
+        <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">collision_prim_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/physicsMaterial&quot;</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
     <span class="c1"># Obtain environment prim</span>
     <span class="n">environment_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">)</span>
@@ -843,6 +843,7 @@
                 <span class="n">value</span><span class="o">=</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">color</span><span class="p">),</span>
                 <span class="n">prev</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Color3f</span><span class="p">,</span>
+                <span class="n">usd_context_name</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
             <span class="p">)</span>
     <span class="c1"># Remove the light from the ground plane</span>
     <span class="c1"># It isn&#39;t bright enough and messes up with the user&#39;s lighting settings</span>
@@ -969,7 +970,7 @@
         <span class="c1"># create material</span>
         <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">material_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="p">)</span>
         <span class="c1"># apply material</span>
-        <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
+        <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
@@ -1020,7 +1021,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 02, 2026.
+  Last updated on Jan 03, 2026.
   <br/>
 </p>
   </div>
