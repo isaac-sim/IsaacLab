@@ -395,3 +395,350 @@ def test_custom_gravity(gravity):
     )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity, decimal=6)
+
+
+"""
+Callback Tests.
+"""
+
+
+@pytest.mark.isaacsim_ci
+def test_timeline_callbacks_on_play():
+    """Test that timeline callbacks are triggered on play event."""
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create a simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create a flag to track callback execution
+    callback_state = {"play_called": False, "stop_called": False}
+
+    # define callback functions
+    def on_play_callback(event):
+        callback_state["play_called"] = True
+
+    def on_stop_callback(event):
+        callback_state["stop_called"] = True
+
+    # register callbacks
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+    play_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY),
+        lambda event: on_play_callback(event),
+        order=20,
+    )
+    stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.STOP),
+        lambda event: on_stop_callback(event),
+        order=20,
+    )
+
+    try:
+        # ensure callbacks haven't been called yet
+        assert not callback_state["play_called"]
+        assert not callback_state["stop_called"]
+
+        # play the simulation - this should trigger play callback
+        sim.play()
+        assert callback_state["play_called"]
+        assert not callback_state["stop_called"]
+
+        # reset flags
+        callback_state["play_called"] = False
+
+        # disable app control to prevent hanging
+        sim._disable_app_control_on_stop_handle = True  # type: ignore
+
+        # stop the simulation - this should trigger stop callback
+        sim.stop()
+        assert callback_state["stop_called"]
+
+    finally:
+        # cleanup callbacks
+        if play_handle is not None:
+            play_handle.unsubscribe()
+        if stop_handle is not None:
+            stop_handle.unsubscribe()
+
+
+@pytest.mark.isaacsim_ci
+def test_timeline_callbacks_with_weakref():
+    """Test that timeline callbacks work correctly with weak references (similar to asset_base.py)."""
+    import weakref
+
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create a simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create a test object that will be weakly referenced
+    class CallbackTracker:
+        def __init__(self):
+            self.play_count = 0
+            self.stop_count = 0
+
+        def on_play(self, event):
+            self.play_count += 1
+
+        def on_stop(self, event):
+            self.stop_count += 1
+
+    # create an instance of the callback tracker
+    tracker = CallbackTracker()
+
+    # define safe callback wrapper (similar to asset_base.py pattern)
+    def safe_callback(callback_name, event, obj_ref):
+        """Safely invoke a callback on a weakly-referenced object."""
+        try:
+            obj = obj_ref()  # Dereference the weakref
+            if obj is not None:
+                getattr(obj, callback_name)(event)
+        except ReferenceError:
+            # Object has been deleted; ignore
+            pass
+
+    # register callbacks with weakref
+    obj_ref = weakref.ref(tracker)
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+
+    play_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY),
+        lambda event, obj_ref=obj_ref: safe_callback("on_play", event, obj_ref),
+        order=20,
+    )
+    stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.STOP),
+        lambda event, obj_ref=obj_ref: safe_callback("on_stop", event, obj_ref),
+        order=20,
+    )
+
+    try:
+        # verify callbacks haven't been called
+        assert tracker.play_count == 0
+        assert tracker.stop_count == 0
+
+        # trigger play event
+        sim.play()
+        assert tracker.play_count == 1
+        assert tracker.stop_count == 0
+
+        # disable app control to prevent hanging
+        sim._disable_app_control_on_stop_handle = True  # type: ignore
+
+        # trigger stop event
+        sim.stop()
+        assert tracker.play_count == 1
+        assert tracker.stop_count == 1
+
+        # delete the tracker object
+        del tracker
+
+        # trigger events again - callbacks should handle the deleted object gracefully
+        sim.play()
+        # disable app control again
+        sim._disable_app_control_on_stop_handle = True  # type: ignore
+        sim.stop()
+        # should not raise any errors
+
+    finally:
+        # cleanup callbacks
+        if play_handle is not None:
+            play_handle.unsubscribe()
+        if stop_handle is not None:
+            stop_handle.unsubscribe()
+
+
+@pytest.mark.isaacsim_ci
+def test_multiple_callbacks_on_same_event():
+    """Test that multiple callbacks can be registered for the same event."""
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create tracking for multiple callbacks
+    callback_counts = {"callback1": 0, "callback2": 0, "callback3": 0}
+
+    def callback1(event):
+        callback_counts["callback1"] += 1
+
+    def callback2(event):
+        callback_counts["callback2"] += 1
+
+    def callback3(event):
+        callback_counts["callback3"] += 1
+
+    # register multiple callbacks for play event
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+    handle1 = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback1(event), order=20
+    )
+    handle2 = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback2(event), order=21
+    )
+    handle3 = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback3(event), order=22
+    )
+
+    try:
+        # verify none have been called
+        assert all(count == 0 for count in callback_counts.values())
+
+        # trigger play event
+        sim.play()
+
+        # all callbacks should have been called
+        assert callback_counts["callback1"] == 1
+        assert callback_counts["callback2"] == 1
+        assert callback_counts["callback3"] == 1
+
+    finally:
+        # cleanup all callbacks
+        if handle1 is not None:
+            handle1.unsubscribe()
+        if handle2 is not None:
+            handle2.unsubscribe()
+        if handle3 is not None:
+            handle3.unsubscribe()
+
+
+@pytest.mark.isaacsim_ci
+def test_callback_execution_order():
+    """Test that callbacks are executed in the correct order based on priority."""
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # track execution order
+    execution_order = []
+
+    def callback_low_priority(event):
+        execution_order.append("low")
+
+    def callback_medium_priority(event):
+        execution_order.append("medium")
+
+    def callback_high_priority(event):
+        execution_order.append("high")
+
+    # register callbacks with different priorities (lower order = higher priority)
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+    handle_high = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback_high_priority(event), order=5
+    )
+    handle_medium = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback_medium_priority(event), order=10
+    )
+    handle_low = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: callback_low_priority(event), order=15
+    )
+
+    try:
+        # trigger play event
+        sim.play()
+
+        # verify callbacks were executed in correct order
+        assert len(execution_order) == 3
+        assert execution_order[0] == "high"
+        assert execution_order[1] == "medium"
+        assert execution_order[2] == "low"
+
+    finally:
+        # cleanup callbacks
+        if handle_high is not None:
+            handle_high.unsubscribe()
+        if handle_medium is not None:
+            handle_medium.unsubscribe()
+        if handle_low is not None:
+            handle_low.unsubscribe()
+
+
+@pytest.mark.isaacsim_ci
+def test_callback_unsubscribe():
+    """Test that unsubscribing callbacks works correctly."""
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create callback counter
+    callback_count = {"count": 0}
+
+    def on_play_callback(event):
+        callback_count["count"] += 1
+
+    # register callback
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+    play_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PLAY), lambda event: on_play_callback(event), order=20
+    )
+
+    try:
+        # trigger play event
+        sim.play()
+        assert callback_count["count"] == 1
+
+        # stop simulation
+        sim._disable_app_control_on_stop_handle = True  # type: ignore
+        sim.stop()
+
+        # unsubscribe the callback
+        play_handle.unsubscribe()
+        play_handle = None
+
+        # trigger play event again
+        sim.play()
+
+        # callback should not have been called again (still 1)
+        assert callback_count["count"] == 1
+
+    finally:
+        # cleanup if needed
+        if play_handle is not None:
+            play_handle.unsubscribe()
+
+
+@pytest.mark.isaacsim_ci
+def test_pause_event_callback():
+    """Test that pause event callbacks are triggered correctly."""
+    import omni.timeline
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create callback tracker
+    callback_state = {"pause_called": False}
+
+    def on_pause_callback(event):
+        callback_state["pause_called"] = True
+
+    # register pause callback
+    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+    pause_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        int(omni.timeline.TimelineEventType.PAUSE), lambda event: on_pause_callback(event), order=20
+    )
+
+    try:
+        # play the simulation first
+        sim.play()
+        assert not callback_state["pause_called"]
+
+        # pause the simulation
+        sim.pause()
+
+        # callback should have been triggered
+        assert callback_state["pause_called"]
+
+    finally:
+        # cleanup
+        if pause_handle is not None:
+            pause_handle.unsubscribe()
