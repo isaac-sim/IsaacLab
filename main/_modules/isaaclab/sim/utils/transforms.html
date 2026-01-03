@@ -1,0 +1,1118 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab.sim.utils.transforms &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/sim/utils/transforms';</script>
+    <link rel="icon" href="../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Jan 02, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="transforms.html" selected>main</option>
+            <option value="../../../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/isaaclab_3-0.html">IsaacLab 3.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/sim/utils/transforms.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab.sim.utils.transforms</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">&quot;&quot;&quot;Utilities for working with USD transform (xform) operations.</span>
+
+<span class="sd">This module provides utilities for manipulating USD transform operations (xform ops) on prims.</span>
+<span class="sd">Transform operations in USD define how geometry is positioned, oriented, and scaled in 3D space.</span>
+
+<span class="sd">The utilities in this module help standardize transform stacks, clear operations, and manipulate</span>
+<span class="sd">transforms in a consistent way across different USD assets.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span>
+
+<span class="c1"># import logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">_INVALID_XFORM_OPS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;xformOp:rotateX&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateXZY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateYXZ&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateYZX&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateZ&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateZYX&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateZXY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:rotateXYZ&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;xformOp:transform&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+<span class="sd">&quot;&quot;&quot;List of invalid xform ops that should be removed.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="standardize_xform_ops"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.transforms.standardize_xform_ops">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">standardize_xform_ops</span><span class="p">(</span>
+    <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span>
+    <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Standardize the transform operation stack on a USD prim to a canonical form.</span>
+
+<span class="sd">    This function converts a prim&#39;s transform stack to use the standard USD transform operation</span>
+<span class="sd">    order: [translate, orient, scale]. The function performs the following operations:</span>
+
+<span class="sd">    1. Validates that the prim is Xformable</span>
+<span class="sd">    2. Captures the current local transform (translation, rotation, scale)</span>
+<span class="sd">    3. Resolves and bakes unit scale conversions (xformOp:scale:unitsResolve)</span>
+<span class="sd">    4. Creates or reuses standard transform operations (translate, orient, scale)</span>
+<span class="sd">    5. Sets the transform operation order to [translate, orient, scale]</span>
+<span class="sd">    6. Applies the preserved or user-specified transform values</span>
+
+<span class="sd">    The entire modification is performed within an ``Sdf.ChangeBlock`` for optimal performance</span>
+<span class="sd">    when processing multiple prims.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        **Standard Transform Order:** The function enforces the USD best practice order:</span>
+<span class="sd">        ``xformOp:translate``, ``xformOp:orient``, ``xformOp:scale``. This order is</span>
+<span class="sd">        compatible with most USD tools and workflows, and uses quaternions for rotation</span>
+<span class="sd">        (avoiding gimbal lock issues).</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        **Pose Preservation:** By default, the function preserves the prim&#39;s local transform</span>
+<span class="sd">        (relative to its parent). The world-space position of the prim remains unchanged</span>
+<span class="sd">        unless explicit ``translation``, ``orientation``, or ``scale`` values are provided.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">        **Animation Data Loss:** This function only preserves transform values at the default</span>
+<span class="sd">        time code (``Usd.TimeCode.Default()``). Any animation or time-sampled transform data</span>
+<span class="sd">        will be lost. Use this function during asset import or preparation, not on animated prims.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">        **Unit Scale Resolution:** If the prim has a ``xformOp:scale:unitsResolve`` attribute</span>
+<span class="sd">        (common in imported assets with unit mismatches), it will be baked into the scale</span>
+<span class="sd">        and removed. For example, a scale of (1, 1, 1) with unitsResolve of (100, 100, 100)</span>
+<span class="sd">        becomes a final scale of (100, 100, 100).</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to standardize. Must be a valid prim that supports the</span>
+<span class="sd">            UsdGeom.Xformable schema (e.g., Xform, Mesh, Cube, etc.). Material and</span>
+<span class="sd">            Shader prims are not Xformable and will return False.</span>
+<span class="sd">        translation: Optional translation vector (x, y, z) in local space. If provided,</span>
+<span class="sd">            overrides the prim&#39;s current translation. If None, preserves the current</span>
+<span class="sd">            local translation. Defaults to None.</span>
+<span class="sd">        orientation: Optional orientation quaternion (w, x, y, z) in local space. If provided,</span>
+<span class="sd">            overrides the prim&#39;s current orientation. If None, preserves the current</span>
+<span class="sd">            local orientation. Defaults to None.</span>
+<span class="sd">        scale: Optional scale vector (x, y, z). If provided, overrides the prim&#39;s current scale.</span>
+<span class="sd">            If None, preserves the current scale (after unit resolution) or uses (1, 1, 1)</span>
+<span class="sd">            if no scale exists. Defaults to None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        bool: True if the transform operations were successfully standardized. False if the</span>
+<span class="sd">            prim is not Xformable (e.g., Material, Shader prims). The function will log an</span>
+<span class="sd">            error message when returning False.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim is not valid (i.e., does not exist or is an invalid prim).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Standardize a prim with non-standard transform operations</span>
+<span class="sd">        &gt;&gt;&gt; prim = stage.GetPrimAtPath(&quot;/World/ImportedAsset&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; result = sim_utils.standardize_xform_ops(prim)</span>
+<span class="sd">        &gt;&gt;&gt; if result:</span>
+<span class="sd">        ...     print(&quot;Transform stack standardized successfully&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; # The prim now uses: [translate, orient, scale] in that order</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Standardize and set new transform values</span>
+<span class="sd">        &gt;&gt;&gt; sim_utils.standardize_xform_ops(</span>
+<span class="sd">        ...     prim,</span>
+<span class="sd">        ...     translation=(1.0, 2.0, 3.0),</span>
+<span class="sd">        ...     orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation (w, x, y, z)</span>
+<span class="sd">        ...     scale=(2.0, 2.0, 2.0)</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Batch processing for performance</span>
+<span class="sd">        &gt;&gt;&gt; prims_to_standardize = [stage.GetPrimAtPath(p) for p in prim_paths]</span>
+<span class="sd">        &gt;&gt;&gt; for prim in prims_to_standardize:</span>
+<span class="sd">        ...     sim_utils.standardize_xform_ops(prim)  # Each call uses Sdf.ChangeBlock</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Validate prim</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check if prim is an Xformable</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39; is not an Xformable.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># Create xformable interface</span>
+    <span class="n">xformable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="c1"># Get current property names</span>
+    <span class="n">prop_names</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPropertyNames</span><span class="p">()</span>
+
+    <span class="c1"># Obtain current local transformations</span>
+    <span class="n">tf</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Transform</span><span class="p">(</span><span class="n">xformable</span><span class="o">.</span><span class="n">GetLocalTransformation</span><span class="p">())</span>
+    <span class="n">xform_pos</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">GetTranslation</span><span class="p">())</span>
+    <span class="n">xform_quat</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Quatd</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">GetRotation</span><span class="p">()</span><span class="o">.</span><span class="n">GetQuat</span><span class="p">())</span>
+    <span class="n">xform_scale</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">GetScale</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="n">translation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">xform_pos</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="o">*</span><span class="n">translation</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">xform_quat</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Quatd</span><span class="p">(</span><span class="o">*</span><span class="n">orientation</span><span class="p">)</span>
+
+    <span class="c1"># Handle scale resolution</span>
+    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># User provided scale</span>
+        <span class="n">xform_scale</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="s2">&quot;xformOp:scale&quot;</span> <span class="ow">in</span> <span class="n">prop_names</span><span class="p">:</span>
+        <span class="c1"># Handle unit resolution for scale if present</span>
+        <span class="c1"># This occurs when assets are imported with different unit scales</span>
+        <span class="c1"># Reference: Omniverse Metrics Assembler</span>
+        <span class="k">if</span> <span class="s2">&quot;xformOp:scale:unitsResolve&quot;</span> <span class="ow">in</span> <span class="n">prop_names</span><span class="p">:</span>
+            <span class="n">units_resolve</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale:unitsResolve&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+                <span class="n">xform_scale</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">xform_scale</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">units_resolve</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># No scale exists, use default uniform scale</span>
+        <span class="n">xform_scale</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="c1"># Verify if xform stack is reset</span>
+    <span class="n">has_reset</span> <span class="o">=</span> <span class="n">xformable</span><span class="o">.</span><span class="n">GetResetXformStack</span><span class="p">()</span>
+    <span class="c1"># Batch the operations</span>
+    <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+        <span class="c1"># Clear the existing transform operation order</span>
+        <span class="k">for</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="n">prop_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="n">_INVALID_XFORM_OPS</span><span class="p">:</span>
+                <span class="n">prim</span><span class="o">.</span><span class="n">RemoveProperty</span><span class="p">(</span><span class="n">prop_name</span><span class="p">)</span>
+
+        <span class="c1"># Remove unitsResolve attribute if present (already handled in scale resolution above)</span>
+        <span class="k">if</span> <span class="s2">&quot;xformOp:scale:unitsResolve&quot;</span> <span class="ow">in</span> <span class="n">prop_names</span><span class="p">:</span>
+            <span class="n">prim</span><span class="o">.</span><span class="n">RemoveProperty</span><span class="p">(</span><span class="s2">&quot;xformOp:scale:unitsResolve&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Set up or retrieve scale operation</span>
+        <span class="n">xform_op_scale</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">xform_op_scale</span><span class="p">:</span>
+            <span class="n">xform_op_scale</span> <span class="o">=</span> <span class="n">xformable</span><span class="o">.</span><span class="n">AddXformOp</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">TypeScale</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Set up or retrieve translate operation</span>
+        <span class="n">xform_op_translate</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:translate&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">xform_op_translate</span><span class="p">:</span>
+            <span class="n">xform_op_translate</span> <span class="o">=</span> <span class="n">xformable</span><span class="o">.</span><span class="n">AddXformOp</span><span class="p">(</span>
+                <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">TypeTranslate</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">,</span> <span class="s2">&quot;&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Set up or retrieve orient (quaternion rotation) operation</span>
+        <span class="n">xform_op_orient</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="p">(</span><span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:orient&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">xform_op_orient</span><span class="p">:</span>
+            <span class="n">xform_op_orient</span> <span class="o">=</span> <span class="n">xformable</span><span class="o">.</span><span class="n">AddXformOp</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">TypeOrient</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Handle different floating point precisions</span>
+        <span class="c1"># Existing Xform operations might have floating or double precision.</span>
+        <span class="c1"># We need to cast the data to the correct type to avoid setting the wrong type.</span>
+        <span class="n">xform_ops</span> <span class="o">=</span> <span class="p">[</span><span class="n">xform_op_translate</span><span class="p">,</span> <span class="n">xform_op_orient</span><span class="p">,</span> <span class="n">xform_op_scale</span><span class="p">]</span>
+        <span class="n">xform_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">xform_pos</span><span class="p">,</span> <span class="n">xform_quat</span><span class="p">,</span> <span class="n">xform_scale</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">xform_op</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">xform_ops</span><span class="p">,</span> <span class="n">xform_values</span><span class="p">):</span>
+            <span class="c1"># Get current value to determine precision type</span>
+            <span class="n">current_value</span> <span class="o">=</span> <span class="n">xform_op</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="c1"># Cast to existing type to preserve precision (float/double)</span>
+            <span class="n">xform_op</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">current_value</span><span class="p">)(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="n">current_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Set the transform operation order: translate -&gt; orient -&gt; scale</span>
+        <span class="c1"># This is the standard USD convention and ensures consistent behavior</span>
+        <span class="n">xformable</span><span class="o">.</span><span class="n">SetXformOpOrder</span><span class="p">([</span><span class="n">xform_op_translate</span><span class="p">,</span> <span class="n">xform_op_orient</span><span class="p">,</span> <span class="n">xform_op_scale</span><span class="p">],</span> <span class="n">has_reset</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="validate_standard_xform_ops"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.transforms.validate_standard_xform_ops">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">validate_standard_xform_ops</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate if the transform operations on a prim are standardized.</span>
+
+<span class="sd">    This function checks if the transform operations on a prim are standardized to the canonical form:</span>
+<span class="sd">    [translate, orient, scale].</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to validate.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1"># check if prim is an xformable</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not an xformable.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1"># get the xformable interface</span>
+    <span class="n">xformable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="c1"># get the xform operation order</span>
+    <span class="n">xform_op_order</span> <span class="o">=</span> <span class="n">xformable</span><span class="o">.</span><span class="n">GetOrderedXformOps</span><span class="p">()</span>
+    <span class="n">xform_op_order</span> <span class="o">=</span> <span class="p">[</span><span class="n">op</span><span class="o">.</span><span class="n">GetOpName</span><span class="p">()</span> <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">xform_op_order</span><span class="p">]</span>
+    <span class="c1"># check if the xform operation order is the canonical form</span>
+    <span class="k">if</span> <span class="n">xform_op_order</span> <span class="o">!=</span> <span class="p">[</span><span class="s2">&quot;xformOp:translate&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:orient&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:scale&quot;</span><span class="p">]:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Xform operation order for prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not the canonical form.&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; Received order: </span><span class="si">{</span><span class="n">xform_op_order</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; Expected order: [&#39;xformOp:translate&#39;, &#39;xformOp:orient&#39;, &#39;xformOp:scale&#39;]&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="resolve_prim_pose"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.transforms.resolve_prim_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_pose</span><span class="p">(</span>
+    <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">ref_prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the pose of a prim with respect to another prim.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This function ignores scale and skew by orthonormalizing the transformation</span>
+<span class="sd">        matrix at the final step. However, if any ancestor prim in the hierarchy</span>
+<span class="sd">        has non-uniform scale, that scale will still affect the resulting position</span>
+<span class="sd">        and orientation of the prim (because it&#39;s baked into the transform before</span>
+<span class="sd">        scale removal).</span>
+
+<span class="sd">        In other words: scale **is not removed hierarchically**. If you need</span>
+<span class="sd">        completely scale-free poses, you must walk the transform chain and strip</span>
+<span class="sd">        scale at each level. Please open an issue if you need this functionality.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to resolve the pose for.</span>
+<span class="sd">        ref_prim: The USD prim to compute the pose with respect to.</span>
+<span class="sd">            Defaults to None, in which case the world frame is used.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple containing the position (as a 3D vector) and the quaternion orientation</span>
+<span class="sd">        in the (w, x, y, z) format.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim or ref prim is not valid.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
+<span class="sd">        &gt;&gt;&gt; from pxr import Usd, UsdGeom</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Get prim</span>
+<span class="sd">        &gt;&gt;&gt; stage = sim_utils.get_current_stage()</span>
+<span class="sd">        &gt;&gt;&gt; prim = stage.GetPrimAtPath(&quot;/World/ImportedAsset&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Resolve pose</span>
+<span class="sd">        &gt;&gt;&gt; pos, quat = sim_utils.resolve_prim_pose(prim)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Position: {pos}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Orientation: {quat}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Resolve pose with respect to another prim</span>
+<span class="sd">        &gt;&gt;&gt; ref_prim = stage.GetPrimAtPath(&quot;/World/Reference&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Position: {pos}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Orientation: {quat}&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+    <span class="c1"># get prim xform</span>
+    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+    <span class="c1"># sanitize quaternion</span>
+    <span class="c1"># this is needed, otherwise the quaternion might be non-normalized</span>
+    <span class="n">prim_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">ref_prim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># if reference prim is the root, we can skip the computation</span>
+        <span class="k">if</span> <span class="n">ref_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span> <span class="o">!=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="o">.</span><span class="n">absoluteRootPath</span><span class="p">:</span>
+            <span class="c1"># get ref prim xform</span>
+            <span class="n">ref_xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">ref_prim</span><span class="p">)</span>
+            <span class="n">ref_tf</span> <span class="o">=</span> <span class="n">ref_xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+            <span class="c1"># make sure ref tf is orthonormal</span>
+            <span class="n">ref_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
+            <span class="c1"># compute relative transform to get prim in ref frame</span>
+            <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">prim_tf</span> <span class="o">*</span> <span class="n">ref_tf</span><span class="o">.</span><span class="n">GetInverse</span><span class="p">()</span>
+
+    <span class="c1"># extract position and orientation</span>
+    <span class="n">prim_pos</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()]</span>
+    <span class="n">prim_quat</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">imaginary</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_pos</span><span class="p">),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_quat</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="resolve_prim_scale"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.transforms.resolve_prim_scale">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_scale</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the scale of a prim in the world frame.</span>
+
+<span class="sd">    At an attribute level, a USD prim&#39;s scale is a scaling transformation applied to the prim with</span>
+<span class="sd">    respect to its parent prim. This function resolves the scale of the prim in the world frame,</span>
+<span class="sd">    by computing the local to world transform of the prim. This is equivalent to traversing up</span>
+<span class="sd">    the prim hierarchy and accounting for the rotations and scales of the prims.</span>
+
+<span class="sd">    For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),</span>
+<span class="sd">    then the scale of the prim in the world frame is (4, 10, 18).</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to resolve the scale for.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The scale of the prim in the x, y, and z directions in the world frame.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim is not valid.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
+<span class="sd">        &gt;&gt;&gt; from pxr import Usd, UsdGeom</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Get prim</span>
+<span class="sd">        &gt;&gt;&gt; stage = sim_utils.get_current_stage()</span>
+<span class="sd">        &gt;&gt;&gt; prim = stage.GetPrimAtPath(&quot;/World/ImportedAsset&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Resolve scale</span>
+<span class="sd">        &gt;&gt;&gt; scale = sim_utils.resolve_prim_scale(prim)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Scale: {scale}&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+    <span class="c1"># compute local to world transform</span>
+    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="n">world_transform</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+    <span class="c1"># extract scale</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="o">*</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">GetLength</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">world_transform</span><span class="o">.</span><span class="n">ExtractRotationMatrix</span><span class="p">())])</span></div>
+
+
+<div class="viewcode-block" id="convert_world_pose_to_local"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.transforms.convert_world_pose_to_local">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">convert_world_pose_to_local</span><span class="p">(</span>
+    <span class="n">position</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ref_prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a world-space pose to local-space pose relative to a reference prim.</span>
+
+<span class="sd">    This function takes a position and orientation in world space and converts them to local space</span>
+<span class="sd">    relative to the given reference prim. This is useful when creating or positioning prims where you</span>
+<span class="sd">    know the desired world position but need to set local transform attributes relative to another prim.</span>
+
+<span class="sd">    The conversion uses the standard USD transformation math:</span>
+<span class="sd">    ``local_transform = world_transform * inverse(ref_world_transform)``</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        If the reference prim is the root prim (&quot;/&quot;), the position and orientation are returned</span>
+<span class="sd">        unchanged, as they are already effectively in local/world space.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        position: The world-space position as (x, y, z).</span>
+<span class="sd">        orientation: The world-space orientation as quaternion (w, x, y, z). If None, only position is converted</span>
+<span class="sd">            and None is returned for orientation.</span>
+<span class="sd">        ref_prim: The reference USD prim to compute the local transform relative to. If this is</span>
+<span class="sd">            the root prim (&quot;/&quot;), the world pose is returned unchanged.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple of (local_translation, local_orientation) where:</span>
+
+<span class="sd">        - local_translation is a tuple of (x, y, z) in local space relative to ref_prim</span>
+<span class="sd">        - local_orientation is a tuple of (w, x, y, z) in local space relative to ref_prim, or None if no orientation was provided</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the reference prim is not a valid USD prim.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
+<span class="sd">        &gt;&gt;&gt; from pxr import Usd, UsdGeom</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Get reference prim</span>
+<span class="sd">        &gt;&gt;&gt; stage = sim_utils.get_current_stage()</span>
+<span class="sd">        &gt;&gt;&gt; ref_prim = stage.GetPrimAtPath(&quot;/World/Reference&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Convert world pose to local (relative to ref_prim)</span>
+<span class="sd">        &gt;&gt;&gt; world_pos = (10.0, 5.0, 0.0)</span>
+<span class="sd">        &gt;&gt;&gt; world_quat = (1.0, 0.0, 0.0, 0.0)  # identity rotation</span>
+<span class="sd">        &gt;&gt;&gt; local_pos, local_quat = sim_utils.convert_world_pose_to_local(</span>
+<span class="sd">        ...     world_pos, world_quat, ref_prim</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Local position: {local_pos}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Local orientation: {local_quat}&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ref_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Reference prim at path &#39;</span><span class="si">{</span><span class="n">ref_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># If reference prim is the root, return world pose as-is</span>
+    <span class="k">if</span> <span class="n">ref_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span> <span class="o">==</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="o">.</span><span class="n">absoluteRootPath</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">position</span><span class="p">,</span> <span class="n">orientation</span>  <span class="c1"># type: ignore</span>
+
+    <span class="c1"># Check if reference prim is a valid xformable</span>
+    <span class="n">ref_xformable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">ref_prim</span><span class="p">)</span>
+    <span class="c1"># Get reference prim&#39;s world transform</span>
+    <span class="n">ref_world_tf</span> <span class="o">=</span> <span class="n">ref_xformable</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+
+    <span class="c1"># Create world transform for the desired position and orientation</span>
+    <span class="n">desired_world_tf</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Matrix4d</span><span class="p">()</span>
+    <span class="n">desired_world_tf</span><span class="o">.</span><span class="n">SetTranslateOnly</span><span class="p">(</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="o">*</span><span class="n">position</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Set rotation from quaternion (w, x, y, z)</span>
+        <span class="n">quat</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Quatd</span><span class="p">(</span><span class="o">*</span><span class="n">orientation</span><span class="p">)</span>
+        <span class="n">desired_world_tf</span><span class="o">.</span><span class="n">SetRotateOnly</span><span class="p">(</span><span class="n">quat</span><span class="p">)</span>
+
+    <span class="c1"># Convert world transform to local: local = world * inv(ref_world)</span>
+    <span class="n">ref_world_tf_inv</span> <span class="o">=</span> <span class="n">ref_world_tf</span><span class="o">.</span><span class="n">GetInverse</span><span class="p">()</span>
+    <span class="n">local_tf</span> <span class="o">=</span> <span class="n">desired_world_tf</span> <span class="o">*</span> <span class="n">ref_world_tf_inv</span>
+
+    <span class="c1"># Extract local translation and orientation</span>
+    <span class="n">local_transform</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Transform</span><span class="p">(</span><span class="n">local_tf</span><span class="p">)</span>
+    <span class="n">local_translation</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">local_transform</span><span class="o">.</span><span class="n">GetTranslation</span><span class="p">())</span>
+
+    <span class="n">local_orientation</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">quat_result</span> <span class="o">=</span> <span class="n">local_transform</span><span class="o">.</span><span class="n">GetRotation</span><span class="p">()</span><span class="o">.</span><span class="n">GetQuat</span><span class="p">()</span>
+        <span class="n">local_orientation</span> <span class="o">=</span> <span class="p">(</span><span class="n">quat_result</span><span class="o">.</span><span class="n">GetReal</span><span class="p">(),</span> <span class="o">*</span><span class="n">quat_result</span><span class="o">.</span><span class="n">GetImaginary</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">local_translation</span><span class="p">,</span> <span class="n">local_orientation</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 02, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

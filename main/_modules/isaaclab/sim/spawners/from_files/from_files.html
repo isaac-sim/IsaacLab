@@ -794,7 +794,7 @@
 
     <span class="c1"># Spawn Ground-plane</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-        <span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">usd_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
+        <span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">usd_path</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
@@ -923,6 +923,7 @@
             <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span>
             <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span>
             <span class="n">scale</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span>
+            <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at prim path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>

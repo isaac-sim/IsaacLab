@@ -646,7 +646,9 @@
     <span class="k">if</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
     <span class="c1"># create the prim</span>
-    <span class="n">prim</span> <span class="o">=</span> <span class="n">create_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_type</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">)</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">create_prim</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_type</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span>
+    <span class="p">)</span>
 
     <span class="c1"># convert to dict</span>
     <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>

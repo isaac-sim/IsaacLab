@@ -663,7 +663,7 @@
 
     <span class="c1"># find a free prim path to hold all the template prims</span>
     <span class="n">template_prim_path</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_next_free_prim_path</span><span class="p">(</span><span class="s2">&quot;/World/Template&quot;</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
-    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">,</span> <span class="s2">&quot;Scope&quot;</span><span class="p">)</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">,</span> <span class="s2">&quot;Scope&quot;</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
     <span class="c1"># spawn everything first in a &quot;Dataset&quot; prim</span>
     <span class="n">proto_prim_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
@@ -712,7 +712,7 @@
             <span class="n">Sdf</span><span class="o">.</span><span class="n">CopySpec</span><span class="p">(</span><span class="n">env_spec</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">proto_path</span><span class="p">),</span> <span class="n">env_spec</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">))</span>
 
     <span class="c1"># delete the dataset prim after spawning</span>
-    <span class="n">sim_utils</span><span class="o">.</span><span class="n">delete_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">delete_prim</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
     <span class="c1"># set carb setting to indicate Isaac Lab&#39;s environments that different prims have been spawned</span>
     <span class="c1"># at varying prim paths. In this case, PhysX parser shouldn&#39;t optimize the stage parsing.</span>

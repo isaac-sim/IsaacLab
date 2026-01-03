@@ -607,6 +607,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
@@ -616,7 +617,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>  <span class="c1"># noqa: F401</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">Cloner</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">omni.usd.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeletePrimsCommand</span><span class="p">,</span> <span class="n">MovePrimCommand</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdShade</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdShade</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
@@ -624,6 +625,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_matching_prim_paths</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_labels</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">attach_stage_to_usd_context</span><span class="p">,</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_world_pose_to_local</span><span class="p">,</span> <span class="n">standardize_xform_ops</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.spawner_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpawnerCfg</span>
@@ -640,10 +642,10 @@
 <div class="viewcode-block" id="create_prim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.create_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">create_prim</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">prim_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Xform&quot;</span><span class="p">,</span>
-    <span class="n">position</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">translation</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">orientation</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">scale</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">position</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">translation</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">semantic_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">semantic_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;class&quot;</span><span class="p">,</span>
@@ -653,40 +655,85 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates a prim in the provided USD stage.</span>
 
 <span class="sd">    The method applies the specified transforms, the semantic label and sets the specified attributes.</span>
+<span class="sd">    The transform can be specified either in world space (using ``position``) or local space (using</span>
+<span class="sd">    ``translation``).</span>
+
+<span class="sd">    The function determines the coordinate system of the transform based on the provided arguments.</span>
+
+<span class="sd">    * If ``position`` is provided, it is assumed the orientation is provided in the world frame as well.</span>
+<span class="sd">    * If ``translation`` is provided, it is assumed the orientation is provided in the local frame as well.</span>
+
+<span class="sd">    The scale is always applied in the local frame.</span>
+
+<span class="sd">    The function handles various sequence types (list, tuple, numpy array, torch tensor)</span>
+<span class="sd">    and converts them to properly-typed tuples for operations on the prim.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        Transform operations are standardized to the USD convention: translate, orient (quaternion),</span>
+<span class="sd">        and scale, in that order. See :func:`standardize_xform_ops` for more details.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        prim_path: The path of the new prim.</span>
-<span class="sd">        prim_type: Prim type name</span>
-<span class="sd">        position: prim position (applied last)</span>
-<span class="sd">        translation: prim translation (applied last)</span>
-<span class="sd">        orientation: prim rotation as quaternion</span>
-<span class="sd">        scale: scaling factor in x, y, z.</span>
-<span class="sd">        usd_path: Path to the USD that this prim will reference.</span>
-<span class="sd">        semantic_label: Semantic label.</span>
-<span class="sd">        semantic_type: set to &quot;class&quot; unless otherwise specified.</span>
-<span class="sd">        attributes: Key-value pairs of prim attributes to set.</span>
-<span class="sd">        stage: The stage to create the prim in. Defaults to None, in which case the current stage is used.</span>
+<span class="sd">        prim_path:</span>
+<span class="sd">            The path of the new prim.</span>
+<span class="sd">        prim_type:</span>
+<span class="sd">            Prim type name. Defaults to &quot;Xform&quot;, in which case a simple Xform prim is created.</span>
+<span class="sd">        position:</span>
+<span class="sd">            Prim position in world space as (x, y, z). If the prim has a parent, this is</span>
+<span class="sd">            automatically converted to local space relative to the parent. Cannot be used with</span>
+<span class="sd">            ``translation``. Defaults to None, in which case no position is applied.</span>
+<span class="sd">        translation:</span>
+<span class="sd">            Prim translation in local space as (x, y, z). This is applied directly without</span>
+<span class="sd">            any coordinate transformation. Cannot be used with ``position``. Defaults to None,</span>
+<span class="sd">            in which case no translation is applied.</span>
+<span class="sd">        orientation:</span>
+<span class="sd">            Prim rotation as a quaternion (w, x, y, z). When used with ``position``, the</span>
+<span class="sd">            orientation is also converted from world space to local space. When used with ``translation``,</span>
+<span class="sd">            it is applied directly as local orientation. Defaults to None.</span>
+<span class="sd">        scale:</span>
+<span class="sd">            Scaling factor in x, y, z. Applied in local space. Defaults to None,</span>
+<span class="sd">            in which case a uniform scale of 1.0 is applied.</span>
+<span class="sd">        usd_path:</span>
+<span class="sd">            Path to the USD file that this prim will reference. Defaults to None.</span>
+<span class="sd">        semantic_label:</span>
+<span class="sd">            Semantic label to apply to the prim. Defaults to None, in which case no label is added.</span>
+<span class="sd">        semantic_type:</span>
+<span class="sd">            Semantic type for the label. Defaults to &quot;class&quot;.</span>
+<span class="sd">        attributes:</span>
+<span class="sd">            Key-value pairs of prim attributes to set. Defaults to None, in which case no attributes are set.</span>
+<span class="sd">        stage:</span>
+<span class="sd">            The stage to create the prim in. Defaults to None, in which case the current stage is used.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        The created USD prim.</span>
 
 <span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If there is already a prim at the provided prim_path.</span>
+<span class="sd">        ValueError: If there is already a prim at the provided prim path.</span>
+<span class="sd">        ValueError: If both position and translation are provided.</span>
 
 <span class="sd">    Example:</span>
 <span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
 <span class="sd">        &gt;&gt;&gt;</span>
-<span class="sd">        &gt;&gt;&gt; # create a cube (/World/Cube) of size 2 centered at (1.0, 0.5, 0.0)</span>
+<span class="sd">        &gt;&gt;&gt; # Create a cube at world position (1.0, 0.5, 0.0)</span>
 <span class="sd">        &gt;&gt;&gt; sim_utils.create_prim(</span>
-<span class="sd">        ...     prim_path=&quot;/World/Cube&quot;,</span>
+<span class="sd">        ...     prim_path=&quot;/World/Parent/Cube&quot;,</span>
 <span class="sd">        ...     prim_type=&quot;Cube&quot;,</span>
 <span class="sd">        ...     position=(1.0, 0.5, 0.0),</span>
 <span class="sd">        ...     attributes={&quot;size&quot;: 2.0}</span>
 <span class="sd">        ... )</span>
-<span class="sd">        Usd.Prim(&lt;/World/Cube&gt;)</span>
+<span class="sd">        Usd.Prim(&lt;/World/Parent/Cube&gt;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Create a sphere with local translation relative to its parent</span>
+<span class="sd">        &gt;&gt;&gt; sim_utils.create_prim(</span>
+<span class="sd">        ...     prim_path=&quot;/World/Parent/Sphere&quot;,</span>
+<span class="sd">        ...     prim_type=&quot;Sphere&quot;,</span>
+<span class="sd">        ...     translation=(0.5, 0.0, 0.0),</span>
+<span class="sd">        ...     scale=(2.0, 2.0, 2.0)</span>
+<span class="sd">        ... )</span>
+<span class="sd">        Usd.Prim(&lt;/World/Parent/Sphere&gt;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Note: Imported here to prevent cyclic dependency in the module.</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
+    <span class="c1"># Ensure that user doesn&#39;t provide both position and translation</span>
+    <span class="k">if</span> <span class="n">position</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">translation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot provide both position and translation. Please provide only one.&quot;</span><span class="p">)</span>
 
     <span class="c1"># obtain stage handle</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
@@ -710,26 +757,20 @@
     <span class="k">if</span> <span class="n">semantic_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">add_labels</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="p">[</span><span class="n">semantic_label</span><span class="p">],</span> <span class="n">instance_name</span><span class="o">=</span><span class="n">semantic_type</span><span class="p">)</span>
 
-    <span class="c1"># apply the transformations</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.api.simulation_context.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+    <span class="c1"># convert input arguments to tuples</span>
+    <span class="n">position</span> <span class="o">=</span> <span class="n">_to_tuple</span><span class="p">(</span><span class="n">position</span><span class="p">)</span> <span class="k">if</span> <span class="n">position</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">translation</span> <span class="o">=</span> <span class="n">_to_tuple</span><span class="p">(</span><span class="n">translation</span><span class="p">)</span> <span class="k">if</span> <span class="n">translation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">orientation</span> <span class="o">=</span> <span class="n">_to_tuple</span><span class="p">(</span><span class="n">orientation</span><span class="p">)</span> <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="n">_to_tuple</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
 
-    <span class="k">if</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># FIXME: remove this, we should never even use backend utils  especially not numpy ones</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">backend_utils</span>
-
-        <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">backend_utils</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">backend_utils</span>
-        <span class="n">device</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">device</span>
+    <span class="c1"># convert position and orientation to translation and orientation</span>
+    <span class="c1"># world --&gt; local</span>
     <span class="k">if</span> <span class="n">position</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">position</span> <span class="o">=</span> <span class="n">backend_utils</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">backend_utils</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">device</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">translation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">translation</span> <span class="o">=</span> <span class="n">backend_utils</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">backend_utils</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">translation</span><span class="p">,</span> <span class="n">device</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">orientation</span> <span class="o">=</span> <span class="n">backend_utils</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">backend_utils</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">orientation</span><span class="p">,</span> <span class="n">device</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">scale</span> <span class="o">=</span> <span class="n">backend_utils</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">backend_utils</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="n">device</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="n">XFormPrim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">positions</span><span class="o">=</span><span class="n">position</span><span class="p">,</span> <span class="n">translations</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span> <span class="n">orientations</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span> <span class="n">scales</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+        <span class="c1"># this means that user provided pose in the world frame</span>
+        <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span> <span class="o">=</span> <span class="n">convert_world_pose_to_local</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">ref_prim</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetParent</span><span class="p">())</span>
+
+    <span class="c1"># standardize the xform ops</span>
+    <span class="n">standardize_xform_ops</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">prim</span></div>
 
@@ -752,6 +793,12 @@
         <span class="n">prim_path</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_path</span><span class="p">]</span>
     <span class="c1"># get stage handle</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
+    <span class="c1"># the prim command looks for the stage ID in the stage cache</span>
+    <span class="c1"># so we need to ensure the stage is cached</span>
+    <span class="n">stage_cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">GetId</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">stage_id</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
     <span class="c1"># delete prims</span>
     <span class="n">DeletePrimsCommand</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">do</span><span class="p">()</span></div>
 
@@ -834,97 +881,6 @@
             <span class="n">child_prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
         <span class="c1"># add children to list</span>
         <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetFilteredChildren</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TraverseInstanceProxies</span><span class="p">())</span></div>
-
-
-<div class="viewcode-block" id="resolve_prim_pose"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.resolve_prim_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_pose</span><span class="p">(</span>
-    <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">ref_prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the pose of a prim with respect to another prim.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        This function ignores scale and skew by orthonormalizing the transformation</span>
-<span class="sd">        matrix at the final step. However, if any ancestor prim in the hierarchy</span>
-<span class="sd">        has non-uniform scale, that scale will still affect the resulting position</span>
-<span class="sd">        and orientation of the prim (because it&#39;s baked into the transform before</span>
-<span class="sd">        scale removal).</span>
-
-<span class="sd">        In other words: scale **is not removed hierarchically**. If you need</span>
-<span class="sd">        completely scale-free poses, you must walk the transform chain and strip</span>
-<span class="sd">        scale at each level. Please open an issue if you need this functionality.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        prim: The USD prim to resolve the pose for.</span>
-<span class="sd">        ref_prim: The USD prim to compute the pose with respect to.</span>
-<span class="sd">            Defaults to None, in which case the world frame is used.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        A tuple containing the position (as a 3D vector) and the quaternion orientation</span>
-<span class="sd">        in the (w, x, y, z) format.</span>
-
-<span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If the prim or ref prim is not valid.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># check if prim is valid</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
-    <span class="c1"># get prim xform</span>
-    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
-    <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
-    <span class="c1"># sanitize quaternion</span>
-    <span class="c1"># this is needed, otherwise the quaternion might be non-normalized</span>
-    <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">GetOrthonormalized</span><span class="p">()</span>
-
-    <span class="k">if</span> <span class="n">ref_prim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># check if ref prim is valid</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">ref_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ref prim at path &#39;</span><span class="si">{</span><span class="n">ref_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
-        <span class="c1"># get ref prim xform</span>
-        <span class="n">ref_xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">ref_prim</span><span class="p">)</span>
-        <span class="n">ref_tf</span> <span class="o">=</span> <span class="n">ref_xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
-        <span class="c1"># make sure ref tf is orthonormal</span>
-        <span class="n">ref_tf</span> <span class="o">=</span> <span class="n">ref_tf</span><span class="o">.</span><span class="n">GetOrthonormalized</span><span class="p">()</span>
-        <span class="c1"># compute relative transform to get prim in ref frame</span>
-        <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">prim_tf</span> <span class="o">*</span> <span class="n">ref_tf</span><span class="o">.</span><span class="n">GetInverse</span><span class="p">()</span>
-
-    <span class="c1"># extract position and orientation</span>
-    <span class="n">prim_pos</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()]</span>
-    <span class="n">prim_quat</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">imaginary</span><span class="p">]</span>
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_pos</span><span class="p">),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_quat</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="resolve_prim_scale"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.resolve_prim_scale">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_scale</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the scale of a prim in the world frame.</span>
-
-<span class="sd">    At an attribute level, a USD prim&#39;s scale is a scaling transformation applied to the prim with</span>
-<span class="sd">    respect to its parent prim. This function resolves the scale of the prim in the world frame,</span>
-<span class="sd">    by computing the local to world transform of the prim. This is equivalent to traversing up</span>
-<span class="sd">    the prim hierarchy and accounting for the rotations and scales of the prims.</span>
-
-<span class="sd">    For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),</span>
-<span class="sd">    then the scale of the prim in the world frame is (4, 10, 18).</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        prim: The USD prim to resolve the scale for.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        The scale of the prim in the x, y, and z directions in the world frame.</span>
-
-<span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If the prim is not valid.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># check if prim is valid</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
-    <span class="c1"># compute local to world transform</span>
-    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
-    <span class="n">world_transform</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
-    <span class="c1"># extract scale</span>
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="o">*</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">GetLength</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">world_transform</span><span class="o">.</span><span class="n">ExtractRotationMatrix</span><span class="p">())])</span></div>
-
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Attribute - Setters.</span>
-<span class="sd">&quot;&quot;&quot;</span>
 
 
 <div class="viewcode-block" id="set_prim_visibility"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.set_prim_visibility">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">set_prim_visibility</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">visible</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1517,6 +1473,9 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A list of USD reference paths.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim at the specified path is not valid.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># get stage handle</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
@@ -1527,7 +1486,8 @@
     <span class="c1"># get USD references</span>
     <span class="n">references</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">prim_spec</span> <span class="ow">in</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimStack</span><span class="p">():</span>
-        <span class="n">references</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">prim_spec</span><span class="o">.</span><span class="n">referenceList</span><span class="o">.</span><span class="n">prependedItems</span><span class="o">.</span><span class="n">assetPath</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">referenceList</span><span class="o">.</span><span class="n">prependedItems</span><span class="p">:</span>
+            <span class="n">references</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ref</span><span class="o">.</span><span class="n">assetPath</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">references</span></div>
 
 
@@ -1604,6 +1564,62 @@
                 <span class="sa">f</span><span class="s2">&quot;Setting variant selection &#39;</span><span class="si">{</span><span class="n">variant_selection</span><span class="si">}</span><span class="s2">&#39; for variant set &#39;</span><span class="si">{</span><span class="n">variant_set_name</span><span class="si">}</span><span class="s2">&#39; on&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
             <span class="p">)</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Internal Helpers.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_to_tuple</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert various sequence types to a Python tuple of floats.</span>
+
+<span class="sd">    This function provides robust conversion from different array-like types (list, tuple, numpy array,</span>
+<span class="sd">    torch tensor) to Python tuples. It handles edge cases like malformed sequences, CUDA tensors,</span>
+<span class="sd">    and arrays with singleton dimensions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        value: A sequence-like object containing floats. Supported types include:</span>
+<span class="sd">            - Python list or tuple</span>
+<span class="sd">            - NumPy array (any device)</span>
+<span class="sd">            - PyTorch tensor (CPU or CUDA)</span>
+<span class="sd">            - Mixed sequences with numpy/torch scalar items and float values</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A one-dimensional tuple of floats.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the input value is not one-dimensional after squeezing singleton dimensions.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import torch</span>
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; _to_tuple([1.0, 2.0, 3.0])</span>
+<span class="sd">        (1.0, 2.0, 3.0)</span>
+<span class="sd">        &gt;&gt;&gt; _to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension</span>
+<span class="sd">        (1.0, 2.0)</span>
+<span class="sd">        &gt;&gt;&gt; _to_tuple(np.array([1.0, 2.0, 3.0]))</span>
+<span class="sd">        (1.0, 2.0, 3.0)</span>
+<span class="sd">        &gt;&gt;&gt; _to_tuple((1.0, 2.0, 3.0))</span>
+<span class="sd">        (1.0, 2.0, 3.0)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Normalize to tensor if value is a plain sequence (list with mixed types, etc.)</span>
+    <span class="c1"># This handles cases like [np.float32(1.0), 2.0, torch.tensor(3.0)]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">&quot;tolist&quot;</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+
+    <span class="c1"># Remove leading singleton dimension if present (e.g., shape (1, 3) -&gt; (3,))</span>
+    <span class="c1"># This is common when batched operations produce single-item batches</span>
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="c1"># Validate that the result is one-dimensional</span>
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input value is not one dimensional: </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Convert to tuple - works for both numpy arrays and torch tensors</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
 </pre></div>
 
                 </article>
