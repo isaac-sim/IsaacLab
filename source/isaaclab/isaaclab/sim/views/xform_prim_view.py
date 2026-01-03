@@ -40,7 +40,8 @@ class XformPrimView:
 
         All prims in the view must be Xformable and have standardized transform operations:
         ``[translate, orient, scale]``. Non-standard prims will raise a ValueError during
-        initialization. Use :func:`isaaclab.sim.utils.standardize_xform_ops` to prepare prims.
+        initialization if :attr:`validate_xform_ops` is True. Please use the function
+        :func:`isaaclab.sim.utils.standardize_xform_ops` to prepare prims before using this view.
 
     .. warning::
         This class operates at the USD default time code. Any animation or time-sampled data
