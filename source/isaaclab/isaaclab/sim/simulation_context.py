@@ -609,6 +609,8 @@ class SimulationContext:
         # play the simulation
         self._timeline_iface.play()
         self._timeline_iface.commit()
+        # check for callback exceptions
+        self._check_for_callback_exceptions()
         # perform one step to propagate all physics handles properly
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
@@ -619,6 +621,8 @@ class SimulationContext:
         """Pause the simulation."""
         # pause the simulation
         self._timeline_iface.pause()
+        # check for callback exceptions
+        self._check_for_callback_exceptions()
         # set the play simulations setting
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
@@ -633,6 +637,8 @@ class SimulationContext:
         """
         # stop the simulation
         self._timeline_iface.stop()
+        # check for callback exceptions
+        self._check_for_callback_exceptions()
         # set the play simulations setting
         if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
             self.set_setting("/app/player/playSimulations", False)
@@ -655,15 +661,6 @@ class SimulationContext:
             soft (bool, optional): if set to True simulation won't be stopped and start again. It only calls the reset on the scene objects.
 
         """
-        # disable simulation stopping control so that we can crash the program
-        # if an exception is raised in a callback during initialization.
-        self._disable_app_control_on_stop_handle = True
-        # check if we need to raise an exception that was raised in a callback
-        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-            raise exception_to_raise
-
         # reset the simulation
         if not soft:
             # disable app control on stop handle
@@ -674,7 +671,8 @@ class SimulationContext:
             # play the simulation
             self.play()
             # initialize the physics simulation
-            SimulationManager.initialize_physics()
+            if SimulationManager.get_physics_sim_view() is None:
+                SimulationManager.initialize_physics()
             # self._physx_iface.force_load_physics_from_usd()
             # self._physx_iface.start_simulation()
             # self._physx_iface.update_simulation(self.cfg.dt, 0.0)
@@ -685,6 +683,9 @@ class SimulationContext:
             # # fetch results
             # self._physx_sim_iface.fetch_results()
             # self._message_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
+
+            # check for callback exceptions
+            self._check_for_callback_exceptions()
 
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -710,8 +711,6 @@ class SimulationContext:
         if not soft:
             for _ in range(2):
                 self.render()
-        # re-enable simulation stopping control
-        self._disable_app_control_on_stop_handle = False
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
@@ -1129,6 +1128,16 @@ class SimulationContext:
         self.carb_settings.set_bool("/physics/updateParticlesToUsd", not self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateVelocitiesToUsd", not self.cfg.use_fabric)
         self.carb_settings.set_bool("/physics/updateForceSensorsToUsd", not self.cfg.use_fabric)
+
+    def _check_for_callback_exceptions(self):
+        """Checks for callback exceptions and raises them if found."""
+        # disable simulation stopping control so that we can crash the program
+        # if an exception is raised in a callback.
+        self._disable_app_control_on_stop_handle = True
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:  # type: ignore
+            raise builtins.ISAACLAB_CALLBACK_EXCEPTION  # type: ignore
+        self._disable_app_control_on_stop_handle = False
 
     """
     Helper functions - Animation Recording.
