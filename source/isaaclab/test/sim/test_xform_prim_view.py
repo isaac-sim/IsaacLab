@@ -41,6 +41,23 @@ def test_setup_teardown():
 
 
 """
+Helper functions.
+"""
+
+
+def _prepare_indices(index_type, target_indices, num_prims, device):
+    """Helper function to prepare indices based on type."""
+    if index_type == "list":
+        return target_indices, target_indices
+    elif index_type == "torch_tensor":
+        return torch.tensor(target_indices, dtype=torch.int64, device=device), target_indices
+    elif index_type == "slice_none":
+        return slice(None), list(range(num_prims))
+    else:
+        raise ValueError(f"Unknown index type: {index_type}")
+
+
+"""
 Tests - Initialization.
 """
 
@@ -123,7 +140,7 @@ def test_xform_prim_view_initialization_empty_pattern(device):
 
 
 """
-Tests - Get/Set World Poses.
+Tests - Getters.
 """
 
 
@@ -164,6 +181,83 @@ def test_get_world_poses(device):
         torch.testing.assert_close(orientations, expected_orientations_tensor, atol=1e-5, rtol=0)
     except AssertionError:
         torch.testing.assert_close(orientations, -expected_orientations_tensor, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_get_local_poses(device):
+    """Test getting local poses from XformPrimView."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create parent and child prims
+    sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
+
+    # Children with different local poses
+    expected_local_positions = [(1.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 3.0)]
+    expected_local_orientations = [
+        (1.0, 0.0, 0.0, 0.0),
+        (0.7071068, 0.0, 0.0, 0.7071068),
+        (0.7071068, 0.7071068, 0.0, 0.0),
+    ]
+
+    for i, (pos, quat) in enumerate(zip(expected_local_positions, expected_local_orientations)):
+        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Parent/Child_.*", device=device)
+
+    # Get local poses
+    translations, orientations = view.get_local_poses()
+
+    # Verify shapes
+    assert translations.shape == (3, 3)
+    assert orientations.shape == (3, 4)
+
+    # Convert expected values to tensors
+    expected_translations_tensor = torch.tensor(expected_local_positions, dtype=torch.float32, device=device)
+    expected_orientations_tensor = torch.tensor(expected_local_orientations, dtype=torch.float32, device=device)
+
+    # Verify translations
+    torch.testing.assert_close(translations, expected_translations_tensor, atol=1e-5, rtol=0)
+
+    # Verify orientations (allow for quaternion sign ambiguity)
+    try:
+        torch.testing.assert_close(orientations, expected_orientations_tensor, atol=1e-5, rtol=0)
+    except AssertionError:
+        torch.testing.assert_close(orientations, -expected_orientations_tensor, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_get_scales(device):
+    """Test getting scales from XformPrimView."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims with different scales
+    expected_scales = [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0), (1.0, 2.0, 3.0)]
+
+    for i, scale in enumerate(expected_scales):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=scale, stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get scales
+    scales = view.get_scales()
+
+    # Verify shape and values
+    assert scales.shape == (3, 3)
+    expected_scales_tensor = torch.tensor(expected_scales, dtype=torch.float32, device=device)
+    torch.testing.assert_close(scales, expected_scales_tensor, atol=1e-5, rtol=0)
+
+
+"""
+Tests - Setters.
+"""
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -327,57 +421,6 @@ def test_set_world_poses_with_hierarchy(device):
         torch.testing.assert_close(retrieved_orientations, -desired_world_orientations, atol=1e-4, rtol=0)
 
 
-"""
-Tests - Get/Set Local Poses.
-"""
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_get_local_poses(device):
-    """Test getting local poses from XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create parent and child prims
-    sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
-
-    # Children with different local poses
-    expected_local_positions = [(1.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 3.0)]
-    expected_local_orientations = [
-        (1.0, 0.0, 0.0, 0.0),
-        (0.7071068, 0.0, 0.0, 0.7071068),
-        (0.7071068, 0.7071068, 0.0, 0.0),
-    ]
-
-    for i, (pos, quat) in enumerate(zip(expected_local_positions, expected_local_orientations)):
-        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
-
-    # Create view
-    view = XformPrimView("/World/Parent/Child_.*", device=device)
-
-    # Get local poses
-    translations, orientations = view.get_local_poses()
-
-    # Verify shapes
-    assert translations.shape == (3, 3)
-    assert orientations.shape == (3, 4)
-
-    # Convert expected values to tensors
-    expected_translations_tensor = torch.tensor(expected_local_positions, dtype=torch.float32, device=device)
-    expected_orientations_tensor = torch.tensor(expected_local_orientations, dtype=torch.float32, device=device)
-
-    # Verify translations
-    torch.testing.assert_close(translations, expected_translations_tensor, atol=1e-5, rtol=0)
-
-    # Verify orientations (allow for quaternion sign ambiguity)
-    try:
-        torch.testing.assert_close(orientations, expected_orientations_tensor, atol=1e-5, rtol=0)
-    except AssertionError:
-        torch.testing.assert_close(orientations, -expected_orientations_tensor, atol=1e-5, rtol=0)
-
-
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_set_local_poses(device):
     """Test setting local poses in XformPrimView."""
@@ -462,37 +505,6 @@ def test_set_local_poses_only_translations(device):
         torch.testing.assert_close(retrieved_orientations, -initial_orientations, atol=1e-5, rtol=0)
 
 
-"""
-Tests - Get/Set Scales.
-"""
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_get_scales(device):
-    """Test getting scales from XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims with different scales
-    expected_scales = [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0), (1.0, 2.0, 3.0)]
-
-    for i, scale in enumerate(expected_scales):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=scale, stage=stage)
-
-    # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
-
-    # Get scales
-    scales = view.get_scales()
-
-    # Verify shape and values
-    assert scales.shape == (3, 3)
-    expected_scales_tensor = torch.tensor(expected_scales, dtype=torch.float32, device=device)
-    torch.testing.assert_close(scales, expected_scales_tensor, atol=1e-5, rtol=0)
-
-
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_set_scales(device):
     """Test setting scales in XformPrimView."""
@@ -521,6 +533,342 @@ def test_set_scales(device):
 
     # Verify they match
     torch.testing.assert_close(retrieved_scales, new_scales, atol=1e-5, rtol=0)
+
+
+"""
+Tests - Index Handling.
+"""
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("index_type", ["list", "torch_tensor", "slice_none"])
+@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales"])
+def test_index_types_get_methods(device, index_type, method):
+    """Test that getter methods work with different index types."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims based on method type
+    num_prims = 10
+    if method == "local_poses":
+        # Create parent and children for local poses
+        sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
+        for i in range(num_prims):
+            sim_utils.create_prim(
+                f"/World/Parent/Child_{i}", "Xform", translation=(float(i), float(i) * 0.5, 0.0), stage=stage
+            )
+        view = XformPrimView("/World/Parent/Child_.*", device=device)
+    elif method == "scales":
+        # Create prims with different scales
+        for i in range(num_prims):
+            scale = (1.0 + i * 0.5, 1.0 + i * 0.3, 1.0 + i * 0.2)
+            sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=scale, stage=stage)
+        view = XformPrimView("/World/Object_.*", device=device)
+    else:  # world_poses
+        # Create prims with different positions
+        for i in range(num_prims):
+            sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+        view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get all data as reference
+    if method == "world_poses":
+        all_data1, all_data2 = view.get_world_poses()
+    elif method == "local_poses":
+        all_data1, all_data2 = view.get_local_poses()
+    else:  # scales
+        all_data1 = view.get_scales()
+        all_data2 = None
+
+    # Prepare indices
+    target_indices_base = [2, 5, 7]
+    indices, target_indices = _prepare_indices(index_type, target_indices_base, num_prims, device)
+
+    # Get subset
+    if method == "world_poses":
+        subset_data1, subset_data2 = view.get_world_poses(indices=indices)  # type: ignore[arg-type]
+    elif method == "local_poses":
+        subset_data1, subset_data2 = view.get_local_poses(indices=indices)  # type: ignore[arg-type]
+    else:  # scales
+        subset_data1 = view.get_scales(indices=indices)  # type: ignore[arg-type]
+        subset_data2 = None
+
+    # Verify shapes
+    expected_count = len(target_indices)
+    assert subset_data1.shape == (expected_count, 3)
+    if subset_data2 is not None:
+        assert subset_data2.shape == (expected_count, 4)
+
+    # Verify values
+    target_indices_tensor = torch.tensor(target_indices, dtype=torch.int64, device=device)
+    torch.testing.assert_close(subset_data1, all_data1[target_indices_tensor], atol=1e-5, rtol=0)
+    if subset_data2 is not None and all_data2 is not None:
+        torch.testing.assert_close(subset_data2, all_data2[target_indices_tensor], atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("index_type", ["list", "torch_tensor", "slice_none"])
+@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales"])
+def test_index_types_set_methods(device, index_type, method):
+    """Test that setter methods work with different index types."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims based on method type
+    num_prims = 10
+    if method == "local_poses":
+        # Create parent and children for local poses
+        sim_utils.create_prim("/World/Parent", "Xform", translation=(5.0, 5.0, 0.0), stage=stage)
+        for i in range(num_prims):
+            sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+        view = XformPrimView("/World/Parent/Child_.*", device=device)
+    else:  # world_poses or scales
+        for i in range(num_prims):
+            sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+        view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get initial data
+    if method == "world_poses":
+        initial_data1, initial_data2 = view.get_world_poses()
+    elif method == "local_poses":
+        initial_data1, initial_data2 = view.get_local_poses()
+    else:  # scales
+        initial_data1 = view.get_scales()
+        initial_data2 = None
+
+    # Prepare indices
+    target_indices_base = [2, 5, 7]
+    indices, target_indices = _prepare_indices(index_type, target_indices_base, num_prims, device)
+
+    # Prepare new data
+    num_to_set = len(target_indices)
+    if method in ["world_poses", "local_poses"]:
+        new_data1 = torch.randn(num_to_set, 3, device=device) * 10.0
+        new_data2 = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_to_set, dtype=torch.float32, device=device)
+    else:  # scales
+        new_data1 = torch.rand(num_to_set, 3, device=device) * 2.0 + 0.5
+        new_data2 = None
+
+    # Set data
+    if method == "world_poses":
+        view.set_world_poses(positions=new_data1, orientations=new_data2, indices=indices)  # type: ignore[arg-type]
+    elif method == "local_poses":
+        view.set_local_poses(translations=new_data1, orientations=new_data2, indices=indices)  # type: ignore[arg-type]
+    else:  # scales
+        view.set_scales(scales=new_data1, indices=indices)  # type: ignore[arg-type]
+
+    # Get all data after update
+    if method == "world_poses":
+        updated_data1, updated_data2 = view.get_world_poses()
+    elif method == "local_poses":
+        updated_data1, updated_data2 = view.get_local_poses()
+    else:  # scales
+        updated_data1 = view.get_scales()
+        updated_data2 = None
+
+    # Verify that specified indices were updated
+    for i, target_idx in enumerate(target_indices):
+        torch.testing.assert_close(updated_data1[target_idx], new_data1[i], atol=1e-5, rtol=0)
+        if new_data2 is not None and updated_data2 is not None:
+            try:
+                torch.testing.assert_close(updated_data2[target_idx], new_data2[i], atol=1e-5, rtol=0)
+            except AssertionError:
+                # Account for quaternion sign ambiguity
+                torch.testing.assert_close(updated_data2[target_idx], -new_data2[i], atol=1e-5, rtol=0)
+
+    # Verify that other indices were NOT updated (only for non-slice(None) cases)
+    if index_type != "slice_none":
+        for i in range(num_prims):
+            if i not in target_indices:
+                torch.testing.assert_close(updated_data1[i], initial_data1[i], atol=1e-5, rtol=0)
+                if initial_data2 is not None and updated_data2 is not None:
+                    try:
+                        torch.testing.assert_close(updated_data2[i], initial_data2[i], atol=1e-5, rtol=0)
+                    except AssertionError:
+                        # Account for quaternion sign ambiguity
+                        torch.testing.assert_close(updated_data2[i], -initial_data2[i], atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_indices_single_element(device):
+    """Test with a single index."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims
+    num_prims = 5
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Test with single index
+    indices = [3]
+    positions, orientations = view.get_world_poses(indices=indices)
+
+    # Verify shapes
+    assert positions.shape == (1, 3)
+    assert orientations.shape == (1, 4)
+
+    # Set pose for single index
+    new_position = torch.tensor([[100.0, 200.0, 300.0]], device=device)
+    view.set_world_poses(positions=new_position, indices=indices)
+
+    # Verify it was set
+    retrieved_positions, _ = view.get_world_poses(indices=indices)
+    torch.testing.assert_close(retrieved_positions, new_position, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_indices_out_of_order(device):
+    """Test with indices provided in non-sequential order."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims
+    num_prims = 10
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Use out-of-order indices
+    indices = [7, 2, 9, 0, 5]
+    new_positions = torch.tensor(
+        [[7.0, 0.0, 0.0], [2.0, 0.0, 0.0], [9.0, 0.0, 0.0], [0.0, 0.0, 0.0], [5.0, 0.0, 0.0]], device=device
+    )
+
+    # Set poses with out-of-order indices
+    view.set_world_poses(positions=new_positions, indices=indices)
+
+    # Get all poses
+    all_positions, _ = view.get_world_poses()
+
+    # Verify each index got the correct value
+    expected_x_values = [0.0, 0.0, 2.0, 0.0, 0.0, 5.0, 0.0, 7.0, 0.0, 9.0]
+    for i in range(num_prims):
+        assert abs(all_positions[i, 0].item() - expected_x_values[i]) < 1e-5
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_indices_with_only_positions_or_orientations(device):
+    """Test indices work correctly when setting only positions or only orientations."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims
+    num_prims = 5
+    for i in range(num_prims):
+        sim_utils.create_prim(
+            f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), orientation=(1.0, 0.0, 0.0, 0.0), stage=stage
+        )
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get initial poses
+    initial_positions, initial_orientations = view.get_world_poses()
+
+    # Set only positions for specific indices
+    indices = [1, 3]
+    new_positions = torch.tensor([[10.0, 0.0, 0.0], [30.0, 0.0, 0.0]], device=device)
+    view.set_world_poses(positions=new_positions, orientations=None, indices=indices)
+
+    # Get updated poses
+    updated_positions, updated_orientations = view.get_world_poses()
+
+    # Verify positions updated for indices 1 and 3, others unchanged
+    torch.testing.assert_close(updated_positions[1], new_positions[0], atol=1e-5, rtol=0)
+    torch.testing.assert_close(updated_positions[3], new_positions[1], atol=1e-5, rtol=0)
+    torch.testing.assert_close(updated_positions[0], initial_positions[0], atol=1e-5, rtol=0)
+
+    # Verify all orientations unchanged
+    try:
+        torch.testing.assert_close(updated_orientations, initial_orientations, atol=1e-5, rtol=0)
+    except AssertionError:
+        torch.testing.assert_close(updated_orientations, -initial_orientations, atol=1e-5, rtol=0)
+
+    # Now set only orientations for different indices
+    indices2 = [0, 4]
+    new_orientations = torch.tensor([[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.7071068, 0.0, 0.0]], device=device)
+    view.set_world_poses(positions=None, orientations=new_orientations, indices=indices2)
+
+    # Get final poses
+    final_positions, final_orientations = view.get_world_poses()
+
+    # Verify positions unchanged from previous step
+    torch.testing.assert_close(final_positions, updated_positions, atol=1e-5, rtol=0)
+
+    # Verify orientations updated for indices 0 and 4
+    try:
+        torch.testing.assert_close(final_orientations[0], new_orientations[0], atol=1e-5, rtol=0)
+        torch.testing.assert_close(final_orientations[4], new_orientations[1], atol=1e-5, rtol=0)
+    except AssertionError:
+        # Account for quaternion sign ambiguity
+        torch.testing.assert_close(final_orientations[0], -new_orientations[0], atol=1e-5, rtol=0)
+        torch.testing.assert_close(final_orientations[4], -new_orientations[1], atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_index_type_none_equivalent_to_all(device):
+    """Test that indices=None is equivalent to getting/setting all prims."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims
+    num_prims = 6
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get poses with indices=None
+    pos_none, quat_none = view.get_world_poses(indices=None)
+
+    # Get poses with no argument (default)
+    pos_default, quat_default = view.get_world_poses()
+
+    # Get poses with slice(None)
+    pos_slice, quat_slice = view.get_world_poses(indices=slice(None))  # type: ignore[arg-type]
+
+    # All should be equivalent
+    torch.testing.assert_close(pos_none, pos_default, atol=1e-10, rtol=0)
+    torch.testing.assert_close(quat_none, quat_default, atol=1e-10, rtol=0)
+    torch.testing.assert_close(pos_none, pos_slice, atol=1e-10, rtol=0)
+    torch.testing.assert_close(quat_none, quat_slice, atol=1e-10, rtol=0)
+
+    # Test the same for set operations
+    new_positions = torch.randn(num_prims, 3, device=device) * 10.0
+    new_orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_prims, dtype=torch.float32, device=device)
+
+    # Set with indices=None
+    view.set_world_poses(positions=new_positions, orientations=new_orientations, indices=None)
+    pos_after_none, quat_after_none = view.get_world_poses()
+
+    # Reset
+    view.set_world_poses(positions=torch.zeros(num_prims, 3, device=device), indices=None)
+
+    # Set with slice(None)
+    view.set_world_poses(positions=new_positions, orientations=new_orientations, indices=slice(None))  # type: ignore[arg-type]
+    pos_after_slice, quat_after_slice = view.get_world_poses()
+
+    # Should be equivalent
+    torch.testing.assert_close(pos_after_none, pos_after_slice, atol=1e-5, rtol=0)
+    torch.testing.assert_close(quat_after_none, quat_after_slice, atol=1e-5, rtol=0)
 
 
 """
