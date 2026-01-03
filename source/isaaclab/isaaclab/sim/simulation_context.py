@@ -157,15 +157,17 @@ class SimulationContext:
             self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
+            if not self._initial_stage:
+                self._initial_stage = sim_utils.create_new_stage()
+        # check that stage is created
+        if self._initial_stage is None:
+            raise RuntimeError("Failed to create a new stage. Please check if the USD context is valid.")
         # add stage to USD cache
         stage_cache = UsdUtils.StageCache.Get()
         stage_id = stage_cache.GetId(self._initial_stage).ToLongInt()
         if stage_id < 0:
             stage_id = stage_cache.Insert(self._initial_stage).ToLongInt()
         self._initial_stage_id = stage_id
-        # check that stage is created
-        if self._initial_stage is None:
-            raise RuntimeError("Failed to create a new stage. Please check if the USD context is valid.")
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
@@ -269,6 +271,9 @@ class SimulationContext:
         self._physx_sim_iface = omni.physx.get_physx_simulation_interface()
         self._timeline_iface = omni.timeline.get_timeline_interface()
 
+        # set timeline auto update to True
+        self._timeline_iface.set_auto_update(True)
+
         # set stage properties
         with sim_utils.use_stage(self._initial_stage):
             # correct conventions for metric units
@@ -278,8 +283,8 @@ class SimulationContext:
 
             # find if any physics prim already exists and delete it
             for prim in self._initial_stage.Traverse():
-                if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
-                    sim_utils.delete_prim(prim.GetPath().pathString)
+                if prim.HasAPI(PhysxSchema.PhysxSceneAPI) or prim.GetTypeName() == "PhysicsScene":
+                    sim_utils.delete_prim(prim.GetPath().pathString, stage=self._initial_stage)
             # create a new physics scene
             if self._initial_stage.GetPrimAtPath(self.cfg.physics_prim_path).IsValid():
                 raise RuntimeError(f"A prim already exists at path '{self.cfg.physics_prim_path}'.")
@@ -331,10 +336,19 @@ class SimulationContext:
     def clear_instance(cls) -> None:
         """Delete the simulation context singleton instance."""
         if cls._instance is not None:
+            # check if the instance is initialized
+            if not cls._is_initialized:
+                logger.warning("Simulation context is not initialized. Unable to clear the instance.")
+                return
             # clear the callback
             if cls._instance._app_control_on_stop_handle is not None:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
+            # detach the stage from the USD stage cache
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
+            if stage_id > 0:
+                stage_cache.Erase(cls._instance._initial_stage)
             # clear the instance and the flag
             cls._instance = None
             cls._is_initialized = False
