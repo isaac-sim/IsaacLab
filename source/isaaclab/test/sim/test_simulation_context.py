@@ -13,7 +13,9 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
+import weakref
 
+import omni.timeline
 import pytest
 
 import isaaclab.sim as sim_utils
@@ -405,8 +407,6 @@ Callback Tests.
 @pytest.mark.isaacsim_ci
 def test_timeline_callbacks_on_play():
     """Test that timeline callbacks are triggered on play event."""
-    import omni.timeline
-
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
 
@@ -468,9 +468,6 @@ def test_timeline_callbacks_on_play():
 @pytest.mark.isaacsim_ci
 def test_timeline_callbacks_with_weakref():
     """Test that timeline callbacks work correctly with weak references (similar to asset_base.py)."""
-    import weakref
-
-    import omni.timeline
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
@@ -559,8 +556,6 @@ def test_timeline_callbacks_with_weakref():
 @pytest.mark.isaacsim_ci
 def test_multiple_callbacks_on_same_event():
     """Test that multiple callbacks can be registered for the same event."""
-    import omni.timeline
-
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
 
@@ -613,8 +608,6 @@ def test_multiple_callbacks_on_same_event():
 @pytest.mark.isaacsim_ci
 def test_callback_execution_order():
     """Test that callbacks are executed in the correct order based on priority."""
-    import omni.timeline
-
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
 
@@ -665,8 +658,6 @@ def test_callback_execution_order():
 @pytest.mark.isaacsim_ci
 def test_callback_unsubscribe():
     """Test that unsubscribing callbacks works correctly."""
-    import omni.timeline
-
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
 
@@ -710,8 +701,6 @@ def test_callback_unsubscribe():
 @pytest.mark.isaacsim_ci
 def test_pause_event_callback():
     """Test that pause event callbacks are triggered correctly."""
-    import omni.timeline
-
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
 
