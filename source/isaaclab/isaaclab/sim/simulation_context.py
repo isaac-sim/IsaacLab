@@ -270,6 +270,8 @@ class SimulationContext:
         self._physx_iface = omni.physx.get_physx_interface()
         self._physx_sim_iface = omni.physx.get_physx_simulation_interface()
         self._timeline_iface = omni.timeline.get_timeline_interface()
+        # create interfaces that are initialized on 'reset
+        self._physics_sim_view = None
 
         # set timeline auto update to True
         self._timeline_iface.set_auto_update(True)
@@ -314,7 +316,7 @@ class SimulationContext:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         else:
-            logger.info("Returning the previously defined instance of Simulation Context.")
+            logger.debug("Returning the previously defined instance of Simulation Context.")
         return cls._instance  # type: ignore
 
     """
@@ -700,17 +702,11 @@ class SimulationContext:
             render: Whether to render the scene after stepping the physics simulation.
                     If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
-        # check if we need to raise an exception that was raised in a callback
-        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-            raise exception_to_raise
-
         # update anim recording if needed
         if self._anim_recording_enabled:
             is_anim_recording_finished = self._update_anim_recording()
             if is_anim_recording_finished:
-                logger.warning("[INFO][SimulationContext]: Animation recording finished. Closing app.")
+                logger.warning("Animation recording finished. Closing app.")
                 self._app_iface.shutdown()
 
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
@@ -731,8 +727,8 @@ class SimulationContext:
         if render:
             self._app_iface.update()
         else:
-            self._physics_sim_view.simulate(self.cfg.dt, 0.0)
-            self._physics_sim_view.fetch_results()
+            self._physx_sim_iface.simulate(self.cfg.dt, 0.0)
+            self._physx_sim_iface.fetch_results()
 
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -750,11 +746,6 @@ class SimulationContext:
         Args:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
-        # check if we need to raise an exception that was raised in a callback
-        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-            raise exception_to_raise
         # check if we need to change the render mode
         if mode is not None:
             self.set_render_mode(mode)
@@ -1101,6 +1092,8 @@ class SimulationContext:
         else:
             if fabric_enabled:
                 extension_manager.set_extension_enabled_immediate("omni.physx.fabric", False)
+            # set fabric interface to None
+            self._fabric_iface = None
 
         # set carb settings for fabric
         self.carb_settings.set_bool("/physics/updateToUsd", not self.cfg.use_fabric)
