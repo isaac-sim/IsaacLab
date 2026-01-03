@@ -117,7 +117,7 @@ class ColoredFormatter(logging.Formatter):
 
     COLORS = {
         "WARNING": "\033[33m",  # orange/yellow
-        "ERROR": "\033[1;31m",  # bold red
+        "ERROR": "\033[31m",  # red
         "CRITICAL": "\033[1;31m",  # bold red
         "INFO": "\033[0m",  # reset
         "DEBUG": "\033[0m",

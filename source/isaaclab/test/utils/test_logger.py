@@ -142,8 +142,8 @@ def test_critical_formatting(formatter, test_message):
     )
     formatted = formatter.format(record)
 
-    # CRITICAL should use red color
-    assert "\033[31m" in formatted
+    # CRITICAL should use bold red color
+    assert "\033[1;31m" in formatted
     assert test_message in formatted
     assert "CRITICAL" in formatted
     # Should end with reset
@@ -154,11 +154,11 @@ def test_color_codes_are_ansi():
     """Test that color codes are valid ANSI escape sequences."""
     # Test all defined colors
     for level_name, color_code in ColoredFormatter.COLORS.items():
-        # ANSI color codes should match pattern \033[<number>m
-        assert re.match(r"\033\[\d+m", color_code), f"Invalid ANSI color code for {level_name}"
+        # ANSI color codes should match pattern \033[<number>m or \033[<number>;<number>m (for bold, etc.)
+        assert re.match(r"\033\[[\d;]+m", color_code), f"Invalid ANSI color code for {level_name}"
 
     # Test reset code
-    assert re.match(r"\033\[\d+m", ColoredFormatter.RESET), "Invalid ANSI reset code"
+    assert re.match(r"\033\[[\d;]+m", ColoredFormatter.RESET), "Invalid ANSI reset code"
 
 
 def test_custom_format_string(test_message):
@@ -486,7 +486,8 @@ def test_configure_logging_basic():
     # Should return root logger
     assert logger is not None
     assert logger is logging.getLogger()
-    assert logger.level == logging.INFO
+    # Root logger is always set to DEBUG to ensure all messages are logged
+    assert logger.level == logging.DEBUG
 
     # Should have exactly one handler (stream handler)
     assert len(logger.handlers) == 1
@@ -512,6 +513,7 @@ def test_configure_logging_with_file():
 
         # Should return root logger
         assert logger is not None
+        # Root logger is always set to DEBUG
         assert logger.level == logging.DEBUG
 
         # Should have two handlers (stream + file)
@@ -521,6 +523,7 @@ def test_configure_logging_with_file():
         stream_handler = logger.handlers[0]
         assert isinstance(stream_handler, logging.StreamHandler)
         assert isinstance(stream_handler.formatter, ColoredFormatter)
+        assert stream_handler.level == logging.DEBUG
 
         # Check file handler
         file_handler = logger.handlers[1]
@@ -553,7 +556,9 @@ def test_configure_logging_levels():
 
     for level_str in levels:
         logger = configure_logging(logging_level=level_str, save_logs_to_file=False)
-        assert logger.level == level_values[level_str]
+        # Root logger is always set to DEBUG to ensure all messages are logged
+        assert logger.level == logging.DEBUG
+        # Handler level should match the requested level
         assert logger.handlers[0].level == level_values[level_str]
 
 
@@ -579,6 +584,9 @@ def test_configure_logging_default_log_dir():
     """Test configure_logging uses temp directory when log_dir is None."""
 
     logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=None)
+
+    # Root logger is always set to DEBUG
+    assert logger.level == logging.DEBUG
 
     # Should have file handler
     assert len(logger.handlers) == 2
@@ -606,6 +614,9 @@ def test_configure_logging_custom_log_dir():
         assert os.path.exists(custom_log_dir)
         assert os.path.isdir(custom_log_dir)
 
+        # Root logger is always set to DEBUG
+        assert logger.level == logging.DEBUG
+
         # Log file should be in custom directory
         file_handler = logger.handlers[1]
         assert isinstance(file_handler, logging.FileHandler)
@@ -617,6 +628,9 @@ def test_configure_logging_log_file_format():
     """Test that log file has correct timestamp format."""
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
+
+        # Root logger is always set to DEBUG
+        assert logger.level == logging.DEBUG
 
         # Get log file name
         file_handler = logger.handlers[1]
@@ -633,6 +647,9 @@ def test_configure_logging_file_formatter():
     """Test that file handler has more detailed formatter than stream handler."""
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
+
+        # Root logger is always set to DEBUG
+        assert logger.level == logging.DEBUG
 
         stream_handler = logger.handlers[0]
         file_handler = logger.handlers[1]
