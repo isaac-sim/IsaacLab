@@ -9,7 +9,6 @@ import builtins
 import enum
 import glob
 import logging
-import numpy as np
 import os
 import re
 import time
@@ -31,7 +30,7 @@ import omni.timeline
 import omni.usd
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import Gf, PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
@@ -285,7 +284,7 @@ class SimulationContext:
             if self._initial_stage.GetPrimAtPath(self.cfg.physics_prim_path).IsValid():
                 raise RuntimeError(f"A prim already exists at path '{self.cfg.physics_prim_path}'.")
             self._physics_scene = UsdPhysics.Scene.Define(self._initial_stage, self.cfg.physics_prim_path)
-            self._physx_scene_api = PhysxSchema.PhysxSceneAPI.Apply(self._physics_scene)
+            self._physx_scene_api = PhysxSchema.PhysxSceneAPI.Apply(self._physics_scene.GetPrim())
 
             # set time codes per second
             self._configure_simulation_dt()
@@ -879,7 +878,8 @@ class SimulationContext:
                     device_id = 0
             else:
                 # if users specified "cuda:N", we use the provided device id
-                self.carb_settings.set_int("/physics/cudaDevice", int(parsed_device[1]))
+                device_id = int(parsed_device[1])
+                self.carb_settings.set_int("/physics/cudaDevice", device_id)
             # suppress readback for GPU physics
             self.carb_settings.set_bool("/physics/suppressReadback", True)
             # save the device
@@ -900,7 +900,7 @@ class SimulationContext:
         gravity_magnitude = torch.norm(gravity).item()
         # avoid division by zero
         gravity_direction = gravity / (gravity_magnitude + 1e-6)
-        gravity_direction = gravity_direction.cpu().numpy()
+        gravity_direction = gravity_direction.tolist()
 
         self._physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
         self._physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
@@ -936,10 +936,16 @@ class SimulationContext:
         solver_type = "PGS" if self.cfg.physx.solver_type == 0 else "TGS"
         self._physx_scene_api.CreateSolverTypeAttr(solver_type)
 
+        # set solve articulation contact last
+        attr = self._physx_scene_api.GetPrim().CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool)
+        attr.Set(self.cfg.physx.solve_articulation_contact_last)
+
         # iterate over all the settings and set them
         for key, value in self.cfg.physx.to_dict().items():  # type: ignore
-            if key in ["solver_type", "enable_ccd"]:
+            if key in ["solver_type", "enable_ccd", "solve_articulation_contact_last"]:
                 continue
+            if key == "bounce_threshold_velocity":
+                key = "bounce_threshold"
             sim_utils.safe_set_attribute_on_usd_schema(self._physx_scene_api, key, value, camel_case=True)
 
         # throw warnings for helpful guidance
