@@ -22,7 +22,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -351,6 +351,8 @@ def test_get_usd_references():
 def test_select_usd_variants():
     """Test select_usd_variants() function."""
     stage = sim_utils.get_current_stage()
+
+    # Create a dummy prim
     prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
     stage.SetDefaultPrim(prim)
 
@@ -365,6 +367,52 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+
+@pytest.mark.skip(reason="The USD asset seems to have some issues.")
+def test_select_usd_variants_in_usd_file():
+    """Test select_usd_variants() function in USD file."""
+    stage = sim_utils.get_current_stage()
+
+    prim = sim_utils.create_prim(
+        "/World/Test", "Xform", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10e/ur10e.usd", stage=stage
+    )
+
+    variant_sets = prim.GetVariantSets()
+
+    # show all variants
+    for name in variant_sets.GetNames():
+        vs = variant_sets.GetVariantSet(name)
+        options = vs.GetVariantNames()
+        selected = vs.GetVariantSelection()
+
+        print(f"{name}: {selected} / {options}")
+
+    print("Setting variant 'Gripper' to 'Robotiq_2f_140'.")
+    # The following performs the operations done internally
+    # in Isaac Lab. This should be removed in favor of 'select_usd_variants'.
+    target_vs = variant_sets.GetVariantSet("Gripper")
+    target_vs.SetVariantSelection("Robotiq_2f_140")
+
+    # show again all variants
+    variant_sets = prim.GetVariantSets()
+
+    for name in variant_sets.GetNames():
+        vs = variant_sets.GetVariantSet(name)
+        options = vs.GetVariantNames()
+        selected = vs.GetVariantSelection()
+
+        print(f"{name}: {selected} / {options}")
+
+    # Uncomment the following once resolved
+
+    # Set the variant selection
+    # sim_utils.select_usd_variants(prim.GetPath(), {"Gripper": "Robotiq_2f_140"}, stage)
+
+    # Obtain variant set
+    # variant_set = prim.GetVariantSet("Gripper")
+    # # Check if the variant selection is correct
+    # assert variant_set.GetVariantSelection() == "Robotiq_2f_140"
 
 
 """
