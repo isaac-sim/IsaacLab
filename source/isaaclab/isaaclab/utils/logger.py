@@ -94,8 +94,14 @@ def configure_logging(
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
-        # print the log file path once at startup
-        print(f"[INFO] [IsaacLab] Logging to file: {log_file_path}")
+        # print the log file path once at startup with nice formatting
+        border = "=" * 85
+        cyan = "\033[36m"  # cyan color
+        bold = "\033[1m"  # bold text
+        reset = "\033[0m"  # reset formatting
+        print(f"\n{cyan}{border}{reset}")
+        print(f"{cyan}{bold}[INFO][IsaacLab]: Logging to file: {log_file_path}{reset}")
+        print(f"{cyan}{border}{reset}\n")
 
     # return the root logger
     return root_logger
