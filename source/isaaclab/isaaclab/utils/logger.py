@@ -58,7 +58,8 @@ def configure_logging(
         The root logger.
     """
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging_level)
+    # the root logger must be the lowest level to ensure that all messages are logged
+    root_logger.setLevel(logging.DEBUG)
 
     # remove existing handlers
     # Note: iterate over a copy [:] to avoid modifying list during iteration
@@ -94,8 +95,15 @@ def configure_logging(
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
-        # print the log file path once at startup
-        print(f"[INFO] [IsaacLab] Logging to file: {log_file_path}")
+        # print the log file path once at startup with nice formatting
+        cyan = "\033[36m"  # cyan color
+        bold = "\033[1m"  # bold text
+        reset = "\033[0m"  # reset formatting
+        message = f"[INFO][IsaacLab]: Logging to file: {log_file_path}"
+        border = "=" * len(message)
+        print(f"\n{cyan}{border}{reset}")
+        print(f"{cyan}{bold}{message}{reset}")
+        print(f"{cyan}{border}{reset}\n")
 
     # return the root logger
     return root_logger
@@ -110,7 +118,7 @@ class ColoredFormatter(logging.Formatter):
     COLORS = {
         "WARNING": "\033[33m",  # orange/yellow
         "ERROR": "\033[31m",  # red
-        "CRITICAL": "\033[31m",  # red
+        "CRITICAL": "\033[1;31m",  # bold red
         "INFO": "\033[0m",  # reset
         "DEBUG": "\033[0m",
     }
