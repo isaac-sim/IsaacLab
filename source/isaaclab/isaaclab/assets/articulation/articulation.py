@@ -1963,12 +1963,13 @@ class Articulation(AssetBase):
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
         # build field names based on Isaac Sim version
-        joint_table.field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
+        field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
         if get_isaac_sim_version().major < 5:
-            joint_table.field_names.extend(["Static Friction"])
+            field_names.append("Static Friction")
         else:
-            joint_table.field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
-        joint_table.field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
+            field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
+        field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
+        joint_table.field_names = field_names
 
         # apply custom formatters to numeric columns
         joint_table.custom_format["Stiffness"] = format_large_number
