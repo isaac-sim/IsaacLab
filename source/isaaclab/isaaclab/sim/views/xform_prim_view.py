@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+from collections.abc import Sequence
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
@@ -135,7 +136,7 @@ class XformPrimView:
         self,
         positions: torch.Tensor | None = None,
         orientations: torch.Tensor | None = None,
-        indices: torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
     ):
         """Set world-space poses for prims in the view.
 
@@ -160,7 +161,11 @@ class XformPrimView:
             ValueError: If the number of poses doesn't match the number of indices provided.
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
 
         # Validate inputs
         if positions is not None:
@@ -241,7 +246,7 @@ class XformPrimView:
         self,
         translations: torch.Tensor | None = None,
         orientations: torch.Tensor | None = None,
-        indices: torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
     ) -> None:
         """Set local-space poses for prims in the view.
 
@@ -266,7 +271,11 @@ class XformPrimView:
             ValueError: If the number of poses doesn't match the number of indices provided.
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
 
         # Validate inputs
         if translations is not None:
@@ -300,7 +309,7 @@ class XformPrimView:
                 if orientations_array is not None:
                     prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: torch.Tensor, indices: torch.Tensor | None = None):
+    def set_scales(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
         """Set scales for prims in the view.
 
         This method sets the scale of each prim in the view.
@@ -315,7 +324,11 @@ class XformPrimView:
             ValueError: If scales shape is not (M, 3).
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
 
         # Validate inputs
         if scales.shape != (len(indices_list), 3):
@@ -335,7 +348,7 @@ class XformPrimView:
     Operations - Getters.
     """
 
-    def get_world_poses(self, indices: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get world-space poses for prims in the view.
 
         This method retrieves the position and orientation of each prim in world space by computing
@@ -356,7 +369,12 @@ class XformPrimView:
             - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
         # Create buffers
         positions = Vt.Vec3dArray(len(indices_list))
         orientations = Vt.QuatdArray(len(indices_list))
@@ -385,7 +403,7 @@ class XformPrimView:
 
         return positions, orientations  # type: ignore
 
-    def get_local_poses(self, indices: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get local-space poses for prims in the view.
 
         This method retrieves the position and orientation of each prim in local space (relative to
@@ -406,7 +424,12 @@ class XformPrimView:
             - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
         # Create buffers
         translations = Vt.Vec3dArray(len(indices_list))
         orientations = Vt.QuatdArray(len(indices_list))
@@ -435,7 +458,7 @@ class XformPrimView:
 
         return translations, orientations  # type: ignore
 
-    def get_scales(self, indices: torch.Tensor | None = None) -> torch.Tensor:
+    def get_scales(self, indices: Sequence[int] | None = None) -> torch.Tensor:
         """Get scales for prims in the view.
 
         This method retrieves the scale of each prim in the view.
@@ -448,7 +471,12 @@ class XformPrimView:
             A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.
         """
         # Resolve indices
-        indices_list = self._ALL_INDICES if indices is None else indices.tolist()
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
         # Create buffers
         scales = Vt.Vec3dArray(len(indices_list))
 
