@@ -665,6 +665,7 @@ class SimulationContext:
         self._physics_sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=self._initial_stage_id)
         self._physics_sim_view.set_subspace_roots("/")
         self._physx_iface.update_simulation(self.cfg.dt, 0.0)
+        # TODO: Remove these once we don't rely on Isaac Sim internals.
         SimulationManager._message_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         SimulationManager._simulation_view_created = True
         SimulationManager._physics_sim_view = self._physics_sim_view
