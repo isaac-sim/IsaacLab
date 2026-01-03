@@ -455,6 +455,14 @@ class SimulationContext:
         """
         return self._initial_stage
 
+    def get_physics_dt(self) -> float:
+        """Returns the physics time step of the simulation.
+
+        Returns:
+            The physics time step of the simulation.
+        """
+        return self.cfg.dt
+
     """
     Operations - Utilities.
     """
