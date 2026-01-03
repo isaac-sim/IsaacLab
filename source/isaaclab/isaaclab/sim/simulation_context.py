@@ -340,13 +340,13 @@ class SimulationContext:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
             # detach the stage from physx
-            # if cls._instance._physx_sim_iface is not None:
-            #     cls._instance._physx_sim_iface.detach_stage()
+            if cls._instance._physx_sim_iface is not None:
+                cls._instance._physx_sim_iface.detach_stage()
             # detach the stage from the USD stage cache
-            # stage_cache = UsdUtils.StageCache.Get()
-            # stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
-            # if stage_id > 0:
-            #     stage_cache.Erase(cls._instance._initial_stage)
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
+            if stage_id > 0:
+                stage_cache.Erase(cls._instance._initial_stage)
             # clear the instance and the flag
             cls._instance = None
             cls._is_initialized = False
@@ -773,7 +773,8 @@ class SimulationContext:
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
-    def clear(self):
+    @classmethod
+    def clear(cls):
         """Clear the current USD stage."""
 
         def _predicate(prim: Usd.Prim) -> bool:
@@ -1105,7 +1106,10 @@ class SimulationContext:
         self._disable_app_control_on_stop_handle = True
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:  # type: ignore
-            raise builtins.ISAACLAB_CALLBACK_EXCEPTION  # type: ignore
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
+            raise exception_to_raise
+        # re-enable simulation stopping control
         self._disable_app_control_on_stop_handle = False
 
     """
@@ -1246,10 +1250,10 @@ class SimulationContext:
             This callback is used only when running the simulation in a standalone python script. In an extension,
             it is expected that the user handles the extension shutdown.
         """
-        if not self._disable_app_control_on_stop_handle:
-            while not omni.timeline.get_timeline_interface().is_playing():
-                self.render()
-        return
+        pass
+        # if not self._disable_app_control_on_stop_handle:
+        #     while not omni.timeline.get_timeline_interface().is_playing():
+        #         self.render()
 
 
 @contextmanager
