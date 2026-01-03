@@ -288,7 +288,7 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
     return result
 
 
-def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
+def clear_stage(stage: Usd.Stage | None = None, predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer.
 
     The function will delete all prims in the stage that satisfy the predicate. If the predicate
@@ -301,6 +301,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     * Ancestral prims (prims that are ancestors of other prims in a reference/payload chain)
 
     Args:
+        stage: The stage to clear. Defaults to None, in which case the current stage is used.
         predicate: A user-defined function that takes a USD prim as an argument and
             returns a boolean indicating if the prim should be deleted. If None, all
             prims will be considered for deletion (subject to the default exclusions above).
@@ -337,12 +338,15 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         # Additional predicate check
         return predicate is None or predicate(prim)
 
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
+
     # get all prims to delete
-    prims = get_all_matching_child_prims("/", _predicate)
+    prims = get_all_matching_child_prims("/", _predicate, stage=stage, traverse_instance_prims=False)
     # convert prims to prim paths
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
-    delete_prim(prim_paths_to_delete)
+    delete_prim(prim_paths_to_delete, stage)
     # update stage
     update_stage()
 
