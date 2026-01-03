@@ -518,7 +518,6 @@ class DirectRLEnv(gym.Env):
                     self.sim.stop()
                     self.sim.clear()
 
-            self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window
