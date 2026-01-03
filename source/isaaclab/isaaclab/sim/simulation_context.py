@@ -1237,7 +1237,7 @@ class SimulationContext:
     Callbacks.
     """
 
-    def _app_control_on_stop_handle_fn(self, event: carb.events.IEvent):
+    def _app_control_on_stop_handle_fn(self, _):
         """Callback to deal with the app when the simulation is stopped.
 
         Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
