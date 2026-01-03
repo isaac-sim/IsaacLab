@@ -294,7 +294,7 @@ def _spawn_geom_from_prim_type(
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     # apply collision properties
     if cfg.collision_props is not None:
-        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
+        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     # apply visual material
     if cfg.visual_material is not None:
         if not cfg.visual_material_path.startswith("/"):
@@ -304,7 +304,7 @@ def _spawn_geom_from_prim_type(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(mesh_prim_path, material_path)
+        bind_visual_material(mesh_prim_path, material_path, stage=stage)
     # apply physics material
     if cfg.physics_material is not None:
         if not cfg.physics_material_path.startswith("/"):
@@ -314,12 +314,12 @@ def _spawn_geom_from_prim_type(
         # create material
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path)
+        bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
     if cfg.mass_props is not None:
-        schemas.define_mass_properties(prim_path, cfg.mass_props)
+        schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if cfg.rigid_props is not None:
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

@@ -215,7 +215,7 @@ def spawn_ground_plane(
             raise ValueError(f"No collision prim found at path: '{prim_path}'.")
         # bind physics material to the collision prim
         collision_prim_path = str(collision_prim.GetPath())
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
+        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
 
     # Obtain environment prim
     environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
@@ -247,6 +247,7 @@ def spawn_ground_plane(
                 value=Gf.Vec3f(*cfg.color),
                 prev=None,
                 type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+                usd_context_name=stage,
             )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
@@ -373,7 +374,7 @@ def _spawn_from_usd_file(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(prim_path, material_path)
+        bind_visual_material(prim_path, material_path, stage=stage)
 
     # return the prim
     return stage.GetPrimAtPath(prim_path)
