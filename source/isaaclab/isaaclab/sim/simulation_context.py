@@ -306,11 +306,6 @@ class SimulationContext:
             # load flatcache/fabric interface
             self._load_fabric_interface()
 
-            # attach stage to physx
-            current_attached_stage = self._physx_sim_iface.get_attached_stage()
-            if current_attached_stage != self._initial_stage_id:
-                self._physx_sim_iface.attach_stage(self._initial_stage_id)
-
     def __new__(cls, *args, **kwargs) -> SimulationContext:
         """Returns the instance of the simulation context.
 
@@ -673,25 +668,33 @@ class SimulationContext:
             # play the simulation
             self.play()
             # initialize the physics simulation
-            self._physx_iface.force_load_physics_from_usd()
-            self._physx_iface.start_simulation()
-            self._physx_iface.update_simulation(self.cfg.dt, 0.0)
-            self._physx_sim_iface.fetch_results()
-            SimulationManager._message_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
+            SimulationManager.initialize_physics()
+            # self._physx_iface.force_load_physics_from_usd()
+            # self._physx_iface.start_simulation()
+            # self._physx_iface.update_simulation(self.cfg.dt, 0.0)
+            # # attach stage to physx
+            # current_attached_stage = self._physx_sim_iface.get_attached_stage()
+            # if current_attached_stage != self._initial_stage_id:
+            #     self._physx_sim_iface.attach_stage(self._initial_stage_id)
+            # # fetch results
+            # self._physx_sim_iface.fetch_results()
+            # self._message_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
 
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
         # create the simulation view
-        self._physics_sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=self._initial_stage_id)
-        self._physics_sim_view.set_subspace_roots("/")
-        self._physx_iface.update_simulation(self.cfg.dt, 0.0)
-        # TODO: Remove these once we don't rely on Isaac Sim internals.
-        SimulationManager._message_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
-        SimulationManager._simulation_view_created = True
-        SimulationManager._physics_sim_view = self._physics_sim_view
-        SimulationManager._message_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
+        # SimulationManager._create_simulation_view(None)
+        # self._physics_sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=self._initial_stage_id)
+        # self._physics_sim_view.set_subspace_roots("/")
+        # self._physx_iface.update_simulation(self.cfg.dt, 0.0)
+        # # TODO: Remove these once we don't rely on Isaac Sim internals.
+        # self._message_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
+        # SimulationManager._simulation_view_created = True
+        # SimulationManager._physics_sim_view = self._physics_sim_view
+        # self._message_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         # enable kinematic rendering with fabric
         if self._physics_sim_view:

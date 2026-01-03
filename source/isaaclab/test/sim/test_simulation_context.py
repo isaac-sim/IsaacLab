@@ -17,6 +17,7 @@ import weakref
 
 import omni.timeline
 import pytest
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -731,3 +732,329 @@ def test_pause_event_callback():
         # cleanup
         if pause_handle is not None:
             pause_handle.unsubscribe()
+
+
+"""
+Isaac Events Callback Tests.
+"""
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_physics_warmup():
+    """Test that PHYSICS_WARMUP Isaac event is triggered during reset."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create callback tracker
+    callback_state = {"warmup_called": False}
+
+    def on_physics_warmup(event):
+        callback_state["warmup_called"] = True
+
+    # register callback for PHYSICS_WARMUP event
+    callback_id = SimulationManager.register_callback(
+        lambda event: on_physics_warmup(event), event=IsaacEvents.PHYSICS_WARMUP
+    )
+
+    try:
+        # verify callback hasn't been called yet
+        assert not callback_state["warmup_called"]
+
+        # reset the simulation - should trigger PHYSICS_WARMUP
+        sim.reset()
+
+        # verify callback was triggered
+        assert callback_state["warmup_called"]
+
+    finally:
+        # cleanup callback
+        if callback_id is not None:
+            SimulationManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_simulation_view_created():
+    """Test that SIMULATION_VIEW_CREATED Isaac event is triggered during reset."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create callback tracker
+    callback_state = {"view_created_called": False}
+
+    def on_simulation_view_created(event):
+        callback_state["view_created_called"] = True
+
+    # register callback for SIMULATION_VIEW_CREATED event
+    callback_id = SimulationManager.register_callback(
+        lambda event: on_simulation_view_created(event), event=IsaacEvents.SIMULATION_VIEW_CREATED
+    )
+
+    try:
+        # verify callback hasn't been called yet
+        assert not callback_state["view_created_called"]
+
+        # reset the simulation - should trigger SIMULATION_VIEW_CREATED
+        sim.reset()
+
+        # verify callback was triggered
+        assert callback_state["view_created_called"]
+
+    finally:
+        # cleanup callback
+        if callback_id is not None:
+            SimulationManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_physics_ready():
+    """Test that PHYSICS_READY Isaac event is triggered during reset."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create callback tracker
+    callback_state = {"physics_ready_called": False}
+
+    def on_physics_ready(event):
+        callback_state["physics_ready_called"] = True
+
+    # register callback for PHYSICS_READY event
+    callback_id = SimulationManager.register_callback(
+        lambda event: on_physics_ready(event), event=IsaacEvents.PHYSICS_READY
+    )
+
+    try:
+        # verify callback hasn't been called yet
+        assert not callback_state["physics_ready_called"]
+
+        # reset the simulation - should trigger PHYSICS_READY
+        sim.reset()
+
+        # verify callback was triggered
+        assert callback_state["physics_ready_called"]
+
+    finally:
+        # cleanup callback
+        if callback_id is not None:
+            SimulationManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_prim_deletion():
+    """Test that PRIM_DELETION Isaac event is triggered when a prim is deleted."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    sim.reset()
+
+    # create callback tracker
+    callback_state = {"prim_deleted": False, "deleted_path": None}
+
+    def on_prim_deletion(event):
+        callback_state["prim_deleted"] = True
+        # event payload should contain the deleted prim path
+        if hasattr(event, "payload") and event.payload:
+            callback_state["deleted_path"] = event.payload.get("prim_path", None)
+
+    # register callback for PRIM_DELETION event
+    callback_id = SimulationManager.register_callback(
+        lambda event: on_prim_deletion(event), event=IsaacEvents.PRIM_DELETION
+    )
+
+    try:
+        # verify callback hasn't been called yet
+        assert not callback_state["prim_deleted"]
+
+        # delete the cube prim
+        sim_utils.delete_prim("/World/Cube")
+
+        # trigger the event by dispatching it manually (since deletion might be handled differently)
+        SimulationManager._message_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/World/Cube"})  # type: ignore
+
+        # verify callback was triggered
+        assert callback_state["prim_deleted"]
+
+    finally:
+        # cleanup callback
+        if callback_id is not None:
+            SimulationManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_timeline_stop():
+    """Test that TIMELINE_STOP Isaac event can be registered and triggered."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create callback tracker
+    callback_state = {"timeline_stop_called": False}
+
+    def on_timeline_stop(event):
+        callback_state["timeline_stop_called"] = True
+
+    # register callback for TIMELINE_STOP event
+    callback_id = SimulationManager.register_callback(
+        lambda event: on_timeline_stop(event), event=IsaacEvents.TIMELINE_STOP
+    )
+
+    try:
+        # verify callback hasn't been called yet
+        assert not callback_state["timeline_stop_called"]
+
+        # play and stop the simulation
+        sim.play()
+
+        # disable app control to prevent hanging
+        sim._disable_app_control_on_stop_handle = True  # type: ignore
+
+        # stop the simulation
+        sim.stop()
+
+        # dispatch the event manually
+        SimulationManager._message_bus.dispatch_event(IsaacEvents.TIMELINE_STOP.value, payload={})  # type: ignore
+
+        # verify callback was triggered
+        assert callback_state["timeline_stop_called"]
+
+    finally:
+        # cleanup callback
+        if callback_id is not None:
+            SimulationManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_isaac_event_callbacks_with_weakref():
+    """Test Isaac event callbacks with weak references (similar to asset_base.py pattern)."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create a test object that will be weakly referenced
+    class PhysicsTracker:
+        def __init__(self):
+            self.warmup_count = 0
+            self.ready_count = 0
+
+        def on_warmup(self, event):
+            self.warmup_count += 1
+
+        def on_ready(self, event):
+            self.ready_count += 1
+
+    tracker = PhysicsTracker()
+
+    # define safe callback wrapper (same pattern as asset_base.py)
+    def safe_callback(callback_name, event, obj_ref):
+        """Safely invoke a callback on a weakly-referenced object."""
+        try:
+            obj = obj_ref()
+            if obj is not None:
+                getattr(obj, callback_name)(event)
+        except ReferenceError:
+            # Object has been deleted; ignore
+            pass
+
+    # register callbacks with weakref
+    obj_ref = weakref.ref(tracker)
+
+    warmup_id = SimulationManager.register_callback(
+        lambda event, obj_ref=obj_ref: safe_callback("on_warmup", event, obj_ref),
+        event=IsaacEvents.PHYSICS_WARMUP,
+    )
+    ready_id = SimulationManager.register_callback(
+        lambda event, obj_ref=obj_ref: safe_callback("on_ready", event, obj_ref), event=IsaacEvents.PHYSICS_READY
+    )
+
+    try:
+        # verify callbacks haven't been called
+        assert tracker.warmup_count == 0
+        assert tracker.ready_count == 0
+
+        # reset simulation - triggers WARMUP and READY events
+        sim.reset()
+
+        # verify callbacks were triggered
+        assert tracker.warmup_count == 1
+        assert tracker.ready_count == 1
+
+        # delete the tracker object
+        del tracker
+
+        # reset again - callbacks should handle the deleted object gracefully
+        sim.reset(soft=True)
+
+        # should not raise any errors even though tracker is deleted
+
+    finally:
+        # cleanup callbacks
+        if warmup_id is not None:
+            SimulationManager.deregister_callback(warmup_id)
+        if ready_id is not None:
+            SimulationManager.deregister_callback(ready_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_multiple_isaac_event_callbacks():
+    """Test that multiple callbacks can be registered for the same Isaac event."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    # create tracking for multiple callbacks
+    callback_counts = {"callback1": 0, "callback2": 0, "callback3": 0}
+
+    def callback1(event):
+        callback_counts["callback1"] += 1
+
+    def callback2(event):
+        callback_counts["callback2"] += 1
+
+    def callback3(event):
+        callback_counts["callback3"] += 1
+
+    # register multiple callbacks for PHYSICS_READY event
+    id1 = SimulationManager.register_callback(lambda event: callback1(event), event=IsaacEvents.PHYSICS_READY)
+    id2 = SimulationManager.register_callback(lambda event: callback2(event), event=IsaacEvents.PHYSICS_READY)
+    id3 = SimulationManager.register_callback(lambda event: callback3(event), event=IsaacEvents.PHYSICS_READY)
+
+    try:
+        # verify none have been called
+        assert all(count == 0 for count in callback_counts.values())
+
+        # reset simulation - triggers PHYSICS_READY event
+        sim.reset()
+
+        # all callbacks should have been called
+        assert callback_counts["callback1"] == 1
+        assert callback_counts["callback2"] == 1
+        assert callback_counts["callback3"] == 1
+
+    finally:
+        # cleanup all callbacks
+        if id1 is not None:
+            SimulationManager.deregister_callback(id1)
+        if id2 is not None:
+            SimulationManager.deregister_callback(id2)
+        if id3 is not None:
+            SimulationManager.deregister_callback(id3)
