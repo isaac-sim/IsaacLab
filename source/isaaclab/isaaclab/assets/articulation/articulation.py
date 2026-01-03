@@ -1926,6 +1926,22 @@ class Articulation(AssetBase):
 
         Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
         """
+
+        # define custom formatters for large numbers and limit ranges
+        def format_large_number(_, v: float) -> str:
+            """Format large numbers using scientific notation."""
+            if abs(v) >= 1e3:
+                return f"{v:.1e}"
+            else:
+                return f"{v:.3f}"
+
+        def format_limits(_, v: tuple[float, float]) -> str:
+            """Format limit ranges using scientific notation."""
+            if abs(v[0]) >= 1e3 or abs(v[1]) >= 1e3:
+                return f"[{v[0]:.1e}, {v[1]:.1e}]"
+            else:
+                return f"[{v[0]:.3f}, {v[1]:.3f}]"
+
         # read out all joint parameters from simulation
         # -- gains
         stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
@@ -1946,64 +1962,40 @@ class Articulation(AssetBase):
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
+        # build field names based on Isaac Sim version
+        field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
         if get_isaac_sim_version().major < 5:
-            joint_table.field_names = [
-                "Index",
-                "Name",
-                "Stiffness",
-                "Damping",
-                "Armature",
-                "Static Friction",
-                "Position Limits",
-                "Velocity Limits",
-                "Effort Limits",
-            ]
+            field_names.append("Static Friction")
         else:
-            joint_table.field_names = [
-                "Index",
-                "Name",
-                "Stiffness",
-                "Damping",
-                "Armature",
-                "Static Friction",
-                "Dynamic Friction",
-                "Viscous Friction",
-                "Position Limits",
-                "Velocity Limits",
-                "Effort Limits",
-            ]
-        joint_table.float_format = ".3"
-        joint_table.custom_format["Position Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
+            field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
+        field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
+        joint_table.field_names = field_names
+
+        # apply custom formatters to numeric columns
+        joint_table.custom_format["Stiffness"] = format_large_number
+        joint_table.custom_format["Damping"] = format_large_number
+        joint_table.custom_format["Armature"] = format_large_number
+        joint_table.custom_format["Static Friction"] = format_large_number
+        if get_isaac_sim_version().major >= 5:
+            joint_table.custom_format["Dynamic Friction"] = format_large_number
+            joint_table.custom_format["Viscous Friction"] = format_large_number
+        joint_table.custom_format["Position Limits"] = format_limits
+        joint_table.custom_format["Velocity Limits"] = format_large_number
+        joint_table.custom_format["Effort Limits"] = format_large_number
+
         # set alignment of table columns
         joint_table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
+            # build row data based on Isaac Sim version
+            row_data = [index, name, stiffnesses[index], dampings[index], armatures[index]]
             if get_isaac_sim_version().major < 5:
-                joint_table.add_row([
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    static_frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ])
+                row_data.append(static_frictions[index])
             else:
-                joint_table.add_row([
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    static_frictions[index],
-                    dynamic_frictions[index],
-                    viscous_frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ])
+                row_data.extend([static_frictions[index], dynamic_frictions[index], viscous_frictions[index]])
+            row_data.extend([position_limits[index], velocity_limits[index], effort_limits[index]])
+            # add row to table
+            joint_table.add_row(row_data)
         # convert table to string
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
@@ -2030,7 +2022,15 @@ class Articulation(AssetBase):
                 "Offset",
             ]
             tendon_table.float_format = ".3"
-            joint_table.custom_format["Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
+
+            # apply custom formatters to tendon table columns
+            tendon_table.custom_format["Stiffness"] = format_large_number
+            tendon_table.custom_format["Damping"] = format_large_number
+            tendon_table.custom_format["Limit Stiffness"] = format_large_number
+            tendon_table.custom_format["Limits"] = format_limits
+            tendon_table.custom_format["Rest Length"] = format_large_number
+            tendon_table.custom_format["Offset"] = format_large_number
+
             # add info on each term
             for index in range(self.num_fixed_tendons):
                 tendon_table.add_row([
