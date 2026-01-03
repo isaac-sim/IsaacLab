@@ -786,6 +786,7 @@ class SimulationContext:
             if prim.GetTypeName() == "PhysicsScene":
                 return False
             return True
+
         # clear the stage
         if cls._instance is not None:
             stage = cls._instance._initial_stage
