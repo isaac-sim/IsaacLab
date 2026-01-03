@@ -203,7 +203,6 @@ class SensorBase(ABC):
             raise RuntimeError("Simulation Context is not initialized!")
         # Obtain device and backend
         self._device = sim.device
-        self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
         # Count number of environments
         env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
@@ -301,8 +300,8 @@ class SensorBase(ABC):
             try:
                 self._initialize_impl()
             except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
+                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:  # type: ignore
+                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
