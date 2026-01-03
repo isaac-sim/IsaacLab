@@ -194,9 +194,9 @@ class XformPrimView:
         # Set poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx in indices_list:
+            for idx, prim_idx in enumerate(indices_list):
                 # Get prim
-                prim = self._prims[idx]
+                prim = self._prims[prim_idx]
                 # Get parent prim for local space conversion
                 parent_prim = prim.GetParent()
 
@@ -300,9 +300,9 @@ class XformPrimView:
         # Set local poses for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx in indices_list:
+            for idx, prim_idx in enumerate(indices_list):
                 # Get prim
-                prim = self._prims[idx]
+                prim = self._prims[prim_idx]
                 # Set attributes if provided
                 if translations_array is not None:
                     prim.GetAttribute("xformOp:translate").Set(translations_array[idx])
@@ -338,9 +338,9 @@ class XformPrimView:
         # Set scales for each prim
         # We use Sdf.ChangeBlock to minimize notification overhead.
         with Sdf.ChangeBlock():
-            for idx in indices_list:
+            for idx, prim_idx in enumerate(indices_list):
                 # Get prim
-                prim = self._prims[idx]
+                prim = self._prims[prim_idx]
                 # Set scale attribute
                 prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
 
@@ -383,9 +383,9 @@ class XformPrimView:
 
         # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
         #   here since it isn't optimized for batch operations.
-        for idx in indices_list:
+        for idx, prim_idx in enumerate(indices_list):
             # Get prim
-            prim = self._prims[idx]
+            prim = self._prims[prim_idx]
             # get prim xform
             prim_tf = xform_cache.GetLocalToWorldTransform(prim)
             # sanitize quaternion
@@ -438,9 +438,9 @@ class XformPrimView:
 
         # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
         #   here since it isn't optimized for batch operations.
-        for idx in indices_list:
+        for idx, prim_idx in enumerate(indices_list):
             # Get prim
-            prim = self._prims[idx]
+            prim = self._prims[prim_idx]
             # get prim xform
             prim_tf = xform_cache.GetLocalTransformation(prim)[0]
             # sanitize quaternion
@@ -480,9 +480,9 @@ class XformPrimView:
         # Create buffers
         scales = Vt.Vec3dArray(len(indices_list))
 
-        for idx in indices_list:
+        for idx, prim_idx in enumerate(indices_list):
             # Get prim
-            prim = self._prims[idx]
+            prim = self._prims[prim_idx]
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
         # Convert to tensor
