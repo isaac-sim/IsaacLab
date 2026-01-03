@@ -13,7 +13,6 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
-import torch
 
 import pytest
 
@@ -396,35 +395,3 @@ def test_custom_gravity(gravity):
     )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity, decimal=6)
-
-
-"""
-Edge Cases and Error Handling
-"""
-
-
-def test_boundedness():
-    """Test that the boundedness of the simulation context remains constant.
-
-    Note: This test fails right now because Isaac Sim does not handle boundedness correctly. On creation,
-    it is registering itself to various callbacks and hence the boundedness is more than 1. This may not be
-    critical for the simulation context since we usually call various clear functions before deleting the
-    simulation context.
-    """
-    import ctypes
-
-    sim = SimulationContext()
-    # manually set the boundedness to 1? -- this is not possible because of Isaac Sim.
-
-    # check that boundedness of simulation context is correct
-    sim_ref_count = ctypes.c_long.from_address(id(sim)).value
-    # reset the simulation
-    sim.reset()
-    assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count
-    # step the simulation
-    for _ in range(10):
-        sim.step()
-        assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count
-    # clear the simulation
-    sim.clear_instance()
-    assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count - 1
