@@ -12,6 +12,7 @@ sections = [
     "FUTURE",
     "STDLIB",
     "THIRDPARTY",
+    "OMNIVERSE_EXTENSIONS",
     "ASSETS_FIRSTPARTY",
     "FIRSTPARTY",
     "EXTRA_FIRSTPARTY",
@@ -51,7 +52,7 @@ extra_standard_library = [
 ]
 
 # Imports from Isaac Sim and Omniverse
-known_third_party = [
+known_omniverse_extensions = [
     "isaacsim*",
     "omni*",
     "pxr",
