@@ -20,7 +20,7 @@ select = [
     "I",      # isort
     "UP",     # pyupgrade
     "C90",    # mccabe complexity
-    "D",      # pydocstyle
+    # "D",      # pydocstyle
     "SIM",    # flake8-simplify
     "RET",    # flake8-return
 ]
@@ -34,6 +34,7 @@ ignore = [
     "RET504", # Unnecessary variable assignment before return statement
     "RET505", # Unnecessary elif after return statement
     "SIM102", # Use a single if-statement instead of nested if-statements
+    "SIM108", # Use ternary operator instead of if-else statement
     "SIM117", # Merge with statements for context managers
     "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()
 ]
@@ -50,8 +51,8 @@ convention = "google"
 [tool.ruff.lint.isort]
 # Match isort behavior
 combine-as-imports = true
-force-sort-within-sections = true
-order-by-type = false
+order-by-type = true
+from-first = false
 
 # Import sections order
 section-order = [
@@ -75,11 +76,16 @@ extra-standard-library = [
     "warp",
     "scipy",
     "open3d",
+    "cv2",
     "torchvision",
     "transformers",
     "h5py",
     "yaml",
     "toml",
+    "wandb",
+    "tensorboard",
+    "hydra",
+    "omegaconf",
     "bpy",
     "trimesh",
     "matplotlib",
