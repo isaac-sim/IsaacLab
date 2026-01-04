@@ -255,6 +255,31 @@ def test_get_scales(device):
     torch.testing.assert_close(scales, expected_scales_tensor, atol=1e-5, rtol=0)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_get_visibility(device):
+    """Test getting visibility when all prims are visible."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims (default is visible)
+    num_prims = 5
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Get visibility
+    visibility = view.get_visibility()
+
+    # Verify shape and values
+    assert visibility.shape == (num_prims,)
+    assert visibility.dtype == torch.bool
+    assert torch.all(visibility), "All prims should be visible by default"
+
+
 """
 Tests - Setters.
 """
@@ -535,6 +560,42 @@ def test_set_scales(device):
     torch.testing.assert_close(retrieved_scales, new_scales, atol=1e-5, rtol=0)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_set_visibility(device):
+    """Test toggling visibility multiple times."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create prims
+    num_prims = 3
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", stage=stage)
+
+    # Create view
+    view = XformPrimView("/World/Object_.*", device=device)
+
+    # Initial state: all visible
+    visibility = view.get_visibility()
+    assert torch.all(visibility), "All should be visible initially"
+
+    # Make all invisible
+    view.set_visibility(torch.zeros(num_prims, dtype=torch.bool, device=device))
+    visibility = view.get_visibility()
+    assert not torch.any(visibility), "All should be invisible"
+
+    # Make all visible again
+    view.set_visibility(torch.ones(num_prims, dtype=torch.bool, device=device))
+    visibility = view.get_visibility()
+    assert torch.all(visibility), "All should be visible again"
+
+    # Toggle individual prims
+    view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device), indices=[1])
+    visibility = view.get_visibility()
+    assert visibility[0] and not visibility[1] and visibility[2], "Only middle prim should be invisible"
+
+
 """
 Tests - Index Handling.
 """
@@ -542,7 +603,7 @@ Tests - Index Handling.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("index_type", ["list", "torch_tensor", "slice_none"])
-@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales"])
+@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales", "visibility"])
 def test_index_types_get_methods(device, index_type, method):
     """Test that getter methods work with different index types."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -577,8 +638,11 @@ def test_index_types_get_methods(device, index_type, method):
         all_data1, all_data2 = view.get_world_poses()
     elif method == "local_poses":
         all_data1, all_data2 = view.get_local_poses()
-    else:  # scales
+    elif method == "scales":
         all_data1 = view.get_scales()
+        all_data2 = None
+    else:  # visibility
+        all_data1 = view.get_visibility()
         all_data2 = None
 
     # Prepare indices
@@ -590,13 +654,19 @@ def test_index_types_get_methods(device, index_type, method):
         subset_data1, subset_data2 = view.get_world_poses(indices=indices)  # type: ignore[arg-type]
     elif method == "local_poses":
         subset_data1, subset_data2 = view.get_local_poses(indices=indices)  # type: ignore[arg-type]
-    else:  # scales
+    elif method == "scales":
         subset_data1 = view.get_scales(indices=indices)  # type: ignore[arg-type]
+        subset_data2 = None
+    else:  # visibility
+        subset_data1 = view.get_visibility(indices=indices)  # type: ignore[arg-type]
         subset_data2 = None
 
     # Verify shapes
     expected_count = len(target_indices)
-    assert subset_data1.shape == (expected_count, 3)
+    if method == "visibility":
+        assert subset_data1.shape == (expected_count,)
+    else:
+        assert subset_data1.shape == (expected_count, 3)
     if subset_data2 is not None:
         assert subset_data2.shape == (expected_count, 4)
 
@@ -609,7 +679,7 @@ def test_index_types_get_methods(device, index_type, method):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("index_type", ["list", "torch_tensor", "slice_none"])
-@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales"])
+@pytest.mark.parametrize("method", ["world_poses", "local_poses", "scales", "visibility"])
 def test_index_types_set_methods(device, index_type, method):
     """Test that setter methods work with different index types."""
     if device == "cuda" and not torch.cuda.is_available():
@@ -635,8 +705,11 @@ def test_index_types_set_methods(device, index_type, method):
         initial_data1, initial_data2 = view.get_world_poses()
     elif method == "local_poses":
         initial_data1, initial_data2 = view.get_local_poses()
-    else:  # scales
+    elif method == "scales":
         initial_data1 = view.get_scales()
+        initial_data2 = None
+    else:  # visibility
+        initial_data1 = view.get_visibility()
         initial_data2 = None
 
     # Prepare indices
@@ -648,8 +721,12 @@ def test_index_types_set_methods(device, index_type, method):
     if method in ["world_poses", "local_poses"]:
         new_data1 = torch.randn(num_to_set, 3, device=device) * 10.0
         new_data2 = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_to_set, dtype=torch.float32, device=device)
-    else:  # scales
+    elif method == "scales":
         new_data1 = torch.rand(num_to_set, 3, device=device) * 2.0 + 0.5
+        new_data2 = None
+    else:  # visibility
+        # Set to False to test change (default is True)
+        new_data1 = torch.zeros(num_to_set, dtype=torch.bool, device=device)
         new_data2 = None
 
     # Set data
@@ -657,16 +734,21 @@ def test_index_types_set_methods(device, index_type, method):
         view.set_world_poses(positions=new_data1, orientations=new_data2, indices=indices)  # type: ignore[arg-type]
     elif method == "local_poses":
         view.set_local_poses(translations=new_data1, orientations=new_data2, indices=indices)  # type: ignore[arg-type]
-    else:  # scales
+    elif method == "scales":
         view.set_scales(scales=new_data1, indices=indices)  # type: ignore[arg-type]
+    else:  # visibility
+        view.set_visibility(visibility=new_data1, indices=indices)  # type: ignore[arg-type]
 
     # Get all data after update
     if method == "world_poses":
         updated_data1, updated_data2 = view.get_world_poses()
     elif method == "local_poses":
         updated_data1, updated_data2 = view.get_local_poses()
-    else:  # scales
+    elif method == "scales":
         updated_data1 = view.get_scales()
+        updated_data2 = None
+    else:  # visibility
+        updated_data1 = view.get_visibility()
         updated_data2 = None
 
     # Verify that specified indices were updated
@@ -965,6 +1047,68 @@ def test_with_nested_targets(device):
     expected_positions = torch.tensor([[0.0, 20.0, 10.0], [0.0, 40.0, 25.0], [0.0, 53.0, 15.0]], device=device)
 
     torch.testing.assert_close(world_positions, expected_positions, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_visibility_with_hierarchy(device):
+    """Test visibility with parent-child hierarchy and inheritance."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    stage = sim_utils.get_current_stage()
+
+    # Create parent and children
+    sim_utils.create_prim("/World/Parent", "Xform", stage=stage)
+
+    num_children = 4
+    for i in range(num_children):
+        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", stage=stage)
+
+    # Create views for both parent and children
+    parent_view = XformPrimView("/World/Parent", device=device)
+    children_view = XformPrimView("/World/Parent/Child_.*", device=device)
+
+    # Verify parent and all children are visible initially
+    parent_visibility = parent_view.get_visibility()
+    children_visibility = children_view.get_visibility()
+    assert parent_visibility[0], "Parent should be visible initially"
+    assert torch.all(children_visibility), "All children should be visible initially"
+
+    # Make some children invisible directly
+    new_visibility = torch.tensor([True, False, True, False], dtype=torch.bool, device=device)
+    children_view.set_visibility(new_visibility)
+
+    # Verify the visibility changes
+    retrieved_visibility = children_view.get_visibility()
+    torch.testing.assert_close(retrieved_visibility, new_visibility)
+
+    # Make all children visible again
+    children_view.set_visibility(torch.ones(num_children, dtype=torch.bool, device=device))
+    all_visible = children_view.get_visibility()
+    assert torch.all(all_visible), "All children should be visible again"
+
+    # Now test parent visibility inheritance:
+    # Make parent invisible
+    parent_view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device))
+
+    # Verify parent is invisible
+    parent_visibility = parent_view.get_visibility()
+    assert not parent_visibility[0], "Parent should be invisible"
+
+    # Verify children are also invisible (due to parent being invisible)
+    children_visibility = children_view.get_visibility()
+    assert not torch.any(children_visibility), "All children should be invisible when parent is invisible"
+
+    # Make parent visible again
+    parent_view.set_visibility(torch.tensor([True], dtype=torch.bool, device=device))
+
+    # Verify parent is visible
+    parent_visibility = parent_view.get_visibility()
+    assert parent_visibility[0], "Parent should be visible again"
+
+    # Verify children are also visible again
+    children_visibility = children_view.get_visibility()
+    assert torch.all(children_visibility), "All children should be visible again when parent is visible"
 
 
 """

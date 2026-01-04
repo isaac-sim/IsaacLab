@@ -345,6 +345,41 @@ class XformPrimView:
                 # Set scale attribute
                 prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
 
+    def set_visibility(self, visibility: torch.Tensor, indices: Sequence[int] | None = None):
+        """Set visibility for prims in the view.
+
+        This method sets the visibility of each prim in the view.
+
+        Args:
+            visibility: Visibility as a boolean tensor of shape (M,) where M is the
+                number of prims to set (either all prims if indices is None, or the number of indices provided).
+            indices: Indices of prims to set visibility for. Defaults to None, in which case visibility is set
+                for all prims in the view.
+
+        Raises:
+            ValueError: If visibility shape is not (M,).
+        """
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Validate inputs
+        if visibility.shape != (len(indices_list),):
+            raise ValueError(f"Expected visibility shape ({len(indices_list),}), got {visibility.shape}.")
+
+        # Set visibility for each prim
+        with Sdf.ChangeBlock():
+            for idx, prim_idx in enumerate(indices_list):
+                # Convert prim to imageable
+                imageable = UsdGeom.Imageable(self._prims[prim_idx])
+                # Set visibility
+                if visibility[idx]:
+                    imageable.MakeVisible()
+                else:
+                    imageable.MakeInvisible()
+
     """
     Operations - Getters.
     """
@@ -487,5 +522,30 @@ class XformPrimView:
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
         # Convert to tensor
-        scales = torch.tensor(np.array(scales), dtype=torch.float32, device=self._device)
-        return scales
+
+    def get_visibility(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+        """Get visibility for prims in the view.
+
+        This method retrieves the visibility of each prim in the view.
+
+        Args:
+            indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved
+                for all prims in the view.
+        """
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Create buffers
+        visibility = torch.zeros(len(indices_list), dtype=torch.bool, device=self._device)
+
+        for idx, prim_idx in enumerate(indices_list):
+            # Get prim
+            imageable = UsdGeom.Imageable(self._prims[prim_idx])
+            # Get visibility
+            visibility[idx] = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+
+        return visibility
