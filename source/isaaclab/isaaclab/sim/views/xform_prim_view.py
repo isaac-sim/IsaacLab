@@ -522,6 +522,7 @@ class XformPrimView:
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
         # Convert to tensor
+        return torch.tensor(np.array(scales), dtype=torch.float32, device=self._device)
 
     def get_visibility(self, indices: Sequence[int] | None = None) -> torch.Tensor:
         """Get visibility for prims in the view.
