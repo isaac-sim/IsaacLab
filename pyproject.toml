@@ -53,6 +53,8 @@ extra_standard_library = [
 
 known_third_party = [
     "junitparser",
+    "pinocchio",
+    "pink",
     "rsl_rl",
     "rl_games",
     "ray",
