@@ -7,10 +7,10 @@ import json
 import numpy as np
 import os
 import torch
+import warp as wp
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject

@@ -14,12 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import torch
 from dataclasses import MISSING
 from enum import Enum
 
 import carb
-import pytest
 from flaky import flaky
 from pxr import PhysxSchema
 

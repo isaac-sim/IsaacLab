@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import cv2
 import enum
 import math
 import numpy as np
@@ -13,7 +14,6 @@ import torch
 import yaml
 from dataclasses import dataclass
 
-import cv2
 import PIL.Image
 from PIL import ImageDraw
 from pxr import Kind, Sdf, Usd, UsdGeom, UsdShade

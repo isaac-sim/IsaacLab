@@ -15,9 +15,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import math
 import numpy as np
+import pytest
 import torch
 
-import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils

@@ -18,12 +18,11 @@ simulation_app = AppLauncher(headless=True).app
 
 import math
 import numpy as np
+import pytest
 import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
 from math import pi as PI
-
-import pytest
 
 import isaaclab.utils.math as math_utils
 

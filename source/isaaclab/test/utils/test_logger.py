@@ -16,11 +16,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import logging
 import os
+import pytest
 import re
 import tempfile
 import time
-
-import pytest
 
 from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
 

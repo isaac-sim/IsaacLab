@@ -13,13 +13,13 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import gymnasium as gym
+import pytest
 import shutil
 import tempfile
 import torch
 
 import carb
 import omni.usd
-import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

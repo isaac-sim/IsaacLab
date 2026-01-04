@@ -13,8 +13,9 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
-import omni
 import pytest
+
+import omni
 from isaacsim.core.cloner import GridCloner
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG

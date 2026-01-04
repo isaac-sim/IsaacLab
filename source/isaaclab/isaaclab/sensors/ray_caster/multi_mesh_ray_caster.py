@@ -10,11 +10,11 @@ import numpy as np
 import re
 import torch
 import trimesh
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni.physics.tensors.impl.api as physx
-import warp as wp
 from isaacsim.core.prims import XFormPrim
 
 import isaaclab.sim as sim_utils

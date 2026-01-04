@@ -17,10 +17,10 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
+import pytest
 from pathlib import Path
 
 import pinocchio as pin
-import pytest
 
 from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration

@@ -7,7 +7,6 @@ import numpy as np
 import os
 import random
 import torch
-
 import warp as wp
 
 
