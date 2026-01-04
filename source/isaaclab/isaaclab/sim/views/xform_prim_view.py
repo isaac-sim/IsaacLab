@@ -115,9 +115,9 @@ class XformPrimView:
         return len(self._prims)
 
     @property
-    def prim_path(self) -> str:
-        """Prim path pattern used to match prims."""
-        return self._prim_path
+    def device(self) -> str:
+        """Device where tensors are allocated (cpu or cuda)."""
+        return self._device
 
     @property
     def prims(self) -> list[Usd.Prim]:
@@ -125,9 +125,26 @@ class XformPrimView:
         return self._prims
 
     @property
-    def device(self) -> str:
-        """Device where tensors are allocated (cpu or cuda)."""
-        return self._device
+    def prim_paths(self) -> list[str]:
+        """List of prim paths (as strings) for all prims being managed by this view.
+
+        This property converts each prim to its path string representation. The conversion is
+        performed lazily on first access and cached for subsequent accesses.
+
+        Note:
+            For most use cases, prefer using :attr:`prims` directly as it provides direct access
+            to the USD prim objects without the conversion overhead. This property is mainly useful
+            for logging, debugging, or when string paths are explicitly required.
+
+        Returns:
+            List of prim path strings in the same order as :attr:`prims`.
+        """
+        # we cache it the first time it is accessed.
+        # we don't compute it in constructor because it is expensive and we don't need it most of the time.
+        # users should usually deal with prims directly as they typically need to access the prims directly.
+        if not hasattr(self, "_prim_paths"):
+            self._prim_paths = [prim.GetPath().pathString for prim in self._prims]
+        return self._prim_paths
 
     """
     Operations - Setters.
