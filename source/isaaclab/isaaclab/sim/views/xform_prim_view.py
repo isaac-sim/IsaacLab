@@ -411,7 +411,7 @@ class XformPrimView:
 
         # Validate inputs
         if visibility.shape != (len(indices_list),):
-            raise ValueError(f"Expected visibility shape ({len(indices_list),}), got {visibility.shape}.")
+            raise ValueError(f"Expected visibility shape ({len(indices_list)},), got {visibility.shape}.")
 
         # Set visibility for each prim
         with Sdf.ChangeBlock():
