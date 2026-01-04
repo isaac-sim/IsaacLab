@@ -53,10 +53,11 @@ extra_standard_library = [
 
 # Imports from Isaac Sim and Omniverse
 known_omniverse_extensions = [
-    "isaacsim*",
-    "omni*",
-    "pxr",
     "carb",
+    "omni*",
+    "isaacsim*",
+    "pxr",
+    "usdrt",
     "Semantics",
 ]
 
