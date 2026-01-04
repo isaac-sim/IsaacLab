@@ -1,5 +1,15 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[tool.black]
+line-length = 120
+unstable-features = ["py310"]
+
 [tool.isort]
 
+profile = "black"
 py_version = 310
 line_length = 120
 group_by_package = true
