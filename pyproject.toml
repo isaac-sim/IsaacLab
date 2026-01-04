@@ -57,7 +57,7 @@ order-by-type = false
 section-order = [
     "future",
     "standard-library",
-    "omniverse-library",
+    "third-party",
     "first-party",
     "isaaclab-rl-library",
     "isaaclab-mimic-library",
