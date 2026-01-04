@@ -18,9 +18,9 @@ import pytest
 import torch
 from dataclasses import MISSING
 from enum import Enum
+from flaky import flaky
 
 import carb
-from flaky import flaky
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils

@@ -20,9 +20,9 @@ import numpy as np
 import pytest
 import random
 import torch
+from flaky import flaky
 
 import omni.replicator.core as rep
-from flaky import flaky
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 

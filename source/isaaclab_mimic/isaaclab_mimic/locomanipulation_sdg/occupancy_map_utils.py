@@ -9,13 +9,13 @@ import enum
 import math
 import numpy as np
 import os
+import PIL.Image
 import tempfile
 import torch
 import yaml
 from dataclasses import dataclass
-
-import PIL.Image
 from PIL import ImageDraw
+
 from pxr import Kind, Sdf, Usd, UsdGeom, UsdShade
 
 

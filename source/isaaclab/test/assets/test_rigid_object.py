@@ -19,9 +19,8 @@ simulation_app = AppLauncher(headless=True).app
 import ctypes
 import pytest
 import torch
-from typing import Literal
-
 from flaky import flaky
+from typing import Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg

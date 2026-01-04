@@ -28,6 +28,7 @@ import torch
 from pathlib import Path
 
 import omni.usd
+
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 

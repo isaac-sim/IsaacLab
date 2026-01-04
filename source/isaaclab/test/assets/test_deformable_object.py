@@ -19,9 +19,9 @@ simulation_app = AppLauncher(headless=True).app
 import ctypes
 import pytest
 import torch
+from flaky import flaky
 
 import carb
-from flaky import flaky
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
