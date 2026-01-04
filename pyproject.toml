@@ -22,44 +22,47 @@ sections = [
 # Extra standard libraries considered as part of python (permissive licenses
 extra_standard_library = [
     "numpy",
-    "h5py",
-    "open3d",
     "torch",
+    "einops",
     "tensordict",
+    "warp",
+    "scipy",
+    "open3d",
+    "cv2",
+    "torchvision",
+    "transformers",
+    "h5py",
+    "yaml",
+    "toml",
+    "wandb",
+    "tensorboard",
+    "hydra",
+    "omegaconf",
     "bpy",
+    "trimesh",
     "matplotlib",
     "gymnasium",
     "gym",
-    "scipy",
     "hid",
-    "yaml",
     "prettytable",
-    "toml",
-    "trimesh",
     "tqdm",
-    "torchvision",
-    "transformers",
-    "einops", # Needed for transformers, doesn't always auto-install
     "packaging",
+    "pytest",
 ]
+
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
-    "isaacsim.core.api",
-    "isaacsim.replicator.common",
-    "omni.replicator.core",
+    "isaacsim*",
+    "omni*",
     "pxr",
-    "omni.kit.*",
-    "warp",
     "carb",
     "Semantics",
 ]
+
 # Imports from this repository
 known_first_party = "isaaclab"
 known_assets_firstparty = "isaaclab_assets"
-known_extra_firstparty = [
-    "isaaclab_rl",
-    "isaaclab_mimic",
-]
+known_extra_firstparty = ["isaaclab_rl", "isaaclab_mimic"]
 known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder
 known_local_folder = "config"
