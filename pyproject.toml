@@ -36,10 +36,6 @@ extra_standard_library = [
     "h5py",
     "yaml",
     "toml",
-    "wandb",
-    "tensorboard",
-    "hydra",
-    "omegaconf",
     "bpy",
     "trimesh",
     "matplotlib",
@@ -62,6 +58,10 @@ known_third_party = [
     "ray",
     "stable_baselines3",
     "skrl",
+    "wandb",
+    "tensorboard",
+    "hydra",
+    "omegaconf",
 ]
 
 # Imports from Isaac Sim and Omniverse

@@ -17,8 +17,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import functools
-import hydra
 from collections.abc import Callable
+
+import hydra
 from hydra import compose, initialize
 from omegaconf import OmegaConf
 

@@ -11,9 +11,10 @@ import os
 import re
 import yaml
 from datetime import datetime
-from tensorboard.backend.event_processing import event_accumulator
 
 import carb
+
+from tensorboard.backend.event_processing import event_accumulator
 
 
 def get_env_configs(configs_path):

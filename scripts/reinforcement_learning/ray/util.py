@@ -13,13 +13,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from math import isclose
-from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from time import time
 from typing import Any
 
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
+from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
 def load_tensorboard_logs(directory: str) -> dict:
