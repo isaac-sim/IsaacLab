@@ -265,7 +265,7 @@ class XformPrimView:
         translations: torch.Tensor | None = None,
         orientations: torch.Tensor | None = None,
         indices: Sequence[int] | None = None,
-    ) -> None:
+    ):
         """Set local-space poses for prims in the view.
 
         This method sets the position and/or orientation of each prim in local space (relative to
