@@ -201,10 +201,10 @@ class FrameTransformer(SensorBase):
                         " rigid body. The class only supports transformations between rigid bodies."
                     )
 
-                # Get the name of the body
-                body_name = matching_prim_path.rsplit("/", 1)[-1]
-                # Use body name if frame isn't specified by user
-                frame_name = frame if frame is not None else body_name
+                # Get the name of the body: use relative prim path for unique identification
+                body_name = self._get_relative_body_path(matching_prim_path)
+                # Use leaf name of prim path if frame name isn't specified by user
+                frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
                 # Keep track of which frames are associated with which bodies
                 if body_name in body_names_to_frames:
@@ -291,11 +291,11 @@ class FrameTransformer(SensorBase):
             self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
             sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
 
-        # -- target frames
-        self._target_frame_body_names = [prim_path.split("/")[-1] for prim_path in sorted_prim_paths]
+        # -- target frames: use relative prim path for unique identification
+        self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame
-        self._source_frame_body_name = self.cfg.prim_path.split("/")[-1]
+        # -- source frame: use relative prim path for unique identification
+        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
@@ -527,3 +527,26 @@ class FrameTransformer(SensorBase):
         orientations = quat_from_angle_axis(angle, rotation_axis)
 
         return positions, orientations, lengths
+
+    @staticmethod
+    def _get_relative_body_path(prim_path: str) -> str:
+        """Extract a normalized body path from a prim path.
+
+        Removes the environment instance segment `/envs/env_<id>/` to normalize paths
+        across multiple environments, while preserving the `/envs/` prefix to
+        distinguish environment-scoped paths from non-environment paths.
+
+        Examples:
+        - '/World/envs/env_0/Robot/torso' -> '/World/envs/Robot/torso'
+        - '/World/envs/env_123/Robot/left_hand' -> '/World/envs/Robot/left_hand'
+        - '/World/Robot' -> '/World/Robot'
+        - '/World/Robot_2/left_hand' -> '/World/Robot_2/left_hand'
+
+        Args:
+            prim_path: The full prim path.
+
+        Returns:
+            The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
+        """
+        pattern = re.compile(r"/envs/env_[^/]+/")
+        return pattern.sub("/envs/", prim_path)

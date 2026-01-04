@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.52.1 (2026-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer body name collision when tracking bodies with the same name but different hierarchical paths
+  (e.g., Robot/left_hand vs Robot_1/left_hand). The sensor now uses the full prim path (with env_* patterns normalized)
+  as the unique body identifier instead of just the leaf body name. This ensures bodies at different hierarchy levels
+  are tracked separately. The change is backwards compatible: user-facing frame names still default to leaf names when
+  not explicitly provided, while internal body tracking uses full paths to avoid collisions. Works for both
+  environment-scoped paths (e.g., /World/envs/env_0/Robot) and non-environment paths (e.g., /World/Robot).
+
+
 0.52.0 (2026-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
