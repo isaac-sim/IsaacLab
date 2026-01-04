@@ -11,8 +11,8 @@ skip_glob = ["docs/*", "logs/*", "_isaac_sim/*", ".vscode/*"]
 sections = [
     "FUTURE",
     "STDLIB",
-    "THIRDPARTY",
     "OMNIVERSE_EXTENSIONS",
+    "THIRDPARTY",
     "ASSETS_FIRSTPARTY",
     "FIRSTPARTY",
     "EXTRA_FIRSTPARTY",
@@ -30,6 +30,7 @@ extra_standard_library = [
     "scipy",
     "open3d",
     "cv2",
+    "PIL",
     "torchvision",
     "transformers",
     "h5py",
@@ -47,8 +48,20 @@ extra_standard_library = [
     "hid",
     "prettytable",
     "tqdm",
+    "flatdict",
     "packaging",
     "pytest",
+    "pytest-mock",
+    "flaky",
+]
+
+known_third_party = [
+    "junitparser",
+    "rsl_rl",
+    "rl_games",
+    "ray",
+    "stable_baselines3",
+    "skrl",
 ]
 
 # Imports from Isaac Sim and Omniverse
