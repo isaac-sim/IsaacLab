@@ -4,7 +4,6 @@ target-version = "py310"
 
 # Exclude directories
 extend-exclude = [
-    "docs",
     "logs",
     "_isaac_sim",
     ".vscode",
@@ -49,45 +48,70 @@ max-complexity = 30
 convention = "google"
 
 [tool.ruff.lint.isort]
-# Import ordering configuration
-known-first-party = [
-    "isaaclab",
-    "isaaclab_assets",
-    "isaaclab_rl",
-    "isaaclab_mimic",
-    "isaaclab_tasks",
-    "config",
+# Match isort behavior
+combine-as-imports = true
+force-sort-within-sections = true
+order-by-type = false
+
+# Import sections order
+section-order = [
+    "future",
+    "standard-library",
+    "omniverse-library",
+    "first-party",
+    "isaaclab-rl-library",
+    "isaaclab-mimic-library",
+    "isaaclab-tasks-library",
+    "isaaclab-assets-library",
+    "local-folder",
 ]
-known-third-party = [
-    # Extra standard libraries
+
+# Treat these as stdlib (even though they aren't)
+extra-standard-library = [
     "numpy",
-    "h5py",
-    "open3d",
     "torch",
+    "einops",
     "tensordict",
+    "warp",
+    "scipy",
+    "open3d",
+    "torchvision",
+    "transformers",
+    "h5py",
+    "yaml",
+    "toml",
     "bpy",
+    "trimesh",
     "matplotlib",
     "gymnasium",
     "gym",
-    "scipy",
     "hid",
-    "yaml",
     "prettytable",
-    "toml",
-    "trimesh",
     "tqdm",
-    "torchvision",
-    "transformers",
-    "einops",
     "packaging",
-    # Isaac Sim and Omniverse
-    "isaacsim",
-    "omni",
+    "pytest",
+]
+
+# Third-party packages
+known-third-party = [
+    "isaacsim*",
+    "omni*",
     "pxr",
-    "warp",
     "carb",
     "Semantics",
 ]
+
+"known-first-party" = ["isaaclab"]
+"known-local-folder" = ["config"]
+
+# Custom section names
+[tool.ruff.lint.isort.sections]
+
+"isaaclab-assets-library" = ["isaaclab_assets"]
+"isaaclab-rl-library" = ["isaaclab_rl"]
+"isaaclab-mimic-library" = ["isaaclab_mimic"]
+"isaaclab-tasks-library" = ["isaaclab_tasks"]
+
 
 [tool.ruff.format]
 # Use Black-compatible formatting
