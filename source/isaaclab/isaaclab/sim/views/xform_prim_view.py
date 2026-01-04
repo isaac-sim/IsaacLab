@@ -137,7 +137,7 @@ class XformPrimView:
             for logging, debugging, or when string paths are explicitly required.
 
         Returns:
-            List of prim path strings in the same order as :attr:`prims`.
+            List of prim paths (as strings) in the same order as :attr:`prims`.
         """
         # we cache it the first time it is accessed.
         # we don't compute it in constructor because it is expensive and we don't need it most of the time.
