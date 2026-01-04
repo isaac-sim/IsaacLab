@@ -27,6 +27,33 @@ class XformPrimView:
     - **World poses**: Positions and orientations in the global world frame
     - **Local poses**: Positions and orientations relative to each prim's parent
 
+    .. warning::
+        **Fabric and Physics Simulation:**
+
+        This view operates directly on USD attributes. When **Fabric** (NVIDIA's USD runtime optimization)
+        is enabled, physics simulation updates are written to Fabric's internal representation and
+        **not propagated back to USD attributes**. This causes the following issues:
+
+        - Reading poses via :func:`get_world_poses()` or :func:`get_local_poses()` will return
+          **stale USD data** which does not reflect the actual physics state
+        - Writing poses via :func:`set_world_poses()` or :func:`set_local_poses()` will update USD,
+          but **physics simulation will not see these changes**.
+
+        **Solution:**
+        For prims with physics components (rigid bodies, articulations), use :mod:`isaaclab.assets`
+        classes (e.g., :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.Articulation`)
+        which use PhysX tensor APIs that work correctly with Fabric.
+
+        **When to use XformPrimView:**
+
+        - Non-physics prims (markers, visual elements, cameras without physics)
+        - Setting initial poses before simulation starts
+        - Non-Fabric workflows
+
+        For more information on Fabric, please refer to the `Fabric documentation`_.
+
+        .. _Fabric documentation: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
+
     .. note::
         **Performance Considerations:**
 
