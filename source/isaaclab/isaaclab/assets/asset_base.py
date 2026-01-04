@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,7 +19,6 @@ import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -176,7 +175,7 @@ class AssetBase(ABC):
 
         # iterate over the environment ids
         for env_id in env_ids:
-            prim_utils.set_prim_visibility(self._prims[env_id], visible)
+            sim_utils.set_prim_visibility(self._prims[env_id], visible)
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.

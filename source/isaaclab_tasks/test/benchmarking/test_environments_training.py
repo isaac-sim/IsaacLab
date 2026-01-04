@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,7 +21,7 @@ import carb
 import env_benchmark_test_utils as utils
 import pytest
 
-from isaaclab.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 
 
 def setup_environment():

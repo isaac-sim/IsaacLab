@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,6 @@ import trimesh
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import carb
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
@@ -24,7 +23,7 @@ from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_m
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -168,7 +167,7 @@ class MultiMeshRayCaster(RayCaster):
             target_prim_path = target_cfg.prim_expr
             # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in multi_mesh_ids:
-                carb.log_warn(
+                logger.warning(
                     f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries"
                     " in `mesh_prim_paths`? This mesh will be skipped."
                 )
@@ -214,7 +213,7 @@ class MultiMeshRayCaster(RayCaster):
                     )
                     for prim in sim_utils.get_all_matching_child_prims(target_prim.GetPath(), lambda prim: True):
                         warn_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
-                    carb.log_warn(warn_msg)
+                    logger.warning(warn_msg)
                     continue
 
                 trimesh_meshes = []
