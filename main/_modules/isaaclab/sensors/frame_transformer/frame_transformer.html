@@ -797,10 +797,10 @@
                         <span class="s2">&quot; rigid body. The class only supports transformations between rigid bodies.&quot;</span>
                     <span class="p">)</span>
 
-                <span class="c1"># Get the name of the body</span>
-                <span class="n">body_name</span> <span class="o">=</span> <span class="n">matching_prim_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-                <span class="c1"># Use body name if frame isn&#39;t specified by user</span>
-                <span class="n">frame_name</span> <span class="o">=</span> <span class="n">frame</span> <span class="k">if</span> <span class="n">frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">body_name</span>
+                <span class="c1"># Get the name of the body: use relative prim path for unique identification</span>
+                <span class="n">body_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_relative_body_path</span><span class="p">(</span><span class="n">matching_prim_path</span><span class="p">)</span>
+                <span class="c1"># Use leaf name of prim path if frame name isn&#39;t specified by user</span>
+                <span class="n">frame_name</span> <span class="o">=</span> <span class="n">frame</span> <span class="k">if</span> <span class="n">frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">matching_prim_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
                 <span class="c1"># Keep track of which frames are associated with which bodies</span>
                 <span class="k">if</span> <span class="n">body_name</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="p">:</span>
@@ -887,11 +887,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">index</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">all_prim_paths</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
             <span class="n">sorted_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">all_prim_paths</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span><span class="p">]</span>
 
-        <span class="c1"># -- target frames</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">sorted_prim_paths</span><span class="p">]</span>
+        <span class="c1"># -- target frames: use relative prim path for unique identification</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_relative_body_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span> <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">sorted_prim_paths</span><span class="p">]</span>
 
-        <span class="c1"># -- source frame</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># -- source frame: use relative prim path for unique identification</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_relative_body_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
         <span class="n">source_frame_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span><span class="p">)</span>
 
         <span class="c1"># Only remove source frame from tracked bodies if it is not also a target frame</span>
@@ -1122,7 +1122,30 @@
         <span class="n">angle</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">acos</span><span class="p">(</span><span class="n">cos_angle</span><span class="p">)</span>
         <span class="n">orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">rotation_axis</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">lengths</span></div>
+        <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">lengths</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_relative_body_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract a normalized body path from a prim path.</span>
+
+<span class="sd">        Removes the environment instance segment `/envs/env_&lt;id&gt;/` to normalize paths</span>
+<span class="sd">        across multiple environments, while preserving the `/envs/` prefix to</span>
+<span class="sd">        distinguish environment-scoped paths from non-environment paths.</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">        - &#39;/World/envs/env_0/Robot/torso&#39; -&gt; &#39;/World/envs/Robot/torso&#39;</span>
+<span class="sd">        - &#39;/World/envs/env_123/Robot/left_hand&#39; -&gt; &#39;/World/envs/Robot/left_hand&#39;</span>
+<span class="sd">        - &#39;/World/Robot&#39; -&gt; &#39;/World/Robot&#39;</span>
+<span class="sd">        - &#39;/World/Robot_2/left_hand&#39; -&gt; &#39;/World/Robot_2/left_hand&#39;</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            prim_path: The full prim path.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The prim path with `/envs/env_&lt;id&gt;/` removed, preserving `/envs/`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;/envs/env_[^/]+/&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pattern</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s2">&quot;/envs/&quot;</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>
