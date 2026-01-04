@@ -576,6 +576,10 @@ class XformPrimView:
         Args:
             indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved
                 for all prims in the view.
+
+        Returns:
+            A tensor of shape (M,) containing the visibility of each prim, where M is the number of prims queried.
+            The tensor is of type bool.
         """
         # Resolve indices
         if indices is None or indices == slice(None):
