@@ -5,7 +5,8 @@
 
 [tool.black]
 line-length = 120
-unstable-features = ["py310"]
+target-version = ["py311"]
+preview = true
 
 [tool.isort]
 
