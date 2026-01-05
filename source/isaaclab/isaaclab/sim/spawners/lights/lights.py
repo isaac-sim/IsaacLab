@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -50,7 +50,9 @@ def spawn_light(
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
-    prim = create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
+    prim = create_prim(
+        prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation, stage=stage
+    )
 
     # convert to dict
     cfg = cfg.to_dict()

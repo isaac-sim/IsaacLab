@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,6 @@ from typing import Any
 import carb
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -32,6 +31,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, 
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -145,8 +145,7 @@ class InteractiveScene:
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
             # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
+            if get_isaac_sim_version().major < 5:
                 # clone the env xform
                 env_origins = self.cloner.clone(
                     source_prim_path=self.env_prim_paths[0],
@@ -185,8 +184,7 @@ class InteractiveScene:
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
                 # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
-                if isaac_sim_version < 5:
+                if get_isaac_sim_version().major < 5:
                     self.cloner.replicate_physics(
                         source_prim_path=self.env_prim_paths[0],
                         prim_paths=self.env_prim_paths,
@@ -230,8 +228,7 @@ class InteractiveScene:
             )
 
         # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        isaac_sim_version = float(".".join(get_version()[2]))
-        if isaac_sim_version < 5:
+        if get_isaac_sim_version().major < 5:
             # clone the environment
             env_origins = self.cloner.clone(
                 source_prim_path=self.env_prim_paths[0],

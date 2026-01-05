@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,3 +10,4 @@ from .prims import *  # noqa: F401, F403
 from .queries import *  # noqa: F401, F403
 from .semantics import *  # noqa: F401, F403
 from .stage import *  # noqa: F401, F403
+from .transforms import *  # noqa: F401, F403
