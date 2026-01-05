@@ -416,81 +416,6 @@ def test_select_usd_variants_in_usd_file():
 
 
 """
-Internal Helpers.
-"""
-
-
-def test_to_tuple_basic():
-    """Test _to_tuple() with basic input types."""
-    # Test with list
-    result = _to_tuple([1.0, 2.0, 3.0])
-    assert result == (1.0, 2.0, 3.0)
-    assert isinstance(result, tuple)
-
-    # Test with tuple
-    result = _to_tuple((1.0, 2.0, 3.0))
-    assert result == (1.0, 2.0, 3.0)
-
-    # Test with numpy array
-    result = _to_tuple(np.array([1.0, 2.0, 3.0]))
-    assert result == (1.0, 2.0, 3.0)
-
-    # Test with torch tensor (CPU)
-    result = _to_tuple(torch.tensor([1.0, 2.0, 3.0]))
-    assert result == (1.0, 2.0, 3.0)
-
-    # Test squeezing first dimension (batch size 1)
-    result = _to_tuple(torch.tensor([[1.0, 2.0]]))
-    assert result == (1.0, 2.0)
-
-    result = _to_tuple(np.array([[1.0, 2.0, 3.0]]))
-    assert result == (1.0, 2.0, 3.0)
-
-
-def test_to_tuple_raises_error():
-    """Test _to_tuple() raises an error for N-dimensional arrays."""
-
-    with pytest.raises(ValueError, match="not one dimensional"):
-        _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
-
-    with pytest.raises(ValueError, match="not one dimensional"):
-        _to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
-
-    with pytest.raises(ValueError, match="only one element tensors can be converted"):
-        _to_tuple((torch.tensor([1.0, 2.0]), 3.0))
-
-
-def test_to_tuple_mixed_sequences():
-    """Test _to_tuple() with mixed type sequences."""
-
-    # Mixed list with numpy and floats
-    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
-    assert len(result) == 3
-    assert all(isinstance(x, float) for x in result)
-
-    # Mixed tuple with torch tensor items and floats
-    result = _to_tuple([torch.tensor(1.0), 2.0, 3.0])
-    assert result == (1.0, 2.0, 3.0)
-
-    # Mixed tuple with numpy array items and torch tensor
-    result = _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0)))
-    assert result == (1.0, 2.0, 3.0)
-
-
-def test_to_tuple_precision():
-    """Test _to_tuple() maintains numerical precision."""
-    from isaaclab.sim.utils.prims import _to_tuple
-
-    # Test with high precision values
-    high_precision = [1.123456789, 2.987654321, 3.141592653]
-    result = _to_tuple(torch.tensor(high_precision, dtype=torch.float64))
-
-    # Check that precision is maintained reasonably well
-    for i, val in enumerate(high_precision):
-        assert math.isclose(result[i], val, abs_tol=1e-6)
-
-
-"""
 Property Management.
 """
 
@@ -564,57 +489,67 @@ def test_change_prim_property_clear_value():
     assert prim.GetAttribute("size").Get() is None
 
 
-def test_change_prim_property_different_types():
+@pytest.mark.parametrize(
+    "attr_name,value,value_type,expected",
+    [
+        ("floatValue", 3.14, Sdf.ValueTypeNames.Float, 3.14),
+        ("boolValue", True, Sdf.ValueTypeNames.Bool, True),
+        ("intValue", 42, Sdf.ValueTypeNames.Int, 42),
+        ("stringValue", "test", Sdf.ValueTypeNames.String, "test"),
+        ("vec3Value", Gf.Vec3f(1.0, 2.0, 3.0), Sdf.ValueTypeNames.Float3, Gf.Vec3f(1.0, 2.0, 3.0)),
+        ("colorValue", Gf.Vec3f(1.0, 0.0, 0.5), Sdf.ValueTypeNames.Color3f, Gf.Vec3f(1.0, 0.0, 0.5)),
+    ],
+    ids=["float", "bool", "int", "string", "vec3", "color"],
+)
+def test_change_prim_property_different_types(attr_name: str, value, value_type, expected):
     """Test change_prim_property() with different value types."""
     # obtain stage handle
     stage = sim_utils.get_current_stage()
     # create a prim
     prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
 
-    # Test with float
+    # change the property
     result = sim_utils.change_prim_property(
-        prop_path="/World/Test.floatValue",
-        value=3.14,
+        prop_path=f"/World/Test.{attr_name}",
+        value=value,
         stage=stage,
-        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float,
+        type_to_create_if_not_exist=value_type,
         is_custom=True,
     )
-    assert result is True
-    assert math.isclose(prim.GetAttribute("floatValue").Get(), 3.14, abs_tol=1e-6)
 
-    # Test with bool
-    result = sim_utils.change_prim_property(
-        prop_path="/World/Test.boolValue",
-        value=True,
-        stage=stage,
-        type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-        is_custom=True,
-    )
+    # check that the change was successful
     assert result is True
-    assert prim.GetAttribute("boolValue").Get() is True
+    actual_value = prim.GetAttribute(attr_name).Get()
 
-    # Test with string
-    result = sim_utils.change_prim_property(
-        prop_path="/World/Test.stringValue",
-        value="test",
-        stage=stage,
-        type_to_create_if_not_exist=Sdf.ValueTypeNames.String,
-        is_custom=True,
-    )
-    assert result is True
-    assert prim.GetAttribute("stringValue").Get() == "test"
+    # handle float comparison separately for precision
+    if isinstance(expected, float):
+        assert math.isclose(actual_value, expected, abs_tol=1e-6)
+    else:
+        assert actual_value == expected
 
-    # Test with vector3
+
+@pytest.mark.parametrize(
+    "prop_path_input",
+    ["/World/Cube.size", Sdf.Path("/World/Cube.size")],
+    ids=["str_path", "sdf_path"],
+)
+def test_change_prim_property_path_types(prop_path_input):
+    """Test change_prim_property() with different path input types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube prim
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # change property using different path types
     result = sim_utils.change_prim_property(
-        prop_path="/World/Test.vec3Value",
-        value=Gf.Vec3f(1.0, 2.0, 3.0),
+        prop_path=prop_path_input,
+        value=3.0,
         stage=stage,
-        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float3,
-        is_custom=True,
     )
+
+    # check that the change was successful
     assert result is True
-    vec3_val = prim.GetAttribute("vec3Value").Get()
-    assert vec3_val == Gf.Vec3f(1.0, 2.0, 3.0)
+    assert prim.GetAttribute("size").Get() == 3.0
 
 
 def test_change_prim_property_error_invalid_prim():
@@ -651,53 +586,76 @@ def test_change_prim_property_error_missing_type():
     assert prim.GetAttribute("nonExistentProperty").Get() is None
 
 
-def test_change_prim_property_with_sdf_path():
-    """Test change_prim_property() with Sdf.Path input."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create a cube prim
-    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
-
-    # change property using Sdf.Path
-    result = sim_utils.change_prim_property(
-        prop_path=Sdf.Path("/World/Cube.size"),
-        value=3.0,
-        stage=stage,
-    )
-
-    # check that the change was successful
-    assert result is True
-    assert prim.GetAttribute("size").Get() == 3.0
+"""
+Internal Helpers.
+"""
 
 
-def test_change_prim_property_with_timecode():
-    """Test change_prim_property() with different timecodes."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create a prim
-    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+def test_to_tuple_basic():
+    """Test _to_tuple() with basic input types."""
+    # Test with list
+    result = _to_tuple([1.0, 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+    assert isinstance(result, tuple)
 
-    # create attribute with value at default timecode
-    result = sim_utils.change_prim_property(
-        prop_path="/World/Test.animatedValue",
-        value=1.0,
-        stage=stage,
-        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float,
-        is_custom=True,
-    )
-    assert result is True
+    # Test with tuple
+    result = _to_tuple((1.0, 2.0, 3.0))
+    assert result == (1.0, 2.0, 3.0)
 
-    # set value at specific timecode
-    from pxr import Usd
+    # Test with numpy array
+    result = _to_tuple(np.array([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
 
-    result = sim_utils.change_prim_property(
-        prop_path="/World/Test.animatedValue",
-        value=2.0,
-        stage=stage,
-        timecode=Usd.TimeCode(1.0),
-    )
-    assert result is True
+    # Test with torch tensor (CPU)
+    result = _to_tuple(torch.tensor([1.0, 2.0, 3.0]))
+    assert result == (1.0, 2.0, 3.0)
 
-    # check values at different timecodes
-    assert prim.GetAttribute("animatedValue").Get(Usd.TimeCode.Default()) == 1.0
-    assert prim.GetAttribute("animatedValue").Get(Usd.TimeCode(1.0)) == 2.0
+    # Test squeezing first dimension (batch size 1)
+    result = _to_tuple(torch.tensor([[1.0, 2.0]]))
+    assert result == (1.0, 2.0)
+
+    result = _to_tuple(np.array([[1.0, 2.0, 3.0]]))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_raises_error():
+    """Test _to_tuple() raises an error for N-dimensional arrays."""
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
+
+    with pytest.raises(ValueError, match="not one dimensional"):
+        _to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
+
+    with pytest.raises(ValueError, match="only one element tensors can be converted"):
+        _to_tuple((torch.tensor([1.0, 2.0]), 3.0))
+
+
+def test_to_tuple_mixed_sequences():
+    """Test _to_tuple() with mixed type sequences."""
+
+    # Mixed list with numpy and floats
+    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
+    assert len(result) == 3
+    assert all(isinstance(x, float) for x in result)
+
+    # Mixed tuple with torch tensor items and floats
+    result = _to_tuple([torch.tensor(1.0), 2.0, 3.0])
+    assert result == (1.0, 2.0, 3.0)
+
+    # Mixed tuple with numpy array items and torch tensor
+    result = _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0)))
+    assert result == (1.0, 2.0, 3.0)
+
+
+def test_to_tuple_precision():
+    """Test _to_tuple() maintains numerical precision."""
+    from isaaclab.sim.utils.prims import _to_tuple
+
+    # Test with high precision values
+    high_precision = [1.123456789, 2.987654321, 3.141592653]
+    result = _to_tuple(torch.tensor(high_precision, dtype=torch.float64))
+
+    # Check that precision is maintained reasonably well
+    for i, val in enumerate(high_precision):
+        assert math.isclose(result[i], val, abs_tol=1e-6)
