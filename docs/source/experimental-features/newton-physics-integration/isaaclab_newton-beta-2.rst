@@ -1,9 +1,9 @@
-IsaacLab 3.0
+Isaac Lab - Newton Beta 2 branch
 ============
 
-IsaacLab 3.0 is the upcoming release of IsaacLab, which will be compatible with Isaac Sim 6.0, and at the same time will support the new Newton physics engine.
+Isaac Lab - Newton Beta 2 branch is the upcoming release of IsaacLab, which will be compatible with Isaac Sim 6.0, and at the same time will support the new Newton physics engine.
 This will allow users to train policies on the Newton physics engine, or PhysX. To accommodate this major code refactoring are required. In this section, we
-will go over some of the changes, how that will affect IsaacLab 2.X users, and how to migrate to IsaacLab 3.0. The current branch of ``feature/newton`` gives
+will go over some of the changes, how that will affect IsaacLab 2.X users, and how to migrate to Isaac Lab - Newton Beta 2 branch. The current branch of ``feature/newton`` gives
 a glance of what is to come. While the changes to the internal code structure are significant, the changes to the user API are minimal.
 
 
@@ -11,7 +11,7 @@ Let's start with the biggest change: enabling the use of multiple physics engine
 any other physics engine, enabling users to bring their own physics engine to IsaacLab if they desire. To enable this, we introduce a base implementations of
 our ``simulation interfaces``, :class:`~isaaclab.assets.articulation.Articulation` or :class:`~isaaclab.sensors.ContactSensor` for instance. These provide a
 set of abstract methods that all physics engines must implement. In turn this allows all of the default IsaacLab environments to work with any physics engine.
-This also allows us to ensure that IsaacLab 3.0 is backwards compatible with IsaacLab 2.X. For engine specific calls, users could get the underlying view of
+This also allows us to ensure that Isaac Lab - Newton Beta 2 branch is backwards compatible with IsaacLab 2.X. For engine specific calls, users could get the underlying view of
 the physics engine and call the engine specific APIs directly.
 
 However, as we are refactoring the code, we are also looking at ways to limit the overhead of IsaacLab's. In an effort to minimize the overhead, we are moving
@@ -19,7 +19,7 @@ all our low level code away from torch, and instead will rely heavily on warp. T
 to take advantage of the cuda-graphing. However, this means that the ``data classes`` such as :class:`~isaaclab.assets.articulation.ArticulationData` or
 :class:`~isaaclab.sensors.ContactSensorData` will only return warp arrays. Users will hence have to call ``wp.to_torch`` to convert them to torch tensors if they desire.
 Our setters/writers will support both warp arrays and torch tensors, and will use the most optimal strategy to update the warp arrays under the hood. This minimizes the
-amount of changes required for users to migrate to IsaacLab 3.0.
+amount of changes required for users to migrate to Isaac Lab - Newton Beta 2 branch.
 
 Another new feature of the writers and setters is the ability to provide them with masks and complete data (as opposed to indices and partial data in IsaacLab 2.X).
 Note that this feature will be available along with the ability to provide indices and partial data, and that the default behavior will still be to provide indices and partial data.
