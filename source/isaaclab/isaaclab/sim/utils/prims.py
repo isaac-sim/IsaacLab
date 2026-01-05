@@ -399,6 +399,94 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
     )
 
 
+def change_prim_property(
+    prop_path: str | Sdf.Path,
+    value: Any,
+    stage: Usd.Stage | None = None,
+    timecode: Usd.TimeCode = Usd.TimeCode.Default(),
+    type_to_create_if_not_exist: Sdf.ValueTypeNames | None = None,
+    is_custom: bool = False,
+) -> bool:
+    """Change or create a property value on a USD prim.
+
+    This is a simplified property setter that works with the current edit target. If you need
+    complex layer management, use :class:`omni.kit.commands.ChangePropertyCommand` instead.
+
+    By default, this function changes the value of the property when it exists. If the property
+    doesn't exist, :attr:`type_to_create_if_not_exist` must be provided to create it.
+
+    Args:
+        prop_path: Property path in the format ``/World/Prim.propertyName``.
+        value: Value to set. If None, the attribute value is cleared.
+        stage: The USD stage. Defaults to None, in which case the current stage is used.
+        timecode: The timecode to set the property value at. Defaults to ``Usd.TimeCode.Default()``.
+        type_to_create_if_not_exist: If not None and property doesn't exist, a new property will
+            be created with the given type and value. Defaults to None.
+        is_custom: If the property is created, specify if it is a custom property (not part of
+            the schema). Defaults to False.
+
+    Returns:
+        True if the property was successfully changed, False otherwise.
+
+    Raises:
+        ValueError: If the prim does not exist at the specified path.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Sdf
+        >>>
+        >>> # Change an existing property
+        >>> sim_utils.change_prim_property(
+        ...     prop_path="/World/Cube.size",
+        ...     value=2.0
+        ... )
+        True
+        >>>
+        >>> # Create a new custom property
+        >>> sim_utils.change_prim_property(
+        ...     prop_path="/World/Cube.customValue",
+        ...     value=42,
+        ...     type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,
+        ...     is_custom=True
+        ... )
+        True
+    """
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
+
+    # convert to Sdf.Path if needed
+    prop_path = Sdf.Path(prop_path) if isinstance(prop_path, str) else prop_path
+
+    # get the prim path
+    prim_path = prop_path.GetAbsoluteRootOrPrimPath()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim or not prim.IsValid():
+        raise ValueError(f"Prim does not exist at path: '{prim_path}'")
+
+    # get or create the property
+    prop = stage.GetPropertyAtPath(prop_path)
+
+    if not prop:
+        if type_to_create_if_not_exist is not None:
+            # create new attribute on the prim
+            prop = prim.CreateAttribute(prop_path.name, type_to_create_if_not_exist, is_custom)
+        else:
+            logger.error(f"Property {prop_path} does not exist and 'type_to_create_if_not_exist' was not provided.")
+            return False
+
+    if not prop:
+        logger.error(f"Failed to get or create property at path: '{prop_path}'")
+        return False
+
+    # set the value
+    if value is None:
+        prop.Clear()
+    else:
+        prop.Set(value, timecode)
+
+    return True
+
+
 """
 Exporting.
 """
@@ -853,19 +941,14 @@ def add_usd_reference(
     ret_val = get_metrics_assembler_interface().check_layers(
         stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
     )
+    # log that metric assembler did not detect any issues
     if ret_val["ret_val"]:
-        try:
-            import omni.metrics.assembler.ui
-
-            omni.kit.commands.execute(
-                "AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path)
-            )
-
-            return prim
-        except Exception:
-            return _add_reference_to_prim(prim)
-    else:
-        return _add_reference_to_prim(prim)
+        logger.info(
+            "Metric assembler detected no issues between the current stage and the referenced USD file at path:"
+            f" {usd_path}"
+        )
+    # add reference to the prim
+    return _add_reference_to_prim(prim)
 
 
 def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[str]:
