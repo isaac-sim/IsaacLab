@@ -35,7 +35,7 @@ class SimpleTextWidget(ui.Widget):
         text: str | None = "Simple Text",
         style: dict[str, Any] | None = None,
         original_width: float = 0.0,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the text widget.
 

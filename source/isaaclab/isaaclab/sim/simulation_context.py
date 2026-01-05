@@ -5,6 +5,7 @@
 
 import builtins
 import enum
+import flatdict
 import glob
 import logging
 import numpy as np
@@ -21,7 +22,6 @@ from datetime import datetime
 from typing import Any
 
 import carb
-import flatdict
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext

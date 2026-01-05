@@ -14,10 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import tempfile
 from pathlib import Path
 
-import pytest
 from pxr import Usd
 
 import isaaclab.sim as sim_utils

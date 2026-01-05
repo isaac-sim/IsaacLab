@@ -1,5 +1,16 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+preview = true
+
 [tool.isort]
 
+profile = "black"
 py_version = 310
 line_length = 120
 group_by_package = true
@@ -11,6 +22,7 @@ skip_glob = ["docs/*", "logs/*", "_isaac_sim/*", ".vscode/*"]
 sections = [
     "FUTURE",
     "STDLIB",
+    "OMNIVERSE_EXTENSIONS",
     "THIRDPARTY",
     "ASSETS_FIRSTPARTY",
     "FIRSTPARTY",
@@ -22,44 +34,63 @@ sections = [
 # Extra standard libraries considered as part of python (permissive licenses
 extra_standard_library = [
     "numpy",
-    "h5py",
-    "open3d",
     "torch",
+    "einops",
     "tensordict",
+    "warp",
+    "scipy",
+    "open3d",
+    "cv2",
+    "PIL",
+    "torchvision",
+    "transformers",
+    "h5py",
+    "yaml",
+    "toml",
     "bpy",
+    "trimesh",
     "matplotlib",
     "gymnasium",
     "gym",
-    "scipy",
     "hid",
-    "yaml",
     "prettytable",
-    "toml",
-    "trimesh",
     "tqdm",
-    "torchvision",
-    "transformers",
-    "einops", # Needed for transformers, doesn't always auto-install
+    "flatdict",
     "packaging",
+    "pytest",
+    "pytest-mock",
+    "flaky",
 ]
-# Imports from Isaac Sim and Omniverse
+
 known_third_party = [
-    "isaacsim.core.api",
-    "isaacsim.replicator.common",
-    "omni.replicator.core",
-    "pxr",
-    "omni.kit.*",
-    "warp",
+    "junitparser",
+    "pinocchio",
+    "pink",
+    "rsl_rl",
+    "rl_games",
+    "ray",
+    "stable_baselines3",
+    "skrl",
+    "wandb",
+    "tensorboard",
+    "hydra",
+    "omegaconf",
+]
+
+# Imports from Isaac Sim and Omniverse
+known_omniverse_extensions = [
     "carb",
+    "omni*",
+    "isaacsim*",
+    "pxr",
+    "usdrt",
     "Semantics",
 ]
+
 # Imports from this repository
 known_first_party = "isaaclab"
 known_assets_firstparty = "isaaclab_assets"
-known_extra_firstparty = [
-    "isaaclab_rl",
-    "isaaclab_mimic",
-]
+known_extra_firstparty = ["isaaclab_rl", "isaaclab_mimic"]
 known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder
 known_local_folder = "config"

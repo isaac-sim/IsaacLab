@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
 import torch
 import torch.utils.benchmark as benchmark
-
-import pytest
 
 
 @pytest.mark.isaacsim_ci

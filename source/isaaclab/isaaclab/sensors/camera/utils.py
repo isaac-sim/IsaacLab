@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from collections.abc import Sequence
-
 import warp as wp
+from collections.abc import Sequence
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.array import TensorData, convert_to_torch

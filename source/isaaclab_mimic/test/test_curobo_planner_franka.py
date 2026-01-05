@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
 import random
 from collections.abc import Generator
 from typing import Any
-
-import pytest
 
 SEED: int = 42
 random.seed(SEED)

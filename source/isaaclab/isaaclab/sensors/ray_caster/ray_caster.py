@@ -9,11 +9,11 @@ import logging
 import numpy as np
 import re
 import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni
-import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
