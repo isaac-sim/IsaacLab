@@ -397,7 +397,6 @@ def change_prim_property(
     prop_path: str | Sdf.Path,
     value: Any,
     stage: Usd.Stage | None = None,
-    timecode: Usd.TimeCode = Usd.TimeCode.Default(),
     type_to_create_if_not_exist: Sdf.ValueTypeNames | None = None,
     is_custom: bool = False,
 ) -> bool:
@@ -418,7 +417,6 @@ def change_prim_property(
         prop_path: Property path in the format ``/World/Prim.propertyName``.
         value: Value to set. If None, the attribute value is cleared.
         stage: The USD stage. Defaults to None, in which case the current stage is used.
-        timecode: The timecode to set the property value at. Defaults to ``Usd.TimeCode.Default()``.
         type_to_create_if_not_exist: If not None and property doesn't exist, a new property will
             be created with the given type and value. Defaults to None.
         is_custom: If the property is created, specify if it is a custom property (not part of
@@ -481,7 +479,7 @@ def change_prim_property(
     if value is None:
         prop.Clear()
     else:
-        prop.Set(value, timecode)
+        prop.Set(value, Usd.TimeCode.Default())
 
     return True
 
