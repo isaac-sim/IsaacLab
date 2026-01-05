@@ -12,9 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import torch
-
 import pytest
+import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
 from isaaclab.sim import SimulationContext

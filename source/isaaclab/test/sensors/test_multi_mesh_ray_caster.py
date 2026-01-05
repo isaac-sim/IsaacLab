@@ -12,10 +12,9 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True)
 
 import numpy as np
+import pytest
 import torch
 import trimesh
-
-import pytest
 import warp as wp
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation

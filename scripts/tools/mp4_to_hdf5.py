@@ -17,16 +17,12 @@ required arguments:
     --videos_dir         Directory containing the visually augmented MP4 videos.
 """
 
-# Standard library imports
 import argparse
+import cv2
 import glob
 import h5py
 import numpy as np
-
-# Third-party imports
 import os
-
-import cv2
 
 
 def parse_args():

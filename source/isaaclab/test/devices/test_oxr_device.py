@@ -19,11 +19,11 @@ simulation_app = app_launcher.app
 
 import importlib
 import numpy as np
+import pytest
 import torch
 
 import carb
 import omni.usd
-import pytest
 from isaacsim.core.prims import XFormPrim
 
 from isaaclab.devices import OpenXRDevice, OpenXRDeviceCfg

@@ -18,9 +18,8 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
-import torch
-
 import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils

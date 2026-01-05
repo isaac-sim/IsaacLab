@@ -21,15 +21,11 @@ optional arguments:
     --framerate          Frames per second for the output video. (default: 30)
 """
 
-# Standard library imports
 import argparse
+import cv2
 import h5py
 import numpy as np
-
-# Third-party imports
 import os
-
-import cv2
 
 # Constants
 DEFAULT_VIDEO_HEIGHT = 704
