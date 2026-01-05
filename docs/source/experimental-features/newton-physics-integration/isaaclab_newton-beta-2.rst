@@ -1,5 +1,5 @@
 Isaac Lab - Newton Beta 2
-============
+=========================
 
 Let's start with the biggest change: enabling the use of multiple physics engines. We refactored our code so that we can not only support PhysX and Newton, but
 any other physics engine, enabling users to bring their own physics engine to Isaac Lab if they desire. To enable this, we introduce a base implementations of
