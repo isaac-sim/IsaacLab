@@ -12,7 +12,7 @@ tactile sensing with the gelsight finger setup.
 .. code-block:: bash
 
     # Usage
-    python tacsl_example.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --num_envs 16 --contact_object_type nut --save_viz --enable_cameras
+    python tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --num_envs 16 --contact_object_type nut --save_viz --enable_cameras
 
 """
 

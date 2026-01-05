@@ -48,7 +48,6 @@ def compute_tactile_shear_image(
     """
     nrows = tactile_normal_force.shape[0]
     ncols = tactile_normal_force.shape[1]
-    print("tactile_normal_force", tactile_normal_force)
 
     imgs_tactile = np.zeros((nrows * resolution, ncols * resolution, 3), dtype=float)
 
