@@ -13,14 +13,14 @@
 Franka Cube Stack IK Rel Mimic Env
 ----------------------------------
 
-.. autoclass:: FrankaCubeStackIKRelMimicEnv
+.. autoclass:: franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv
   :members:
   :inherited-members:
 
 Franka Cube Stack IK Rel Mimic Env Cfg
 --------------------------------------
 
-.. autoclass:: FrankaCubeStackIKRelMimicEnvCfg
+.. autoclass:: franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg
   :members:
   :inherited-members:
   :show-inheritance:
