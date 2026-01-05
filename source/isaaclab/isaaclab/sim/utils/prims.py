@@ -28,7 +28,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
-from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
+from .stage import get_current_stage, get_current_stage_id
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
@@ -384,18 +384,13 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
 
-    # early attach stage to usd context if stage is in memory
-    # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-    attach_stage_to_usd_context(attaching_early=True)
-
-    # change property
-    omni.kit.commands.execute(
-        "ChangePropertyCommand",
-        prop_path=Sdf.Path(f"{prim.GetPath()}.{attr_name}"),
+    # change property using the change_prim_property function
+    change_prim_property(
+        prop_path=f"{prim.GetPath()}.{attr_name}",
         value=value,
-        prev=None,
+        stage=prim.GetStage(),
         type_to_create_if_not_exist=sdf_type,
-        usd_context_name=prim.GetStage(),
+        is_custom=True,
     )
 
 
@@ -414,6 +409,11 @@ def change_prim_property(
 
     By default, this function changes the value of the property when it exists. If the property
     doesn't exist, :attr:`type_to_create_if_not_exist` must be provided to create it.
+
+    Note:
+        The attribute :attr:`value` must be the correct type for the property.
+        For example, if the property is a float, the value must be a float.
+        If it is supposed to be a RGB color, the value must be of type :class:`Gf.Vec3f`.
 
     Args:
         prop_path: Property path in the format ``/World/Prim.propertyName``.

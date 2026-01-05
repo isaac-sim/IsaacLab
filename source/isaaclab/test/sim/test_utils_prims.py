@@ -488,3 +488,216 @@ def test_to_tuple_precision():
     # Check that precision is maintained reasonably well
     for i, val in enumerate(high_precision):
         assert math.isclose(result[i], val, abs_tol=1e-6)
+
+
+"""
+Property Management.
+"""
+
+
+def test_change_prim_property_basic():
+    """Test change_prim_property() with existing property."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube prim
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # check initial value
+    assert prim.GetAttribute("size").Get() == 1.0
+
+    # change the property
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Cube.size",
+        value=2.0,
+        stage=stage,
+    )
+
+    # check that the change was successful
+    assert result is True
+    assert prim.GetAttribute("size").Get() == 2.0
+
+
+def test_change_prim_property_create_new():
+    """Test change_prim_property() creates new property when it doesn't exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # check that the property doesn't exist
+    assert prim.GetAttribute("customValue").Get() is None
+
+    # create a new property
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.customValue",
+        value=42,
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,
+        is_custom=True,
+    )
+
+    # check that the property was created successfully
+    assert result is True
+    assert prim.GetAttribute("customValue").Get() == 42
+
+
+def test_change_prim_property_clear_value():
+    """Test change_prim_property() clears property value when value is None."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube with an attribute
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # check initial value
+    assert prim.GetAttribute("size").Get() == 1.0
+
+    # clear the property value
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Cube.size",
+        value=None,
+        stage=stage,
+    )
+
+    # check that the value was cleared
+    assert result is True
+    # Note: After clearing, the attribute should not have a value at the default timecode
+    assert prim.GetAttribute("size").Get() is None
+
+
+def test_change_prim_property_different_types():
+    """Test change_prim_property() with different value types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # Test with float
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.floatValue",
+        value=3.14,
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float,
+        is_custom=True,
+    )
+    assert result is True
+    assert math.isclose(prim.GetAttribute("floatValue").Get(), 3.14, abs_tol=1e-6)
+
+    # Test with bool
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.boolValue",
+        value=True,
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
+        is_custom=True,
+    )
+    assert result is True
+    assert prim.GetAttribute("boolValue").Get() is True
+
+    # Test with string
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.stringValue",
+        value="test",
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.String,
+        is_custom=True,
+    )
+    assert result is True
+    assert prim.GetAttribute("stringValue").Get() == "test"
+
+    # Test with vector3
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.vec3Value",
+        value=Gf.Vec3f(1.0, 2.0, 3.0),
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float3,
+        is_custom=True,
+    )
+    assert result is True
+    vec3_val = prim.GetAttribute("vec3Value").Get()
+    assert vec3_val == Gf.Vec3f(1.0, 2.0, 3.0)
+
+
+def test_change_prim_property_error_invalid_prim():
+    """Test change_prim_property() raises error for invalid prim path."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # try to change property on non-existent prim
+    with pytest.raises(ValueError, match="Prim does not exist"):
+        sim_utils.change_prim_property(
+            prop_path="/World/NonExistent.property",
+            value=1.0,
+            stage=stage,
+        )
+
+
+def test_change_prim_property_error_missing_type():
+    """Test change_prim_property() returns False when property doesn't exist and type not provided."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # try to create property without providing type
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.nonExistentProperty",
+        value=42,
+        stage=stage,
+    )
+
+    # should return False since type was not provided
+    assert result is False
+    # property should not have been created
+    assert prim.GetAttribute("nonExistentProperty").Get() is None
+
+
+def test_change_prim_property_with_sdf_path():
+    """Test change_prim_property() with Sdf.Path input."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube prim
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # change property using Sdf.Path
+    result = sim_utils.change_prim_property(
+        prop_path=Sdf.Path("/World/Cube.size"),
+        value=3.0,
+        stage=stage,
+    )
+
+    # check that the change was successful
+    assert result is True
+    assert prim.GetAttribute("size").Get() == 3.0
+
+
+def test_change_prim_property_with_timecode():
+    """Test change_prim_property() with different timecodes."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # create attribute with value at default timecode
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.animatedValue",
+        value=1.0,
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Float,
+        is_custom=True,
+    )
+    assert result is True
+
+    # set value at specific timecode
+    from pxr import Usd
+
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.animatedValue",
+        value=2.0,
+        stage=stage,
+        timecode=Usd.TimeCode(1.0),
+    )
+    assert result is True
+
+    # check values at different timecodes
+    assert prim.GetAttribute("animatedValue").Get(Usd.TimeCode.Default()) == 1.0
+    assert prim.GetAttribute("animatedValue").Get(Usd.TimeCode(1.0)) == 2.0
