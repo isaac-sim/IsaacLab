@@ -485,8 +485,8 @@ def test_change_prim_property_clear_value():
 
     # check that the value was cleared
     assert result is True
-    # Note: After clearing, the attribute should not have a value at the default timecode
-    assert prim.GetAttribute("size").Get() is None
+    # Note: After clearing, the attribute should go its default value
+    assert prim.GetAttribute("size").Get() == 2.0
 
 
 @pytest.mark.parametrize(

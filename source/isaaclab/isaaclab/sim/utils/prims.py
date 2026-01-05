@@ -415,7 +415,8 @@ def change_prim_property(
 
     Args:
         prop_path: Property path in the format ``/World/Prim.propertyName``.
-        value: Value to set. If None, the attribute value is cleared.
+        value: Value to set. If None, the attribute value goes to its default value.
+            If the attribute has no default value, it is a silent no-op.
         stage: The USD stage. Defaults to None, in which case the current stage is used.
         type_to_create_if_not_exist: If not None and property doesn't exist, a new property will
             be created with the given type and value. Defaults to None.
@@ -477,11 +478,9 @@ def change_prim_property(
 
     # set the value
     if value is None:
-        prop.Clear()
+        return bool(prop.Clear())
     else:
-        prop.Set(value, Usd.TimeCode.Default())
-
-    return True
+        return bool(prop.Set(value, Usd.TimeCode.Default()))
 
 
 """
