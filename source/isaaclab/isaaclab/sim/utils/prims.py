@@ -390,7 +390,6 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         value=value,
         stage=prim.GetStage(),
         type_to_create_if_not_exist=sdf_type,
-        is_custom=True,
     )
 
 

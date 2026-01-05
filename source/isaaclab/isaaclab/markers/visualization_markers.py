@@ -401,7 +401,6 @@ class VisualizationMarkers:
                     value=True,
                     stage=prim.GetStage(),
                     type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-                    is_custom=True,
                 )
             # add children to list
             all_prims += child_prim.GetChildren()
