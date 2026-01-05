@@ -59,14 +59,18 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # since stage in memory is not supported by the "CreatePreviewSurfaceMaterialPrim" kit command
         attach_stage_to_usd_context(attaching_early=True)
 
+        # note: this command does not support passing 'stage' as an argument
         omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
     prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
+    # check prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")
     # apply properties
-    cfg = cfg.to_dict()
+    cfg = cfg.to_dict()  # type: ignore
     del cfg["func"]
     for attr_name, attr_value in cfg.items():
         safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=True)
@@ -108,10 +112,6 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
 
     # spawn material if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        # early attach stage to usd context if stage is in memory
-        # since stage in memory is not supported by the "CreateMdlMaterialPrim" kit command
-        attach_stage_to_usd_context(attaching_early=True)
-
         # extract material name from path
         material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
         omni.kit.commands.execute(
@@ -119,12 +119,16 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
             mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),
             mtl_name=material_name,
             mtl_path=prim_path,
+            stage=stage,
             select_new_prim=False,
         )
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # obtain prim
     prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
+    # check prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Failed to create MDL material at path: '{prim_path}'.")
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]
