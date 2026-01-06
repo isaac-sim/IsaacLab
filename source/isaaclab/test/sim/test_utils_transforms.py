@@ -593,8 +593,8 @@ def test_standardize_xform_ops_with_partial_values():
     assert_quat_close(Gf.Quatd(*quat_before), quat_after_world, eps=1e-5)
 
 
-def test_standardize_xform_ops_non_xformable_prim():
-    """Test standardize_xform_ops returns False for non-Xformable prims."""
+def test_standardize_xform_ops_non_xformable_prim(caplog):
+    """Test standardize_xform_ops returns False for non-Xformable prims and logs warning."""
     # obtain stage handle
     stage = sim_utils.get_current_stage()
 
@@ -607,9 +607,21 @@ def test_standardize_xform_ops_non_xformable_prim():
     assert material_prim.IsValid()
     assert not material_prim.IsA(UsdGeom.Xformable)
 
-    # Attempt to apply standardize_xform_ops - should return False
-    result = sim_utils.standardize_xform_ops(material_prim)
+    # Clear any previous logs
+    caplog.clear()
+
+    # Attempt to apply standardize_xform_ops - should return False and log a warning
+    with caplog.at_level("WARNING"):
+        result = sim_utils.standardize_xform_ops(material_prim)
+
     assert result is False
+
+    # Verify that a warning was logged
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
+    assert "not an Xformable" in caplog.records[0].message
+    assert "/World/TestMaterial" in caplog.records[0].message
+    assert "material, shader, and scope prims" in caplog.records[0].message
 
 
 def test_standardize_xform_ops_preserves_reset_xform_stack():
