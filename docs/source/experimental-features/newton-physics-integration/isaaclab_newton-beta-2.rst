@@ -28,7 +28,7 @@ views directly, and will remove needless conversions.
 
 Finally, alongside the new isaaclab_newton extension, we are also introducing new isaaclab_experimental and isaaclab_task_experimental extensions. These extensions will allow
 quickly bring to main isaaclab new features while leaving them the time they need to mature before being fully integrated into the core isaaclab extensions. In this release,
-we are introducing cuda-graphing support for direct rl tasks. This allows to drastically reduce Isaac Lab's overhead making training faster. Try them out and let us know what you think!
+we are introducing cuda-graphing support for direct rl tasks. This drastically reduces Isaac Lab's overhead making training faster. Try them out and let us know what you think!
 
 .. code-block:: bash
 
