@@ -15,12 +15,9 @@ import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni
-import omni.kit.commands
 import omni.usd
-import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
-from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
+from omni.usd.commands import BindMaterialCommand, DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
@@ -202,9 +199,15 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
     if stage_id < 0:
+        is_inserted = True
         stage_id = stage_cache.Insert(stage).ToLongInt()
+    else:
+        is_inserted = False
     # delete prims
     DeletePrimsCommand(prim_path, stage=stage).do()
+    # erase from cache if it was inserted
+    if is_inserted:
+        stage_cache.Erase(stage_id)
 
 
 def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> None:
@@ -785,20 +788,19 @@ def bind_visual_material(
 
     # resolve token for weaker than descendants
     if stronger_than_descendants:
-        binding_strength = "strongerThanDescendants"
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
     else:
-        binding_strength = "weakerThanDescendants"
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
+    BindMaterialCommand(
         prim_path=prim_path,
         material_path=material_path,
         strength=binding_strength,
         stage=stage,
-    )
+    ).do()
     # return success
-    return success
+    return True
 
 
 @apply_nested

@@ -8,10 +8,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import omni.kit.commands
-from pxr import Usd
+from omni.usd.commands import CreateMdlMaterialPrimCommand, CreateShaderPrimFromSdrCommand
+from pxr import Usd, UsdShade
 
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
@@ -55,12 +55,22 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
 
     # spawn material if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        # early attach stage to usd context if stage is in memory
-        # since stage in memory is not supported by the "CreatePreviewSurfaceMaterialPrim" kit command
-        attach_stage_to_usd_context(attaching_early=True)
+        material_prim = UsdShade.Material.Define(stage, prim_path)
+        if material_prim:
+            shader_prim = CreateShaderPrimFromSdrCommand(
+                parent_path=prim_path,
+                identifier="UsdPreviewSurface",
+                stage_or_context=stage,
+                name="Shader",
+            ).do()
+            if shader_prim:
+                surface_out = shader_prim.GetOutput("surface")
+                if surface_out:
+                    material_prim.CreateSurfaceOutput().ConnectToSource(surface_out)
 
-        # note: this command does not support passing 'stage' as an argument
-        omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
+                displacement_out = shader_prim.GetOutput("displacement")
+                if displacement_out:
+                    material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -116,14 +126,13 @@ def spawn_from_mdl_file(
     if not stage.GetPrimAtPath(prim_path).IsValid():
         # extract material name from path
         material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
-        omni.kit.commands.execute(
-            "CreateMdlMaterialPrim",
+        CreateMdlMaterialPrimCommand(
             mtl_url=cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR),
             mtl_name=material_name,
             mtl_path=prim_path,
             stage=stage,
             select_new_prim=False,
-        )
+        ).do()
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # obtain prim
