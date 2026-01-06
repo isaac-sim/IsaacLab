@@ -106,6 +106,79 @@ def test_xform_prim_view_initialization_multiple_prims(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_xform_prim_view_initialization_multiple_prims_order(device):
+    """Test XformPrimView initialization with multiple prims using pattern matching with multiple objects per prim.
+
+    This test validates that XformPrimView respects USD stage traversal order, which is based on
+    creation order (depth-first search), NOT alphabetical/lexical sorting. This is an important
+    edge case that ensures deterministic prim ordering that matches USD's internal representation.
+
+    The test creates prims in a deliberately non-alphabetical order (1, 0, A, a, 2) and verifies
+    that they are retrieved in creation order, not sorted order (0, 1, 2, A, a).
+    """
+    # check if CUDA is available
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    # Create multiple prims
+    num_prims = 10
+    stage = sim_utils.get_current_stage()
+
+    # NOTE: Prims are created in a specific order to test that XformPrimView respects
+    # USD stage traversal order (DFS based on creation order), NOT alphabetical/lexical order.
+    # This is an important edge case: children under the same parent are returned in the
+    # order they were created, not sorted by name.
+
+    # First batch: Create Object_1, Object_0, Object_A for each environment
+    # (intentionally non-alphabetical: 1, 0, A instead of 0, 1, A)
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Env_{i}/Object_1", "Xform", translation=(i * 2.0, -2.0, 1.0), stage=stage)
+        sim_utils.create_prim(f"/World/Env_{i}/Object_0", "Xform", translation=(i * 2.0, 2.0, 1.0), stage=stage)
+        sim_utils.create_prim(f"/World/Env_{i}/Object_A", "Xform", translation=(i * 2.0, 0.0, -1.0), stage=stage)
+
+    # Second batch: Create Object_a, Object_2 for each environment
+    # (created after the first batch to verify traversal is depth-first per environment)
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Env_{i}/Object_a", "Xform", translation=(i * 2.0, 2.0, -1.0), stage=stage)
+        sim_utils.create_prim(f"/World/Env_{i}/Object_2", "Xform", translation=(i * 2.0, 2.0, 1.0), stage=stage)
+
+    # Create view with pattern
+    view = XformPrimView("/World/Env_.*/Object_.*", device=device)
+
+    # Expected ordering: DFS traversal by environment, with children in creation order
+    # For each Env_i, we expect: Object_1, Object_0, Object_A, Object_a, Object_2
+    # (matches creation order, NOT alphabetical: would be 0, 1, 2, A, a if sorted)
+    expected_prim_paths_ordering = []
+    for i in range(num_prims):
+        expected_prim_paths_ordering.append(f"/World/Env_{i}/Object_1")
+        expected_prim_paths_ordering.append(f"/World/Env_{i}/Object_0")
+        expected_prim_paths_ordering.append(f"/World/Env_{i}/Object_A")
+        expected_prim_paths_ordering.append(f"/World/Env_{i}/Object_a")
+        expected_prim_paths_ordering.append(f"/World/Env_{i}/Object_2")
+
+    # Verify properties
+    assert view.count == num_prims * 5
+    assert view.device == device
+    assert len(view.prims) == num_prims * 5
+    assert view.prim_paths == expected_prim_paths_ordering
+
+    # Additional validation: Verify ordering is NOT alphabetical
+    # If it were alphabetical, Object_0 would come before Object_1
+    alphabetical_order = []
+    for i in range(num_prims):
+        alphabetical_order.append(f"/World/Env_{i}/Object_0")
+        alphabetical_order.append(f"/World/Env_{i}/Object_1")
+        alphabetical_order.append(f"/World/Env_{i}/Object_2")
+        alphabetical_order.append(f"/World/Env_{i}/Object_A")
+        alphabetical_order.append(f"/World/Env_{i}/Object_a")
+
+    assert view.prim_paths != alphabetical_order, (
+        "Prim paths should follow creation order, not alphabetical order. "
+        "This test validates that USD stage traversal respects creation order."
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_xform_prim_view_initialization_invalid_prim(device):
     """Test XformPrimView initialization fails for non-xformable prims."""
     # check if CUDA is available
