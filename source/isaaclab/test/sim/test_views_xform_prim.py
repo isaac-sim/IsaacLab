@@ -77,7 +77,7 @@ def test_xform_prim_view_initialization_single_prim(device):
 
     # Verify properties
     assert view.count == 1
-    assert view.prim_path == "/World/Object"
+    assert view.prim_paths == ["/World/Object"]
     assert view.device == device
     assert len(view.prims) == 1
 
@@ -102,6 +102,7 @@ def test_xform_prim_view_initialization_multiple_prims(device):
     assert view.count == num_prims
     assert view.device == device
     assert len(view.prims) == num_prims
+    assert view.prim_paths == [f"/World/Env_{i}/Object" for i in range(num_prims)]
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
