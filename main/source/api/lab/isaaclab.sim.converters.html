@@ -1268,7 +1268,17 @@ only the mesh files used by the URDF are modified. To force generation, either s
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>From Isaac Sim 4.5 onwards, the extension name changed from <code class="docutils literal notranslate"><span class="pre">omni.importer.urdf</span></code> to
-<code class="docutils literal notranslate"><span class="pre">isaacsim.asset.importer.urdf</span></code>. This converter class now uses the latest extension from Isaac Sim.</p>
+<code class="docutils literal notranslate"><span class="pre">isaacsim.asset.importer.urdf</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In Isaac Sim 5.1, the URDF importer changed the default behavior of merging fixed joints.
+Links connected through <code class="docutils literal notranslate"><span class="pre">fixed_joint</span></code> elements are no longer merged when their URDF link
+entries specify mass and inertia, even if <code class="docutils literal notranslate"><span class="pre">merge-joint</span></code> is set to True. The new behavior
+treats links with mass/inertia as full bodies rather than zero-mass reference frames.</p>
+<p>To maintain backwards compatibility, <strong>this converter pins to an older version of the
+URDF importer extension</strong> (version 2.4.31) that still merges fixed joints by default.
+This allows existing URDFs to work as expected without modification.</p>
 </div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">

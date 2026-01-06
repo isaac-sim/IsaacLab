@@ -604,12 +604,14 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">packaging.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">Version</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_extension</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.asset_converter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.urdf_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrdfConverterCfg</span>
@@ -629,7 +631,17 @@
 
 <span class="sd">    .. note::</span>
 <span class="sd">        From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.urdf`` to</span>
-<span class="sd">        ``isaacsim.asset.importer.urdf``. This converter class now uses the latest extension from Isaac Sim.</span>
+<span class="sd">        ``isaacsim.asset.importer.urdf``.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        In Isaac Sim 5.1, the URDF importer changed the default behavior of merging fixed joints.</span>
+<span class="sd">        Links connected through ``fixed_joint`` elements are no longer merged when their URDF link</span>
+<span class="sd">        entries specify mass and inertia, even if ``merge-joint`` is set to True. The new behavior</span>
+<span class="sd">        treats links with mass/inertia as full bodies rather than zero-mass reference frames.</span>
+
+<span class="sd">        To maintain backwards compatibility, **this converter pins to an older version of the</span>
+<span class="sd">        URDF importer extension** (version 2.4.31) that still merges fixed joints by default.</span>
+<span class="sd">        This allows existing URDFs to work as expected without modification.</span>
 
 <span class="sd">    .. _isaacsim.asset.importer.urdf: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -643,9 +655,13 @@
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration instance for URDF to USD conversion.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">manager</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app</span><span class="p">()</span><span class="o">.</span><span class="n">get_extension_manager</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_extension_enabled</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">):</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">)</span>
+        <span class="c1"># switch to older version of the URDF importer extension</span>
+        <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">Version</span><span class="p">(</span><span class="s2">&quot;5.1&quot;</span><span class="p">):</span>
+            <span class="n">manager</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app</span><span class="p">()</span><span class="o">.</span><span class="n">get_extension_manager</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_extension_enabled</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">):</span>
+                <span class="n">manager</span><span class="o">.</span><span class="n">set_extension_enabled_immediate</span><span class="p">(</span><span class="s2">&quot;isaacsim.asset.importer.urdf-2.4.31&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># acquire the URDF interface</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.asset.importer.urdf._urdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">acquire_urdf_interface</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_urdf_interface</span> <span class="o">=</span> <span class="n">acquire_urdf_interface</span><span class="p">()</span>
