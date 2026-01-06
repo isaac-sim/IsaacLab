@@ -13,12 +13,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from packaging.version import Version
 
+import omni.kit.app
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.fixture
@@ -67,9 +69,16 @@ def test_spawn_usd_fails(sim):
 @pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
+    # pin the urdf importer extension to the older version
+    manager = omni.kit.app.get_app().get_extension_manager()
+    if get_isaac_sim_version() >= Version("5.1"):
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
+        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
+    else:
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
+    extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
+    extension_path = manager.get_extension_path(extension_id)
     # Spawn franka from URDF
     cfg = sim_utils.UrdfFileCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
