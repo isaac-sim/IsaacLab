@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.52.2 (2026-01-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved logic for the URDF importer extension version pinning: the older extension version
+  is now pinned only on Isaac Sim 5.1 and later, while older Isaac Sim versions no longer
+  attempt to pin to a version that does not exist.
+
+
 0.52.1 (2026-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
