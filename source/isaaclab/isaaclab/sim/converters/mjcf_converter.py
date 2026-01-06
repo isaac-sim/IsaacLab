@@ -6,13 +6,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
-import isaacsim
 import omni.kit.commands
-import omni.usd
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
+
+if TYPE_CHECKING:
+    import isaacsim.asset.importer.mjcf
 
 
 class MjcfConverter(AssetConverterBase):

@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import math
 import re
+from typing import TYPE_CHECKING
 
-import isaacsim
 import omni.kit.app
 import omni.kit.commands
-import omni.usd
 from isaacsim.core.utils.extensions import enable_extension
 
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
+
+if TYPE_CHECKING:
+    import isaacsim.asset.importer.urdf
 
 
 class UrdfConverter(AssetConverterBase):
