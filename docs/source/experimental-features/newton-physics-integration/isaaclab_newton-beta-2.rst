@@ -1,7 +1,7 @@
 Isaac Lab - Newton Beta 2
 =========================
 
-Let's start with the biggest change: enabling the use of multiple physics engines. We refactored our code so that we can not only support PhysX and Newton, but
+Isaac Lab - Newton Beta 2 (feature/newton branch) provides Newton physics engine integration for Isaac Lab. We refactored our code so that we can not only support PhysX and Newton, but
 any other physics engine, enabling users to bring their own physics engine to Isaac Lab if they desire. To enable this, we introduce base implementations of
 our ``simulation interfaces``, :class:`~isaaclab.assets.articulation.Articulation` or :class:`~isaaclab.sensors.ContactSensor` for instance. These provide a
 set of abstract methods that all physics engines must implement. In turn this allows all of the default Isaac Lab environments to work with any physics engine.
