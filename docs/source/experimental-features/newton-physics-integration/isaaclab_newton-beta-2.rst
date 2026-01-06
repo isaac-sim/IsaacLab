@@ -21,7 +21,7 @@ However, if using warp, users will have to provide masks and complete data. In g
 reduce on the fly memory allocations, and should result in better performance.
 
 On the optimization front, we decided to change quaternion conventions. Originally, Isaac Lab and Isaac Sim both adopted the ``wxyz`` convention. However, we were doing several
-of conversion to and from ``xyzw`` in our setters/writers as PhysX uses the ``xyzw`` convention. Since both Newton and Warp, also use the ``xyzw`` convention, we decided to change
+conversions to and from ``xyzw`` in our setters/writers as PhysX uses the ``xyzw`` convention. Since both Newton and Warp, also use the ``xyzw`` convention, we decided to change
 our default convention to ``xyzw``. This means that all our APIs will now return quaternions in the ``xyzw`` convention. This is likely a breaking change for all the custom
 mdps that are not using our :mod:`~isaaclab.utils.math` module. While this change is substantial, it should make things more consistent for when users are using the simulation
 views directly, and will remove needless conversions.
