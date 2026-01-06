@@ -79,7 +79,9 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
 
 
 @clone
-def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg) -> Usd.Prim:
+def spawn_from_mdl_file(
+    prim_path: str, cfg: visual_materials_cfg.MdlFileCfg | visual_materials_cfg.GlassMdlCfg
+) -> Usd.Prim:
     """Load a material from its MDL file and override the settings with the given config.
 
     NVIDIA's `Material Definition Language (MDL) <https://www.nvidia.com/en-us/design-visualization/technologies/material-definition-language/>`__
@@ -130,7 +132,7 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
     if not prim.IsValid():
         raise ValueError(f"Failed to create MDL material at path: '{prim_path}'.")
     # apply properties
-    cfg = cfg.to_dict()
+    cfg = cfg.to_dict()  # type: ignore
     del cfg["func"]
     del cfg["mdl_path"]
     for attr_name, attr_value in cfg.items():
