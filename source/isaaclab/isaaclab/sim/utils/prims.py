@@ -15,9 +15,9 @@ import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
+import omni.kit.commands
 import omni.usd
 from isaacsim.core.cloner import Cloner
-from omni.usd.commands import BindMaterialCommand, DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
@@ -185,13 +185,16 @@ def create_prim(
     return prim
 
 
-def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> None:
+def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> bool:
     """Removes the USD Prim and its descendants from the scene if able.
 
     Args:
         prim_path: The path of the prim to delete. If a list of paths is provided,
             the function will delete all the prims in the list.
         stage: The stage to delete the prim in. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        True if the prim or prims were deleted successfully, False otherwise.
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -210,10 +213,15 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # delete prims
-    DeletePrimsCommand(prim_path, stage=stage).do()
+    success, _ = omni.kit.commands.execute(
+        "DeletePrims",
+        paths=prim_path,
+        stage=stage,
+    )
+    return success
 
 
-def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> None:
+def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> bool:
     """Moves a prim from one path to another within a USD stage.
 
     This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
@@ -231,6 +239,9 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
         keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
         stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
 
+    Returns:
+        True if the prim was moved successfully, False otherwise.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
@@ -240,9 +251,14 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
     # get stage handle
     stage = get_current_stage() if stage is None else stage
     # move prim
-    MovePrimCommand(
-        path_from=path_from, path_to=path_to, keep_world_transform=keep_world_transform, stage_or_context=stage
-    ).do()
+    success, _ = omni.kit.commands.execute(
+        "MovePrim",
+        path_from=path_from,
+        path_to=path_to,
+        keep_world_transform=keep_world_transform,
+        stage_or_context=stage,
+    )
+    return success
 
 
 """
@@ -796,14 +812,15 @@ def bind_visual_material(
         binding_strength = UsdShade.Tokens.weakerThanDescendants
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
-    BindMaterialCommand(
+    success, _ = omni.kit.commands.execute(
+        "BindMaterialCommand",
         prim_path=prim_path,
         material_path=material_path,
         strength=binding_strength,
         stage=stage,
-    ).do()
+    )
     # return success
-    return True
+    return success
 
 
 @apply_nested
