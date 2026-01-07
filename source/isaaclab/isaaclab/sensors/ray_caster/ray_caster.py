@@ -14,13 +14,13 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni
-from isaacsim.core.prims import XFormPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
@@ -333,7 +333,7 @@ class RayCaster(SensorBase):
 
     def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> tuple[XformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
         """Obtain a prim view that can be used to track the pose of the parget prim.
 
         The target prim path is a regex expression that matches one or more mesh prims. While we can track its
@@ -376,7 +376,7 @@ class RayCaster(SensorBase):
             new_root_prim = current_prim.GetParent()
             current_path_expr = current_path_expr.rsplit("/", 1)[0]
             if not new_root_prim.IsValid():
-                prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
+                prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
                 current_path_expr = target_prim_path
                 logger.warning(
                     f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
