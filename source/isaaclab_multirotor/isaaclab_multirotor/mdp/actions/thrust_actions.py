@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import logging
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 
 
 class ThrustAction(ActionTerm):
-    """Thrust action term that applies the processed actions as thrust commands."""
+    """Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an 
+    affine transformation (scaling and offset) and clipping."""
 
     cfg: thrust_actions_cfg.ThrustActionCfg
     """The configuration of the action term."""
@@ -49,7 +50,7 @@ class ThrustAction(ActionTerm):
         )
         self._num_thrusters = len(self._thruster_ids)
         # log the resolved thruster names for debugging
-        omni.log.info(
+        logging.info(
             f"Resolved thruster names for the action term {self.__class__.__name__}:"
             f" {self._thruster_names} [{self._thruster_ids}]"
         )

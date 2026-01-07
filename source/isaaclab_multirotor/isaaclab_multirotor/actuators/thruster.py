@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from isaaclab_multirotor.utils.types import ArticulationThrustActions
+from isaaclab_multirotor.utils.types import MultirotorActions
 
 if TYPE_CHECKING:
     from .thruster_cfg import ThrusterCfg
@@ -118,17 +118,17 @@ class Thruster:
         """
         return self._thruster_indices
 
-    def compute(self, control_action: ArticulationThrustActions) -> ArticulationThrustActions:
+    def compute(self, control_action: MultirotorActions) -> MultirotorActions:
         """Advance the thruster state one step.
 
         Applies saturation, chooses rise/fall tau per motor, computes mixing factor,
         and integrates with the selected kernel.
 
         Args:
-            control_action: (num_envs, num_motors) commanded per-motor thrust [N].
+            control_action: (num_envs, num_thrusters) commanded per-thruster thrust [N].
 
         Returns:
-            (num_envs, num_motors) updated thrust state [N].
+            (num_envs, num_thrusters) updated thrust state [N].
 
         """
         des_thrust = control_action.thrusts

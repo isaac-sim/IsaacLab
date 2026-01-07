@@ -12,13 +12,13 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import logging
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 
 from isaaclab_multirotor.actuators import Thruster
-from isaaclab_multirotor.utils.types import ArticulationThrustActions
+from isaaclab_multirotor.utils.types import MultirotorActions
 
 from .multirotor_data import MultirotorData
 
@@ -294,7 +294,7 @@ class Multirotor(Articulation):
             self.actuators[actuator_name] = actuator
 
             # Log information
-            omni.log.info(
+            logging.info(
                 f"Thruster actuator: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
                 f" (thruster names: {thruster_names} [{body_indices}])."
             )
@@ -303,7 +303,7 @@ class Multirotor(Articulation):
         self._data.thruster_names = all_thruster_names
 
         # Log summary
-        omni.log.info(f"Initialized {len(self.actuators)} thruster actuator(s) for multirotor.")
+        logging.info(f"Initialized {len(self.actuators)} thruster actuator(s) for multirotor.")
 
     def _apply_actuator_model(self):
         """Processes thruster commands for the multirotor by forwarding them to the actuators.
@@ -318,7 +318,7 @@ class Multirotor(Articulation):
                 continue
 
             # prepare input for actuator model based on cached data
-            control_action = ArticulationThrustActions(
+            control_action = MultirotorActions(
                 thrusts=self._data.thrust_target[:, actuator.thruster_indices],
                 thruster_indices=actuator.thruster_indices,
             )
@@ -378,6 +378,6 @@ class Multirotor(Articulation):
 
     def _log_multirotor_info(self):
         """Log multirotor-specific information."""
-        omni.log.info(f"Multirotor initialized with {self.num_thrusters} thrusters")
-        omni.log.info(f"Thruster names: {self.thruster_names}")
-        omni.log.info(f"Thruster force direction: {self.cfg.thruster_force_direction}")
+        logging.info(f"Multirotor initialized with {self.num_thrusters} thrusters")
+        logging.info(f"Thruster names: {self.thruster_names}")
+        logging.info(f"Thruster force direction: {self.cfg.thruster_force_direction}")

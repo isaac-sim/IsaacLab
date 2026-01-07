@@ -7,7 +7,7 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 from isaaclab.utils import configclass
 
-from .state_based_control_env_cfg import StateBasedControlEmptyEnvCfg
+from .track_position_state_based_env_cfg import TrackPositionStateBasedEnvCfg
 
 ##
 # Pre-defined configs
@@ -15,7 +15,7 @@ from .state_based_control_env_cfg import StateBasedControlEmptyEnvCfg
 
 
 @configclass
-class EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
+class MultirotorTrackPositionStateBasedEnvCfg(TrackPositionStateBasedEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -25,7 +25,7 @@ class EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
 
 
 @configclass
-class EmptyEnvCfg_PLAY(EmptyEnvCfg):
+class MultirotorTrackPositionStateBasedEnvCfg_PLAY(MultirotorTrackPositionStateBasedEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

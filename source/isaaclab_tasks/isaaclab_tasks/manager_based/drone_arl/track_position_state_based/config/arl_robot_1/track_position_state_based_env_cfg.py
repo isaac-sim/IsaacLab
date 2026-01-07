@@ -198,8 +198,8 @@ class TerminationsCfg:
 
 
 @configclass
-class StateBasedControlEmptyEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the state-based drone pose-control environment."""
+class TrackPositionStateBasedEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the track position state-based environment."""
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
