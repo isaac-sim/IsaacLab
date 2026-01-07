@@ -8,16 +8,19 @@ from __future__ import annotations
 import math
 import re
 from packaging.version import Version
+from typing import TYPE_CHECKING
 
 import isaacsim
 import omni.kit.app
 import omni.kit.commands
-import omni.usd
 
 from isaaclab.utils.version import get_isaac_sim_version
 
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
+
+if TYPE_CHECKING:
+    import isaacsim.asset.importer.urdf
 
 
 class UrdfConverter(AssetConverterBase):
@@ -111,7 +114,7 @@ class UrdfConverter(AssetConverterBase):
     Helper methods.
     """
 
-    def _get_urdf_import_config(self) -> isaacsim.asset.importer.urdf.ImportConfig:
+    def _get_urdf_import_config(self) -> isaacsim.asset.importer.urdf._urdf.ImportConfig:
         """Create and fill URDF ImportConfig with desired settings
 
         Returns:
