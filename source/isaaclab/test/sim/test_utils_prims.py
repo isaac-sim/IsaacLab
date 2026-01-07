@@ -249,6 +249,61 @@ def test_create_prim_with_world_position_different_types(input_type: str):
     assert quat_match or quat_match_neg
 
 
+def test_create_prim_non_xformable():
+    """Test create_prim() with non-Xformable prim types (Material, Shader, Scope).
+
+    This test verifies that prims which are not Xformable (like Material, Shader, Scope)
+    are created successfully but transform operations are not applied to them.
+    This is expected behavior as documented in the create_prim function.
+    """
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # Test with Material prim (not Xformable)
+    material_prim = sim_utils.create_prim(
+        "/World/TestMaterial",
+        "Material",
+        stage=stage,
+        translation=(1.0, 2.0, 3.0),  # These should be ignored
+        orientation=(1.0, 0.0, 0.0, 0.0),  # These should be ignored
+        scale=(2.0, 2.0, 2.0),  # These should be ignored
+    )
+
+    # Verify prim was created
+    assert material_prim.IsValid()
+    assert material_prim.GetPrimPath() == "/World/TestMaterial"
+    assert material_prim.GetTypeName() == "Material"
+
+    # Verify that it's not Xformable
+    assert not material_prim.IsA(UsdGeom.Xformable)
+
+    # Verify that no xform operations were applied (Material prims don't support these)
+    assert not material_prim.HasAttribute("xformOp:translate")
+    assert not material_prim.HasAttribute("xformOp:orient")
+    assert not material_prim.HasAttribute("xformOp:scale")
+
+    # Test with Scope prim (not Xformable)
+    scope_prim = sim_utils.create_prim(
+        "/World/TestScope",
+        "Scope",
+        stage=stage,
+        translation=(5.0, 6.0, 7.0),  # These should be ignored
+    )
+
+    # Verify prim was created
+    assert scope_prim.IsValid()
+    assert scope_prim.GetPrimPath() == "/World/TestScope"
+    assert scope_prim.GetTypeName() == "Scope"
+
+    # Verify that it's not Xformable
+    assert not scope_prim.IsA(UsdGeom.Xformable)
+
+    # Verify that no xform operations were applied (Scope prims don't support these)
+    assert not scope_prim.HasAttribute("xformOp:translate")
+    assert not scope_prim.HasAttribute("xformOp:orient")
+    assert not scope_prim.HasAttribute("xformOp:scale")
+
+
 def test_delete_prim():
     """Test delete_prim() function."""
     # obtain stage handle
