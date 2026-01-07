@@ -161,6 +161,15 @@ def create_prim(
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
+    # check if prim type is Xformable
+    if not prim.IsA(UsdGeom.Xformable):
+        logger.debug(
+            f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
+            "which is not an Xformable. Transform operations will not be standardized. "
+            "This is expected for material, shader, and scope prims."
+        )
+        return prim
+
     # convert input arguments to tuples
     position = _to_tuple(position) if position is not None else None
     translation = _to_tuple(translation) if translation is not None else None
