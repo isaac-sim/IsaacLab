@@ -214,7 +214,7 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # delete prims
     success, _ = omni.kit.commands.execute(
-        "DeletePrims",
+        "DeletePrimsCommand",
         paths=prim_path,
         stage=stage,
     )
@@ -252,7 +252,7 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
     stage = get_current_stage() if stage is None else stage
     # move prim
     success, _ = omni.kit.commands.execute(
-        "MovePrim",
+        "MovePrimCommand",
         path_from=path_from,
         path_to=path_to,
         keep_world_transform=keep_world_transform,
