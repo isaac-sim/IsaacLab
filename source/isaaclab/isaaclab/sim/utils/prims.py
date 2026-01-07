@@ -806,10 +806,11 @@ def bind_visual_material(
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     # resolve token for weaker than descendants
+    # bind material command expects a string token
     if stronger_than_descendants:
-        binding_strength = UsdShade.Tokens.strongerThanDescendants
+        binding_strength = "strongerThanDescendants"
     else:
-        binding_strength = UsdShade.Tokens.weakerThanDescendants
+        binding_strength = "weakerThanDescendants"
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
     success, _ = omni.kit.commands.execute(
