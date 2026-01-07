@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -426,6 +426,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -4651,7 +4652,7 @@ meshes.</p></li>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.MultiMeshRayCaster.mesh_views">
-<span class="sig-name descname"><span class="pre">mesh_views</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">XFormPrim</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.ArticulationView</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.RigidBodyView</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCaster.mesh_views" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">mesh_views</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView" title="isaaclab.sim.views.XformPrimView"><span class="pre">XformPrimView</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.ArticulationView</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.RigidBodyView</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCaster.mesh_views" title="Permalink to this definition">#</a></dt>
 <dd><p>A dictionary to store mesh views for raycasting, shared across all instances.</p>
 <p>The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.</p>
 </dd></dl>
@@ -5208,7 +5209,7 @@ code snippet in your sensor implementation:</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.MultiMeshRayCasterCamera.mesh_views">
-<span class="sig-name descname"><span class="pre">mesh_views</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">XFormPrim</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.ArticulationView</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.RigidBodyView</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCasterCamera.mesh_views" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">mesh_views</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView" title="isaaclab.sim.views.XformPrimView"><span class="pre">XformPrimView</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.ArticulationView</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">physx.RigidBodyView</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCasterCamera.mesh_views" title="Permalink to this definition">#</a></dt>
 <dd><p>A dictionary to store mesh views for raycasting, shared across all instances.</p>
 <p>The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.</p>
 </dd></dl>
@@ -6317,7 +6318,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>

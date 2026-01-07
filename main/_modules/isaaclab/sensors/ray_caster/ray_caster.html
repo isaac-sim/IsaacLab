@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -611,13 +612,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">XformPrimView</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains.trimesh.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_plane</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">quat_apply</span><span class="p">,</span> <span class="n">quat_apply_yaw</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_warp_mesh</span><span class="p">,</span> <span class="n">raycast_mesh</span>
@@ -930,7 +931,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_obtain_trackable_prim_view</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">target_prim_path</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">XFormPrim</span> <span class="o">|</span> <span class="nb">any</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">XformPrimView</span> <span class="o">|</span> <span class="nb">any</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Obtain a prim view that can be used to track the pose of the parget prim.</span>
 
 <span class="sd">        The target prim path is a regex expression that matches one or more mesh prims. While we can track its</span>
@@ -973,7 +974,7 @@
             <span class="n">new_root_prim</span> <span class="o">=</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">GetParent</span><span class="p">()</span>
             <span class="n">current_path_expr</span> <span class="o">=</span> <span class="n">current_path_expr</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">new_root_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-                <span class="n">prim_view</span> <span class="o">=</span> <span class="n">XFormPrim</span><span class="p">(</span><span class="n">target_prim_path</span><span class="p">,</span> <span class="n">reset_xform_properties</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">prim_view</span> <span class="o">=</span> <span class="n">XformPrimView</span><span class="p">(</span><span class="n">target_prim_path</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">)</span>
                 <span class="n">current_path_expr</span> <span class="o">=</span> <span class="n">target_prim_path</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;The prim at path </span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2"> which is used for raycasting is not a physics prim.&quot;</span>
@@ -1069,7 +1070,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>

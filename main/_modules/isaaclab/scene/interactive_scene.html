@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -607,7 +608,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridCloner</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.prims</span><span class="w"> </span><span class="kn">import</span> <span class="n">XFormPrim</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
@@ -627,6 +627,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">FrameTransformerCfg</span><span class="p">,</span> <span class="n">SensorBase</span><span class="p">,</span> <span class="n">SensorBaseCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">XformPrimView</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporter</span><span class="p">,</span> <span class="n">TerrainImporterCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
@@ -1003,11 +1004,11 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_surface_grippers</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">extras</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">XFormPrim</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extras</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">XformPrimView</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.</span>
 
-<span class="sd">        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_</span>
-<span class="sd">        of the corresponding prims.</span>
+<span class="sd">        The keys are the names of the miscellaneous objects, and the values are the</span>
+<span class="sd">        :class:`~isaaclab.sim.views.XformPrimView` instances of the corresponding prims.</span>
 
 <span class="sd">        As an example, lights or other props in the scene that do not have any attributes or properties that you</span>
 <span class="sd">        want to alter at runtime can be added to this dictionary.</span>
@@ -1015,8 +1016,6 @@
 <span class="sd">        Note:</span>
 <span class="sd">            These are not reset or updated by the scene. They are mainly other prims that are not necessarily</span>
 <span class="sd">            handled by the interactive scene, but are useful to be accessed by the user.</span>
-
-<span class="sd">        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extras</span>
@@ -1376,7 +1375,7 @@
                     <span class="p">)</span>
                 <span class="c1"># store xform prim view corresponding to this asset</span>
                 <span class="c1"># all prims in the scene are Xform prims (i.e. have a transform component)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_extras</span><span class="p">[</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">XFormPrim</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">reset_xform_properties</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_extras</span><span class="p">[</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">XformPrimView</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown asset config type for </span><span class="si">{</span><span class="n">asset_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">asset_cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="c1"># store global collision paths</span>
@@ -1430,7 +1429,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>

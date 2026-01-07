@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -774,6 +775,8 @@
         <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter.__init__">(isaaclab.sim.converters.UrdfConverter method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.__init__">(isaaclab.sim.SimulationContext method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.__init__">(isaaclab.sim.views.XformPrimView method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator.__init__">(isaaclab.terrains.TerrainGenerator method)</a>
 </li>
@@ -2233,7 +2236,11 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.copysign">copysign() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkers.count">count (isaaclab.markers.VisualizationMarkers property)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.count">(isaaclab.sim.views.XformPrimView property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.count_total_labels">count_total_labels() (in module isaaclab.sim.utils.semantics)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.create_new_stage">create_new_stage() (in module isaaclab.sim.utils.stage)</a>
@@ -2730,6 +2737,8 @@
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.device">(isaaclab.sim.SimulationCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.device">(isaaclab.sim.SimulationContext property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.device">(isaaclab.sim.views.XformPrimView property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.CircularBuffer.device">(isaaclab.utils.buffers.CircularBuffer property)</a>
 </li>
@@ -3570,6 +3579,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.semantics.get_labels">get_labels() (in module isaaclab.sim.utils.semantics)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_local_poses">get_local_poses() (isaaclab.sim.views.XformPrimView method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_navigation_state">get_navigation_state() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -3594,16 +3605,18 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_prim_type_name">get_prim_type_name() (in module isaaclab.sim.utils.legacy)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase.get_requirements">get_requirements() (isaaclab.devices.RetargeterBase method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_robot_eef_pose">get_robot_eef_pose() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_scales">get_scales() (isaaclab.sim.views.XformPrimView method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_setting">get_setting() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_stage_up_axis">get_stage_up_axis() (in module isaaclab.sim.utils.legacy)</a>
@@ -3643,6 +3656,10 @@
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.get_usd_references">get_usd_references() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_version">get_version() (isaaclab.sim.SimulationContext method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_visibility">get_visibility() (isaaclab.sim.views.XformPrimView method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_world_poses">get_world_poses() (isaaclab.sim.views.XformPrimView method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv.get_wrapper_attr">get_wrapper_attr() (isaaclab.envs.DirectMARLEnv method)</a>
 
@@ -4473,6 +4490,13 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.transforms">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab.sim.views
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#module-isaaclab.sim.views">module</a>
 </li>
       </ul></li>
       <li>
@@ -5552,6 +5576,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sim.utils.html#module-isaaclab.sim.utils.transforms">isaaclab.sim.utils.transforms</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#module-isaaclab.sim.views">isaaclab.sim.views</a>
+</li>
         <li><a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains">isaaclab.terrains</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#module-isaaclab.terrains.height_field">isaaclab.terrains.height_field</a>
@@ -6557,6 +6583,8 @@
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.prim_path">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.prim_paths">prim_paths (isaaclab.sim.views.XformPrimView property)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.CylinderLightCfg.prim_type">prim_type (isaaclab.sim.spawners.lights.CylinderLightCfg attribute)</a>
 
       <ul>
@@ -6572,6 +6600,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.mesh.PRIMITIVE_MESH_TYPES">PRIMITIVE_MESH_TYPES (in module isaaclab.utils.mesh)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.prims">prims (isaaclab.sim.views.XformPrimView property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.dict.print_dict">print_dict() (in module isaaclab.utils.dict)</a>
 </li>
@@ -7893,9 +7923,13 @@
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_velocity_target">set_joint_velocity_target() (isaaclab.assets.Articulation method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_local_poses">set_local_poses() (isaaclab.sim.views.XformPrimView method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.set_prim_visibility">set_prim_visibility() (in module isaaclab.sim.utils.prims)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.set_render_mode">set_render_mode() (isaaclab.sim.SimulationContext method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_scales">set_scales() (isaaclab.sim.views.XformPrimView method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.set_setting">set_setting() (isaaclab.sim.SimulationContext method)</a>
 </li>
@@ -7934,6 +7968,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkers.set_visibility">(isaaclab.markers.VisualizationMarkers method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_visibility">(isaaclab.sim.views.XformPrimView method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.set_world_poses">set_world_poses() (isaaclab.sensors.Camera method)</a>
 
@@ -7943,6 +7979,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCamera.set_world_poses">(isaaclab.sensors.RayCasterCamera method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.set_world_poses">(isaaclab.sensors.TiledCamera method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_world_poses">(isaaclab.sim.views.XformPrimView method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.set_world_poses_from_view">set_world_poses_from_view() (isaaclab.sensors.Camera method)</a>
@@ -7981,6 +8019,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.sim">sim (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
@@ -7995,8 +8035,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_deform_gradient_w">sim_element_deform_gradient_w (isaaclab.assets.DeformableObjectData property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_quat_w">sim_element_quat_w (isaaclab.assets.DeformableObjectData property)</a>
@@ -9369,6 +9407,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name">x_joint_name (isaaclab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView">XformPrimView (class in isaaclab.sim.views)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.xr">xr (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -9461,7 +9501,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>

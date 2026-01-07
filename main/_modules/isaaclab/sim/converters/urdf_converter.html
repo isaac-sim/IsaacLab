@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -605,16 +606,19 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">packaging.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">Version</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.app</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_isaac_sim_version</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.asset_converter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.urdf_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrdfConverterCfg</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.asset.importer.urdf</span>
 
 
 <div class="viewcode-block" id="UrdfConverter"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">UrdfConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
@@ -708,7 +712,7 @@
 <span class="sd">    Helper methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_urdf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">isaacsim</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">urdf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_urdf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">isaacsim</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">urdf</span><span class="o">.</span><span class="n">_urdf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create and fill URDF ImportConfig with desired settings</span>
 
 <span class="sd">        Returns:</span>
@@ -981,7 +985,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>

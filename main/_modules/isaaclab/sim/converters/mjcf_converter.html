@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 06, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 07, 2026"/>
   </head>
   
   
@@ -423,6 +423,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
@@ -603,13 +604,15 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.asset_converter_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.mjcf_converter_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MjcfConverterCfg</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.asset.importer.mjcf</span>
 
 
 <div class="viewcode-block" id="MjcfConverter"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverter">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">MjcfConverter</span><span class="p">(</span><span class="n">AssetConverterBase</span><span class="p">):</span>
@@ -662,7 +665,7 @@
             <span class="n">prim_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">file_basename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
         <span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_mjcf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">isaacsim</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">mjcf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_mjcf_import_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">isaacsim</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">importer</span><span class="o">.</span><span class="n">mjcf</span><span class="o">.</span><span class="n">_mjcf</span><span class="o">.</span><span class="n">ImportConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the import configuration for MJCF to USD conversion.</span>
 
 <span class="sd">        Returns:</span>
@@ -745,7 +748,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 06, 2026.
+  Last updated on Jan 07, 2026.
   <br/>
 </p>
   </div>
