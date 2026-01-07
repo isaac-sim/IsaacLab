@@ -15,10 +15,11 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import os
+import pytest
 import torch
 
 import omni.usd
-import pytest
+
 from env_test_utils import setup_environment
 
 import isaaclab_tasks  # noqa: F401

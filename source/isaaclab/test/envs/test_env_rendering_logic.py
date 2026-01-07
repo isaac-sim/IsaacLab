@@ -13,10 +13,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import pytest
 import torch
 
 import omni.usd
-import pytest
 
 from isaaclab.envs import (
     DirectRLEnv,

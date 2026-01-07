@@ -5,6 +5,7 @@
 
 import contextlib
 import os
+import pytest
 
 # Platform-specific imports for real-time output streaming
 import select
@@ -15,7 +16,6 @@ import time
 # Third-party imports
 from prettytable import PrettyTable
 
-import pytest
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 
 import tools.test_settings as test_settings

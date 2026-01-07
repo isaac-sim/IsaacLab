@@ -14,9 +14,8 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import pathlib
-import torch
-
 import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils

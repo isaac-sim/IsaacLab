@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 import torch
 import trimesh
-
 import warp as wp
 
 from isaaclab.utils.warp import raycast_mesh

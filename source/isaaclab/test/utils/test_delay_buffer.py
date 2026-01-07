@@ -12,10 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows from here."""
 
+import pytest
 import torch
 from collections.abc import Generator
-
-import pytest
 
 from isaaclab.utils import DelayBuffer
 

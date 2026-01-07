@@ -14,10 +14,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import os
+import pytest
 import shutil
 import torch
-
-import pytest
 
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG

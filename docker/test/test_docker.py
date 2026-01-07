@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import pytest
 import subprocess
 from pathlib import Path
-
-import pytest
 
 
 def start_stop_docker(profile, suffix):

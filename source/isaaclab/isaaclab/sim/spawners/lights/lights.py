@@ -50,7 +50,9 @@ def spawn_light(
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
-    prim = create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
+    prim = create_prim(
+        prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation, stage=stage
+    )
 
     # convert to dict
     cfg = cfg.to_dict()

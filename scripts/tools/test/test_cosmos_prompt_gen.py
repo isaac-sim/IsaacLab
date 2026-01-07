@@ -7,9 +7,8 @@
 
 import json
 import os
-import tempfile
-
 import pytest
+import tempfile
 
 from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 

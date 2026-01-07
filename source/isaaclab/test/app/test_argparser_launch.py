@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-
 import pytest
 
 from isaaclab.app import AppLauncher
