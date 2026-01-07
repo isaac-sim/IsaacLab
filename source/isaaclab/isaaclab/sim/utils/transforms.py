@@ -130,7 +130,7 @@ def standardize_xform_ops(
 
     # Check if prim is an Xformable
     if not prim.IsA(UsdGeom.Xformable):
-        logger.warning(
+        logger.error(
             f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
             "which is not an Xformable. Transform operations will not be standardized. "
             "This is expected for material, shader, and scope prims."
