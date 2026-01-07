@@ -14,10 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import builtins
 import numpy as np
+import pytest
 import weakref
 
 import omni.timeline
-import pytest
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils

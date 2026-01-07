@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import builtins
 import enum
+import flatdict
 import glob
 import logging
 import os
@@ -22,7 +23,6 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 import carb
-import flatdict
 import omni.kit.app
 import omni.physics.tensors
 import omni.physx

@@ -14,11 +14,11 @@ simulation_app = AppLauncher(headless=True).app
 
 import math
 import os
+import pytest
 import random
 import tempfile
 
 import omni
-import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 

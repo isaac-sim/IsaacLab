@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import h5py
 import os
+import pytest
 import shutil
 import tempfile
 import torch
@@ -25,7 +26,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.usd
-import pytest
 
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg

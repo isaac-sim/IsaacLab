@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
+import pytest
 
 import env_benchmark_test_utils as utils
-import pytest
 
 # Global variable for storing KPI data
 GLOBAL_KPI_STORE = {}

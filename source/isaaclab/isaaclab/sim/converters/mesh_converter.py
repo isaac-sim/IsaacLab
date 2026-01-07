@@ -9,7 +9,6 @@ import os
 
 import omni
 import omni.kit.commands
-import omni.usd
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 

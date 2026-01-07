@@ -9,10 +9,9 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import pytest
 import random
 from typing import Any
-
-import pytest
 
 SEED: int = 42
 random.seed(SEED)

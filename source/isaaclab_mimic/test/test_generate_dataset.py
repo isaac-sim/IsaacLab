@@ -11,10 +11,9 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import os
+import pytest
 import subprocess
 import tempfile
-
-import pytest
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 

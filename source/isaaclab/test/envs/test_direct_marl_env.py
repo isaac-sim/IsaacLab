@@ -17,8 +17,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import omni.usd
 import pytest
+
+import omni.usd
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg

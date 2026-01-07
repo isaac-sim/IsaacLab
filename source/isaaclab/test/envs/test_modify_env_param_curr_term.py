@@ -10,10 +10,10 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+import pytest
 import torch
 
 import omni.usd
-import pytest
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets import Articulation

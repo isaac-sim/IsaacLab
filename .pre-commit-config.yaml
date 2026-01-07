@@ -8,7 +8,7 @@ repos:
     rev: 24.3.0
     hooks:
       - id: black
-        args: ["--line-length", "120", "--unstable"]
+        args: ["--unstable"]
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
@@ -36,7 +36,6 @@ repos:
     hooks:
       - id: isort
         name: isort (python)
-        args: ["--profile", "black", "--filter-files"]
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.15.1
     hooks:

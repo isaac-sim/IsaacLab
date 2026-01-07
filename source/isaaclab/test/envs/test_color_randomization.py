@@ -18,10 +18,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import math
+import pytest
 import torch
 
 import omni.usd
-import pytest
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg

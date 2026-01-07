@@ -15,7 +15,6 @@ from packaging import version
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import omni.kit.commands
 import omni.usd
 from pxr import Sdf, UsdGeom
 

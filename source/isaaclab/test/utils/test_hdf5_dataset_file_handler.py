@@ -12,12 +12,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows from here."""
 
 import os
+import pytest
 import shutil
 import tempfile
 import torch
 import uuid
-
-import pytest
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 

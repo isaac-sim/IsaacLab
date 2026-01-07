@@ -17,11 +17,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
+import pytest
 import torch
+from flaky import flaky
 
 import carb
-import pytest
-from flaky import flaky
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
