@@ -30,9 +30,9 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     both *specular* and *metallic* workflows. All color inputs are in linear color space (RGB).
     For more information, see the `documentation <https://openusd.org/release/spec_usdpreviewsurface.html>`__.
 
-    The function calls the USD command `CreatePreviewSurfaceMaterialPrim`_ to create the prim.
+    The function calls the USD command `CreateShaderPrimFromSdrCommand`_ to create the prim.
 
-    .. _CreatePreviewSurfaceMaterialPrim: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreatePreviewSurfaceMaterialPrimCommand.html
+    .. CreateShaderPrimFromSdrCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -55,6 +55,10 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
 
     # spawn material if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
+        # note: we don't use Omniverse's CreatePreviewSurfaceMaterialPrimCommand
+        # since it does not support USD stage as an argument. The created material
+        # in that case is always the one from USD Context which makes it difficult to
+        # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
         if material_prim:
             shader_prim = CreateShaderPrimFromSdrCommand(
@@ -63,6 +67,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
                 stage_or_context=stage,
                 name="Shader",
             ).do()
+            # bind the shader graph to the material
             if shader_prim:
                 surface_out = shader_prim.GetOutput("surface")
                 if surface_out:
@@ -71,6 +76,8 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
                 displacement_out = shader_prim.GetOutput("displacement")
                 if displacement_out:
                     material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
+        else:
+            raise ValueError(f"Failed to create preview surface shader at path: '{prim_path}'.")
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
