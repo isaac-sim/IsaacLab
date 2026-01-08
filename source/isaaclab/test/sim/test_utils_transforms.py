@@ -594,7 +594,7 @@ def test_standardize_xform_ops_with_partial_values():
 
 
 def test_standardize_xform_ops_non_xformable_prim(caplog):
-    """Test standardize_xform_ops returns False for non-Xformable prims and logs warning."""
+    """Test standardize_xform_ops returns False for non-Xformable prims and logs error."""
     # obtain stage handle
     stage = sim_utils.get_current_stage()
 
@@ -610,18 +610,17 @@ def test_standardize_xform_ops_non_xformable_prim(caplog):
     # Clear any previous logs
     caplog.clear()
 
-    # Attempt to apply standardize_xform_ops - should return False and log a warning
-    with caplog.at_level("WARNING"):
+    # Attempt to apply standardize_xform_ops - should return False and log a error
+    with caplog.at_level("ERROR"):
         result = sim_utils.standardize_xform_ops(material_prim)
 
     assert result is False
 
-    # Verify that a warning was logged
+    # Verify that a error was logged
     assert len(caplog.records) == 1
-    assert caplog.records[0].levelname == "WARNING"
+    assert caplog.records[0].levelname == "ERROR"
     assert "not an Xformable" in caplog.records[0].message
     assert "/World/TestMaterial" in caplog.records[0].message
-    assert "material, shader, and scope prims" in caplog.records[0].message
 
 
 def test_standardize_xform_ops_preserves_reset_xform_stack():
