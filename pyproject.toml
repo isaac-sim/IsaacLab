@@ -95,6 +95,14 @@ known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder
 known_local_folder = "config"
 
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["source"]
+include = ["isaaclab*", "isaaclab_rl*", "isaaclab_mimic*", "isaaclab_assets*", "isaaclab_tasks*"]
+
 [tool.pyright]
 
 include = ["source", "scripts"]
