@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -22,8 +22,8 @@ simulation_app = AppLauncher(headless=True).app
 """Unit tests for NullSpacePostureTask with simplified robot configuration using Pink library directly."""
 
 import numpy as np
-
 import pytest
+
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper

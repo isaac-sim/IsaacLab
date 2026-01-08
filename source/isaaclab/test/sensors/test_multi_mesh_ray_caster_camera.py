@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,10 +18,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import copy
 import numpy as np
 import os
+import pytest
 import torch
 
 import omni.replicator.core as rep
-import pytest
 from pxr import Gf
 
 import isaaclab.sim as sim_utils

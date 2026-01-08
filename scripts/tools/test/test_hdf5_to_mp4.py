@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,9 +8,8 @@
 import h5py
 import numpy as np
 import os
-import tempfile
-
 import pytest
+import tempfile
 
 from scripts.tools.hdf5_to_mp4 import get_num_demos, main, write_demo_to_mp4
 

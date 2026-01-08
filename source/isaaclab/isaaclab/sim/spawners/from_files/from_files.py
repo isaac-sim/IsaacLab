@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -198,7 +198,7 @@ def spawn_ground_plane(
 
     # Spawn Ground-plane
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -215,7 +215,7 @@ def spawn_ground_plane(
             raise ValueError(f"No collision prim found at path: '{prim_path}'.")
         # bind physics material to the collision prim
         collision_prim_path = str(collision_prim.GetPath())
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
+        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
 
     # Obtain environment prim
     environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
@@ -247,6 +247,7 @@ def spawn_ground_plane(
                 value=Gf.Vec3f(*cfg.color),
                 prev=None,
                 type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+                usd_context_name=stage,
             )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
@@ -327,6 +328,7 @@ def _spawn_from_usd_file(
             translation=translation,
             orientation=orientation,
             scale=cfg.scale,
+            stage=stage,
         )
     else:
         logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
@@ -372,7 +374,7 @@ def _spawn_from_usd_file(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(prim_path, material_path)
+        bind_visual_material(prim_path, material_path, stage=stage)
 
     # return the prim
     return stage.GetPrimAtPath(prim_path)

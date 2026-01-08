@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -407,6 +407,7 @@ class VisualizationMarkers:
                     value=True,
                     prev=None,
                     type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
+                    usd_context_name=prim.GetStage(),
                 )
             # add children to list
             all_prims += child_prim.GetChildren()
