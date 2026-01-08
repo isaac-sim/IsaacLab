@@ -467,14 +467,11 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
             " does not support stage in memory."
         )
 
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
     # disable stage open callback to avoid clearing callbacks
     SimulationManager.enable_stage_open_callback(False)
 
     # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)  # type: ignore
+    SimulationContext.instance().carb_settings.set_bool("/physics/fabricEnabled", True)
 
     # attach stage to usd context
     omni.usd.get_context().attach_stage_with_callback(stage_id)

@@ -41,6 +41,8 @@ def sim():
     sim.stop()
     sim.clear()
     sim.clear_instance()
+    # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
+    sim_utils.create_new_stage()
 
 
 """
