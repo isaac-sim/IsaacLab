@@ -899,7 +899,7 @@
 <li><p>Compare the gear’s behavior in the gripper visually between sim and real</p></li>
 <li><p>Repeat adjustments until behavior matches (no need to wait for full policy training)</p></li>
 <li><p>Once physics looks good, train in headless mode with video recording:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">800</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">5000</span>
@@ -1088,7 +1088,7 @@
 <h3>Step 1: Visualize the Environment<a class="headerlink" href="#step-1-visualize-the-environment" title="Permalink to this heading">#</a></h3>
 <p>First, launch the training with a small number of environments and visualization enabled to verify that the environment is set up correctly:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch training with visualization</span>
-python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span><span class="m">4</span>
 </pre></div>
@@ -1111,7 +1111,7 @@ python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class
 <h3>Step 2: Full-Scale Training with Video Recording<a class="headerlink" href="#step-2-full-scale-training-with-video-recording" title="Permalink to this heading">#</a></h3>
 <p>Now launch the full training run with more parallel environments in headless mode for faster training. We’ll also enable video recording to monitor progress:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full training with video recording</span>
-python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span><span class="m">256</span><span class="w"> </span><span class="se">\</span>
@@ -1185,7 +1185,7 @@ Contacts have been dropped.
 <p><strong>Solutions (in order of preference):</strong></p>
 <ol class="arabic">
 <li><p><strong>Reduce the number of parallel environments:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span><span class="m">128</span><span class="w">  </span><span class="c1"># Reduce from 256 to 128, 64, etc.</span>
@@ -1210,7 +1210,7 @@ Contacts have been dropped.
 </li>
 <li><p><strong>Disable video recording during training:</strong></p>
 <p>Remove the <code class="docutils literal notranslate"><span class="pre">--video</span></code> flags to save GPU memory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="w"> </span><span class="m">256</span>
