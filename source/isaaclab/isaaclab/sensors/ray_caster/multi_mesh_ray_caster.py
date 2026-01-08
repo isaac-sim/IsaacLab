@@ -15,9 +15,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.prims import XFormPrim
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import matrix_from_quat, quat_mul
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
@@ -78,7 +78,7 @@ class MultiMeshRayCaster(RayCaster):
 
     mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
 
-    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
+    mesh_views: ClassVar[dict[str, XformPrimView | physx.ArticulationView | physx.RigidBodyView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
 
     The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.

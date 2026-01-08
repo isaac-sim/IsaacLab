@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for rigid contact sensor."""
+"""Views for manipulating USD prims."""
 
-from .contact_sensor import ContactSensor
-from .contact_sensor_cfg import ContactSensorCfg
-from .contact_sensor_data import ContactSensorData
+from .xform_prim_view import XformPrimView

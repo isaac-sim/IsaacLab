@@ -15,13 +15,12 @@ from packaging import version
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import omni.kit.commands
 import omni.usd
-from isaacsim.core.prims import XFormPrim
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -405,8 +404,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -424,9 +422,9 @@ class Camera(SensorBase):
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
-            # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+        for cam_prim in self._view.prims:
+            # Obtain the prim path
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
