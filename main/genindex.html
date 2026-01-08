@@ -338,6 +338,7 @@
 <li class="toctree-l3"><a class="reference internal" href="source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
@@ -766,6 +767,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase.__init__">(isaaclab.sensors.SensorBase method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.__init__">(isaaclab.sensors.TiledCamera method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.__init__">(isaaclab.sensors.VisuoTactileSensor method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.AssetConverterBase.__init__">(isaaclab.sim.converters.AssetConverterBase method)</a>
 </li>
@@ -1636,6 +1639,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera">Camera (class in isaaclab.sensors)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.camera_cfg">camera_cfg (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg">CameraCfg (class in isaaclab.sensors)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraData">CameraData (class in isaaclab.sensors)</a>
@@ -1690,6 +1695,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCamera.cfg">(isaaclab.sensors.RayCasterCamera attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.cfg">(isaaclab.sensors.TiledCamera attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.cfg">(isaaclab.sensors.VisuoTactileSensor attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverter.cfg">(isaaclab.sim.converters.MeshConverter attribute)</a>
 </li>
@@ -2120,6 +2127,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.contact_forces">contact_forces() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr">contact_object_prim_path_expr (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.CollisionPropertiesCfg.contact_offset">contact_offset (isaaclab.sim.schemas.CollisionPropertiesCfg attribute)</a>
 
       <ul>
@@ -2389,6 +2398,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.data">(isaaclab.sensors.TiledCamera property)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.data">(isaaclab.sensors.VisuoTactileSensor property)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.TimestampedBuffer.data">(isaaclab.utils.buffers.TimestampedBuffer attribute)</a>
 </li>
       </ul></li>
@@ -2490,6 +2501,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.debug_vis">(isaaclab.sensors.SensorBaseCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.debug_vis">(isaaclab.sensors.TiledCameraCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.debug_vis">(isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.debug_vis">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
@@ -2735,6 +2748,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.device">(isaaclab.sensors.TiledCamera property)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.device">(isaaclab.sensors.VisuoTactileSensor property)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.device">(isaaclab.sim.SimulationCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.device">(isaaclab.sim.SimulationContext property)</a>
@@ -2966,6 +2981,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_ambient_occlusion">enable_ambient_occlusion (isaaclab.sim.RenderCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.enable_camera_tactile">enable_camera_tactile (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.PhysxCfg.enable_ccd">enable_ccd (isaaclab.sim.PhysxCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.CylinderLightCfg.enable_color_temperature">enable_color_temperature (isaaclab.sim.spawners.lights.CylinderLightCfg attribute)</a>
@@ -2996,6 +3013,8 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.enable_force_field">enable_force_field (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_global_illumination">enable_global_illumination (isaaclab.sim.RenderCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.RigidBodyPropertiesCfg.enable_gyroscopic_forces">enable_gyroscopic_forces (isaaclab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
@@ -3438,6 +3457,8 @@
         <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.RemotizedPDActuatorCfg.friction">(isaaclab.actuators.RemotizedPDActuatorCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.friction_coefficient">friction_coefficient (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.friction_combine_mode">friction_combine_mode (isaaclab.sim.spawners.materials.RigidBodyMaterialCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.PhysxCfg.friction_correlation_distance">friction_correlation_distance (isaaclab.sim.PhysxCfg attribute)</a>
@@ -3560,6 +3581,8 @@
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.WaypointTrajectory.get_full_sequence">get_full_sequence() (isaaclab_mimic.datagen.WaypointTrajectory method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.get_initial_render">get_initial_render() (isaaclab.sensors.VisuoTactileSensor method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_initial_stage">get_initial_stage() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.get_IO_descriptors">get_IO_descriptors (isaaclab.envs.ManagerBasedEnv property)</a>
@@ -3606,10 +3629,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.get_prim_type_name">get_prim_type_name() (in module isaaclab.sim.utils.legacy)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase.get_requirements">get_requirements() (isaaclab.devices.RetargeterBase method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase.get_requirements">get_requirements() (isaaclab.devices.RetargeterBase method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_robot_eef_pose">get_robot_eef_pose() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -3785,6 +3808,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.has_debug_vis_implementation">(isaaclab.sensors.TiledCamera property)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.has_debug_vis_implementation">(isaaclab.sensors.VisuoTactileSensor property)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation">(isaaclab.terrains.TerrainImporter property)</a>
 </li>
       </ul></li>
@@ -3906,6 +3931,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.history_length">(isaaclab.sensors.SensorBaseCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.history_length">(isaaclab.sensors.TiledCameraCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.history_length">(isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.DelayBuffer.history_length">(isaaclab.utils.buffers.DelayBuffer property)</a>
 </li>
@@ -4176,6 +4203,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase.is_initialized">(isaaclab.sensors.SensorBase property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.is_initialized">(isaaclab.sensors.TiledCamera property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.is_initialized">(isaaclab.sensors.VisuoTactileSensor property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.is_lambda_expression">is_lambda_expression() (in module isaaclab.utils.string)</a>
@@ -5764,6 +5793,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg">NonHolonomicActionCfg (class in isaaclab.envs.mdp.actions.actions_cfg)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.normal_contact_stiffness">normal_contact_stiffness (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.CylinderLightCfg.normalize">normalize (isaaclab.sim.spawners.lights.CylinderLightCfg attribute)</a>
 
       <ul>
@@ -5928,6 +5959,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase.num_instances">(isaaclab.sensors.SensorBase property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.num_instances">(isaaclab.sensors.TiledCamera property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.num_instances">(isaaclab.sensors.VisuoTactileSensor property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.num_interpolation_steps">num_interpolation_steps (isaaclab.envs.SubTaskConfig attribute)</a>
@@ -6304,6 +6337,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.patterns.html#isaaclab.sensors.patterns.PatternBaseCfg">PatternBaseCfg (class in isaaclab.sensors.patterns)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.penetration_depth">penetration_depth (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv.physics_dt">physics_dt (isaaclab.envs.DirectMARLEnv property)</a>
 
       <ul>
@@ -6580,6 +6615,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.prim_path">(isaaclab.sensors.SensorBaseCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.prim_path">(isaaclab.sensors.TiledCameraCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.prim_path">(isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.prim_path">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
@@ -6968,6 +7005,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.render_cfg">render_cfg (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.render_interval">render_interval (isaaclab.sim.SimulationCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.render_mode">render_mode (isaaclab_rl.rsl_rl.RslRlVecEnvWrapper property)</a>
@@ -7121,6 +7160,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.reset">(isaaclab.sensors.TiledCamera method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.reset">(isaaclab.sensors.VisuoTactileSensor method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.CircularBuffer.reset">(isaaclab.utils.buffers.CircularBuffer method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.DelayBuffer.reset">(isaaclab.utils.buffers.DelayBuffer method)</a>
@@ -7140,10 +7181,10 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_offset">reset_joints_by_offset() (in module isaaclab.envs.mdp.events)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_scale">reset_joints_by_scale() (in module isaaclab.envs.mdp.events)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_scale">reset_joints_by_scale() (in module isaaclab.envs.mdp.events)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_nodal_state_uniform">reset_nodal_state_uniform() (in module isaaclab.envs.mdp.events)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_root_state_from_terrain">reset_root_state_from_terrain() (in module isaaclab.envs.mdp.events)</a>
@@ -7883,6 +7924,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.set_debug_vis">(isaaclab.sensors.TiledCamera method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.set_debug_vis">(isaaclab.sensors.VisuoTactileSensor method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.set_debug_vis">(isaaclab.terrains.TerrainImporter method)</a>
 </li>
       </ul></li>
@@ -8018,10 +8061,10 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.sim">sim (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
@@ -8460,6 +8503,24 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.tactile_array_size">tactile_array_size (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_depth_image">tactile_depth_image (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.tactile_margin">tactile_margin (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_normal_force">tactile_normal_force (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_points_pos_w">tactile_points_pos_w (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_points_quat_w">tactile_points_quat_w (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_rgb_image">tactile_rgb_image (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData.tactile_shear_force">tactile_shear_force (isaaclab.sensors.VisuoTactileSensorData attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.tangential_stiffness">tangential_stiffness (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.target_eef_pose_to_action">target_eef_pose_to_action() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -8546,6 +8607,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.terrain_prim_paths">terrain_prim_paths (isaaclab.terrains.TerrainImporter attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.terrain_type">terrain_type (isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg">TerrainBasedPose2dCommandCfg (class in isaaclab.envs.mdp.commands.commands_cfg)</a>
@@ -8554,8 +8617,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator">TerrainGenerator (class in isaaclab.terrains)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg">TerrainGeneratorCfg (class in isaaclab.terrains)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter">TerrainImporter (class in isaaclab.terrains)</a>
@@ -8637,6 +8698,8 @@
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.CylinderLightCfg.treat_as_line">treat_as_line (isaaclab.sim.spawners.lights.CylinderLightCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.lights.SphereLightCfg.treat_as_point">treat_as_point (isaaclab.sim.spawners.lights.SphereLightCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points">trimesh_vis_tactile_points (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -8766,6 +8829,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.update_period">(isaaclab.sensors.SensorBaseCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.update_period">(isaaclab.sensors.TiledCameraCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.update_period">(isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -9206,6 +9271,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkers.visualize">visualize() (isaaclab.markers.VisualizationMarkers method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts">visualize_sdf_closest_pts (isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectCfg.visualizer_cfg">visualizer_cfg (isaaclab.assets.DeformableObjectCfg attribute)</a>
 
       <ul>
@@ -9223,8 +9290,16 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg.visualizer_cfg">(isaaclab.sensors.RayCasterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg.visualizer_cfg">(isaaclab.sensors.VisuoTactileSensorCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.VisualMaterialCfg">VisualMaterialCfg (class in isaaclab.sim.spawners.materials)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor">VisuoTactileSensor (class in isaaclab.sensors)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg">VisuoTactileSensorCfg (class in isaaclab.sensors)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorData">VisuoTactileSensorData (class in isaaclab.sensors)</a>
 </li>
   </ul></td>
 </tr></table>

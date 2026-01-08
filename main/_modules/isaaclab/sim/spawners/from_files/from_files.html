@@ -338,6 +338,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
@@ -611,6 +612,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">converters</span><span class="p">,</span> <span class="n">schemas</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.spawners.materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidBodyMaterialCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">add_labels</span><span class="p">,</span>
     <span class="n">bind_physics_material</span><span class="p">,</span>
@@ -977,6 +979,80 @@
 
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
+
+<span class="nd">@clone</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_usd_with_compliant_contact_material</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">from_files_cfg</span><span class="o">.</span><span class="n">UsdFileWithCompliantContactCfg</span><span class="p">,</span>
+    <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Spawn an asset from a USD file and apply physics material to specified prims.</span>
+
+<span class="sd">    This function extends the :meth:`spawn_from_usd` function by allowing application of compliant contact</span>
+<span class="sd">    physics materials to specified prims within the spawned asset. This is useful for configuring</span>
+<span class="sd">    contact behavior of specific parts within the asset.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,</span>
+<span class="sd">            then the asset is spawned at all the matching prim paths.</span>
+<span class="sd">        cfg: The configuration instance containing the USD file path and physics material settings.</span>
+<span class="sd">        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which</span>
+<span class="sd">            case the translation specified in the USD file is used.</span>
+<span class="sd">        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,</span>
+<span class="sd">            in which case the orientation specified in the USD file is used.</span>
+<span class="sd">        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The prim of the spawned asset with the physics material applied to the specified prims.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        FileNotFoundError: If the USD file does not exist at the given path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">_spawn_from_usd_file</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">stiff</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">compliant_contact_stiffness</span>
+    <span class="n">damp</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">compliant_contact_damping</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_prim_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No physics material prim path specified. Skipping physics material application.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">prim</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_prim_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_prim_path</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prim_paths</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_prim_path</span>
+
+    <span class="k">if</span> <span class="n">stiff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">damp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">material_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">stiff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">material_kwargs</span><span class="p">[</span><span class="s2">&quot;compliant_contact_stiffness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stiff</span>
+        <span class="k">if</span> <span class="n">damp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">material_kwargs</span><span class="p">[</span><span class="s2">&quot;compliant_contact_damping&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">damp</span>
+        <span class="n">material_cfg</span> <span class="o">=</span> <span class="n">RigidBodyMaterialCfg</span><span class="p">(</span><span class="o">**</span><span class="n">material_kwargs</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">prim_paths</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
+                <span class="n">rigid_body_prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rigid_body_prim_path</span> <span class="o">=</span> <span class="n">path</span>
+
+            <span class="n">material_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rigid_body_prim_path</span><span class="si">}</span><span class="s2">/compliant_material&quot;</span>
+
+            <span class="c1"># spawn physics material</span>
+            <span class="n">material_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">material_path</span><span class="p">,</span> <span class="n">material_cfg</span><span class="p">)</span>
+
+            <span class="n">bind_physics_material</span><span class="p">(</span>
+                <span class="n">rigid_body_prim_path</span><span class="p">,</span>
+                <span class="n">material_path</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Applied physics material to prim: </span><span class="si">{</span><span class="n">rigid_body_prim_path</span><span class="si">}</span><span class="s2"> with compliance stiffness: </span><span class="si">{</span><span class="n">stiff</span><span class="si">}</span><span class="s2"> and&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; compliance damping: </span><span class="si">{</span><span class="n">damp</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">prim</span>
 </pre></div>
 
                 </article>

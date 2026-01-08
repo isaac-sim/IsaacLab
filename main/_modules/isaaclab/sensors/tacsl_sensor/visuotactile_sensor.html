@@ -1,0 +1,1583 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab.sensors.tacsl_sensor.visuotactile_sensor &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor';</script>
+    <link rel="icon" href="../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="visuotactile_sensor.html" selected>main</option>
+            <option value="../../../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab - Newton Beta 2</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab.sensors.tacsl_sensor.visuotactile_sensor</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaacsim.core.utils.torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">torch_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">TiledCamera</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.tacsl_sensor.visuotactile_render</span><span class="w"> </span><span class="kn">import</span> <span class="n">GelsightRender</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorData</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorCfg</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">trimesh</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="VisuoTactileSensor"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">VisuoTactileSensor</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;A tactile sensor for both camera-based and force field tactile sensing.</span>
+
+<span class="sd">    This sensor provides:</span>
+<span class="sd">    1. Camera-based tactile sensing: depth images from tactile surface</span>
+<span class="sd">    2. Force field tactile sensing: Penalty-based normal and shear forces using SDF queries</span>
+
+<span class="sd">    The sensor can be configured to use either or both sensing modalities.</span>
+
+<span class="sd">    **Computation Pipeline:**</span>
+<span class="sd">        Camera-based sensing computes depth differences from a nominal (no-contact) baseline and</span>
+<span class="sd">        processes them through the tac-sl GelSight renderer to produce realistic tactile images.</span>
+
+<span class="sd">        Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,</span>
+<span class="sd">        then applies penalty-based spring-damper models (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)</span>
+<span class="sd">        to compute normal and shear forces at discrete tactile points.</span>
+
+<span class="sd">    **Example Usage:**</span>
+<span class="sd">        For a complete working example, see: ``scripts/demos/sensors/tacsl/tacsl_example.py``</span>
+
+<span class="sd">    **Current Limitations:**</span>
+<span class="sd">        - SDF collision meshes must be pre-computed and objects specified before simulation starts</span>
+<span class="sd">        - Force field computation requires specific rigid body and mesh configurations</span>
+<span class="sd">        - No support for dynamic addition/removal of interacting objects during runtime</span>
+
+<span class="sd">    Configuration Requirements:</span>
+<span class="sd">        The following requirements must be satisfied for proper sensor operation:</span>
+
+<span class="sd">        **Camera Tactile Imaging**</span>
+<span class="sd">            If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (TiledCameraCfg) must be</span>
+<span class="sd">            provided with appropriate camera parameters.</span>
+
+<span class="sd">        **Force Field Computation**</span>
+<span class="sd">            If ``enable_force_field=True``, the following parameters are required:</span>
+
+<span class="sd">            * ``contact_object_prim_path_expr`` - Prim path expression to find the contact object prim</span>
+
+<span class="sd">        **SDF Computation**</span>
+<span class="sd">            When force field computation is enabled, penalty-based normal and shear forces are</span>
+<span class="sd">            computed using Signed Distance Field (SDF) queries. To achieve GPU acceleration:</span>
+
+<span class="sd">            * Interacting objects should have pre-computed SDF collision meshes</span>
+<span class="sd">            * An SDFView must be defined during initialization, therefore interacting objects</span>
+<span class="sd">              should be specified before simulation.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">VisuoTactileSensorCfg</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="VisuoTactileSensor.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the tactile sensor object.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The configuration parameters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Create empty variables for storing output data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">:</span> <span class="n">VisuoTactileSensorData</span> <span class="o">=</span> <span class="n">VisuoTactileSensorData</span><span class="p">()</span>
+
+        <span class="c1"># Camera-based tactile sensing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="p">:</span> <span class="n">Camera</span> <span class="o">|</span> <span class="n">TiledCamera</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Force field tactile sensing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_local</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_quat_local</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sdf_object</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># COMs for velocity correction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_com_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_com_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Physics views</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_body_view</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_tip_view</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Visualization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span><span class="p">:</span> <span class="n">VisualizationMarkers</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Tactile points count</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Now call parent class constructor</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribes from callbacks and detach from the replicator registry.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="fm">__del__</span><span class="p">()</span>
+        <span class="c1"># unsubscribe from callbacks</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__del__</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing information about the instance.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Tactile sensor @ &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">render config     : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">base_data_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">sensor_data_dir_name</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">update period (s) : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">camera enabled    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_camera_tactile</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">force field enabled: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_force_field</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">num instances     : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Properties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_instances</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VisuoTactileSensorData</span><span class="p">:</span>
+        <span class="c1"># Update sensors if needed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_outdated_buffers</span><span class="p">()</span>
+        <span class="c1"># Return the data</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="VisuoTactileSensor.reset"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the sensor internals.&quot;&quot;&quot;</span>
+        <span class="c1"># reset the timestamps</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># Reset camera sensor if enabled</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the sensor-related handles and internal buffers.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+
+        <span class="c1"># Obtain global simulation view</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_view</span><span class="p">()</span>
+
+        <span class="c1"># Initialize camera-based tactile sensing</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_camera_tactile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_camera_tactile</span><span class="p">()</span>
+
+        <span class="c1"># Initialize force field tactile sensing</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_force_field</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_force_field</span><span class="p">()</span>
+
+        <span class="c1"># Initialize visualization</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_visualization</span><span class="p">()</span>
+
+<div class="viewcode-block" id="VisuoTactileSensor.get_initial_render"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.get_initial_render">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_initial_render</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the initial tactile sensor render for baseline comparison.</span>
+
+<span class="sd">        This method captures the initial state of the tactile sensor when no contact</span>
+<span class="sd">        is occurring. This baseline is used for computing relative changes during</span>
+<span class="sd">        tactile interactions.</span>
+
+<span class="sd">        .. warning::</span>
+<span class="sd">            It is the user&#39;s responsibility to ensure that the sensor is in a &quot;no contact&quot; state</span>
+<span class="sd">            when this method is called. If the sensor is in contact with an object, the baseline</span>
+<span class="sd">            will be incorrect, leading to erroneous tactile readings.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict | None: Dictionary containing initial render data with sensor output keys</span>
+<span class="sd">                        and corresponding tensor values. Returns None if camera tactile</span>
+<span class="sd">                        sensing is disabled.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If camera sensor is not initialized or initial render fails.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_camera_tactile</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+        <span class="c1"># get the initial render</span>
+        <span class="n">initial_render</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span>
+        <span class="k">if</span> <span class="n">initial_render</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Initial render is None&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Store the initial nominal tactile data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">initial_render</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_camera_tactile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize camera-based tactile sensing.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Camera configuration is None. Please provide a valid camera configuration.&quot;</span><span class="p">)</span>
+        <span class="c1"># check image size is consistent with the render config</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">height</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">image_height</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">width</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">image_width</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Camera configuration image size is not consistent with the render config. Camera size:&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">height</span><span class="si">}</span><span class="s2">x</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">width</span><span class="si">}</span><span class="s2">, Render config:&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">image_height</span><span class="si">}</span><span class="s2">x</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="o">.</span><span class="n">image_width</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># check data types</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">data_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Camera configuration data types are not supported. Data types: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">data_types</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">update_period</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Camera configuration update period (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="s2">) is not equal to sensor&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; update period (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="s2">), changing camera update period to match sensor update&quot;</span>
+                <span class="s2">&quot; period&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">update_period</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span>
+
+        <span class="c1"># gelsightRender</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_rgb_render</span> <span class="o">=</span> <span class="n">GelsightRender</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_cfg</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># Create camera sensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span> <span class="o">=</span> <span class="n">TiledCamera</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="p">)</span>
+
+        <span class="c1"># Initialize camera</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">_is_initialized</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># Initialize camera buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_rgb_image</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_depth_image</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
+        <span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Camera-based tactile sensing initialized.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_force_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize force field tactile sensing components.</span>
+
+<span class="sd">        This method sets up all components required for force field based tactile sensing:</span>
+
+<span class="sd">        1. Creates PhysX views for elastomer and contact object rigid bodies</span>
+<span class="sd">        2. Generates tactile sensing points on the elastomer surface using mesh geometry</span>
+<span class="sd">        3. Initializes SDF (Signed Distance Field) for collision detection</span>
+<span class="sd">        4. Creates data buffers for storing force field measurements</span>
+
+<span class="sd">        The tactile points are generated by ray-casting onto the elastomer mesh surface</span>
+<span class="sd">        to create a grid of sensing points that will be used for force computation.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Generate tactile points on elastomer surface</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_tactile_points</span><span class="p">(</span>
+            <span class="n">num_divs</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">),</span>
+            <span class="n">margin</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;tactile_margin&quot;</span><span class="p">,</span> <span class="mf">0.003</span><span class="p">),</span>
+            <span class="n">visualize</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">trimesh_vis_tactile_points</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_physx_views</span><span class="p">()</span>
+
+        <span class="c1"># Initialize force field data buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_force_field_buffers</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Force field tactile sensing initialized.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_physx_views</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create PhysX views for contact object and elastomer bodies.</span>
+
+<span class="sd">        This method sets up the necessary PhysX views for force field computation:</span>
+<span class="sd">        1. Creates rigid body view for elastomer</span>
+<span class="sd">        2. If contact object prim path expression is not None, then:</span>
+<span class="sd">            a. Finds and validates the object prim and its collision mesh</span>
+<span class="sd">            b. Creates SDF view for collision detection</span>
+<span class="sd">            c. Creates rigid body view for object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">elastomer_pattern</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;env_0&quot;</span><span class="p">,</span> <span class="s2">&quot;env_*&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_body_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">([</span><span class="n">elastomer_pattern</span><span class="p">])</span>
+        <span class="c1"># Get elastomer COM for velocity correction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_com_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_body_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">contact_object_mesh</span><span class="p">,</span> <span class="n">contact_object_rigid_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_find_contact_object_components</span><span class="p">()</span>
+        <span class="c1"># Create SDF view for collision detection</span>
+        <span class="n">num_query_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">mesh_path_pattern</span> <span class="o">=</span> <span class="n">contact_object_mesh</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;env_0&quot;</span><span class="p">,</span> <span class="s2">&quot;env_*&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_sdf_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_sdf_shape_view</span><span class="p">(</span>
+            <span class="n">mesh_path_pattern</span><span class="p">,</span> <span class="n">num_query_points</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Create rigid body views for contact object and elastomer</span>
+        <span class="n">body_path_pattern</span> <span class="o">=</span> <span class="n">contact_object_rigid_body</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;env_0&quot;</span><span class="p">,</span> <span class="s2">&quot;env_*&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">([</span><span class="n">body_path_pattern</span><span class="p">])</span>
+        <span class="c1"># Get contact object COM for velocity correction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_com_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_find_contact_object_components</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Find and validate contact object SDF mesh and its parent rigid body.</span>
+
+<span class="sd">        This method searches for the contact object prim using the configured filter pattern,</span>
+<span class="sd">        then locates the first SDF collision mesh within that prim hierarchy and</span>
+<span class="sd">        identifies its parent rigid body for physics simulation.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tuple of (contact_object_mesh, contact_object_rigid_body)</span>
+<span class="sd">            Returns None if contact object components are not found.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Only SDF meshes are supported for optimal force field computation performance.</span>
+<span class="sd">            If no SDF mesh is found, the method will log a warning and return None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Find the contact object prim using the configured pattern</span>
+        <span class="n">contact_object_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_first_matching_prim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">contact_object_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;No contact object prim found matching pattern: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">is_sdf_mesh</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Check if a mesh prim is configured for SDF approximation.&quot;&quot;&quot;</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span><span class="o">.</span><span class="n">GetApproximationAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;sdf&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Find the SDF mesh within the contact object</span>
+        <span class="n">contact_object_mesh</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span>
+            <span class="n">contact_object_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">predicate</span><span class="o">=</span><span class="n">is_sdf_mesh</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">contact_object_mesh</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;No SDF mesh found under contact object at path: </span><span class="si">{</span><span class="n">contact_object_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">find_parent_rigid_body</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Find the first parent prim with RigidBodyAPI.&quot;&quot;&quot;</span>
+            <span class="n">current_prim</span> <span class="o">=</span> <span class="n">prim</span>
+            <span class="k">while</span> <span class="n">current_prim</span> <span class="ow">and</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">RigidBodyAPI</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="n">current_prim</span>
+                <span class="n">current_prim</span> <span class="o">=</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">GetParent</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">current_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;/&quot;</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="c1"># Find the rigid body parent of the SDF mesh</span>
+        <span class="n">contact_object_rigid_body</span> <span class="o">=</span> <span class="n">find_parent_rigid_body</span><span class="p">(</span><span class="n">contact_object_mesh</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">contact_object_rigid_body</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;No contact object rigid body found for mesh at path: </span><span class="si">{</span><span class="n">contact_object_mesh</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">contact_object_mesh</span><span class="p">,</span> <span class="n">contact_object_rigid_body</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_generate_tactile_points</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_divs</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">margin</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">visualize</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate tactile sensing points from elastomer mesh geometry.</span>
+
+<span class="sd">        This method creates a grid of tactile sensing points on the elastomer surface</span>
+<span class="sd">        by ray-casting onto the mesh geometry. Visual meshes are used for smoother point sampling.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            num_divs: Number of divisions [rows, cols] for the tactile grid.</span>
+<span class="sd">            margin: Margin distance from mesh edges in meters.</span>
+<span class="sd">            visualize: Whether to show the generated points in trimesh visualization.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Get the elastomer prim path</span>
+        <span class="n">elastomer_prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">is_visual_mesh</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Check if a mesh prim has visual properties (visual mesh, not collision mesh).&quot;&quot;&quot;</span>
+            <span class="k">return</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Mesh</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">CollisionAPI</span><span class="p">)</span>
+
+        <span class="n">elastomer_mesh_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span><span class="n">elastomer_prim_path</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">is_visual_mesh</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">elastomer_mesh_prim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No visual mesh found under elastomer at path: </span><span class="si">{</span><span class="n">elastomer_prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generating tactile points from USD mesh: </span><span class="si">{</span><span class="n">elastomer_mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Extract mesh data</span>
+        <span class="n">usd_mesh</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">elastomer_mesh_prim</span><span class="p">)</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">usd_mesh</span><span class="o">.</span><span class="n">GetPointsAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">())</span>
+        <span class="n">face_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">usd_mesh</span><span class="o">.</span><span class="n">GetFaceVertexIndicesAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">())</span>
+
+        <span class="c1"># Simple triangulation</span>
+        <span class="n">faces</span> <span class="o">=</span> <span class="n">face_indices</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+        <span class="c1"># Create bounds</span>
+        <span class="n">mesh_bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">points</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">points</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)])</span>
+
+        <span class="c1"># Create trimesh object</span>
+        <span class="n">mesh</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">(</span><span class="n">vertices</span><span class="o">=</span><span class="n">points</span><span class="p">,</span> <span class="n">faces</span><span class="o">=</span><span class="n">faces</span><span class="p">)</span>
+
+        <span class="c1"># Generate grid on elastomer</span>
+        <span class="n">elastomer_dims</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">mesh_bounds</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">slim_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">elastomer_dims</span><span class="p">)</span>  <span class="c1"># Determine flat axis of elastomer</span>
+
+        <span class="c1"># Determine tip direction using dome geometry</span>
+        <span class="c1"># For dome-shaped elastomers, the center of mass is shifted toward the dome (contact) side</span>
+        <span class="n">mesh_center_of_mass</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">center_mass</span><span class="p">[</span><span class="n">slim_axis</span><span class="p">]</span>
+        <span class="n">bounding_box_center</span> <span class="o">=</span> <span class="p">(</span><span class="n">mesh_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">slim_axis</span><span class="p">]</span> <span class="o">+</span> <span class="n">mesh_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">slim_axis</span><span class="p">])</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+        <span class="n">tip_direction_sign</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">mesh_center_of_mass</span> <span class="o">&gt;</span> <span class="n">bounding_box_center</span> <span class="k">else</span> <span class="o">-</span><span class="mf">1.0</span>
+
+        <span class="c1"># Determine gap between adjacent tactile points</span>
+        <span class="n">axis_idxs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+        <span class="n">axis_idxs</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">slim_axis</span><span class="p">))</span>  <span class="c1"># Remove slim idx</span>
+        <span class="n">div_sz</span> <span class="o">=</span> <span class="p">(</span><span class="n">elastomer_dims</span><span class="p">[</span><span class="n">axis_idxs</span><span class="p">]</span> <span class="o">-</span> <span class="n">margin</span> <span class="o">*</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">num_divs</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">tactile_points_dx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">div_sz</span><span class="p">)</span>
+
+        <span class="c1"># Sample points on the flat plane</span>
+        <span class="n">planar_grid_points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="p">(</span><span class="n">mesh_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">mesh_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="mf">2.0</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">axis_i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">axis_i</span> <span class="o">==</span> <span class="n">slim_axis</span><span class="p">:</span>
+                <span class="c1"># On the slim axis, place a point far away so ray is pointing at the elastomer tip</span>
+                <span class="n">planar_grid_points</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">tip_direction_sign</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">axis_grid_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span>
+                    <span class="n">center</span><span class="p">[</span><span class="n">axis_i</span><span class="p">]</span> <span class="o">-</span> <span class="n">tactile_points_dx</span> <span class="o">*</span> <span class="p">(</span><span class="n">num_divs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">,</span>
+                    <span class="n">center</span><span class="p">[</span><span class="n">axis_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tactile_points_dx</span> <span class="o">*</span> <span class="p">(</span><span class="n">num_divs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">,</span>
+                    <span class="n">num_divs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">planar_grid_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">axis_grid_points</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>  <span class="c1"># Leave out the extreme corners</span>
+                <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">grid_corners</span> <span class="o">=</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">planar_grid_points</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">planar_grid_points</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">planar_grid_points</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">grid_corners</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">grid_corners</span><span class="p">))</span>
+
+        <span class="c1"># Project ray in positive y direction on the mesh</span>
+        <span class="n">mesh_data</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">ray</span><span class="o">.</span><span class="n">ray_triangle</span><span class="o">.</span><span class="n">RayMeshIntersector</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+        <span class="n">ray_dir</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="n">ray_dir</span><span class="p">[</span><span class="n">slim_axis</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">tip_direction_sign</span>  <span class="c1"># Ray points towards elastomer (opposite of tip direction)</span>
+
+        <span class="c1"># Handle the ray intersection result</span>
+        <span class="n">index_tri</span><span class="p">,</span> <span class="n">index_ray</span><span class="p">,</span> <span class="n">locations</span> <span class="o">=</span> <span class="n">mesh_data</span><span class="o">.</span><span class="n">intersects_id</span><span class="p">(</span>
+            <span class="n">grid_corners</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">([</span><span class="n">ray_dir</span><span class="p">],</span> <span class="p">(</span><span class="n">grid_corners</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">return_locations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">multiple_hits</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">visualize</span><span class="p">:</span>
+            <span class="n">query_pointcloud</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+            <span class="n">trimesh</span><span class="o">.</span><span class="n">Scene</span><span class="p">([</span><span class="n">mesh</span><span class="p">,</span> <span class="n">query_pointcloud</span><span class="p">])</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="c1"># Sort and store tactile points</span>
+        <span class="n">tactile_points</span> <span class="o">=</span> <span class="n">locations</span><span class="p">[</span><span class="n">index_ray</span><span class="o">.</span><span class="n">argsort</span><span class="p">()]</span>
+        <span class="c1"># in the frame of the elastomer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_local</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">tactile_points</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_local</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Number of tactile points does not match expected: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span><span class="si">}</span><span class="s2"> !=&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tactile_array_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Assume tactile frame rotation are all the same</span>
+        <span class="n">rotation</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">torch</span><span class="o">.</span><span class="n">pi</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_quat_local</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_from_euler_xyz</span><span class="p">(</span><span class="n">rotation</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">rotation</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">rotation</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tactile_points</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tactile_points</span><span class="p">)</span><span class="si">}</span><span class="s2"> tactile points from USD mesh using ray casting&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_force_field_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize data buffers for force field sensing.&quot;&quot;&quot;</span>
+        <span class="n">num_pts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span>
+
+        <span class="c1"># Initialize force field data tensors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_quat_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">penetration_depth</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_normal_force</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_shear_force</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="c1"># Pre-compute expanded tactile point tensors to avoid repeated unsqueeze/expand operations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_expanded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_local</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_quat_expanded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_quat_local</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_visualization</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize visualization markers for tactile points.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_visualizer</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fills the buffers of the sensor data.</span>
+
+<span class="sd">        This method updates both camera-based and force field tactile sensing data</span>
+<span class="sd">        for the specified environments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: Sequence of environment indices to update. If length equals</span>
+<span class="sd">                    total number of environments, all environments are updated.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Convert to proper indices for internal methods</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">:</span>
+            <span class="n">internal_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">internal_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+
+        <span class="c1"># Update camera-based tactile data</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_camera_tactile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_camera_tactile</span><span class="p">(</span><span class="n">internal_env_ids</span><span class="p">)</span>
+
+        <span class="c1"># Update force field tactile data</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">enable_force_field</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_force_field</span><span class="p">(</span><span class="n">internal_env_ids</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_camera_tactile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update camera-based tactile sensing data.</span>
+
+<span class="sd">        This method updates the camera sensor and processes the depth information</span>
+<span class="sd">        to compute tactile measurements. It computes the difference from the nominal</span>
+<span class="sd">        (no-contact) state and renders it using the GelSight tactile renderer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: Environment indices or slice to update. Can be a sequence of</span>
+<span class="sd">                    integers or a slice object for batch processing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Nominal tactile is not set. Please call get_initial_render() first.&quot;</span><span class="p">)</span>
+        <span class="c1"># Update camera sensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_physics_dt</span><span class="p">)</span>
+
+        <span class="c1"># Get camera data</span>
+        <span class="n">camera_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camera_sensor</span><span class="o">.</span><span class="n">data</span>
+
+        <span class="c1"># Check for either distance_to_image_plane or depth (they are equivalent)</span>
+        <span class="n">depth_key</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">in</span> <span class="n">camera_data</span><span class="o">.</span><span class="n">output</span><span class="p">:</span>
+            <span class="n">depth_key</span> <span class="o">=</span> <span class="s2">&quot;distance_to_image_plane&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;depth&quot;</span> <span class="ow">in</span> <span class="n">camera_data</span><span class="o">.</span><span class="n">output</span><span class="p">:</span>
+            <span class="n">depth_key</span> <span class="o">=</span> <span class="s2">&quot;depth&quot;</span>
+
+        <span class="k">if</span> <span class="n">depth_key</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_depth_image</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">camera_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">depth_key</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">diff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nominal_tactile</span><span class="p">[</span><span class="n">depth_key</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_depth_image</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_rgb_image</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_rgb_render</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="c1">#########################################################################################</span>
+    <span class="c1"># Force field tactile sensing</span>
+    <span class="c1">#########################################################################################</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_force_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update force field tactile sensing data.</span>
+
+<span class="sd">        This method computes penalty-based tactile forces using Signed Distance Field (SDF)</span>
+<span class="sd">        queries. It transforms tactile points to contact object local coordinates, queries the SDF of the</span>
+<span class="sd">        contact object for collision detection, and computes normal and shear forces based on</span>
+<span class="sd">        penetration depth and relative velocities.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: Environment indices or slice to update. Can be a sequence of</span>
+<span class="sd">                    integers or a slice object for batch processing.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Requires both elastomer and contact object body views to be initialized. Returns</span>
+<span class="sd">            early if tactile points or body views are not available.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Step 1: Get elastomer pose and precompute pose components</span>
+        <span class="n">elastomer_pos_w</span><span class="p">,</span> <span class="n">elastomer_quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_body_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">elastomer_quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">elastomer_quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Transform tactile points to world coordinates, used for visualization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_transform_tactile_points_to_world</span><span class="p">(</span><span class="n">elastomer_pos_w</span><span class="p">,</span> <span class="n">elastomer_quat_w</span><span class="p">)</span>
+
+        <span class="c1"># earlly return if contact object body view is not available</span>
+        <span class="c1"># this could happen if the contact object is not specified when tactile_points are required for visualization</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Step 2: Transform tactile points to contact object local frame for SDF queries</span>
+        <span class="n">contact_object_pos_w</span><span class="p">,</span> <span class="n">contact_object_quat_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+            <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="n">contact_object_quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">contact_object_quat_w</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+
+        <span class="n">world_tactile_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_pos_w</span>
+        <span class="n">points_contact_object_local</span><span class="p">,</span> <span class="n">contact_object_quat_inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transform_points_to_contact_object_local</span><span class="p">(</span>
+            <span class="n">world_tactile_points</span><span class="p">,</span> <span class="n">contact_object_pos_w</span><span class="p">,</span> <span class="n">contact_object_quat_w</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Step 3: Query SDF for collision detection</span>
+        <span class="n">sdf_values_and_gradients</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_sdf_view</span><span class="o">.</span><span class="n">get_sdf_and_gradients</span><span class="p">(</span><span class="n">points_contact_object_local</span><span class="p">)</span>
+        <span class="n">sdf_values</span> <span class="o">=</span> <span class="n">sdf_values_and_gradients</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Last component is SDF value</span>
+        <span class="n">sdf_gradients</span> <span class="o">=</span> <span class="n">sdf_values_and_gradients</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># First 3 components are gradients</span>
+
+        <span class="c1"># Step 4: Compute tactile forces from SDF data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compute_tactile_forces_from_sdf</span><span class="p">(</span>
+            <span class="n">points_contact_object_local</span><span class="p">,</span>
+            <span class="n">sdf_values</span><span class="p">,</span>
+            <span class="n">sdf_gradients</span><span class="p">,</span>
+            <span class="n">contact_object_pos_w</span><span class="p">,</span>
+            <span class="n">contact_object_quat_w</span><span class="p">,</span>
+            <span class="n">elastomer_quat_w</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_transform_tactile_points_to_world</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Transform tactile points from local to world coordinates.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pos_w: Elastomer positions in world frame. Shape: (num_envs, 3)</span>
+<span class="sd">            quat_w: Elastomer quaternions in world frame. Shape: (num_envs, 4)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">num_pts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span>
+
+        <span class="n">quat_expanded</span> <span class="o">=</span> <span class="n">quat_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pos_expanded</span> <span class="o">=</span> <span class="n">pos_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Apply transformation</span>
+        <span class="n">tactile_pos_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">quat_expanded</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_expanded</span><span class="p">)</span> <span class="o">+</span> <span class="n">pos_expanded</span>
+        <span class="n">tactile_quat_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_mul</span><span class="p">(</span><span class="n">quat_expanded</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_quat_expanded</span><span class="p">)</span>
+
+        <span class="c1"># Store in data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_pos_w</span> <span class="o">=</span> <span class="n">tactile_pos_w</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_quat_w</span> <span class="o">=</span> <span class="n">tactile_quat_w</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_transform_points_to_contact_object_local</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">world_points</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">contact_object_pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">contact_object_quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimized version: Transform world coordinates to contact object local frame.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            world_points: Points in world coordinates. Shape: (num_envs, num_points, 3)</span>
+<span class="sd">            contact_object_pos_w: Contact object positions in world frame. Shape: (num_envs, 3)</span>
+<span class="sd">            contact_object_quat_w: Contact object quaternions in world frame. Shape: (num_envs, 4)</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Points in contact object local coordinates and inverse quaternions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get inverse transformation (per environment)</span>
+        <span class="c1"># wxyz in torch</span>
+        <span class="n">contact_object_quat_inv</span><span class="p">,</span> <span class="n">contact_object_pos_inv</span> <span class="o">=</span> <span class="n">torch_utils</span><span class="o">.</span><span class="n">tf_inverse</span><span class="p">(</span>
+            <span class="n">contact_object_quat_w</span><span class="p">,</span> <span class="n">contact_object_pos_w</span>
+        <span class="p">)</span>
+        <span class="n">num_pts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span>
+
+        <span class="n">contact_object_quat_expanded</span> <span class="o">=</span> <span class="n">contact_object_quat_inv</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="n">contact_object_pos_expanded</span> <span class="o">=</span> <span class="n">contact_object_pos_inv</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+        <span class="c1"># Apply transformation</span>
+        <span class="n">points_sdf</span> <span class="o">=</span> <span class="n">torch_utils</span><span class="o">.</span><span class="n">tf_apply</span><span class="p">(</span><span class="n">contact_object_quat_expanded</span><span class="p">,</span> <span class="n">contact_object_pos_expanded</span><span class="p">,</span> <span class="n">world_points</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">points_sdf</span><span class="p">,</span> <span class="n">contact_object_quat_inv</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_tactile_points_velocities</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">linvel_world</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">angvel_world</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">quat_world</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimized version: Compute tactile point velocities from precomputed velocities.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            linvel_world: Elastomer linear velocities. Shape: (num_envs, 3)</span>
+<span class="sd">            angvel_world: Elastomer angular velocities. Shape: (num_envs, 3)</span>
+<span class="sd">            quat_world: Elastomer quaternions. Shape: (num_envs, 4)</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tactile point velocities in world frame. Shape: (num_envs, num_points, 3)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">num_pts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span>
+
+        <span class="c1"># Pre-expand all required tensors once</span>
+        <span class="n">quat_expanded</span> <span class="o">=</span> <span class="n">quat_world</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="n">tactile_pos_expanded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_pos_expanded</span>
+
+        <span class="c1"># Transform local positions to world frame relative vectors</span>
+        <span class="n">tactile_pos_world_relative</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">quat_expanded</span><span class="p">,</span> <span class="n">tactile_pos_expanded</span><span class="p">)</span>
+
+        <span class="c1"># Compute velocity due to angular motion: ω × r</span>
+        <span class="n">angvel_expanded</span> <span class="o">=</span> <span class="n">angvel_world</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">angular_velocity_contribution</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">angvel_expanded</span><span class="p">,</span> <span class="n">tactile_pos_world_relative</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Add linear velocity contribution</span>
+        <span class="n">linvel_expanded</span> <span class="o">=</span> <span class="n">linvel_world</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">tactile_velocity_world</span> <span class="o">=</span> <span class="n">angular_velocity_contribution</span> <span class="o">+</span> <span class="n">linvel_expanded</span>
+
+        <span class="k">return</span> <span class="n">tactile_velocity_world</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_tactile_forces_from_sdf</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">points_contact_object_local</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">sdf_values</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">sdf_gradients</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">contact_object_pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">contact_object_quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">elastomer_quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimized version: Compute tactile forces from SDF values using precomputed parameters.</span>
+
+<span class="sd">        This method now operates directly on the pre-allocated data tensors to avoid</span>
+<span class="sd">        unnecessary memory allocation and copying.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            points_contact_object_local: Points in contact object local frame</span>
+<span class="sd">            sdf_values: SDF values (negative means penetration)</span>
+<span class="sd">            sdf_gradients: SDF gradients (surface normals)</span>
+<span class="sd">            contact_object_pos_w: Contact object positions in world frame</span>
+<span class="sd">            contact_object_quat_w: Contact object quaternions in world frame</span>
+<span class="sd">            elastomer_quat_w: Elastomer quaternions</span>
+<span class="sd">            env_ids: Environment indices being updated</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">penetration_depth</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="n">tactile_normal_force</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_normal_force</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+        <span class="n">tactile_shear_force</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_shear_force</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+
+        <span class="c1"># Clear the output tensors</span>
+        <span class="n">tactile_normal_force</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="n">tactile_shear_force</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="n">depth</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+
+        <span class="c1"># Convert SDF values to penetration depth (positive for penetration)</span>
+        <span class="n">depth</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="o">-</span><span class="n">sdf_values</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>  <span class="c1"># Negative SDF means inside (penetrating)</span>
+
+        <span class="c1"># Get collision mask for points that are penetrating</span>
+        <span class="n">collision_mask</span> <span class="o">=</span> <span class="n">depth</span> <span class="o">&gt;</span> <span class="mf">0.0</span>
+
+        <span class="c1"># Use pre-allocated tensors instead of creating new ones</span>
+        <span class="n">num_pts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_tactile_points</span>
+
+        <span class="k">if</span> <span class="n">collision_mask</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualize_sdf_closest_pts</span><span class="p">:</span>
+
+            <span class="c1"># Get contact object and elastomer velocities (com velocities)</span>
+            <span class="n">contact_object_velocities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_body_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">()</span>
+            <span class="n">contact_object_linvel_w_com</span> <span class="o">=</span> <span class="n">contact_object_velocities</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+            <span class="n">contact_object_angvel_w</span> <span class="o">=</span> <span class="n">contact_object_velocities</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span>
+
+            <span class="n">elastomer_velocities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_body_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">()</span>
+            <span class="n">elastomer_linvel_w_com</span> <span class="o">=</span> <span class="n">elastomer_velocities</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+            <span class="n">elastomer_angvel_w</span> <span class="o">=</span> <span class="n">elastomer_velocities</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span>
+
+            <span class="c1"># Contact object adjustment</span>
+            <span class="n">contact_object_com_w_offset</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span>
+                <span class="n">contact_object_quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contact_object_com_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">contact_object_linvel_w</span> <span class="o">=</span> <span class="n">contact_object_linvel_w_com</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
+                <span class="n">contact_object_angvel_w</span><span class="p">,</span> <span class="n">contact_object_com_w_offset</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="c1"># v_origin = v_com - w x (com_world_offset) where com_world_offset = quat_apply(quat, com_b)</span>
+            <span class="n">elastomer_com_w_offset</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">elastomer_quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_elastomer_com_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span>
+            <span class="n">elastomer_linvel_w</span> <span class="o">=</span> <span class="n">elastomer_linvel_w_com</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
+                <span class="n">elastomer_angvel_w</span><span class="p">,</span> <span class="n">elastomer_com_w_offset</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Normalize gradients to get surface normals in local frame</span>
+            <span class="n">normals_local</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">sdf_gradients</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># Transform normals to world frame (rotate by contact object orientation) - use precomputed quaternions</span>
+            <span class="n">contact_object_quat_expanded</span> <span class="o">=</span> <span class="n">contact_object_quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+            <span class="c1"># Apply quaternion transformation</span>
+            <span class="n">normals_world</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">contact_object_quat_expanded</span><span class="p">,</span> <span class="n">normals_local</span><span class="p">)</span>
+
+            <span class="c1"># Compute normal contact force: F_n = k_n * depth</span>
+            <span class="n">fc_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">normal_contact_stiffness</span> <span class="o">*</span> <span class="n">depth</span>
+            <span class="n">fc_world</span> <span class="o">=</span> <span class="n">fc_norm</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">normals_world</span>
+
+            <span class="c1"># Get tactile point velocities using precomputed velocities</span>
+            <span class="n">tactile_velocity_world</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tactile_points_velocities</span><span class="p">(</span>
+                <span class="n">elastomer_linvel_w</span><span class="p">,</span> <span class="n">elastomer_angvel_w</span><span class="p">,</span> <span class="n">elastomer_quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Use precomputed contact object velocities</span>
+            <span class="n">closest_points_sdf</span> <span class="o">=</span> <span class="n">points_contact_object_local</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+</span> <span class="n">depth</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">normals_local</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualize_sdf_closest_pts</span><span class="p">:</span>
+                <span class="n">debug_closest_points_sdf</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">points_contact_object_local</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">-</span> <span class="n">sdf_values</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">normals_local</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">debug_closest_points_wolrd</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span>
+                    <span class="n">contact_object_quat_expanded</span><span class="p">,</span> <span class="n">debug_closest_points_sdf</span>
+                <span class="p">)</span> <span class="o">+</span> <span class="n">contact_object_pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+            <span class="n">contact_object_linvel_expanded</span> <span class="o">=</span> <span class="n">contact_object_linvel_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="n">contact_object_angvel_expanded</span> <span class="o">=</span> <span class="n">contact_object_angvel_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_pts</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="n">closest_points_vel_world</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
+                    <span class="n">contact_object_angvel_expanded</span><span class="p">,</span>
+                    <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="n">contact_object_quat_expanded</span><span class="p">,</span> <span class="n">closest_points_sdf</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="o">+</span> <span class="n">contact_object_linvel_expanded</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Compute relative velocity at contact points</span>
+            <span class="n">relative_velocity_world</span> <span class="o">=</span> <span class="n">tactile_velocity_world</span> <span class="o">-</span> <span class="n">closest_points_vel_world</span>
+
+            <span class="c1"># Compute tangential velocity (perpendicular to normal)</span>
+            <span class="n">vt_world</span> <span class="o">=</span> <span class="n">relative_velocity_world</span> <span class="o">-</span> <span class="n">normals_world</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                <span class="n">normals_world</span> <span class="o">*</span> <span class="n">relative_velocity_world</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="n">vt_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vt_world</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># Compute friction force: F_t = min(k_t * |v_t|, mu * F_n)</span>
+            <span class="n">ft_static_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tangential_stiffness</span> <span class="o">*</span> <span class="n">vt_norm</span>
+            <span class="n">ft_dynamic_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">friction_coefficient</span> <span class="o">*</span> <span class="n">fc_norm</span>
+            <span class="n">ft_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">ft_static_norm</span><span class="p">,</span> <span class="n">ft_dynamic_norm</span><span class="p">)</span>
+
+            <span class="c1"># Apply friction force opposite to tangential velocity</span>
+            <span class="n">ft_world</span> <span class="o">=</span> <span class="o">-</span><span class="n">ft_norm</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">vt_world</span> <span class="o">/</span> <span class="p">(</span><span class="n">vt_norm</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-9</span><span class="p">))</span>
+
+            <span class="c1"># Total tactile force in world frame</span>
+            <span class="n">tactile_force_world</span> <span class="o">=</span> <span class="n">fc_world</span> <span class="o">+</span> <span class="n">ft_world</span>
+
+            <span class="c1"># Transform forces to tactile frame</span>
+            <span class="n">tactile_force_tactile</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply_inverse</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="n">tactile_force_world</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Extract normal and shear components</span>
+            <span class="c1"># Assume tactile frame has Z as normal direction</span>
+            <span class="n">tactile_normal_force</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">tactile_force_tactile</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>  <span class="c1"># Z component</span>
+            <span class="n">tactile_shear_force</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">tactile_force_tactile</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>  <span class="c1"># X,Y components</span>
+
+    <span class="c1">#########################################################################################</span>
+    <span class="c1"># Debug visualization</span>
+    <span class="c1">#########################################################################################</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_debug_vis_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set debug visualization into visualization objects.&quot;&quot;&quot;</span>
+        <span class="c1"># set visibility of markers</span>
+        <span class="c1"># note: parent only deals with callbacks. not their visibility</span>
+        <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
+            <span class="c1"># create markers if necessary for the first time</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">)</span>
+            <span class="c1"># set their visibility to true</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_debug_vis_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Callback for debug visualization of tactile sensor data.</span>
+
+<span class="sd">        This method is called during each simulation step when debug visualization is enabled.</span>
+<span class="sd">        It visualizes tactile sensing points as 3D markers in the simulation viewport to help</span>
+<span class="sd">        with debugging and understanding sensor behavior.</span>
+
+<span class="sd">        The method handles two visualization modes:</span>
+
+<span class="sd">        1. **Standard mode**: Visualizes ``tactile_points_pos_w`` - the world positions of</span>
+<span class="sd">            tactile sensing points on the sensor surface</span>
+<span class="sd">        2. **SDF debug mode**: When ``cfg.visualize_sdf_closest_pts`` is True, visualizes</span>
+<span class="sd">            ``debug_closest_points_wolrd`` - the closest surface points computed during</span>
+<span class="sd">            SDF-based force calculations</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Safety check - return if not properly initialized</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_tactile_visualizer&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">vis_points</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualize_sdf_closest_pts</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_closest_points_wolrd&quot;</span><span class="p">):</span>
+            <span class="n">vis_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug_closest_points_wolrd</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vis_points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">tactile_points_pos_w</span>
+
+        <span class="k">if</span> <span class="n">vis_points</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">vis_points</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">viz_points</span> <span class="o">=</span> <span class="n">vis_points</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># Shape: (num_envs * num_points, 3)</span>
+
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">viz_points</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="n">marker_scales</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">viz_points</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="c1"># Visualize tactile points</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tactile_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">translations</span><span class="o">=</span><span class="n">viz_points</span><span class="p">,</span> <span class="n">marker_indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">scales</span><span class="o">=</span><span class="n">marker_scales</span><span class="p">)</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 08, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

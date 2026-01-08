@@ -338,6 +338,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
@@ -625,7 +626,7 @@
     <span class="n">SurfaceGripper</span><span class="p">,</span>
     <span class="n">SurfaceGripperCfg</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">FrameTransformerCfg</span><span class="p">,</span> <span class="n">SensorBase</span><span class="p">,</span> <span class="n">SensorBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">FrameTransformerCfg</span><span class="p">,</span> <span class="n">SensorBase</span><span class="p">,</span> <span class="n">SensorBaseCfg</span><span class="p">,</span> <span class="n">VisuoTactileSensorCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">XformPrimView</span>
@@ -1363,6 +1364,18 @@
                     <span class="k">for</span> <span class="n">filter_prim_path</span> <span class="ow">in</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">filter_prim_paths_expr</span><span class="p">:</span>
                         <span class="n">updated_filter_prim_paths_expr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filter_prim_path</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ENV_REGEX_NS</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span><span class="p">))</span>
                     <span class="n">asset_cfg</span><span class="o">.</span><span class="n">filter_prim_paths_expr</span> <span class="o">=</span> <span class="n">updated_filter_prim_paths_expr</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="s2">&quot;camera_cfg&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">asset_cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">camera_cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">ENV_REGEX_NS</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span>
+                        <span class="p">)</span>
+                    <span class="k">if</span> <span class="p">(</span>
+                        <span class="nb">hasattr</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="s2">&quot;contact_object_prim_path_expr&quot;</span><span class="p">)</span>
+                        <span class="ow">and</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="p">):</span>
+                        <span class="n">asset_cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">contact_object_prim_path_expr</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">ENV_REGEX_NS</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span>
+                        <span class="p">)</span>
 
                 <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="p">[</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span><span class="p">):</span>
