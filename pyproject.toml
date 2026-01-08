@@ -35,7 +35,7 @@ max-line-length = 120
 max-complexity = 30
 
 exclude = [
-  "_isaac_sim/**",
+  "_**",
   ".vscode",
   ".git",
   "docs/**",
