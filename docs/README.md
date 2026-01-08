@@ -22,6 +22,7 @@ make current-docs
 # 3. Open the current docs
 xdg-open _build/current/index.html
 ```
+
 </details>
 
 <details> <summary><strong>Windows</strong></summary>
@@ -37,8 +38,8 @@ make current-docs
 :: 3. Open the current docs
 start _build\current\index.html
 ```
-</details>
 
+</details>
 
 ## Multi-Version Documentation
 
@@ -72,4 +73,5 @@ make multi-docs
 :: 3. Open the multi-version docs
 start _build\index.html
 ```
+
 </details>
