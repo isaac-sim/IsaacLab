@@ -424,7 +424,6 @@ def test_select_usd_variants():
     assert variant_set.GetVariantSelection() == "red"
 
 
-@pytest.mark.skip(reason="The USD asset seems to have some issues.")
 def test_select_usd_variants_in_usd_file():
     """Test select_usd_variants() function in USD file."""
     stage = sim_utils.get_current_stage()
