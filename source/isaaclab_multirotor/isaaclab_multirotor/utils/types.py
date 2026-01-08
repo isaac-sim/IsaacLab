@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ArticulationThrustActions:
+class MultiRotorActions:
     """Data container to store articulation's thruster actions.
 
     This class is used to store the actions of the thrusters of an articulation.

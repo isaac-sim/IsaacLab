@@ -198,7 +198,7 @@ class TerminationsCfg:
 
 
 @configclass
-class StateBasedControlEmptyEnvCfg(ManagerBasedRLEnvCfg):
+class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings

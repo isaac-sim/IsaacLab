@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from collections.abc import Sequence
 from dataclasses import MISSING
 
 from isaaclab.assets.articulation import ArticulationCfg
@@ -29,7 +30,7 @@ class MultirotorCfg(ArticulationCfg):
 
         # multirotor-specific initial state
         rps: dict[str, float] = {".*": 100.0}
-        """RPS of the thrusters. Defaults to 100.0 for all thrusters."""
+        """RPS (Rotations Per Second) of the thrusters. Defaults to 100.0 (1/s) RPM for all thrusters."""
 
     # multirotor-specific configuration
     init_state: InitialStateCfg = InitialStateCfg()
@@ -45,5 +46,5 @@ class MultirotorCfg(ArticulationCfg):
     allocation_matrix: list[list[float]] | None = None
     """allocation matrix for control allocation"""
 
-    rotor_directions: list[int] | None = None
-    """List of rotor directions, -1 for clockwise, 1 for counter-clockwise."""
+    rotor_directions: Sequence[int] | None = None
+    """Sequence of rotor directions, -1 for clockwise, 1 for counter-clockwise. Length must match the number of thrusters."""
