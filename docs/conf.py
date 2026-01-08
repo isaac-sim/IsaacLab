@@ -271,6 +271,19 @@ templates_path = [
     "_templates",
 ]
 
+# -- Sphinx-multiversion configuration --------------------------------------
+
+# Whitelist pattern for remotes (branches/tags from which remote to include)
+smv_remote_whitelist = r"^.*$"
+# Whitelist pattern for branches (set to None to ignore all branches)
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main)$")
+# Whitelist pattern for tags (set to None to ignore all tags)
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
+# Output directory format for each version
+smv_outputdir_format = "{ref.name}"
+# Prefer remote refs over local refs
+smv_prefer_remote_refs = False
+
 
 # -- Advanced configuration -------------------------------------------------
 
