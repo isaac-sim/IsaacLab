@@ -12,6 +12,7 @@ import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
 from isaaclab.sim import converters, schemas
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -378,3 +379,77 @@ def _spawn_from_usd_file(
 
     # return the prim
     return stage.GetPrimAtPath(prim_path)
+
+
+@clone
+def spawn_from_usd_with_compliant_contact_material(
+    prim_path: str,
+    cfg: from_files_cfg.UsdFileWithCompliantContactCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn an asset from a USD file and apply physics material to specified prims.
+
+    This function extends the :meth:`spawn_from_usd` function by allowing application of compliant contact
+    physics materials to specified prims within the spawned asset. This is useful for configuring
+    contact behavior of specific parts within the asset.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance containing the USD file path and physics material settings.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset with the physics material applied to the specified prims.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
+
+    prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    stiff = cfg.compliant_contact_stiffness
+    damp = cfg.compliant_contact_damping
+    if cfg.physics_material_prim_path is None:
+        logger.warning("No physics material prim path specified. Skipping physics material application.")
+        return prim
+
+    if isinstance(cfg.physics_material_prim_path, str):
+        prim_paths = [cfg.physics_material_prim_path]
+    else:
+        prim_paths = cfg.physics_material_prim_path
+
+    if stiff is not None or damp is not None:
+        material_kwargs = {}
+        if stiff is not None:
+            material_kwargs["compliant_contact_stiffness"] = stiff
+        if damp is not None:
+            material_kwargs["compliant_contact_damping"] = damp
+        material_cfg = RigidBodyMaterialCfg(**material_kwargs)
+
+        for path in prim_paths:
+            if not path.startswith("/"):
+                rigid_body_prim_path = f"{prim_path}/{path}"
+            else:
+                rigid_body_prim_path = path
+
+            material_path = f"{rigid_body_prim_path}/compliant_material"
+
+            # spawn physics material
+            material_cfg.func(material_path, material_cfg)
+
+            bind_physics_material(
+                rigid_body_prim_path,
+                material_path,
+            )
+            logger.info(
+                f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
+                f" compliance damping: {damp}."
+            )
+
+    return prim
