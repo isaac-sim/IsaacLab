@@ -1,5 +1,5 @@
 # for building the docs
-nvidia-sphinx-theme; python_version >= "3.9"
+sphinx-book-theme==1.0.1
 myst-parser
 sphinxcontrib-bibtex==2.5.0
 autodocsumm
@@ -8,6 +8,7 @@ sphinx-icon
 sphinx_design
 sphinxemoji
 sphinx-tabs # backwards compatibility for building docs on v1.0.0
+sphinx-multiversion==0.2.4
 
 # basic python
 numpy
