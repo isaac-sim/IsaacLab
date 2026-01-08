@@ -1,0 +1,1366 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Training a Gear Insertion Policy and ROS Deployment &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/policy_deployment/02_gear_assembly/gear_assembly_policy';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="From IsaacGymEnvs" href="../../migration/migrating_from_isaacgymenvs.html" />
+    <link rel="prev" title="IO Descriptors 101" href="../01_io_descriptors/io_descriptors_101.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="gear_assembly_policy.html" selected>main</option>
+            <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab - Newton Beta 2</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Training a Gear Insertion Policy and ROS Deployment</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/policy_deployment/02_gear_assembly/gear_assembly_policy.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/policy_deployment/02_gear_assembly/gear_assembly_policy.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/policy_deployment/02_gear_assembly/gear_assembly_policy.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Training a Gear Insertion Policy and ROS Deployment</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-input-consistency">Part 1: Input Consistency</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-real-robot-available-observations">Using Real-Robot-Available Observations</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0">Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-system-response-consistency">Part 2: System Response Consistency</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physics-parameter-tuning">Physics Parameter Tuning</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#actuator-modeling">Actuator Modeling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#action-space-design">Action Space Design</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#domain-randomization-strategy">Domain Randomization Strategy</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-training-the-policy-in-isaac-lab">Part 3: Training the Policy in Isaac Lab</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-visualize-the-environment">Step 1: Visualize the Environment</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-full-scale-training-with-video-recording">Step 2: Full-Scale Training with Video Recording</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-deploy-on-real-robot">Step 3: Deploy on Real Robot</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-collision-stack-overflow">PhysX Collision Stack Overflow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cuda-out-of-memory">CUDA Out of Memory</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#further-resources">Further Resources</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="training-a-gear-insertion-policy-and-ros-deployment">
+<span id="walkthrough-sim-to-real"></span><h1>Training a Gear Insertion Policy and ROS Deployment<a class="headerlink" href="#training-a-gear-insertion-policy-and-ros-deployment" title="Permalink to this heading">#</a></h1>
+<p>This tutorial walks you through how to train a gear insertion assembly reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:</p>
+<ol class="arabic simple">
+<li><p><strong>Simulation Training in Isaac Lab</strong>: Train the policy in a high-fidelity physics simulation with domain randomization</p></li>
+<li><p><strong>Real Robot Deployment with Isaac ROS</strong>: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node</p></li>
+</ol>
+<p>This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab, illustrated with a real-world example:</p>
+<ul class="simple">
+<li><p>the Gear Assembly task for the UR10e robot with the Robotiq 2F-140 gripper or 2F-85 gripper</p></li>
+</ul>
+<p><strong>Task Details:</strong></p>
+<p>The gear assembly policy operates as follows:</p>
+<ol class="arabic simple">
+<li><p><strong>Initial State</strong>: The policy assumes the gear is already grasped by the gripper at the start of the episode</p></li>
+<li><p><strong>Input Observations</strong>: The policy receives the pose of the gear shaft (position and orientation) in which the gear should be inserted, obtained from a separate perception pipeline</p></li>
+<li><p><strong>Policy Output</strong>: The policy outputs delta joint positions (incremental changes to joint angles) to control the robot arm and perform the insertion</p></li>
+<li><p><strong>Generalization</strong>: The trained policy generalizes across 3 different gear sizes without requiring retraining for each size</p></li>
+</ol>
+<figure class="align-center" id="id1" style="width: 100%">
+<video src="../../../_images/gear_assembly_sim_real.webm" title="Comparison of gear assembly in simulation versus real hardware">
+<a href="../../../_images/gear_assembly_sim_real.webm">Comparison of gear assembly in simulation versus real hardware</a>
+</video>
+<figcaption>
+<p><span class="caption-text">Sim-to-real transfer: Gear assembly policy trained in Isaac Lab (left) successfully deployed on real UR10e robot (right).</span><a class="headerlink" href="#id1" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<p>This environment has been successfully deployed on real UR10e robots without an IsaacLab dependency.</p>
+<p><strong>Scope of This Tutorial:</strong></p>
+<p>This tutorial focuses exclusively on the <strong>training part</strong> of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the <a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_manipulator_ur_dnn_policy/index.html">Isaac ROS Documentation</a>.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
+<p>Successful sim-to-real transfer requires addressing three fundamental aspects:</p>
+<ol class="arabic simple">
+<li><p><strong>Input Consistency</strong>: Ensuring the observations your policy receives in simulation match those available on the real robot</p></li>
+<li><p><strong>System Response Consistency</strong>: Ensuring the robot and environment respond to actions in simulation the same way they do in reality</p></li>
+<li><p><strong>Output Consistency</strong>: Ensuring any post-processing applied to policy outputs in Isaac Lab is also applied during real-world inference</p></li>
+</ol>
+<p>When all three aspects are properly addressed, policies trained purely in simulation can achieve robust performance on real hardware without any real-world training data.</p>
+<p><strong>Debugging Tip</strong>: When your policy fails on the real robot, the best approach to debug is to set up the real robot with the same initial observations as in simulation, then compare how the controller/system respond. This isolates whether the problem is from observation mismatch (Input Consistency) or physics/controller mismatch (System Response Consistency).</p>
+</section>
+<section id="part-1-input-consistency">
+<h2>Part 1: Input Consistency<a class="headerlink" href="#part-1-input-consistency" title="Permalink to this heading">#</a></h2>
+<p>The observations your policy receives must be consistent between simulation and reality. This means:</p>
+<ol class="arabic simple">
+<li><p>The observation space should only include information available from real sensors</p></li>
+<li><p>Sensor noise and delays should be modeled appropriately</p></li>
+</ol>
+<section id="using-real-robot-available-observations">
+<h3>Using Real-Robot-Available Observations<a class="headerlink" href="#using-real-robot-available-observations" title="Permalink to this heading">#</a></h3>
+<p>Your simulation environment should only use observations that are available on the real robot and not use “privileged” information that wouldn’t be available in deployment.</p>
+<section id="observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0">
+<h4>Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0<a class="headerlink" href="#observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0" title="Permalink to this heading">#</a></h4>
+<p>The Gear Assembly environment uses both proprioceptive and exteroceptive (vision) observations:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-text">Gear Assembly Environment Observations</span><a class="headerlink" href="#id2" title="Permalink to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Observation</p></th>
+<th class="head"><p>Dimension</p></th>
+<th class="head"><p>Real-World Source</p></th>
+<th class="head"><p>Noise in Training</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">joint_pos</span></code></p></td>
+<td><p>6 (UR10e arm joints)</p></td>
+<td><p>UR10e controller</p></td>
+<td><p>None (proprioceptive)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">joint_vel</span></code></p></td>
+<td><p>6 (UR10e arm joints)</p></td>
+<td><p>UR10e controller</p></td>
+<td><p>None (proprioceptive)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gear_shaft_pos</span></code></p></td>
+<td><p>3 (x, y, z position)</p></td>
+<td><p>FoundationPose + RealSense depth</p></td>
+<td><p>±0.005 m (5mm, estimated error from FoundationPose + RealSense depth pipeline)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gear_shaft_quat</span></code></p></td>
+<td><p>4 (quaternion orientation)</p></td>
+<td><p>FoundationPose + RealSense depth</p></td>
+<td><p>±0.01 per component (~5° angular error, estimated error from FoundationPose + RealSense depth pipeline)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Implementation:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdditiveUniformNoiseCfg</span> <span class="k">as</span> <span class="n">Unoise</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Robot joint states - NO noise for proprioceptive observations</span>
+    <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_pan_joint&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">])},</span>
+    <span class="p">)</span>
+
+    <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_pan_joint&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">])},</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Gear shaft pose from FoundationPose perception</span>
+    <span class="c1"># ADD noise for exteroceptive (vision-based) observations</span>
+    <span class="c1"># Calibrated to match FoundationPose + RealSense D435 error</span>
+    <span class="c1"># Typical error: 3-8mm position, 3-7° orientation</span>
+    <span class="n">gear_shaft_pos</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">gear_shaft_pos_w</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;factory_gear_base&quot;</span><span class="p">)},</span>
+        <span class="n">noise</span><span class="o">=</span><span class="n">Unoise</span><span class="p">(</span><span class="n">n_min</span><span class="o">=-</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">n_max</span><span class="o">=</span><span class="mf">0.005</span><span class="p">),</span>  <span class="c1"># ±5mm</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Quaternion noise: small uniform noise on each component</span>
+    <span class="c1"># Results in ~5° orientation error</span>
+    <span class="n">gear_shaft_quat</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">gear_shaft_quat_w</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;factory_gear_base&quot;</span><span class="p">)},</span>
+        <span class="n">noise</span><span class="o">=</span><span class="n">Unoise</span><span class="p">(</span><span class="n">n_min</span><span class="o">=-</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">n_max</span><span class="o">=</span><span class="mf">0.01</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Enable for perception observations only</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+<p><strong>Why No Noise for Proprioceptive Observations?</strong></p>
+<p>Empirically, we found that policies trained without noise on proprioceptive observations (joint positions and velocities) transfer well to real hardware. The UR10e controller provides sufficiently accurate joint state feedback that modeling sensor noise doesn’t improve sim-to-real transfer for these tasks.</p>
+</section>
+</section>
+</section>
+<section id="part-2-system-response-consistency">
+<h2>Part 2: System Response Consistency<a class="headerlink" href="#part-2-system-response-consistency" title="Permalink to this heading">#</a></h2>
+<p>Once your observations are consistent, you need to ensure the simulated robot and environment respond to actions the same way the real system does. In this use case, this involves three main aspects:</p>
+<ol class="arabic simple">
+<li><p>Physics simulation parameters (friction, contact properties)</p></li>
+<li><p>Actuator modeling (PD controller gains, effort limits)</p></li>
+<li><p>Domain randomization</p></li>
+</ol>
+<section id="physics-parameter-tuning">
+<h3>Physics Parameter Tuning<a class="headerlink" href="#physics-parameter-tuning" title="Permalink to this heading">#</a></h3>
+<p>Accurate physics simulation is critical for contact-rich tasks. Key parameters include:</p>
+<ul class="simple">
+<li><p>Friction coefficients (static and dynamic)</p></li>
+<li><p>Contact solver parameters</p></li>
+<li><p>Material properties</p></li>
+<li><p>Rigid body properties</p></li>
+</ul>
+<p><strong>Example: Gear Assembly Physics Configuration</strong></p>
+<p>The Gear Assembly task requires accurate contact modeling for insertion. Here’s how friction is configured:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># From joint_pos_env_cfg.py in Isaac-Deploy-GearAssembly-UR10e-2F140-v0</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events including physics randomization.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Randomize friction for gear objects</span>
+    <span class="n">small_gear_physics_material</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_material</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;factory_gear_small&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="s2">&quot;.*&quot;</span><span class="p">),</span>
+            <span class="s2">&quot;static_friction_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>   <span class="c1"># Calibrated to real gear material</span>
+            <span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+            <span class="s2">&quot;restitution_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>         <span class="c1"># No bounce</span>
+            <span class="s2">&quot;num_buckets&quot;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Similar configuration for gripper fingers</span>
+    <span class="n">robot_physics_material</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_material</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="s2">&quot;.*finger&quot;</span><span class="p">),</span>
+            <span class="s2">&quot;static_friction_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>   <span class="c1"># Calibrated to real gripper</span>
+            <span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+            <span class="s2">&quot;restitution_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+            <span class="s2">&quot;num_buckets&quot;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>These friction values (0.75) were determined through iterative visual comparison:</p>
+<ol class="arabic">
+<li><p>Record videos of the gear being grasped and manipulated on real hardware</p></li>
+<li><p>Start training in simulation and observe the live simulation viewer</p></li>
+<li><p>Look for physics issues (penetration, unrealistic slipping, poor contact)</p></li>
+<li><p>Adjust friction coefficients and solver parameters and retry</p></li>
+<li><p>Compare the gear’s behavior in the gripper visually between sim and real</p></li>
+<li><p>Repeat adjustments until behavior matches (no need to wait for full policy training)</p></li>
+<li><p>Once physics looks good, train in headless mode with video recording:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">800</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">5000</span>
+</pre></div>
+</div>
+</li>
+<li><p>Review the recorded videos and compare with real hardware videos to verify physics behavior</p></li>
+</ol>
+<p><strong>Contact Solver Configuration</strong></p>
+<p>Contact-rich manipulation requires careful solver tuning. These parameters were calibrated through the same iterative visual comparison process as the friction coefficients:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Robot rigid body properties</span>
+<span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+    <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                    <span class="c1"># Robot is mounted, no gravity</span>
+    <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>          <span class="c1"># Control interpenetration resolution</span>
+    <span class="n">linear_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>                      <span class="c1"># No artificial damping</span>
+    <span class="n">angular_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">3666.0</span><span class="p">,</span>
+    <span class="n">enable_gyroscopic_forces</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>           <span class="c1"># Important for accurate dynamics</span>
+    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>       <span class="c1"># Balance accuracy vs performance</span>
+    <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">max_contact_impulse</span><span class="o">=</span><span class="mf">1e32</span><span class="p">,</span>               <span class="c1"># Allow large contact forces</span>
+<span class="p">),</span>
+</pre></div>
+</div>
+<p><strong>Important</strong>: The <code class="docutils literal notranslate"><span class="pre">solver_position_iteration_count</span></code> is a critical parameter for contact-rich tasks. Increasing this value improves collision simulation stability and reduces penetration issues, but it also increases simulation and training time. For the gear assembly task, we use <code class="docutils literal notranslate"><span class="pre">solver_position_iteration_count=4</span></code> as a balance between physics accuracy and computational performance. If you observe penetration or unstable contacts, try increasing to 8 or 16, but expect slower training.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Articulation properties</span>
+<span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+    <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">),</span>
+
+<span class="c1"># Contact properties</span>
+<span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(</span>
+    <span class="n">contact_offset</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span>                    <span class="c1"># 5mm contact detection distance</span>
+    <span class="n">rest_offset</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>                         <span class="c1"># Objects touch at 0 distance</span>
+<span class="p">),</span>
+</pre></div>
+</div>
+</section>
+<section id="actuator-modeling">
+<h3>Actuator Modeling<a class="headerlink" href="#actuator-modeling" title="Permalink to this heading">#</a></h3>
+<p>Accurate actuator modeling ensures the simulated robot moves like the real one. This includes:</p>
+<ul class="simple">
+<li><p>PD controller gains (stiffness and damping)</p></li>
+<li><p>Effort and velocity limits</p></li>
+<li><p>Joint friction</p></li>
+</ul>
+<p><strong>Controller Choice: Impedance Control</strong></p>
+<p>For the UR10e deployment, we use an impedance controller interface. Using a simpler controller like impedance control reduces the chances of variation between simulation and reality compared to more complex controllers (e.g., operational space control, hybrid force-position control). Simpler controllers:</p>
+<ul class="simple">
+<li><p>Have fewer parameters that can mismatch between sim and real</p></li>
+<li><p>Are easier to model accurately in simulation</p></li>
+<li><p>Have more predictable behavior that’s easier to replicate</p></li>
+<li><p>Reduce the controller complexity as a source of sim-real gap</p></li>
+</ul>
+<p><strong>Example: UR10e Actuator Configuration</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default UR10e actuator configuration</span>
+<span class="n">actuators</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;arm&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+        <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_pan_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;shoulder_lift_joint&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;elbow_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_1_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_2_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_3_joint&quot;</span><span class="p">],</span>
+        <span class="n">effort_limit</span><span class="o">=</span><span class="mf">87.0</span><span class="p">,</span>           <span class="c1"># From UR10e specifications</span>
+        <span class="n">velocity_limit</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>          <span class="c1"># From UR10e specifications</span>
+        <span class="n">stiffness</span><span class="o">=</span><span class="mf">800.0</span><span class="p">,</span>             <span class="c1"># Calibrated to match real behavior</span>
+        <span class="n">damping</span><span class="o">=</span><span class="mf">40.0</span><span class="p">,</span>                <span class="c1"># Calibrated to match real behavior</span>
+    <span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Domain Randomization of Actuator Parameters</strong></p>
+<p>To account for variations in real robot behavior, randomize actuator gains during training:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># From EventCfg in the Gear Assembly environment</span>
+<span class="n">robot_joint_stiffness_and_damping</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+    <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_actuator_gains</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_.*&quot;</span><span class="p">,</span> <span class="s2">&quot;elbow_.*&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_.*&quot;</span><span class="p">]),</span>
+        <span class="s2">&quot;stiffness_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">),</span>    <span class="c1"># 75% to 150% of nominal</span>
+        <span class="s2">&quot;damping_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>       <span class="c1"># 30% to 300% of nominal</span>
+        <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Joint Friction Randomization</strong></p>
+<p>Real robots have friction in their joints that varies with position, velocity, and temperature. For the UR10e with impedance controller interface, we observed significant stiction (static friction) causing the controller to not reach target joint positions.</p>
+<p><strong>Characterizing Real Robot Behavior:</strong></p>
+<p>To quantify this behavior, we plotted the step response of the impedance controller on the real robot and observed contact offsets of approximately 0.25 degrees from the commanded setpoint. This steady-state error is caused by joint friction opposing the controller’s commanded motion. Based on these measurements, we added joint friction modeling in simulation to replicate this behavior:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">joint_friction</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+    <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_joint_parameters</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_.*&quot;</span><span class="p">,</span> <span class="s2">&quot;elbow_.*&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_.*&quot;</span><span class="p">]),</span>
+        <span class="s2">&quot;friction_distribution_params&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">),</span>     <span class="c1"># Add 0.3 to 0.7 Nm friction</span>
+        <span class="s2">&quot;operation&quot;</span><span class="p">:</span> <span class="s2">&quot;add&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Why Joint Friction Matters</strong>: Without modeling joint friction in simulation, the policy learns to expect that commanded joint positions are always reached. On the real robot, stiction prevents small movements and causes steady-state errors. By adding friction during training, the policy learns to account for these effects and commands appropriately larger motions to overcome friction.</p>
+<p><strong>Compensating for Stiction with Action Scaling:</strong></p>
+<p>To help the policy overcome stiction on the real robot, we also increased the output action scaling. The Isaac ROS documentation notes that a higher action scale (0.0325 vs 0.025) is needed to overcome the higher static friction (stiction) compared to the 2F-85 gripper. This increased scaling ensures the policy commands are large enough to overcome the friction forces observed in the step response analysis.</p>
+</section>
+<section id="action-space-design">
+<h3>Action Space Design<a class="headerlink" href="#action-space-design" title="Permalink to this heading">#</a></h3>
+<p>Your action space should match what the real robot controller can execute. For this task we found that <strong>incremental joint position control</strong> is the most reliable approach.</p>
+<p><strong>Example: Gear Assembly Action Configuration</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># For contact-rich manipulation, smaller action scale for more precise control</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">joint_action_scale</span> <span class="o">=</span> <span class="mf">0.025</span>  <span class="c1"># ±2.5 degrees per step</span>
+
+<span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">arm_action</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">RelativeJointPositionActionCfg</span><span class="p">(</span>
+    <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span>
+    <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;shoulder_pan_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;shoulder_lift_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;elbow_joint&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;wrist_1_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_2_joint&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_3_joint&quot;</span><span class="p">],</span>
+    <span class="n">scale</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_action_scale</span><span class="p">,</span>
+    <span class="n">use_zero_offset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The action scale is a critical hyperparameter that should be tuned based on:</p>
+<ul class="simple">
+<li><p>Task precision requirements (smaller for contact-rich tasks)</p></li>
+<li><p>Control frequency (higher frequency allows larger steps)</p></li>
+</ul>
+</section>
+<section id="domain-randomization-strategy">
+<h3>Domain Randomization Strategy<a class="headerlink" href="#domain-randomization-strategy" title="Permalink to this heading">#</a></h3>
+<p>Domain randomization should cover the range of conditions in which you want the real robot to perform. Increasing randomization ranges makes it harder for the policy to learn, but allows for larger variations in inputs and system parameters. The key is to balance training difficulty with robustness: randomize enough to cover real-world variations, but not so much that the policy cannot learn effectively.</p>
+<p><strong>Pose Randomization</strong></p>
+<p>For manipulation tasks, randomize object poses to ensure the policy works across the workspace:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># From Gear Assembly environment</span>
+<span class="n">randomize_gears_and_base_pose</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+    <span class="n">func</span><span class="o">=</span><span class="n">gear_assembly_events</span><span class="o">.</span><span class="n">randomize_gears_and_base_pose</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;pose_range&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span>                          <span class="c1"># ±10cm</span>
+            <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">],</span>                        <span class="c1"># ±25cm</span>
+            <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span>                          <span class="c1"># ±10cm</span>
+            <span class="s2">&quot;roll&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">90</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">90</span><span class="p">],</span>         <span class="c1"># ±2 degrees</span>
+            <span class="s2">&quot;pitch&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">90</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">90</span><span class="p">],</span>        <span class="c1"># ±2 degrees</span>
+            <span class="s2">&quot;yaw&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">6</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">6</span><span class="p">],</span>            <span class="c1"># ±30 degrees</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;gear_pos_range&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.02</span><span class="p">,</span> <span class="mf">0.02</span><span class="p">],</span>                        <span class="c1"># ±2cm relative to base</span>
+            <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.02</span><span class="p">,</span> <span class="mf">0.02</span><span class="p">],</span>
+            <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0575</span><span class="p">,</span> <span class="mf">0.0775</span><span class="p">],</span>                     <span class="c1"># 5.75-7.75cm above base</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;rot_randomization_range&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;roll&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">],</span>         <span class="c1"># ±5 degrees</span>
+            <span class="s2">&quot;pitch&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">],</span>
+            <span class="s2">&quot;yaw&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">36</span><span class="p">],</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Initial State Randomization</strong></p>
+<p>Randomizing the robot’s initial configuration helps the policy handle different starting conditions:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">set_robot_to_grasp_pose</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+    <span class="n">func</span><span class="o">=</span><span class="n">gear_assembly_events</span><span class="o">.</span><span class="n">set_robot_to_grasp_pose</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;robot_asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
+        <span class="s2">&quot;rot_offset&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>  <span class="c1"># Base gripper orientation</span>
+        <span class="s2">&quot;pos_randomization_range&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+            <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="mf">0.005</span><span class="p">],</span>                      <span class="c1"># ±5mm variation</span>
+            <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.003</span><span class="p">,</span> <span class="mf">0.003</span><span class="p">],</span>                      <span class="c1"># ±3mm variation</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;gripper_type&quot;</span><span class="p">:</span> <span class="s2">&quot;2f_140&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="part-3-training-the-policy-in-isaac-lab">
+<h2>Part 3: Training the Policy in Isaac Lab<a class="headerlink" href="#part-3-training-the-policy-in-isaac-lab" title="Permalink to this heading">#</a></h2>
+<p>Now that we’ve covered the key principles for sim-to-real transfer, let’s train the gear assembly policy in Isaac Lab.</p>
+<section id="step-1-visualize-the-environment">
+<h3>Step 1: Visualize the Environment<a class="headerlink" href="#step-1-visualize-the-environment" title="Permalink to this heading">#</a></h3>
+<p>First, launch the training with a small number of environments and visualization enabled to verify that the environment is set up correctly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch training with visualization</span>
+python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="w"> </span><span class="m">4</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For the Robotiq 2F-85 gripper, use <code class="docutils literal notranslate"><span class="pre">--task</span> <span class="pre">Isaac-Deploy-GearAssembly-UR10e-2F85-v0</span></code> instead.</p>
+</div>
+<p>This will open the Isaac Sim viewer where you can observe the training process in real-time.</p>
+<figure class="align-center" id="id3" style="width: 100%">
+<img alt="Gear assembly training visualization in Isaac Lab" src="../../../_images/sim_real_gear_assembly_train.jpg" />
+<figcaption>
+<p><span class="caption-text">Training visualization showing multiple parallel environments with robots grasping gears.</span><a class="headerlink" href="#id3" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<p><strong>What to Expect:</strong></p>
+<p>In the early stages of training, you should see the robots moving around with the gears grasped by the grippers, but they won’t be successfully inserting the gears yet. This is expected behavior as the policy is still learning. The robots will move the grasped gear in various directions. Once you’ve verified the environment looks correct, stop the training (Ctrl+C) and proceed to full-scale training.</p>
+</section>
+<section id="step-2-full-scale-training-with-video-recording">
+<h3>Step 2: Full-Scale Training with Video Recording<a class="headerlink" href="#step-2-full-scale-training-with-video-recording" title="Permalink to this heading">#</a></h3>
+<p>Now launch the full training run with more parallel environments in headless mode for faster training. We’ll also enable video recording to monitor progress:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full training with video recording</span>
+python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="w"> </span><span class="m">256</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">800</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">5000</span>
+</pre></div>
+</div>
+<p>This command will:</p>
+<ul class="simple">
+<li><p>Run 256 parallel environments for efficient training</p></li>
+<li><p>Run in headless mode (no visualization) for maximum performance</p></li>
+<li><p>Record videos every 5000 steps to monitor training progress</p></li>
+<li><p>Save videos with 800 frames each</p></li>
+</ul>
+<p>Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the <code class="docutils literal notranslate"><span class="pre">logs</span></code> directory and can be reviewed to assess policy performance during training.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>GPU Memory Considerations</strong>: The default configuration uses 256 parallel environments, which should work on most modern GPUs (e.g., RTX 3090, RTX 4090, A100). For better sim-to-real transfer performance, you can increase <code class="docutils literal notranslate"><span class="pre">solver_position_iteration_count</span></code> from 4 to 196 in <code class="docutils literal notranslate"><span class="pre">gear_assembly_env_cfg.py</span></code> and <code class="docutils literal notranslate"><span class="pre">joint_pos_env_cfg.py</span></code> for more realistic contact simulation, but this requires a larger GPU (e.g., RTX PRO 6000 with 40GB+ VRAM). Higher solver iteration counts reduce penetration and improve contact stability but significantly increase GPU memory usage.</p>
+</div>
+<p><strong>Monitoring Training Progress with TensorBoard:</strong></p>
+<p>You can monitor training metrics in real-time using TensorBoard. Open a new terminal and run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>tensorboard.main<span class="w"> </span>--logdir<span class="w"> </span>&lt;log_dir&gt;
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;log_dir&gt;</span></code> with the path to your training logs (e.g., <code class="docutils literal notranslate"><span class="pre">logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01</span></code>). TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.</p>
+</section>
+<section id="step-3-deploy-on-real-robot">
+<h3>Step 3: Deploy on Real Robot<a class="headerlink" href="#step-3-deploy-on-real-robot" title="Permalink to this heading">#</a></h3>
+<p>Once training is complete, follow the <a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_manipulator_ur_dnn_policy/index.html">Isaac ROS inference documentation</a> to deploy your policy.</p>
+<p>The Isaac ROS deployment pipeline directly uses the trained model checkpoint (<code class="docutils literal notranslate"><span class="pre">.pt</span></code> file) along with the <code class="docutils literal notranslate"><span class="pre">agent.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">env.yaml</span></code> configuration files generated during training. No additional export step is required.</p>
+<p>The deployment pipeline uses Isaac ROS and a custom ROS inference node to run the policy on real hardware. The pipeline includes:</p>
+<ol class="arabic simple">
+<li><p><strong>Perception</strong>: Camera-based pose estimation (FoundationPose, Segment Anything)</p></li>
+<li><p><strong>Motion Planning</strong>: cuMotion for collision-free trajectories</p></li>
+<li><p><strong>Policy Inference</strong>: Your trained policy running at control frequency in a custom ROS inference node</p></li>
+<li><p><strong>Robot Control</strong>: Low-level controller executing commands</p></li>
+</ol>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading">#</a></h2>
+<p>This section covers common errors you may encounter during training and their solutions.</p>
+<section id="physx-collision-stack-overflow">
+<h3>PhysX Collision Stack Overflow<a class="headerlink" href="#physx-collision-stack-overflow" title="Permalink to this heading">#</a></h3>
+<p><strong>Error Message:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PhysX error: PxGpuDynamicsMemoryConfig::collisionStackSize buffer overflow detected,
+please increase its size to at least 269452544 in the scene desc!
+Contacts have been dropped.
+</pre></div>
+</div>
+<p><strong>Cause:</strong> This error occurs when the GPU collision detection buffer is too small for the number of contacts being simulated. This is common in contact-rich environments like gear assembly.</p>
+<p><strong>Solution:</strong> Increase the <code class="docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">gear_assembly_env_cfg.py</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># In GearAssemblyEnvCfg class</span>
+<span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
+    <span class="n">physx</span><span class="o">=</span><span class="n">PhysxCfg</span><span class="p">(</span>
+        <span class="n">gpu_collision_stack_size</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">31</span><span class="p">,</span>  <span class="c1"># Increase this value if you see overflow errors</span>
+        <span class="n">gpu_max_rigid_contact_count</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">23</span><span class="p">,</span>
+        <span class="n">gpu_max_rigid_patch_count</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">23</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The error message will suggest a minimum size. Set <code class="docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code> to at least the recommended value (e.g., if the error says “at least 269452544”, set it to <code class="docutils literal notranslate"><span class="pre">2**28</span></code> or <code class="docutils literal notranslate"><span class="pre">2**29</span></code>). Note that increasing this value increases GPU memory usage.</p>
+</section>
+<section id="cuda-out-of-memory">
+<h3>CUDA Out of Memory<a class="headerlink" href="#cuda-out-of-memory" title="Permalink to this heading">#</a></h3>
+<p><strong>Error Message:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>torch.OutOfMemoryError: CUDA out of memory.
+</pre></div>
+</div>
+<p><strong>Cause:</strong> The GPU does not have enough memory to run the requested number of parallel environments with the current simulation parameters.</p>
+<p><strong>Solutions (in order of preference):</strong></p>
+<ol class="arabic">
+<li><p><strong>Reduce the number of parallel environments:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="w"> </span><span class="m">128</span><span class="w">  </span><span class="c1"># Reduce from 256 to 128, 64, etc.</span>
+</pre></div>
+</div>
+<p><strong>Trade-off:</strong> Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.</p>
+</li>
+<li><p><strong>If using increased solver iteration counts</strong> (values higher than the default 4):</p>
+<p>In both <code class="docutils literal notranslate"><span class="pre">gear_assembly_env_cfg.py</span></code> and <code class="docutils literal notranslate"><span class="pre">joint_pos_env_cfg.py</span></code>, reduce <code class="docutils literal notranslate"><span class="pre">solver_position_iteration_count</span></code> back to the default value of 4, or use intermediate values like 8 or 16:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>  <span class="c1"># Use default value</span>
+    <span class="c1"># ... other parameters</span>
+<span class="p">),</span>
+
+<span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>  <span class="c1"># Use default value</span>
+    <span class="c1"># ... other parameters</span>
+<span class="p">),</span>
+</pre></div>
+</div>
+<p><strong>Trade-off:</strong> Lower solver iteration counts may result in less realistic contact dynamics and more penetration issues. The default value of 4 provides a good balance for most use cases.</p>
+</li>
+<li><p><strong>Disable video recording during training:</strong></p>
+<p>Remove the <code class="docutils literal notranslate"><span class="pre">--video</span></code> flags to save GPU memory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/reinforcement_learning/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-Deploy-GearAssembly-UR10e-2F140-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--headless<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="w"> </span><span class="m">256</span>
+</pre></div>
+</div>
+<p>You can always evaluate the trained policy later with visualization.</p>
+</li>
+</ol>
+</section>
+</section>
+<section id="further-resources">
+<h2>Further Resources<a class="headerlink" href="#further-resources" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://arxiv.org/abs/2305.17110">IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality</a></p></li>
+<li><p><a class="reference external" href="https://arxiv.org/abs/2408.04587">FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty</a></p></li>
+<li><p>Sim-to-Real Policy Transfer for Whole Body Controllers: <a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-real.html#sim2real"><span class="std std-ref">Sim-to-Real Policy Transfer</span></a> - Shows how to train and deploy a whole body controller for legged robots using Isaac Lab with the Newton backend</p></li>
+<li><p><a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html">Isaac ROS Manipulation Documentation</a></p></li>
+<li><p><a class="reference external" href="https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/tutorial_gear_assembly.html">Isaac ROS Gear Assembly Tutorial</a></p></li>
+<li><p>RL Training Tutorial: <a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html#tutorial-run-rl-training"><span class="std std-ref">Training with an RL Agent</span></a></p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../01_io_descriptors/io_descriptors_101.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">IO Descriptors 101</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../migration/migrating_from_isaacgymenvs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">From IsaacGymEnvs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-input-consistency">Part 1: Input Consistency</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-real-robot-available-observations">Using Real-Robot-Available Observations</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#observation-specification-isaac-deploy-gearassembly-ur10e-2f140-v0">Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-system-response-consistency">Part 2: System Response Consistency</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physics-parameter-tuning">Physics Parameter Tuning</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#actuator-modeling">Actuator Modeling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#action-space-design">Action Space Design</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#domain-randomization-strategy">Domain Randomization Strategy</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-training-the-policy-in-isaac-lab">Part 3: Training the Policy in Isaac Lab</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-visualize-the-environment">Step 1: Visualize the Environment</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-full-scale-training-with-video-recording">Step 2: Full-Scale Training with Video Recording</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-deploy-on-real-robot">Step 3: Deploy on Real Robot</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-collision-stack-overflow">PhysX Collision Stack Overflow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cuda-out-of-memory">CUDA Out of Memory</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#further-resources">Further Resources</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 08, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
