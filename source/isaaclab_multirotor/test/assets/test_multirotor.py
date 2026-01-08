@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,11 +18,10 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import contextlib
+import pytest
 import torch
 import types
 import warnings
-
-import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -364,10 +363,10 @@ def test_set_thrust_target_broadcasting_integration(sim, num_multirotors, device
     multirotor, _ = generate_multirotor(cfg, num_multirotors, device=sim.device)
 
     # Determine number of thrusters for assertion (stub vs real asset)
-    try:
-        num_thr = multirotor.num_thrusters
-    except Exception:
-        num_thr = multirotor._data.thrust_target.shape[1]
+    # try:
+    #     num_thr = multirotor.num_thrusters
+    # except Exception:
+    #     num_thr = multirotor._data.thrust_target.shape[1]
 
     # Set a single-thruster column across all envs
     multirotor.set_thrust_target(
