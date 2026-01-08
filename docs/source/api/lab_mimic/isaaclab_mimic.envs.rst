@@ -9,20 +9,20 @@
 
   .. autosummary::
 
-    ~franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv
-    ~franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg
-    ~franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv
-    ~franka_stack_ik_abs_mimic_env_cfg.FrankaCubeStackIKAbsMimicEnvCfg
-    ~galbot_stack_rmp_rel_mimic_env.RmpFlowGalbotCubeStackRelMimicEnv
-    ~galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
-    ~galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg
-    ~galbot_stack_rmp_abs_mimic_env.RmpFlowGalbotCubeStackAbsMimicEnv
-    ~galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg
-    ~galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg
-    ~pick_place_mimic_env.PickPlaceRelMimicEnv
-    ~pick_place_mimic_env.PickPlaceAbsMimicEnv
-    ~agibot_place_upright_mug_mimic_env_cfg.RmpFlowAgibotPlaceUprightMugMimicEnvCfg
-    ~agibot_place_toy2box_mimic_env_cfg.RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
+    franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv
+    franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg
+    franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv
+    franka_stack_ik_abs_mimic_env_cfg.FrankaCubeStackIKAbsMimicEnvCfg
+    galbot_stack_rmp_rel_mimic_env.RmpFlowGalbotCubeStackRelMimicEnv
+    galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
+    galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg
+    galbot_stack_rmp_abs_mimic_env.RmpFlowGalbotCubeStackAbsMimicEnv
+    galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg
+    galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg
+    pick_place_mimic_env.PickPlaceRelMimicEnv
+    pick_place_mimic_env.PickPlaceAbsMimicEnv
+    agibot_place_upright_mug_mimic_env_cfg.RmpFlowAgibotPlaceUprightMugMimicEnvCfg
+    agibot_place_toy2box_mimic_env_cfg.RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
 
 Franka Environments
 -------------------
