@@ -1,20 +1,22 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""Utility functions for ray-cast sensors."""
 
 from __future__ import annotations
 
 import torch
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.prims import XFormPrim
 
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import convert_quat
 
 
 def obtain_world_pose_from_view(
-    physx_view: XFormPrim | physx.ArticulationView | physx.RigidBodyView,
+    physx_view: XformPrimView | physx.ArticulationView | physx.RigidBodyView,
     env_ids: torch.Tensor,
     clone: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -32,7 +34,7 @@ def obtain_world_pose_from_view(
     Raises:
         NotImplementedError: If the prim view is not of the supported type.
     """
-    if isinstance(physx_view, XFormPrim):
+    if isinstance(physx_view, XformPrimView):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
     elif isinstance(physx_view, physx.ArticulationView):
         pos_w, quat_w = physx_view.get_root_transforms()[env_ids].split([3, 4], dim=-1)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,8 +10,6 @@ from typing import Any
 
 import carb
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -31,7 +29,9 @@ from isaaclab.assets import (
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
+from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -145,8 +145,7 @@ class InteractiveScene:
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
             # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
+            if get_isaac_sim_version().major < 5:
                 # clone the env xform
                 env_origins = self.cloner.clone(
                     source_prim_path=self.env_prim_paths[0],
@@ -185,8 +184,7 @@ class InteractiveScene:
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
                 # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
-                if isaac_sim_version < 5:
+                if get_isaac_sim_version().major < 5:
                     self.cloner.replicate_physics(
                         source_prim_path=self.env_prim_paths[0],
                         prim_paths=self.env_prim_paths,
@@ -230,8 +228,7 @@ class InteractiveScene:
             )
 
         # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        isaac_sim_version = float(".".join(get_version()[2]))
-        if isaac_sim_version < 5:
+        if get_isaac_sim_version().major < 5:
             # clone the environment
             env_origins = self.cloner.clone(
                 source_prim_path=self.env_prim_paths[0],
@@ -409,11 +406,11 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
+    def extras(self) -> dict[str, XformPrimView]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
-        of the corresponding prims.
+        The keys are the names of the miscellaneous objects, and the values are the
+        :class:`~isaaclab.sim.views.XformPrimView` instances of the corresponding prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -421,8 +418,6 @@ class InteractiveScene:
         Note:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
-
-        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
 
         """
         return self._extras
@@ -782,7 +777,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths

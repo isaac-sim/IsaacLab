@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -64,7 +64,7 @@ class RecorderTermCfg:
     class_type: type[RecorderTerm] = MISSING
     """The associated recorder term class.
 
-    The class should inherit from :class:`isaaclab.managers.action_manager.RecorderTerm`.
+    The class should inherit from :class:`isaaclab.managers.recorder_manager.RecorderTerm`.
     """
 
 

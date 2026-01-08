@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
 import os
+import pytest
 
 # Platform-specific imports for real-time output streaming
 import select
@@ -15,7 +16,6 @@ import time
 # Third-party imports
 from prettytable import PrettyTable
 
-import pytest
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 
 import tools.test_settings as test_settings

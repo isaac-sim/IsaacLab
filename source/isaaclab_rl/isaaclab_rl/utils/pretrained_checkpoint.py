@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,16 +11,17 @@ import os
 
 import carb.settings
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
-
-from .assets import retrieve_file_path
 
 PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR = carb.settings.get_settings().get(
     "/persistent/isaaclab/asset_root/pretrained_checkpoints"
 )
 """Path to the root directory on the Nucleus Server."""
+
+PRETRAINED_CHECKPOINT_PATH = str(PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR) + "/Isaac/IsaacLab/PretrainedCheckpoints"
+"""URL for where we store all the pre-trained checkpoints"""
 
 WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl"]
 """The supported workflows for pre-trained checkpoints"""
@@ -31,24 +32,21 @@ WORKFLOW_TRAINER = {w: f"scripts/reinforcement_learning/{w}/train.py" for w in W
 WORKFLOW_PLAYER = {w: f"scripts/reinforcement_learning/{w}/play.py" for w in WORKFLOWS}
 """A dict mapping workflow to their play program path"""
 
-PRETRAINED_CHECKPOINT_PATH = str(PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR) + "/Isaac/IsaacLab/PretrainedCheckpoints"
-"""URL for where we store all the pre-trained checkpoints"""
-
-"""The filename for checkpoints used by the different workflows"""
 WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES = {
     "rl_games": "checkpoint.pth",
     "rsl_rl": "checkpoint.pt",
     "sb3": "checkpoint.zip",
     "skrl": "checkpoint.pt",
 }
+"""The filename for checkpoints used by the different workflows"""
 
-"""Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
     "rl_games": "agent.params.config.name",
     "rsl_rl": "agent.experiment_name",
     "sb3": None,
     "skrl": "agent.agent.experiment.directory",
 }
+"""Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 
 
 def has_pretrained_checkpoints_asset_root_dir() -> bool:
@@ -61,7 +59,7 @@ def get_log_root_path(workflow: str, task_name: str) -> str:
     return os.path.abspath(os.path.join("logs", workflow, task_name))
 
 
-def get_latest_job_run_path(workflow: str, task_name: str) -> str:
+def get_latest_job_run_path(workflow: str, task_name: str) -> str | None:
     """The local logs path of the most recent run of this workflow and task name"""
     log_root_path = get_log_root_path(workflow, task_name)
     return _get_latest_file_or_directory(log_root_path)
@@ -77,7 +75,7 @@ def get_pretrained_checkpoint_path(workflow: str, task_name: str) -> str:
     if workflow == "rl_games":
         return os.path.join(path, "nn", f"{task_name}.pth")
     elif workflow == "rsl_rl":
-        return _get_latest_file_or_directory(path, "*.pt")
+        return _get_latest_file_or_directory(path, "*.pt")  # type: ignore
     elif workflow == "sb3":
         return os.path.join(path, "model.zip")
     elif workflow == "skrl":

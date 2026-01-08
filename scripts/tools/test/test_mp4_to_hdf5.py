@@ -1,17 +1,16 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Test cases for MP4 to HDF5 conversion script."""
 
+import cv2
 import h5py
 import numpy as np
 import os
-import tempfile
-
-import cv2
 import pytest
+import tempfile
 
 from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_and_demo
 
