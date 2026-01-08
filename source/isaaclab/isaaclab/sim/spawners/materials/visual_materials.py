@@ -32,7 +32,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
 
     The function calls the USD command `CreateShaderPrimFromSdrCommand`_ to create the prim.
 
-    .. CreateShaderPrimFromSdrCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html
+    .. _CreateShaderPrimFromSdrCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
