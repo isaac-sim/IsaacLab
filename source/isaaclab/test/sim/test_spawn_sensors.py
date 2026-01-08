@@ -15,6 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
