@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -24,6 +23,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.utils.types import ArticulationActions
+from isaaclab.utils.version import get_isaac_sim_version
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
@@ -881,7 +881,7 @@ class Articulation(AssetBase):
         physx_envs_ids_cpu = physx_env_ids.cpu()
 
         # set into simulation
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             self.root_physx_view.set_dof_friction_coefficients(
                 self._data.joint_friction_coeff.cpu(), indices=physx_envs_ids_cpu
             )
@@ -909,7 +909,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning("Setting joint dynamic friction coefficients are not supported in Isaac Sim < 5.0")
             return
         # resolve indices
@@ -935,7 +935,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning("Setting joint viscous friction coefficients are not supported in Isaac Sim < 5.0")
             return
         # resolve indices
@@ -1334,7 +1334,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning(
                 "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
             )
@@ -1365,7 +1365,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning(
                 "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
             )
@@ -1396,7 +1396,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning(
                 "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
             )
@@ -1427,7 +1427,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning(
                 "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
             )
@@ -1520,7 +1520,7 @@ class Articulation(AssetBase):
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             logger.warning(
                 "Spatial tendons are not supported in Isaac Sim < 5.0: patching spatial-tendon getter"
                 " and setter to use dummy value"
@@ -1582,7 +1582,7 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             self._data.default_joint_friction_coeff = (
                 self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
             )
@@ -1744,7 +1744,7 @@ class Articulation(AssetBase):
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-            if int(get_version()[2]) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 self.write_joint_dynamic_friction_coefficient_to_sim(
                     actuator.dynamic_friction, joint_ids=actuator.joint_indices
                 )
@@ -1758,7 +1758,7 @@ class Articulation(AssetBase):
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
             self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
-            if int(get_version()[2]) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 self._data.default_joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
                 self._data.default_joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
 
@@ -1926,13 +1926,29 @@ class Articulation(AssetBase):
 
         Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
         """
+
+        # define custom formatters for large numbers and limit ranges
+        def format_large_number(_, v: float) -> str:
+            """Format large numbers using scientific notation."""
+            if abs(v) >= 1e3:
+                return f"{v:.1e}"
+            else:
+                return f"{v:.3f}"
+
+        def format_limits(_, v: tuple[float, float]) -> str:
+            """Format limit ranges using scientific notation."""
+            if abs(v[0]) >= 1e3 or abs(v[1]) >= 1e3:
+                return f"[{v[0]:.1e}, {v[1]:.1e}]"
+            else:
+                return f"[{v[0]:.3f}, {v[1]:.3f}]"
+
         # read out all joint parameters from simulation
         # -- gains
         stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
         dampings = self.root_physx_view.get_dof_dampings()[0].tolist()
         # -- properties
         armatures = self.root_physx_view.get_dof_armatures()[0].tolist()
-        if int(get_version()[2]) < 5:
+        if get_isaac_sim_version().major < 5:
             static_frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
@@ -1946,64 +1962,40 @@ class Articulation(AssetBase):
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
-        if int(get_version()[2]) < 5:
-            joint_table.field_names = [
-                "Index",
-                "Name",
-                "Stiffness",
-                "Damping",
-                "Armature",
-                "Static Friction",
-                "Position Limits",
-                "Velocity Limits",
-                "Effort Limits",
-            ]
+        # build field names based on Isaac Sim version
+        field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
+        if get_isaac_sim_version().major < 5:
+            field_names.append("Static Friction")
         else:
-            joint_table.field_names = [
-                "Index",
-                "Name",
-                "Stiffness",
-                "Damping",
-                "Armature",
-                "Static Friction",
-                "Dynamic Friction",
-                "Viscous Friction",
-                "Position Limits",
-                "Velocity Limits",
-                "Effort Limits",
-            ]
-        joint_table.float_format = ".3"
-        joint_table.custom_format["Position Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
+            field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
+        field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
+        joint_table.field_names = field_names
+
+        # apply custom formatters to numeric columns
+        joint_table.custom_format["Stiffness"] = format_large_number
+        joint_table.custom_format["Damping"] = format_large_number
+        joint_table.custom_format["Armature"] = format_large_number
+        joint_table.custom_format["Static Friction"] = format_large_number
+        if get_isaac_sim_version().major >= 5:
+            joint_table.custom_format["Dynamic Friction"] = format_large_number
+            joint_table.custom_format["Viscous Friction"] = format_large_number
+        joint_table.custom_format["Position Limits"] = format_limits
+        joint_table.custom_format["Velocity Limits"] = format_large_number
+        joint_table.custom_format["Effort Limits"] = format_large_number
+
         # set alignment of table columns
         joint_table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            if int(get_version()[2]) < 5:
-                joint_table.add_row([
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    static_frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ])
+            # build row data based on Isaac Sim version
+            row_data = [index, name, stiffnesses[index], dampings[index], armatures[index]]
+            if get_isaac_sim_version().major < 5:
+                row_data.append(static_frictions[index])
             else:
-                joint_table.add_row([
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    static_frictions[index],
-                    dynamic_frictions[index],
-                    viscous_frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ])
+                row_data.extend([static_frictions[index], dynamic_frictions[index], viscous_frictions[index]])
+            row_data.extend([position_limits[index], velocity_limits[index], effort_limits[index]])
+            # add row to table
+            joint_table.add_row(row_data)
         # convert table to string
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
@@ -2030,7 +2022,15 @@ class Articulation(AssetBase):
                 "Offset",
             ]
             tendon_table.float_format = ".3"
-            joint_table.custom_format["Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
+
+            # apply custom formatters to tendon table columns
+            tendon_table.custom_format["Stiffness"] = format_large_number
+            tendon_table.custom_format["Damping"] = format_large_number
+            tendon_table.custom_format["Limit Stiffness"] = format_large_number
+            tendon_table.custom_format["Limits"] = format_limits
+            tendon_table.custom_format["Rest Length"] = format_large_number
+            tendon_table.custom_format["Offset"] = format_large_number
+
             # add info on each term
             for index in range(self.num_fixed_tendons):
                 tendon_table.add_row([

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -55,7 +55,9 @@ class JointPositionToLimitsAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        self._joint_ids, self._joint_names = self._asset.find_joints(
+            self.cfg.joint_names, preserve_order=cfg.preserve_order
+        )
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
         logger.info(
@@ -77,17 +79,22 @@ class JointPositionToLimitsAction(ActionTerm):
         elif isinstance(cfg.scale, dict):
             self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
             # resolve the dictionary config
-            index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(
+                self.cfg.scale, self._joint_names, preserve_order=cfg.preserve_order
+            )
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
+
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, self._joint_names, preserve_order=cfg.preserve_order
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
@@ -259,12 +266,12 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # check if specific environment ids are provided
         if env_ids is None:
-            env_ids = slice(None)
+            super().reset(slice(None))
+            self._prev_applied_actions[:] = self._asset.data.joint_pos[:, self._joint_ids]
         else:
-            env_ids = env_ids[:, None]
-        super().reset(env_ids)
-        # reset history to current joint positions
-        self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
+            super().reset(env_ids)
+            curr_applied_actions = self._asset.data.joint_pos[env_ids[:, None], self._joint_ids].view(len(env_ids), -1)
+            self._prev_applied_actions[env_ids, :] = curr_applied_actions
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations

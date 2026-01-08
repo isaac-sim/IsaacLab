@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ import ray
 import util
 from ray import air, tune
 from ray.tune import Callback
+from ray.tune.progress_reporter import ProgressReporter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
@@ -48,6 +49,11 @@ Usage:
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg
+    # Local with a custom progress reporter
+    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
+    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_class CartpoleTheiaJobCfg \
+    --progress_reporter CustomCartpoleProgressReporter
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \
     --aggregate_jobs tuner.py \
@@ -229,6 +235,7 @@ class ProcessCleanupCallback(Callback):
 def invoke_tuning_run(
     cfg: dict,
     args: argparse.Namespace,
+    progress_reporter: ProgressReporter | None = None,
     stopper: tune.Stopper | None = None,
 ) -> None:
     """Invoke an Isaac-Ray tuning run.
@@ -237,6 +244,7 @@ def invoke_tuning_run(
     Args:
         cfg: Configuration dictionary extracted from job setup
         args: Command-line arguments related to tuning.
+        progress_reporter: Custom progress reporter. Defaults to CLIReporter or JupyterNotebookReporter if not provided.
         stopper: Custom stopper, optional.
     """
     # Allow for early exit
@@ -271,6 +279,17 @@ def invoke_tuning_run(
         *([stopper] if stopper is not None else []),
     ])
 
+    if progress_reporter is not None:
+        os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+        if (
+            getattr(progress_reporter, "_metric", None) is not None
+            or getattr(progress_reporter, "_mode", None) is not None
+        ):
+            raise ValueError(
+                "Do not set <metric> or <mode> directly in the custom progress reporter class, "
+                "provide them as arguments to tuner.py instead."
+            )
+
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
@@ -282,6 +301,7 @@ def invoke_tuning_run(
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
             stop=stoppers,
+            progress_reporter=progress_reporter,
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -298,6 +318,7 @@ def invoke_tuning_run(
             callbacks=[ProcessCleanupCallback(), mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
             stop=stoppers,
+            progress_reporter=progress_reporter,
         )
     else:
         raise ValueError("Unrecognized run mode.")
@@ -436,6 +457,16 @@ if __name__ == "__main__":
         help="Max number number of LogExtractionError failures before we abort the whole tuning run.",
     )
     parser.add_argument(
+        "--progress_reporter",
+        type=str,
+        default=None,
+        help=(
+            "Optional: name of a custom reporter class defined in the cfg_file. "
+            "Must subclass ray.tune.ProgressReporter "
+            "(e.g., CustomCartpoleProgressReporter)."
+        ),
+    )
+    parser.add_argument(
         "--stopper",
         type=str,
         default=None,
@@ -508,7 +539,16 @@ if __name__ == "__main__":
             else:
                 raise TypeError(f"[ERROR]: Unsupported stop criteria type: {type(stopper)}")
             print(f"[INFO]: Loaded custom stop criteria from '{args.stopper}'")
-        invoke_tuning_run(cfg, args, stopper=stopper)
+        # Load optional progress reporter config
+        progress_reporter = None
+        if args.progress_reporter and hasattr(module, args.progress_reporter):
+            progress_reporter = getattr(module, args.progress_reporter)
+            if isinstance(progress_reporter, type) and issubclass(progress_reporter, tune.ProgressReporter):
+                progress_reporter = progress_reporter()
+            else:
+                raise TypeError(f"[ERROR]: {args.progress_reporter} is not a valid ProgressReporter.")
+            print(f"[INFO]: Loaded custom progress reporter from '{args.progress_reporter}'")
+        invoke_tuning_run(cfg, args, progress_reporter=progress_reporter, stopper=stopper)
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")

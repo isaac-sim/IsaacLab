@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,15 +12,14 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import torch
 
-import pytest
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
-from isaaclab.sim.utils import stage as stage_utils
 from isaaclab.utils.math import random_orientation
 from isaaclab.utils.timer import Timer
 
@@ -31,14 +30,14 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Open a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Load kit helper
     sim_context = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="torch", device="cuda:0")
     yield sim_context
     # Cleanup
     sim_context.stop()
     sim_context.clear_instance()
-    stage_utils.close_stage()
+    sim_utils.close_stage()
 
 
 def test_instantiation(sim):

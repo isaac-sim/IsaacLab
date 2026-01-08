@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,7 +6,8 @@
 
 from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
 from isaaclab.devices import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.device_base import DeviceBase
+from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -252,14 +253,14 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3AbsRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,
@@ -310,14 +311,14 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
                         Se3AbsRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
-                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
                         ),
                     ],
                     sim_device=self.sim.device,

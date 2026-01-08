@@ -24,6 +24,18 @@ teleoperation in Isaac Lab.
 
    See :ref:`manus-vive-handtracking` for more information on supported hand-tracking peripherals.
 
+.. note::
+
+   **Meta Quest 3 and Pico 4 Ultra Support (Early Access)**
+
+   Meta Quest 3 and Pico 4 Ultra are now supported via the `CloudXR Early Access program`_.
+   Join the program by mentioning isaac use cases. Once approved, you'll receive email to set up NGC,
+   then download `CloudXR.js with Isaac Teleop samples`_ and follow its guide.
+   Pico 4 Ultra must use HTTPS mode (see NGC documentation for details). General availability
+   will be provided in a future version of Isaac Lab.
+
+.. _`CloudXR Early Access program`: https://developer.nvidia.com/cloudxr-sdk-early-access-program/join
+.. _`CloudXR.js with Isaac Teleop samples`: https://catalog.ngc.nvidia.com/orgs/nvidia/resources/cloudxr-js-early-access?version=6.0.0-beta
 
 Overview
 --------
@@ -721,11 +733,11 @@ Here's an example of setting up hand tracking:
 
    # Create retargeters
    position_retargeter = Se3AbsRetargeter(
-       bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+       bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
        zero_out_xy_rotation=True,
        use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
    )
-   gripper_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
+   gripper_retargeter = GripperRetargeter(bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT)
 
    # Create OpenXR device with hand tracking and both retargeters
    device = OpenXRDevice(
@@ -919,7 +931,7 @@ The retargeting system is designed to be extensible. You can create custom retar
                Any: The transformed control commands for the robot.
            """
            # Access hand tracking data using TrackingTarget enum
-           right_hand_data = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+           right_hand_data = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
            # Extract specific joint positions and orientations
            wrist_pose = right_hand_data.get("wrist")
@@ -927,7 +939,7 @@ The retargeting system is designed to be extensible. You can create custom retar
            index_tip_pose = right_hand_data.get("index_tip")
 
            # Access head tracking data
-           head_pose = data[OpenXRDevice.TrackingTarget.HEAD]
+           head_pose = data[DeviceBase.TrackingTarget.HEAD]
 
            # Process the tracking data and apply your custom logic
            # ...

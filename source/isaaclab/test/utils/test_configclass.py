@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,13 +18,12 @@ simulation_app = AppLauncher(headless=True).app
 
 import copy
 import os
+import pytest
 import torch
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
 from typing import Any, ClassVar
-
-import pytest
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -75,8 +75,7 @@ def compute_dof_torque(
     jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
     dof_torque[:, 0:7] = (jacobian_T @ task_wrench.unsqueeze(-1)).squeeze(-1)
 
-    # adapted from https://gitlab-master.nvidia.com/carbon-gym/carbgym/-/blob/b4bbc66f4e31b1a1bee61dbaafc0766bbfbf0f58/python/examples/franka_cube_ik_osc.py#L70-78
-    # roboticsproceedings.org/rss07/p31.pdf
+    # adapted from roboticsproceedings.org/rss07/p31.pdf
 
     # useful tensors
     arm_mass_matrix_inv = torch.inverse(arm_mass_matrix)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -72,9 +72,7 @@ def get_camera_position():
     try:
         from pxr import UsdGeom
 
-        from isaaclab.sim.utils import stage as stage_utils
-
-        stage = stage_utils.get_current_stage()
+        stage = sim_utils.get_current_stage()
         if stage is not None:
             # Get the viewport camera prim
             camera_prim_path = "/OmniverseKit_Persp"

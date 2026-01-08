@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -9,9 +9,8 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
-import torch
-
 import pytest
+import torch
 
 import isaaclab.utils.math as PoseUtils
 

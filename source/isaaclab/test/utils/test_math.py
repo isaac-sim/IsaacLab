@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,12 +18,11 @@ simulation_app = AppLauncher(headless=True).app
 
 import math
 import numpy as np
+import pytest
 import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
 from math import pi as PI
-
-import pytest
 
 import isaaclab.utils.math as math_utils
 

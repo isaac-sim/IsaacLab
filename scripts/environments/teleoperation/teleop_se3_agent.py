@@ -1,9 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to run a keyboard teleoperation with Isaac Lab manipulation environments."""
+"""Script to run teleoperation with Isaac Lab manipulation environments.
+
+Supports multiple input devices (e.g., keyboard, spacemouse, gamepad) and devices
+configured within the environment (including OpenXR-based hand tracking or motion
+controllers)."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -13,7 +17,7 @@ from collections.abc import Callable
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
+parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument(
     "--teleop_device",
@@ -78,7 +82,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """
-    Run keyboard teleoperation with Isaac Lab manipulation environment.
+    Run teleoperation with an Isaac Lab manipulation environment.
 
     Creates the environment, sets up teleoperation interfaces and callbacks,
     and runs the main simulation loop until the application is closed.
@@ -98,8 +102,6 @@ def main() -> None:
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
     if args_cli.xr:
-        # External cameras are not supported with XR teleop
-        # Check for any camera configs and disable them
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
 
@@ -204,7 +206,7 @@ def main() -> None:
                 )
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                logger.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
+                logger.error("Configure the teleop device in the environment config.")
                 env.close()
                 simulation_app.close()
                 return
@@ -254,6 +256,7 @@ def main() -> None:
 
                 if should_reset_recording_instance:
                     env.reset()
+                    teleop_interface.reset()
                     should_reset_recording_instance = False
                     print("Environment reset complete")
         except Exception as e:

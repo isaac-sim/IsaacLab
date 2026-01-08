@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -319,6 +319,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
             - ``"obs"``: either a concatenated tensor (``concate_obs_group=True``) or a Dict of group tensors.
             - ``"states"`` (optional): same structure as above when state groups are configured; omitted otherwise.
         """
+        # move observations to RL device if different from sim device
+        if self._rl_device != self._sim_device:
+            obs_dict = {key: obs.to(device=self._rl_device) for key, obs in obs_dict.items()}
+
         # clip the observations
         for key, obs in obs_dict.items():
             obs_dict[key] = torch.clamp(obs, -self._clip_obs, self._clip_obs)

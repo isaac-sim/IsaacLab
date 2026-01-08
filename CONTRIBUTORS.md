@@ -36,6 +36,7 @@ Guidelines for modifications:
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
+* Greg Attra
 
 ## Contributors
 
@@ -52,6 +53,7 @@ Guidelines for modifications:
 * Bingjie Tang
 * Brayden Zhang
 * Brian Bingham
+* Brian McCann
 * Cameron Upright
 * Calvin Yu
 * Cathy Y. Li
@@ -61,6 +63,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Yang
 * Dhananjay Shendre
+* Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
 * Fabian Jenelten
@@ -73,6 +76,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Hougant Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
@@ -84,9 +88,11 @@ Guidelines for modifications:
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
+* Jinyeob Kim
 * Johnson Sun
 * Kaixi Bao
 * Kris Wilson
+* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
@@ -126,7 +132,9 @@ Guidelines for modifications:
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Ryan Gresia
 * Ryley McCarroll
+* Sahara Yuta
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
@@ -144,6 +152,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
 * Yang Jin
@@ -158,6 +167,9 @@ Guidelines for modifications:
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Weihua Zhang
+* Tsz Ki GAO
+* Anke Zhao
 
 ## Acknowledgements
 

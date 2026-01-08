@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,6 +13,7 @@ sys.path.extend([str(UTIL_DIR), str(CUR_DIR)])
 import util
 import vision_cfg
 from ray import tune
+from ray.tune.progress_reporter import CLIReporter
 from ray.tune.stopper import Stopper
 
 
@@ -49,6 +50,21 @@ class CartpoleTheiaJobCfg(vision_cfg.TheiaCameraJob):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-TheiaTiny-v0"])
         super().__init__(cfg)
+
+
+class CustomCartpoleProgressReporter(CLIReporter):
+    def __init__(self):
+        super().__init__(
+            metric_columns={
+                "training_iteration": "iter",
+                "time_total_s": "total time (s)",
+                "Episode/Episode_Reward/alive": "alive",
+                "Episode/Episode_Reward/cart_vel": "cart velocity",
+                "rewards/time": "rewards/time",
+            },
+            max_report_frequency=5,
+            sort_by_metric=True,
+        )
 
 
 class CartpoleEarlyStopper(Stopper):

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -442,8 +442,23 @@ class MeshCollisionPropertiesCfg:
     """
 
     usd_func: callable = MISSING
+    """USD API function for modifying mesh collision properties.
+    Refer to
+    `original USD Documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html>`_
+    for more information.
+    """
 
     physx_func: callable = MISSING
+    """PhysX API function for modifying mesh collision properties.
+    Refer to
+    `original PhysX Documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/annotated.html>`_
+    for more information.
+    """
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
 
 
 @configclass
@@ -453,12 +468,22 @@ class BoundingCubePropertiesCfg(MeshCollisionPropertiesCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
+    mesh_approximation_name: str = "boundingCube"
+    """Name of mesh collision approximation method. Default: "boundingCube".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
 
 @configclass
 class BoundingSpherePropertiesCfg(MeshCollisionPropertiesCfg):
     usd_func: callable = UsdPhysics.MeshCollisionAPI
     """Original USD Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "boundingSphere"
+    """Name of mesh collision approximation method. Default: "boundingSphere".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
     """
 
 
@@ -472,6 +497,11 @@ class ConvexDecompositionPropertiesCfg(MeshCollisionPropertiesCfg):
     physx_func: callable = PhysxSchema.PhysxConvexDecompositionCollisionAPI
     """Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
     """
 
     hull_vertex_limit: int | None = None
@@ -518,6 +548,11 @@ class ConvexHullPropertiesCfg(MeshCollisionPropertiesCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
     """
 
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
     hull_vertex_limit: int | None = None
     """Convex hull vertex limit used for convex hull cooking.
 
@@ -539,6 +574,11 @@ class TriangleMeshPropertiesCfg(MeshCollisionPropertiesCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
     """
 
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh).
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
     weld_tolerance: float | None = None
     """Mesh weld tolerance, controls the distance at which vertices are welded.
 
@@ -557,6 +597,11 @@ class TriangleMeshSimplificationPropertiesCfg(MeshCollisionPropertiesCfg):
     physx_func: callable = PhysxSchema.PhysxTriangleMeshSimplificationCollisionAPI
     """Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
     """
 
     simplification_metric: float | None = None
@@ -583,6 +628,12 @@ class SDFMeshPropertiesCfg(MeshCollisionPropertiesCfg):
     More details and steps for optimizing SDF results can be found here:
     https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
     """
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
     sdf_margin: float | None = None
     """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
 

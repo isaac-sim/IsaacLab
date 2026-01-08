@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,11 +8,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
 from pxr import Usd
 
 from isaaclab.sim.utils import attach_stage_to_usd_context, clone, safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -50,8 +50,11 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # spawn material if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "CreatePreviewSurfaceMaterialPrim" kit command
         attach_stage_to_usd_context(attaching_early=True)
@@ -61,7 +64,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
-    prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
+    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]
@@ -100,8 +103,11 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # spawn material if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "CreateMdlMaterialPrim" kit command
         attach_stage_to_usd_context(attaching_early=True)
@@ -118,7 +124,7 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # obtain prim
-    prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
+    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]

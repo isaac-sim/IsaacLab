@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import signal
@@ -24,6 +25,9 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
 from isaacsim import SimulationApp
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ExplicitAction(argparse.Action):
@@ -993,10 +997,9 @@ class AppLauncher:
     def __patch_pxr_gf_matrix4d(self, launcher_args: dict):
         import traceback
 
-        import carb
         from pxr import Gf
 
-        carb.log_warn(
+        logger.warning(
             "Due to an issue with Pinocchio and pxr.Gf.Matrix4d, patching the Matrix4d constructor to convert arguments"
             " into a list of floats."
         )
@@ -1058,13 +1061,13 @@ class AppLauncher:
                 original_matrix4d(self, *args, **kwargs)
 
             except Exception as e:
-                carb.log_error(f"Matrix4d wrapper error: {e}")
+                logger.error(f"Matrix4d wrapper error: {e}")
                 traceback.print_stack()
                 # Fall back to original constructor as last resort
                 try:
                     original_matrix4d(self, *args, **kwargs)
                 except Exception as inner_e:
-                    carb.log_error(f"Original Matrix4d constructor also failed: {inner_e}")
+                    logger.error(f"Original Matrix4d constructor also failed: {inner_e}")
                     # Initialize as identity matrix if all else fails
                     original_matrix4d(self)
 

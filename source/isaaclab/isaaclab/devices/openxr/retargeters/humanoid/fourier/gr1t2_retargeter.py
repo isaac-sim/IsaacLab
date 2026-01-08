@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
-from isaaclab.devices import OpenXRDevice
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
@@ -41,6 +41,7 @@ class GR1T2Retargeter(RetargeterBase):
             hand_joint_names: List of robot hand joint names
         """
 
+        super().__init__(cfg)
         self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
@@ -74,8 +75,8 @@ class GR1T2Retargeter(RetargeterBase):
         """
 
         # Access the left and right hand data using the enum key
-        left_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_LEFT]
-        right_hand_poses = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
+        left_hand_poses = data[DeviceBase.TrackingTarget.HAND_LEFT]
+        right_hand_poses = data[DeviceBase.TrackingTarget.HAND_RIGHT]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
@@ -109,6 +110,9 @@ class GR1T2Retargeter(RetargeterBase):
 
         # Combine all tensors into a single tensor
         return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
 
     def _retarget_abs(self, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.

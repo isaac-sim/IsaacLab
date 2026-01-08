@@ -13,16 +13,23 @@ running the following command:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py
+         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\list_envs.py
+         isaaclab.bat -p scripts\environments\list_envs.py --keyword <search_term>
+
 
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
@@ -163,6 +170,14 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |reach_openarm_uni|     | |reach_openarm_uni-link|     | Move the end-effector to a sampled target pose with the OpenArm robot       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |lift_openarm_uni|      | |lift_openarm_uni-link|      | Pick a cube and bring it to a sampled target position with the OpenArm robot|
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -183,6 +198,10 @@ for the lift-cube environment:
 .. |agibot_place_toy| image:: ../_static/tasks/manipulation/agibot_place_toy.jpg
 .. |kuka-allegro-lift| image:: ../_static/tasks/manipulation/kuka_allegro_lift.jpg
 .. |kuka-allegro-reorient| image:: ../_static/tasks/manipulation/kuka_allegro_reorient.jpg
+.. |reach_openarm_bi| image:: ../_static/tasks/manipulation/openarm_bi_reach.jpg
+.. |reach_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_reach.jpg
+.. |lift_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_lift.jpg
+.. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -212,6 +231,10 @@ for the lift-cube environment:
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
 .. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
 .. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
+.. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArm-Bi-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
+.. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
+.. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/openarm/joint_pos_env_cfg.py>`__
+.. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/openarm/joint_pos_env_cfg.py>`__
 
 
 Contact-rich Manipulation
@@ -1135,3 +1158,19 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Reach-OpenArm-Bi-v0
+      - Isaac-Reach-OpenArm-Bi-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)
+    * - Isaac-Reach-OpenArm-v0
+      - Isaac-Reach-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
+    * - Isaac-Lift-Cube-OpenArm-v0
+      - Isaac-Lift-Cube-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)
+    * - Isaac-Open-Drawer-OpenArm-v0
+      - Isaac-Open-Drawer-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)

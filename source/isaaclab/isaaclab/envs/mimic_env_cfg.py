@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 """
 import enum
 
+from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 from isaaclab.utils import configclass
 
 
@@ -75,6 +76,9 @@ class DataGenConfig:
 
     use_skillgen: bool = False
     """Whether to use skillgen to generate motion trajectories."""
+
+    use_navigation_controller: bool = False
+    """Whether to use a navigation controller to generate loco-manipulation trajectories."""
 
 
 @configclass
@@ -308,3 +312,6 @@ class MimicEnvCfg:
 
     # List of configurations for subtask constraints
     task_constraint_configs: list[SubTaskConstraintConfig] = []
+
+    # Optional recorder configuration
+    mimic_recorder_config: RecorderManagerBaseCfg | None = None

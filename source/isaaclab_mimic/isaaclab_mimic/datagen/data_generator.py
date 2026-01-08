@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -7,11 +7,16 @@
 Base class for data generator.
 """
 import asyncio
+import copy
+import logging
 import numpy as np
 import torch
 from typing import Any
 
 import isaaclab.utils.math as PoseUtils
+
+logger = logging.getLogger(__name__)
+
 from isaaclab.envs import (
     ManagerBasedRLMimicEnv,
     MimicEnvCfg,
@@ -688,6 +693,10 @@ class DataGenerator:
             eef_subtasks_done[eef_name] = False
 
         prev_src_demo_datagen_info_pool_size = 0
+
+        if self.env_cfg.datagen_config.use_navigation_controller:
+            was_navigating = False
+
         # While loop that runs per time step
         while True:
             async with self.src_demo_datagen_info_pool.asyncio_lock:
@@ -880,8 +889,54 @@ class DataGenerator:
                 generated_actions.extend(exec_results["actions"])
                 generated_success = generated_success or exec_results["success"]
 
+            # Get the navigation state
+            if self.env_cfg.datagen_config.use_navigation_controller:
+                processed_nav_subtask = False
+                navigation_state = self.env.get_navigation_state(env_id)
+                assert navigation_state is not None, "Navigation state cannot be None when using navigation controller"
+                is_navigating = navigation_state["is_navigating"]
+                navigation_goal_reached = navigation_state["navigation_goal_reached"]
+
             for eef_name in self.env_cfg.subtask_configs.keys():
                 current_eef_subtask_step_indices[eef_name] += 1
+
+                # Execute locomanip navigation controller if it is enabled via the use_navigation_controller flag
+                if self.env_cfg.datagen_config.use_navigation_controller:
+                    if "body" not in self.env_cfg.subtask_configs.keys():
+                        error_msg = (
+                            'End effector with name "body" not found in subtask configs. "body" must be a valid end'
+                            " effector to use the navigation controller.\n"
+                        )
+                        logger.error(error_msg)
+                        raise RuntimeError(error_msg)
+
+                    # Repeat the last nav subtask action if the robot is navigating and hasn't reached the waypoint goal
+                    if (
+                        current_eef_subtask_step_indices["body"] == len(current_eef_subtask_trajectories["body"]) - 1
+                        and not processed_nav_subtask
+                    ):
+                        if is_navigating and not navigation_goal_reached:
+                            for name in self.env_cfg.subtask_configs.keys():
+                                current_eef_subtask_step_indices[name] -= 1
+                            processed_nav_subtask = True
+
+                    # Else skip to the end of the nav subtask if the robot has reached the waypoint goal before the end
+                    # of the human recorded trajectory
+                    elif was_navigating and not is_navigating and not processed_nav_subtask:
+                        number_of_steps_to_skip = len(current_eef_subtask_trajectories["body"]) - (
+                            current_eef_subtask_step_indices["body"] + 1
+                        )
+                        for name in self.env_cfg.subtask_configs.keys():
+                            if current_eef_subtask_step_indices[name] + number_of_steps_to_skip < len(
+                                current_eef_subtask_trajectories[name]
+                            ):
+                                current_eef_subtask_step_indices[name] = (
+                                    current_eef_subtask_step_indices[name] + number_of_steps_to_skip
+                                )
+                            else:
+                                current_eef_subtask_step_indices[name] = len(current_eef_subtask_trajectories[name]) - 1
+                        processed_nav_subtask = True
+
                 subtask_ind = current_eef_subtask_indices[eef_name]
                 if current_eef_subtask_step_indices[eef_name] == len(
                     current_eef_subtask_trajectories[eef_name]
@@ -923,6 +978,10 @@ class DataGenerator:
                     else:
                         current_eef_subtask_step_indices[eef_name] = None
                         current_eef_subtask_indices[eef_name] += 1
+
+            if self.env_cfg.datagen_config.use_navigation_controller:
+                was_navigating = copy.deepcopy(is_navigating)
+
             # Check if all eef_subtasks_done values are True
             if all(eef_subtasks_done.values()):
                 break

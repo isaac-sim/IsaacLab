@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,16 +13,15 @@ import contextlib
 import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
+from packaging import version
 
 import carb
-from isaacsim.core.version import get_version
 
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.utils.version import get_isaac_sim_version
 
 from ..device_base import DeviceBase, DeviceCfg
-from .openxr_device import OpenXRDevice
 from .xr_cfg import XrCfg
 
 # For testing purposes, we need to mock the XRCore
@@ -61,13 +60,6 @@ class ManusVive(DeviceBase):
     data is transformed into robot control commands suitable for teleoperation.
     """
 
-    class TrackingTarget(Enum):
-        """Enum class specifying what to track with Manus+Vive. Consistent with :class:`OpenXRDevice.TrackingTarget`."""
-
-        HAND_LEFT = 0
-        HAND_RIGHT = 1
-        HEAD = 2
-
     TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
 
     def __init__(self, cfg: ManusViveCfg, retargeters: list[RetargeterBase] | None = None):
@@ -79,10 +71,9 @@ class ManusVive(DeviceBase):
         """
         super().__init__(retargeters)
         # Enforce minimum Isaac Sim version (>= 5.1)
-        version_info = get_version()
-        major, minor = int(version_info[2]), int(version_info[3])
-        if (major < 5) or (major == 5 and minor < 1):
-            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version {major}.{minor}. ")
+        isaac_sim_version = get_isaac_sim_version()
+        if isaac_sim_version < version.parse("5.1"):
+            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version: '{isaac_sim_version}'.")
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
@@ -192,9 +183,9 @@ class ManusVive(DeviceBase):
             joint_name = HAND_JOINT_MAP[int(index)]
             result[hand][joint_name] = np.array(pose["position"] + pose["orientation"], dtype=np.float32)
         return {
-            OpenXRDevice.TrackingTarget.HAND_LEFT: result["left"],
-            OpenXRDevice.TrackingTarget.HAND_RIGHT: result["right"],
-            OpenXRDevice.TrackingTarget.HEAD: self._calculate_headpose(),
+            DeviceBase.TrackingTarget.HAND_LEFT: result["left"],
+            DeviceBase.TrackingTarget.HAND_RIGHT: result["right"],
+            DeviceBase.TrackingTarget.HEAD: self._calculate_headpose(),
         }
 
     def _calculate_headpose(self) -> np.ndarray:

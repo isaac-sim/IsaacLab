@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -37,7 +37,6 @@ simulation_app = app_launcher.app
 
 import random
 
-from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -52,6 +51,7 @@ from isaaclab.assets import (
 )
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 

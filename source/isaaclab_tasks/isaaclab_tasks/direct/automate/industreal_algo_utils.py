@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -46,10 +46,10 @@ import os
 # from pysdf import SDF
 import torch
 import trimesh
-from trimesh.exchange.load import load
 
 # from urdfpy import URDF
 import warp as wp
+from trimesh.exchange.load import load
 
 from isaaclab.utils.assets import retrieve_file_path
 

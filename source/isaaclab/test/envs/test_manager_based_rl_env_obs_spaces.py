@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,10 +12,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 
 import omni.usd
-import pytest
 
 from isaaclab.envs import ManagerBasedRLEnv
 

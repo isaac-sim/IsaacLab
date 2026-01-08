@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,6 +34,7 @@ PER_TEST_TIMEOUTS = {
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_rl_games_wrapper.py": 500,
+    "test_skrl_wrapper.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 
