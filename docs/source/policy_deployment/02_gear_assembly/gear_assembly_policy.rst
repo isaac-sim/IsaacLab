@@ -209,7 +209,7 @@ These friction values (0.75) were determined through iterative visual comparison
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/train.py \
+       python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --video --video_length 800 --video_interval 5000
@@ -430,7 +430,7 @@ First, launch the training with a small number of environments and visualization
 .. code-block:: bash
 
     # Launch training with visualization
-    python scripts/reinforcement_learning/train.py \
+    python scripts/reinforcement_learning/rsl_rl/train.py \
         --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
         --num_envs 4
 
@@ -459,7 +459,7 @@ Now launch the full training run with more parallel environments in headless mod
 .. code-block:: bash
 
     # Full training with video recording
-    python scripts/reinforcement_learning/train.py \
+    python scripts/reinforcement_learning/rsl_rl/train.py \
         --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
         --headless \
         --num_envs 256 \
@@ -555,7 +555,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/train.py \
+       python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
@@ -586,7 +586,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/train.py \
+       python scripts/reinforcement_learning/rsl_rl/train.py \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 256
