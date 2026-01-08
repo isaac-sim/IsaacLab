@@ -12,8 +12,10 @@ import pytest
 import torch
 
 import carb
+import omni.physx
 import omni.usd
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils.version import get_isaac_sim_version
 
@@ -188,6 +190,7 @@ def _check_random_actions(
 
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
@@ -261,6 +264,11 @@ def _check_random_actions(
 
     # close environment
     env.close()
+
+    # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
+    # This is necessary when using stage in memory, as the in-memory stage is destroyed on close
+    if create_stage_in_memory:
+        sim_utils.create_new_stage()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

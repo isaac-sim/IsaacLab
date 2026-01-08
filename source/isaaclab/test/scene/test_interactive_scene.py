@@ -68,7 +68,6 @@ def setup_scene(request):
         yield make_scene, sim
     sim.stop()
     sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

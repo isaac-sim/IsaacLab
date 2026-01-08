@@ -81,7 +81,6 @@ def sim():
     sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
     yield sim
     # Cleanup
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

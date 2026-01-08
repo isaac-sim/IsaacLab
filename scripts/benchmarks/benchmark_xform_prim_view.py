@@ -216,7 +216,6 @@ def benchmark_xform_prim_view(
 
     # close simulation
     sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
     return timing_results, computed_results

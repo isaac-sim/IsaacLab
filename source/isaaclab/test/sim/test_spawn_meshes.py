@@ -35,7 +35,6 @@ def sim():
     # Cleanup
     sim.stop()
     sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

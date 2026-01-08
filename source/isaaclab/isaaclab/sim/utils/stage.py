@@ -5,7 +5,8 @@
 
 """Utilities for operating on the USD stage."""
 
-import builtins
+from __future__ import annotations
+
 import contextlib
 import logging
 import threading
@@ -289,66 +290,67 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
     return result
 
 
-def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
+def clear_stage(stage: Usd.Stage | None = None, predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer.
 
     The function will delete all prims in the stage that satisfy the predicate. If the predicate
-    is None, a default predicate will be used that deletes all prims. The default predicate deletes
-    all prims that are not the root prim, are not under the /Render namespace, have the ``no_delete``
-    metadata, are not ancestral to any other prim, and are not hidden in the stage window.
+    is None, a default predicate will be used that deletes all prims except those that meet any
+    of the following criteria:
+
+    * The root prim (``"/"``) or prims under the ``/Render`` namespace
+    * Prims with the ``no_delete`` metadata set
+    * Prims with the ``hide_in_stage_window`` metadata set
+    * Ancestral prims (prims that are ancestors of other prims in a reference/payload chain)
 
     Args:
-        predicate: A user defined function that takes the USD prim as an argument and
-            returns a boolean indicating if the prim should be deleted. If the predicate is None,
-            a default predicate will be used that deletes all prims.
+        stage: The stage to clear. Defaults to None, in which case the current stage is used.
+        predicate: A user-defined function that takes a USD prim as an argument and
+            returns a boolean indicating if the prim should be deleted. If None, all
+            prims will be considered for deletion (subject to the default exclusions above).
+            If provided, both the default exclusions and the predicate must be satisfied
+            for a prim to be deleted.
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> # clear the whole stage
+        >>> # Clear the whole stage (except protected prims)
         >>> sim_utils.clear_stage()
         >>>
-        >>> # given the stage: /World/Cube, /World/Cube_01, /World/Cube_02.
+        >>> # Given the stage: /World/Cube, /World/Cube_01, /World/Cube_02
         >>> # Delete only the prims of type Cube
         >>> predicate = lambda _prim: _prim.GetTypeName() == "Cube"
-        >>> sim_utils.clear_stage(predicate)  # after the execution the stage will be /World
+        >>> sim_utils.clear_stage(predicate)  # After execution, the stage will only have /World
     """
     # Note: Need to import this here to prevent circular dependencies.
     from .prims import delete_prim
     from .queries import get_all_matching_child_prims
 
-    def _default_predicate(prim: Usd.Prim) -> bool:
+    def _predicate(prim: Usd.Prim) -> bool:
         """Check if the prim should be deleted."""
         prim_path = prim.GetPath().pathString
-        if prim_path == "/":
+        # Skip the root prim
+        if prim_path == "/" or prim_path == "/Render":
             return False
-        if prim_path.startswith("/Render"):
+        # Skip prims with the "no_delete" metadata
+        if prim.GetMetadata("no_delete") or prim.GetMetadata("hide_in_stage_window"):
             return False
-        if prim.GetMetadata("no_delete"):
-            return False
-        if prim.GetMetadata("hide_in_stage_window"):
-            return False
+        # Skip ancestral prims
         if omni.usd.check_ancestral(prim):
             return False
-        return True
+        # Additional predicate check
+        return predicate is None or predicate(prim)
 
-    def _predicate_from_path(prim: Usd.Prim) -> bool:
-        if predicate is None:
-            return _default_predicate(prim)
-        return predicate(prim)
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
 
     # get all prims to delete
-    if predicate is None:
-        prims = get_all_matching_child_prims("/", _default_predicate)
-    else:
-        prims = get_all_matching_child_prims("/", _predicate_from_path)
+    prims = get_all_matching_child_prims("/", _predicate, stage=stage, traverse_instance_prims=False)
     # convert prims to prim paths
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
-    delete_prim(prim_paths_to_delete)
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:  # type: ignore
-        omni.kit.app.get_app_interface().update()
+    delete_prim(prim_paths_to_delete, stage)
+    # update stage
+    update_stage()
 
 
 def is_stage_loading() -> bool:
@@ -465,14 +467,11 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
             " does not support stage in memory."
         )
 
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
     # disable stage open callback to avoid clearing callbacks
     SimulationManager.enable_stage_open_callback(False)
 
     # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)  # type: ignore
+    SimulationContext.instance().carb_settings.set_bool("/physics/fabricEnabled", True)
 
     # attach stage to usd context
     omni.usd.get_context().attach_stage_with_callback(stage_id)

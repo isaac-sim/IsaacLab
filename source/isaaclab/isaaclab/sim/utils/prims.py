@@ -211,9 +211,15 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
     if stage_id < 0:
+        is_stage_inserted = True
         stage_id = stage_cache.Insert(stage).ToLongInt()
+    else:
+        is_stage_inserted = False
     # delete prims
     DeletePrimsCommand(prim_path, stage=stage).do()
+    # erase from cache to prevent memory leaks
+    if is_stage_inserted:
+        stage_cache.Erase(stage)
 
 
 def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> None:

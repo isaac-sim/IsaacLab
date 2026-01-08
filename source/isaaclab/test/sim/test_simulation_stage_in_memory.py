@@ -40,8 +40,9 @@ def sim():
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()
     sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
+    # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
+    sim_utils.create_new_stage()
 
 
 """
@@ -68,16 +69,9 @@ def test_stage_in_memory_with_shapes(sim):
 
         cfg = sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
-                sim_utils.ConeCfg(
-                    radius=0.3,
-                    height=0.6,
-                ),
-                sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                ),
-                sim_utils.SphereCfg(
-                    radius=0.3,
-                ),
+                sim_utils.ConeCfg(radius=0.3, height=0.6),
+                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3)),
+                sim_utils.SphereCfg(radius=0.3),
             ],
             random_choice=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
