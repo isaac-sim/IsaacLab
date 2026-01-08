@@ -251,7 +251,6 @@ html_theme_options = {
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
     "use_edit_page_button": True,
     "navigation_depth": 2,
-    "navbar_end": ["navbar-icon-links", "version-switcher", "theme-switcher"],
     "switcher": {
         "json_url": "https://isaac-sim.github.io/IsaacLab/main/_static/switcher.json",
         "version_match": version,
