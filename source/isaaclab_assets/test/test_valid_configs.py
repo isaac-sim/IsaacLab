@@ -33,10 +33,6 @@ def registered_entities():
     # inspect all classes from the module
     for obj_name in dir(lab_assets):
         obj = getattr(lab_assets, obj_name)
-        # FIXME: skip UR10e_ROBOTIQ_GRIPPER_CFG since it is not a valid configuration
-        # Something has gone wrong with the recent Nucleus update.
-        if obj_name == "UR10e_ROBOTIQ_GRIPPER_CFG":
-            continue
         # store all registered entities configurations
         if isinstance(obj, AssetBaseCfg):
             registered_entities[obj_name] = obj
