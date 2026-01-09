@@ -33,7 +33,7 @@ from .interpolation import LinearInterpolation
 from .logger import ColoredFormatter, RateLimitFilter, configure_logging
 
 # mesh utilities
-from .mesh import convert_mesh_to_meshio_mesh, make_convex_mesh_from_mesh, make_mesh_from_geometry, merge_meshes
+from .mesh import PRIMITIVE_MESH_TYPES, convert_faces_to_triangles, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 
 # modifier utilities
 from .modifiers import (
