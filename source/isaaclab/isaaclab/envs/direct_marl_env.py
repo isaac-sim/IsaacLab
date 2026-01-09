@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,7 +20,6 @@ from typing import Any, ClassVar
 
 import omni.kit.app
 import omni.physx
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
@@ -29,6 +28,7 @@ from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
@@ -63,7 +63,6 @@ class DirectMARLEnv(gym.Env):
 
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -543,7 +542,7 @@ class DirectMARLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

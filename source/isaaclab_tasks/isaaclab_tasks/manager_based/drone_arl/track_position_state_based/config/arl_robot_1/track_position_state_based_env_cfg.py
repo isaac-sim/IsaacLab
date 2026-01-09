@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -198,8 +198,8 @@ class TerminationsCfg:
 
 
 @configclass
-class TrackPositionStateBasedEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the track position state-based environment."""
+class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)

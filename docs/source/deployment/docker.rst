@@ -76,6 +76,7 @@ Running the Container
 The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
 or else they will default to the ``base`` image extension. These commands are:
 
+* **build**: This builds the image for the given profile. It does not bring up the container.
 * **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
 * **enter**: This begins a new bash process in an existing Isaac Lab container, and which can be exited
   without bringing down the container.

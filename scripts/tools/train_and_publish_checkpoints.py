@@ -1,10 +1,44 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to manage pretrained checkpoints for our environments.
+"""Script to manage pretrained checkpoints for Isaac Lab environments.
+
+This script is used to train and publish pretrained checkpoints for Isaac Lab environments.
+It supports multiple workflows: rl_games, rsl_rl, sb3, and skrl.
+
+* To train an agent using the rl_games workflow on the Isaac-Cartpole-v0 environment:
+
+  .. code-block:: shell
+
+    python scripts/tools/train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole-v0
+
+* To train and publish the checkpoints for all workflows on only the direct Cartpole environments:
+
+  .. code-block:: shell
+
+    python scripts/tools/train_and_publish_checkpoints.py \
+        -tp "*:Isaac-Cartpole-*Direct-v0" \
+        --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
+
+* To review all repose cube jobs, excluding the 'Play' tasks and 'skrl' workflows:
+
+  .. code-block:: shell
+
+    python scripts/tools/train_and_publish_checkpoints.py \
+        -r "*:*Repose-Cube*" \
+        --exclude "*:*Play*" \
+        --exclude skrl:*
+
+* To publish all results (that have been reviewed and approved).
+
+  .. code-block:: shell
+
+    python scripts/tools/train_and_publish_checkpoints.py \
+        --publish --all \
+        --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
+
 """
 
 import argparse
@@ -14,18 +48,21 @@ from isaaclab.app import AppLauncher
 # Initialize the parser
 parser = argparse.ArgumentParser(
     description="""
-Script used for the training and publishing of pre-trained checkpoints for Isaac Lab.
+Script for training and publishing pre-trained checkpoints in Isaac Lab.
 
-Examples :
-    # Train an agent using the rl_games workflow on the Isaac-Cartpole-v0 environment.
-    pretrained_checkpoint.py --train rl_games:Isaac-Cartpole-v0
-    # Train and publish the checkpoints for all workflows on only the direct Cartpole environments.
-    pretrained_checkpoint.py -tp "*:Isaac-Cartpole-*Direct-v0" \\
+Examples:
+    # Train an agent using the rl_games workflow for the Isaac-Cartpole-v0 environment.
+    train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole-v0
+
+    # Train and publish checkpoints for all workflows, targeting only direct Cartpole environments.
+    train_and_publish_checkpoints.py -tp "*:Isaac-Cartpole-*Direct-v0" \\
       --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
-    # Review all repose cube jobs, excluding the Play tasks and skrl
-    pretrained_checkpoint.py -r "*:*Repose-Cube*" --exclude "*:*Play*" --exclude skrl:*
-    # Publish all results (that have been reviewed and approved).
-    pretrained_checkpoint.py --publish --all \\
+
+    # Review all Repose Cube jobs, excluding Play tasks and skrl jobs.
+    train_and_publish_checkpoints.py -r "*:*Repose-Cube*" --exclude "*:*Play*" --exclude skrl:*
+
+    # Publish all results that have been reviewed and approved.
+    train_and_publish_checkpoints.py --publish --all \\
       --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
 """,
     formatter_class=argparse.RawTextHelpFormatter,
@@ -36,10 +73,13 @@ parser.add_argument(
     "jobs",
     nargs="*",
     help="""
-A job consists of a workflow and a task name separated by a colon (wildcards optional), for example :
-    rl_games:Isaac-Humanoid-*v0
-    rsl_rl:Isaac-Ant-*-v0
-    *:Isaac-Velocity-Flat-Spot-v0
+A job consists of a workflow and a task name, separated by a colon (wildcards are optional). Examples:
+
+    rl_games:Isaac-Humanoid-*v0      # Wildcard for any Humanoid version
+    rsl_rl:Isaac-Ant-*-v0            # Wildcard for any Ant environment
+    *:Isaac-Velocity-Flat-Spot-v0    # Wildcard for any workflow, specific task
+
+Wildcards can be used in either the workflow or task name to match multiple entries.
 """,
 )
 parser.add_argument("-t", "--train", action="store_true", help="Train checkpoints for later publishing.")
@@ -94,7 +134,7 @@ import sys
 import omni.client
 from omni.client._omniclient import CopyBehavior
 
-from isaaclab.utils.pretrained_checkpoint import (
+from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOW_PLAYER,
     WORKFLOW_TRAINER,

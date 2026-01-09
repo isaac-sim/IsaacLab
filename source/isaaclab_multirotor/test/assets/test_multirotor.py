@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,11 +18,10 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import contextlib
+import pytest
 import torch
 import types
 import warnings
-
-import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
@@ -109,32 +108,58 @@ def make_multirotor_stub(num_instances: int, num_thrusters: int, device=torch.de
     return m
 
 
-def test_multirotor_combine_thrusts_unit():
-    m = make_multirotor_stub(num_instances=2, num_thrusters=2)
+@pytest.mark.parametrize("num_instances", [1, 2, 4])
+@pytest.mark.parametrize("num_thrusters", [1, 2, 4])
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_multirotor_combine_thrusts_unit(num_instances, num_thrusters, device):
+    m = make_multirotor_stub(num_instances=num_instances, num_thrusters=num_thrusters, device=torch.device(device))
 
-    m._thrust_target_sim = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=m.device)
-    # allocation maps thr0->force x, thr1->force y
-    m.cfg.allocation_matrix = [[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
+    # Create thrust target with predictable values
+    thrust_values = torch.arange(1.0, num_instances * num_thrusters + 1.0, device=device).reshape(
+        num_instances, num_thrusters
+    )
+    m._thrust_target_sim = thrust_values
+
+    # allocation maps first two thrusters to force x and y, rest to zero
+    # Create allocation matrix: 6 rows (wrench dims) x num_thrusters cols
+    alloc = [
+        [
+            1.0 if r == 0 and c == 0 else 0.0 if c >= 2 else (1.0 if r == 1 and c == 1 else 0.0)
+            for c in range(num_thrusters)
+        ]
+        for r in range(6)
+    ]
+    m.cfg.allocation_matrix = alloc
+    m.allocation_matrix = torch.tensor(alloc, device=device)
 
     m._combine_thrusts()
 
-    expected = torch.tensor([[1.0, 2.0, 0.0, 0.0, 0.0, 0.0], [3.0, 4.0, 0.0, 0.0, 0.0, 0.0]], device=m.device)
+    # Expected wrench: thrust @ allocation.T
+    alloc_t = torch.tensor(alloc, device=device)
+    expected = torch.matmul(thrust_values, alloc_t.T)
+
     assert torch.allclose(m._internal_wrench_target_sim, expected)
     assert torch.allclose(m._internal_force_target_sim[:, 0, :], expected[:, :3])
     assert torch.allclose(m._internal_torque_target_sim[:, 0, :], expected[:, 3:])
 
 
-def test_set_thrust_target_broadcasting_unit():
-    m = make_multirotor_stub(num_instances=3, num_thrusters=4)
+@pytest.mark.parametrize("num_instances", [1, 2, 4])
+@pytest.mark.parametrize("num_thrusters", [1, 2, 4])
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_set_thrust_target_broadcasting_unit(num_instances, num_thrusters, device):
+    m = make_multirotor_stub(num_instances=num_instances, num_thrusters=num_thrusters, device=torch.device(device))
 
     # Set full-row targets for env 0
-    targets = torch.tensor([[1.0, 2.0, 3.0, 4.0]], device=m.device)
+    targets = torch.arange(1.0, num_thrusters + 1.0, device=device).unsqueeze(0)
     m.set_thrust_target(targets, thruster_ids=slice(None), env_ids=slice(0, 1))
     assert torch.allclose(m._data.thrust_target[0], targets[0])
 
     # Set a column across all envs (use integer thruster id so broadcasting works)
-    m.set_thrust_target(torch.tensor([9.0, 9.0, 9.0], device=m.device), thruster_ids=1, env_ids=slice(None))
-    assert torch.allclose(m._data.thrust_target[:, 1], torch.tensor([9.0, 9.0, 9.0], device=m.device))
+    # Use the last thruster to avoid index out of bounds
+    thruster_id = num_thrusters - 1
+    column_values = torch.full((num_instances,), 9.0, device=device)
+    m.set_thrust_target(column_values, thruster_ids=thruster_id, env_ids=slice(None))
+    assert torch.allclose(m._data.thrust_target[:, thruster_id], column_values)
 
 
 def test_multirotor_cfg_defaults():
@@ -364,10 +389,10 @@ def test_set_thrust_target_broadcasting_integration(sim, num_multirotors, device
     multirotor, _ = generate_multirotor(cfg, num_multirotors, device=sim.device)
 
     # Determine number of thrusters for assertion (stub vs real asset)
-    try:
-        num_thr = multirotor.num_thrusters
-    except Exception:
-        num_thr = multirotor._data.thrust_target.shape[1]
+    # try:
+    #     num_thr = multirotor.num_thrusters
+    # except Exception:
+    #     num_thr = multirotor._data.thrust_target.shape[1]
 
     # Set a single-thruster column across all envs
     multirotor.set_thrust_target(

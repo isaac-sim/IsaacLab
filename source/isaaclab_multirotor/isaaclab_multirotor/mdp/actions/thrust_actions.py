@@ -1,15 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import logging
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
@@ -21,6 +20,9 @@ if TYPE_CHECKING:
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import thrust_actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class ThrustAction(ActionTerm):
@@ -50,7 +52,7 @@ class ThrustAction(ActionTerm):
         )
         self._num_thrusters = len(self._thruster_ids)
         # log the resolved thruster names for debugging
-        logging.info(
+        logger.info(
             f"Resolved thruster names for the action term {self.__class__.__name__}:"
             f" {self._thruster_names} [{self._thruster_ids}]"
         )

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,8 +13,8 @@ from dataclasses import dataclass
 
 
 @dataclass
-class MultirotorActions:
-    """Data container to store multirotor's thruster actions.
+class MultiRotorActions:
+    """Data container to store articulation's thruster actions.
 
     This class is used to store the actions of the thrusters of a multirotor.
     It is used to store the thrust values and indices.

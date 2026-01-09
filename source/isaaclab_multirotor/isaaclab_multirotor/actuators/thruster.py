@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from isaaclab_multirotor.utils.types import MultirotorActions
+from isaaclab_multirotor.utils.types import MultiRotorActions
 
 if TYPE_CHECKING:
     from .thruster_cfg import ThrusterCfg
@@ -118,7 +118,7 @@ class Thruster:
         """
         return self._thruster_indices
 
-    def compute(self, control_action: MultirotorActions) -> MultirotorActions:
+    def compute(self, control_action: MultiRotorActions) -> MultiRotorActions:
         """Advance the thruster state one step.
 
         Applies saturation, chooses rise/fall tau per motor, computes mixing factor,

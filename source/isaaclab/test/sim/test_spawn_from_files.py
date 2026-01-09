@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,26 +13,27 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from packaging.version import Version
+
+import omni.kit.app
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.fixture
 def sim():
     """Create a blank new stage for each test."""
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     # Simulation time-step
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
     # Wait for spawning
-    stage_utils.update_stage()
+    sim_utils.update_stage()
 
     yield sim
 
@@ -51,7 +52,7 @@ def test_spawn_usd(sim):
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Franka")
+    assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
@@ -68,9 +69,16 @@ def test_spawn_usd_fails(sim):
 @pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
+    # pin the urdf importer extension to the older version
+    manager = omni.kit.app.get_app().get_extension_manager()
+    if get_isaac_sim_version() >= Version("5.1"):
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
+        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
+    else:
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
     # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
+    extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
+    extension_path = manager.get_extension_path(extension_id)
     # Spawn franka from URDF
     cfg = sim_utils.UrdfFileCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
@@ -82,7 +90,7 @@ def test_spawn_urdf(sim):
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/Franka")
+    assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
 
@@ -94,5 +102,5 @@ def test_spawn_ground_plane(sim):
     prim = cfg.func("/World/ground_plane", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/ground_plane")
+    assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"

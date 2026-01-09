@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,25 +12,25 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Track-Position-State-Based-ARL-Robot-1-v0",
+    id="Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.multirotor_track_position_state_based_env_cfg:MultirotorTrackPositionStateBasedEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.no_obstacle_env_cfg:NoObstacleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:TrackPositionStateBasedEnvPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:TrackPositionNoObstaclesEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
 
 gym.register(
-    id="Isaac-Track-Position-State-Based-ARL-Robot-1-Play-v0",
+    id="Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.multirotor_track_position_state_based_env_cfg:MultirotorTrackPositionStateBasedEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.no_obstacle_env_cfg:NoObstacleEnvCfg_PLAY",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:TrackPositionStateBasedEnvPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:TrackPositionNoObstaclesEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
