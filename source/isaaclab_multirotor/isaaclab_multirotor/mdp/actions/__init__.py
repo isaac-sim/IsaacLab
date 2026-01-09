@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from .thrust_actions import *  # noqa: F401, F403
 from .thrust_actions_cfg import *  # noqa: F401, F403

@@ -7,11 +7,7 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 from isaaclab.utils import configclass
 
-<<<<<<<< HEAD:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/multirotor_track_position_state_based_env_cfg.py
-from .track_position_state_based_env_cfg import TrackPositionStateBasedEnvCfg
-========
-from .state_based_control_env_cfg import TrackPositionNoObstaclesEnvCfg
->>>>>>>> 42abd741447835a6c3449161804a582fa1d12bd2:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/no_obstacle_env_cfg.py
+from .track_position_state_based_env_cfg import TrackPositionNoObstaclesEnvCfg
 
 ##
 # Pre-defined configs
@@ -19,11 +15,7 @@ from .state_based_control_env_cfg import TrackPositionNoObstaclesEnvCfg
 
 
 @configclass
-<<<<<<<< HEAD:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/multirotor_track_position_state_based_env_cfg.py
-class MultirotorTrackPositionStateBasedEnvCfg(TrackPositionStateBasedEnvCfg):
-========
 class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
->>>>>>>> 42abd741447835a6c3449161804a582fa1d12bd2:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/no_obstacle_env_cfg.py
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -33,11 +25,7 @@ class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
 
 
 @configclass
-<<<<<<<< HEAD:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/multirotor_track_position_state_based_env_cfg.py
-class MultirotorTrackPositionStateBasedEnvCfg_PLAY(MultirotorTrackPositionStateBasedEnvCfg):
-========
 class NoObstacleEnvCfg_PLAY(NoObstacleEnvCfg):
->>>>>>>> 42abd741447835a6c3449161804a582fa1d12bd2:source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/no_obstacle_env_cfg.py
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

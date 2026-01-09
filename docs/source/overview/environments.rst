@@ -494,6 +494,10 @@ Multirotor
     See the `drone_arl` folder and the ARL robot config
     (`ARL_ROBOT_1_CFG`) in the codebase for details.
 
+.. |arl_robot_state_based-link| replace:: `Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0 <https://github.com/ntnu-arl/IsaacLab/blob/feature/drone_multirotor_class/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`__
+
+.. |arl_robot_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
+
 .. table::
     :widths: 33 37 30
 
@@ -502,10 +506,6 @@ Multirotor
     +============================+======================================+======================================================================================+
     | |arl_robot_state_based|    | |arl_robot_state_based-link|         | Setpoint position control for the ARL robot using the state_based_control task.      |
     +----------------------------+--------------------------------------+--------------------------------------------------------------------------------------+
-
-.. |arl_robot_state_based-link| replace:: `Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0 <https://github.com/ntnu-arl/IsaacLab/blob/feature/drone_multirotor_class/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/state_based_control/config/arl_robot_1/state_based_control_env_cfg.py>`_
-
-.. |arl_robot_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_state_based_control.jpg
 
 
 Others

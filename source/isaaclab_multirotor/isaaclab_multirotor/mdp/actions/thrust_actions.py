@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class ThrustAction(ActionTerm):
-    """Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an 
+    """Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an
     affine transformation (scaling and offset) and clipping."""
 
     cfg: thrust_actions_cfg.ThrustActionCfg
