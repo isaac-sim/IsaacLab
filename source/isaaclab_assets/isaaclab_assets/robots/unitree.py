@@ -262,10 +262,11 @@ H1_CFG = ArticulationCfg(
 
 
 H1_MINIMAL_CFG = H1_CFG.copy()
-H1_MINIMAL_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
+H1_MINIMAL_CFG.spawn.variants = {"Physx": "Physx_minimal"}
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
+Uses the Physx_minimal variant from the h1.usd file.
 """
 
 
@@ -378,10 +379,11 @@ G1_CFG = ArticulationCfg(
 
 
 G1_MINIMAL_CFG = G1_CFG.copy()
-G1_MINIMAL_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_23dof/g1_minimal.usd"
+G1_MINIMAL_CFG.spawn.variants = {"Physx": "Physx_minimal"}
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
+Uses the Physx_minimal variant from the g1.usd file.
 """
 
 
@@ -564,7 +566,6 @@ Necessary modifications should be made to ensure the correct parent–child rela
 """
 # Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
 G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
-# G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_29dof/g1_29dof_inspire_hand.usd"
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd"
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
@@ -574,6 +575,8 @@ G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
     joint_pos={".*": 0.0},
     joint_vel={".*": 0.0},
 )
+# Create a new actuators dict to avoid shallow copy issues
+G1_INSPIRE_FTP_CFG.actuators = G1_INSPIRE_FTP_CFG.actuators.copy()
 # Actuator configuration for arms (stability focused for manipulation)
 # Increased damping improves stability of arm movements
 G1_INSPIRE_FTP_CFG.actuators["arms"] = ImplicitActuatorCfg(

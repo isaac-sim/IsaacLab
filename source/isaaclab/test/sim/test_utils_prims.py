@@ -21,9 +21,8 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -337,7 +336,7 @@ def test_get_usd_references():
     assert len(refs) == 0
 
     # Create a prim with a USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
     # Check that it has the expected reference
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
