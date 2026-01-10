@@ -66,6 +66,7 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
+* Emmanuel Ferdman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
