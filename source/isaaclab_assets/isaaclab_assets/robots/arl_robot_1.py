@@ -11,7 +11,7 @@ The following configuration parameters are available:
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab import ISAACLAB_EXT_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_multirotor.actuators import ThrusterCfg
 from isaaclab_multirotor.assets import MultirotorCfg
@@ -35,7 +35,7 @@ ARL_ROBOT_1_THRUSTER = ThrusterCfg(
 
 ARL_ROBOT_1_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/robot_model/arl_robot_1/arl_robot_1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/NTNU/ARL-Robot-1/arl_robot_1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
