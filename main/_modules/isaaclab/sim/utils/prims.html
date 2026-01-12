@@ -807,6 +807,8 @@
         <span class="n">prim_path</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_path</span><span class="p">]</span>
     <span class="c1"># get stage handle</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
+    <span class="c1"># FIXME: We should not need to cache the stage here. It should</span>
+    <span class="c1"># happen at the creation of the stage.</span>
     <span class="c1"># the prim command looks for the stage ID in the stage cache</span>
     <span class="c1"># so we need to ensure the stage is cached</span>
     <span class="n">stage_cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
