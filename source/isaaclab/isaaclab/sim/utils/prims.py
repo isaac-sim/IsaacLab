@@ -206,6 +206,8 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         prim_path = [prim_path]
     # get stage handle
     stage = get_current_stage() if stage is None else stage
+    # FIXME: We should not need to cache the stage here. It should
+    # happen at the creation of the stage.
     # the prim command looks for the stage ID in the stage cache
     # so we need to ensure the stage is cached
     stage_cache = UsdUtils.StageCache.Get()
