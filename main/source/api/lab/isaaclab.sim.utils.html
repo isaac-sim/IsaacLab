@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -322,6 +322,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
@@ -697,6 +698,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.set_prim_visibility"><code class="docutils literal notranslate"><span class="pre">set_prim_visibility()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_schema"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_schema()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_prim"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_prim()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.change_prim_property"><code class="docutils literal notranslate"><span class="pre">change_prim_property()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.export_prim_to_file"><code class="docutils literal notranslate"><span class="pre">export_prim_to_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.apply_nested"><code class="docutils literal notranslate"><span class="pre">apply_nested()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.clone"><code class="docutils literal notranslate"><span class="pre">clone()</span></code></a></li>
@@ -1407,28 +1409,31 @@ If False, then all joints (enabled or disabled) are considered.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_prim" title="isaaclab.sim.utils.prims.safe_set_attribute_on_usd_prim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_prim</span></code></a>(prim, ...)</p></td>
 <td><p>Set the value of a attribute on its USD prim.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.export_prim_to_file" title="isaaclab.sim.utils.prims.export_prim_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_prim_to_file</span></code></a>(path, source_prim_path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.change_prim_property" title="isaaclab.sim.utils.prims.change_prim_property"><code class="xref py py-obj docutils literal notranslate"><span class="pre">change_prim_property</span></code></a>(prop_path, value[, ...])</p></td>
+<td><p>Change or create a property value on a USD prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.export_prim_to_file" title="isaaclab.sim.utils.prims.export_prim_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_prim_to_file</span></code></a>(path, source_prim_path)</p></td>
 <td><p>Exports a prim from a given stage to a USD file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.apply_nested" title="isaaclab.sim.utils.prims.apply_nested"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_nested</span></code></a>(func)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.apply_nested" title="isaaclab.sim.utils.prims.apply_nested"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_nested</span></code></a>(func)</p></td>
 <td><p>Decorator to apply a function to all prims under a specified prim-path.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.clone" title="isaaclab.sim.utils.prims.clone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clone</span></code></a>(func)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.clone" title="isaaclab.sim.utils.prims.clone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clone</span></code></a>(func)</p></td>
 <td><p>Decorator for cloning a prim based on matching prim paths of the prim's parent.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.bind_visual_material" title="isaaclab.sim.utils.prims.bind_visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bind_visual_material</span></code></a>(prim_path, material_path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.bind_visual_material" title="isaaclab.sim.utils.prims.bind_visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bind_visual_material</span></code></a>(prim_path, material_path)</p></td>
 <td><p>Bind a visual material to a prim.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.bind_physics_material" title="isaaclab.sim.utils.prims.bind_physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bind_physics_material</span></code></a>(prim_path, material_path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.bind_physics_material" title="isaaclab.sim.utils.prims.bind_physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bind_physics_material</span></code></a>(prim_path, material_path)</p></td>
 <td><p>Bind a physics material to a prim.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.add_usd_reference" title="isaaclab.sim.utils.prims.add_usd_reference"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_usd_reference</span></code></a>(prim_path, usd_path[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.add_usd_reference" title="isaaclab.sim.utils.prims.add_usd_reference"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_usd_reference</span></code></a>(prim_path, usd_path[, ...])</p></td>
 <td><p>Adds a USD reference at the specified prim path on the provided stage.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.get_usd_references" title="isaaclab.sim.utils.prims.get_usd_references"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_usd_references</span></code></a>(prim_path[, stage])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.get_usd_references" title="isaaclab.sim.utils.prims.get_usd_references"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_usd_references</span></code></a>(prim_path[, stage])</p></td>
 <td><p>Gets the USD references at the specified prim path on the provided stage.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.select_usd_variants" title="isaaclab.sim.utils.prims.select_usd_variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_usd_variants</span></code></a>(prim_path, variants[, stage])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.prims.select_usd_variants" title="isaaclab.sim.utils.prims.select_usd_variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_usd_variants</span></code></a>(prim_path, variants[, stage])</p></td>
 <td><p>Sets the variant selections from the specified variant sets on a USD prim.</p></td>
 </tr>
 </tbody>
@@ -1519,7 +1524,7 @@ in which case a uniform scale of 1.0 is applied.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.prims.delete_prim">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.prims.</span></span><span class="sig-name descname"><span class="pre">delete_prim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/prims.html#delete_prim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.prims.delete_prim" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.prims.</span></span><span class="sig-name descname"><span class="pre">delete_prim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/prims.html#delete_prim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.prims.delete_prim" title="Permalink to this definition">#</a></dt>
 <dd><p>Removes the USD Prim and its descendants from the scene if able.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1528,6 +1533,9 @@ in which case a uniform scale of 1.0 is applied.</p></li>
 the function will delete all the prims in the list.</p></li>
 <li><p><strong>stage</strong> – The stage to delete the prim in. Defaults to None, in which case the current stage is used.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the prim or prims were deleted successfully, False otherwise.</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -1540,7 +1548,7 @@ the function will delete all the prims in the list.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.prims.move_prim">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.prims.</span></span><span class="sig-name descname"><span class="pre">move_prim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_from</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_to</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_world_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/prims.html#move_prim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.prims.move_prim" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.prims.</span></span><span class="sig-name descname"><span class="pre">move_prim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_from</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_to</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_world_transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/prims.html#move_prim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.prims.move_prim" title="Permalink to this definition">#</a></dt>
 <dd><p>Moves a prim from one path to another within a USD stage.</p>
 <p>This function moves the prim from the source path to the destination path. If the <code class="xref py py-attr docutils literal notranslate"><span class="pre">keep_world_transform</span></code>
 is set to True, the world transform of the prim is kept. This implies that the prim’s local transform is reset
@@ -1559,6 +1567,9 @@ significant recomposition costs, especially in large or deeply layered stages.</
 <li><p><strong>keep_world_transform</strong> – Whether to keep the world transform of the prim. Defaults to True.</p></li>
 <li><p><strong>stage</strong> – The stage to move the prim in. Defaults to None, in which case the current stage is used.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the prim was moved successfully, False otherwise.</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -1656,6 +1667,63 @@ allows us to set the value of the attributes in these cases.</p>
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.prims.change_prim_property">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.prims.</span></span><span class="sig-name descname"><span class="pre">change_prim_property</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prop_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Sdf.Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_to_create_if_not_exist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sdf.ValueTypeNames</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_custom</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils/prims.html#change_prim_property"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.prims.change_prim_property" title="Permalink to this definition">#</a></dt>
+<dd><p>Change or create a property value on a USD prim.</p>
+<p>This is a simplified property setter that works with the current edit target. If you need
+complex layer management, use <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.kit.commands.ChangePropertyCommand</span></code> instead.</p>
+<p>By default, this function changes the value of the property when it exists. If the property
+doesn’t exist, <code class="xref py py-attr docutils literal notranslate"><span class="pre">type_to_create_if_not_exist</span></code> must be provided to create it.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">value</span></code> must be the correct type for the property.
+For example, if the property is a float, the value must be a float.
+If it is supposed to be a RGB color, the value must be of type <code class="xref py py-class docutils literal notranslate"><span class="pre">Gf.Vec3f</span></code>.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prop_path</strong> – Property path in the format <code class="docutils literal notranslate"><span class="pre">/World/Prim.propertyName</span></code>.</p></li>
+<li><p><strong>value</strong> – Value to set. If None, the attribute value goes to its default value.
+If the attribute has no default value, it is a silent no-op.</p></li>
+<li><p><strong>stage</strong> – The USD stage. Defaults to None, in which case the current stage is used.</p></li>
+<li><p><strong>type_to_create_if_not_exist</strong> – If not None and property doesn’t exist, a new property will
+be created with the given type and value. Defaults to None.</p></li>
+<li><p><strong>is_custom</strong> – If the property is created, specify if it is a custom property (not part of
+the schema). Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the property was successfully changed, False otherwise.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the prim does not exist at the specified path.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Change an existing property</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">change_prim_property</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">prop_path</span><span class="o">=</span><span class="s2">&quot;/World/Cube.size&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">value</span><span class="o">=</span><span class="mf">2.0</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a new custom property</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">change_prim_property</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">prop_path</span><span class="o">=</span><span class="s2">&quot;/World/Cube.customValue&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Int</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">is_custom</span><span class="o">=</span><span class="kc">True</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -2679,6 +2747,7 @@ function instead.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.set_prim_visibility"><code class="docutils literal notranslate"><span class="pre">set_prim_visibility()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_schema"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_schema()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.safe_set_attribute_on_usd_prim"><code class="docutils literal notranslate"><span class="pre">safe_set_attribute_on_usd_prim()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.change_prim_property"><code class="docutils literal notranslate"><span class="pre">change_prim_property()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.export_prim_to_file"><code class="docutils literal notranslate"><span class="pre">export_prim_to_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.apply_nested"><code class="docutils literal notranslate"><span class="pre">apply_nested()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.prims.clone"><code class="docutils literal notranslate"><span class="pre">clone()</span></code></a></li>
@@ -2751,7 +2820,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

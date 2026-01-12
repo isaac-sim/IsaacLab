@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -321,6 +321,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
@@ -610,12 +611,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLMimicEnv</span>
 
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">FrankaCubeStackIKRelMimicEnv</span><span class="p">(</span><span class="n">ManagerBasedRLMimicEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">FrankaCubeStackIKRelMimicEnv</span><span class="p">(</span><span class="n">ManagerBasedRLMimicEnv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Isaac Lab Mimic environment wrapper class for Franka Cube Stack IK Rel env.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_robot_eef_pose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_robot_eef_pose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Get current robot end effector pose. Should be the same frame as used by the robot end-effector controller.</span>
 
@@ -635,7 +636,7 @@
         <span class="c1"># Quaternion format is w,x,y,z</span>
         <span class="k">return</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">make_pose</span><span class="p">(</span><span class="n">eef_pos</span><span class="p">,</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">eef_quat</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">target_eef_pose_to_action</span><span class="p">(</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">target_eef_pose_to_action</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">target_eef_pose_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
         <span class="n">gripper_action_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
@@ -686,7 +687,7 @@
 
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">pose_action</span><span class="p">,</span> <span class="n">gripper_action</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">action_to_target_eef_pose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">action_to_target_eef_pose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Converts action (compatible with env.step) to a target pose for the end effector controller.</span>
 <span class="sd">        Inverse of @target_eef_pose_to_action. Usually used to infer a sequence of target controller poses</span>
@@ -726,7 +727,7 @@
 
         <span class="k">return</span> <span class="p">{</span><span class="n">eef_name</span><span class="p">:</span> <span class="n">target_poses</span><span class="p">}</span></div>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">actions_to_gripper_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">actions_to_gripper_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).</span>
 
@@ -739,7 +740,7 @@
         <span class="c1"># last dimension is gripper action</span>
         <span class="k">return</span> <span class="p">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">actions</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">:]}</span></div>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_subtask_term_signals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_subtask_term_signals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1</span>
 <span class="sd">        when the subtask has been completed and 0 otherwise. The implementation of this method is</span>
@@ -764,7 +765,7 @@
         <span class="c1"># final subtask is placing cubeC on cubeA (motion relative to cubeA) - but final subtask signal is not needed</span>
         <span class="k">return</span> <span class="n">signals</span></div>
 
-<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_expected_attached_object"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_expected_attached_object">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_expected_attached_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subtask_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">env_cfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="FrankaCubeStackIKRelMimicEnv.get_expected_attached_object"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.get_expected_attached_object">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_expected_attached_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subtask_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">env_cfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        (SkillGen) Return the expected attached object for the given EEF/subtask.</span>
 
@@ -833,7 +834,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

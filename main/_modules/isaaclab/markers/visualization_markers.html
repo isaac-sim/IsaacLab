@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -321,6 +321,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
@@ -624,7 +625,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx.scripts.utils</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">Vt</span>
 
@@ -996,18 +996,12 @@
                 <span class="n">child_prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
             <span class="c1"># check if prim is a mesh -&gt; if so, make it invisible to secondary rays</span>
             <span class="k">if</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Gprim</span><span class="p">):</span>
-                <span class="c1"># early attach stage to usd context if stage is in memory</span>
-                <span class="c1"># since stage in memory is not supported by the &quot;ChangePropertyCommand&quot; kit command</span>
-                <span class="n">sim_utils</span><span class="o">.</span><span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
                 <span class="c1"># invisible to secondary rays such as depth images</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                    <span class="s2">&quot;ChangePropertyCommand&quot;</span><span class="p">,</span>
-                    <span class="n">prop_path</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">child_prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">.primvars:invisibleToSecondaryRays&quot;</span><span class="p">),</span>
+                <span class="n">sim_utils</span><span class="o">.</span><span class="n">change_prim_property</span><span class="p">(</span>
+                    <span class="n">prop_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">child_prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">.primvars:invisibleToSecondaryRays&quot;</span><span class="p">,</span>
                     <span class="n">value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                    <span class="n">prev</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">stage</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetStage</span><span class="p">(),</span>
                     <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Bool</span><span class="p">,</span>
-                    <span class="n">usd_context_name</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetStage</span><span class="p">(),</span>
                 <span class="p">)</span>
             <span class="c1"># add children to list</span>
             <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
@@ -1061,7 +1055,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

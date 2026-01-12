@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -321,6 +321,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
@@ -615,12 +616,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>  <span class="c1"># noqa: F401</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.cloner</span><span class="w"> </span><span class="kn">import</span> <span class="n">Cloner</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">omni.usd.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeletePrimsCommand</span><span class="p">,</span> <span class="n">MovePrimCommand</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdShade</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_camel_case</span>
@@ -628,7 +626,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_matching_prim_paths</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_labels</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">attach_stage_to_usd_context</span><span class="p">,</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span><span class="p">,</span> <span class="n">get_current_stage_id</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_world_pose_to_local</span><span class="p">,</span> <span class="n">standardize_xform_ops</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
@@ -788,13 +786,16 @@
     <span class="k">return</span> <span class="n">prim</span></div>
 
 
-<div class="viewcode-block" id="delete_prim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.delete_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">delete_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="delete_prim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.delete_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">delete_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Removes the USD Prim and its descendants from the scene if able.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        prim_path: The path of the prim to delete. If a list of paths is provided,</span>
 <span class="sd">            the function will delete all the prims in the list.</span>
 <span class="sd">        stage: The stage to delete the prim in. Defaults to None, in which case the current stage is used.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        True if the prim or prims were deleted successfully, False otherwise.</span>
 
 <span class="sd">    Example:</span>
 <span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
@@ -813,10 +814,15 @@
     <span class="k">if</span> <span class="n">stage_id</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stage_id</span> <span class="o">=</span> <span class="n">stage_cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
     <span class="c1"># delete prims</span>
-    <span class="n">DeletePrimsCommand</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span><span class="o">.</span><span class="n">do</span><span class="p">()</span></div>
+    <span class="n">success</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+        <span class="s2">&quot;DeletePrimsCommand&quot;</span><span class="p">,</span>
+        <span class="n">paths</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span>
+        <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">success</span></div>
 
 
-<div class="viewcode-block" id="move_prim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.move_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">move_prim</span><span class="p">(</span><span class="n">path_from</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path_to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">keep_world_transform</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="move_prim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.move_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">move_prim</span><span class="p">(</span><span class="n">path_from</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path_to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">keep_world_transform</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Moves a prim from one path to another within a USD stage.</span>
 
 <span class="sd">    This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`</span>
@@ -834,6 +840,9 @@
 <span class="sd">        keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.</span>
 <span class="sd">        stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.</span>
 
+<span class="sd">    Returns:</span>
+<span class="sd">        True if the prim was moved successfully, False otherwise.</span>
+
 <span class="sd">    Example:</span>
 <span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
 <span class="sd">        &gt;&gt;&gt;</span>
@@ -843,9 +852,14 @@
     <span class="c1"># get stage handle</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
     <span class="c1"># move prim</span>
-    <span class="n">MovePrimCommand</span><span class="p">(</span>
-        <span class="n">path_from</span><span class="o">=</span><span class="n">path_from</span><span class="p">,</span> <span class="n">path_to</span><span class="o">=</span><span class="n">path_to</span><span class="p">,</span> <span class="n">keep_world_transform</span><span class="o">=</span><span class="n">keep_world_transform</span><span class="p">,</span> <span class="n">stage_or_context</span><span class="o">=</span><span class="n">stage</span>
-    <span class="p">)</span><span class="o">.</span><span class="n">do</span><span class="p">()</span></div>
+    <span class="n">success</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+        <span class="s2">&quot;MovePrimCommand&quot;</span><span class="p">,</span>
+        <span class="n">path_from</span><span class="o">=</span><span class="n">path_from</span><span class="p">,</span>
+        <span class="n">path_to</span><span class="o">=</span><span class="n">path_to</span><span class="p">,</span>
+        <span class="n">keep_world_transform</span><span class="o">=</span><span class="n">keep_world_transform</span><span class="p">,</span>
+        <span class="n">stage_or_context</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">success</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -993,19 +1007,103 @@
             <span class="sa">f</span><span class="s2">&quot;Cannot set attribute &#39;</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&#39; with value &#39;</span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&#39;. Please modify the code to support this type.&quot;</span>
         <span class="p">)</span>
 
-    <span class="c1"># early attach stage to usd context if stage is in memory</span>
-    <span class="c1"># since stage in memory is not supported by the &quot;ChangePropertyCommand&quot; kit command</span>
-    <span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-    <span class="c1"># change property</span>
-    <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-        <span class="s2">&quot;ChangePropertyCommand&quot;</span><span class="p">,</span>
-        <span class="n">prop_path</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">),</span>
+    <span class="c1"># change property using the change_prim_property function</span>
+    <span class="n">change_prim_property</span><span class="p">(</span>
+        <span class="n">prop_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
         <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
-        <span class="n">prev</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">stage</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetStage</span><span class="p">(),</span>
         <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">sdf_type</span><span class="p">,</span>
-        <span class="n">usd_context_name</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetStage</span><span class="p">(),</span>
     <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="change_prim_property"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.change_prim_property">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">change_prim_property</span><span class="p">(</span>
+    <span class="n">prop_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">type_to_create_if_not_exist</span><span class="p">:</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">is_custom</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Change or create a property value on a USD prim.</span>
+
+<span class="sd">    This is a simplified property setter that works with the current edit target. If you need</span>
+<span class="sd">    complex layer management, use :class:`omni.kit.commands.ChangePropertyCommand` instead.</span>
+
+<span class="sd">    By default, this function changes the value of the property when it exists. If the property</span>
+<span class="sd">    doesn&#39;t exist, :attr:`type_to_create_if_not_exist` must be provided to create it.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The attribute :attr:`value` must be the correct type for the property.</span>
+<span class="sd">        For example, if the property is a float, the value must be a float.</span>
+<span class="sd">        If it is supposed to be a RGB color, the value must be of type :class:`Gf.Vec3f`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prop_path: Property path in the format ``/World/Prim.propertyName``.</span>
+<span class="sd">        value: Value to set. If None, the attribute value goes to its default value.</span>
+<span class="sd">            If the attribute has no default value, it is a silent no-op.</span>
+<span class="sd">        stage: The USD stage. Defaults to None, in which case the current stage is used.</span>
+<span class="sd">        type_to_create_if_not_exist: If not None and property doesn&#39;t exist, a new property will</span>
+<span class="sd">            be created with the given type and value. Defaults to None.</span>
+<span class="sd">        is_custom: If the property is created, specify if it is a custom property (not part of</span>
+<span class="sd">            the schema). Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        True if the property was successfully changed, False otherwise.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim does not exist at the specified path.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; import isaaclab.sim as sim_utils</span>
+<span class="sd">        &gt;&gt;&gt; from pxr import Sdf</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Change an existing property</span>
+<span class="sd">        &gt;&gt;&gt; sim_utils.change_prim_property(</span>
+<span class="sd">        ...     prop_path=&quot;/World/Cube.size&quot;,</span>
+<span class="sd">        ...     value=2.0</span>
+<span class="sd">        ... )</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Create a new custom property</span>
+<span class="sd">        &gt;&gt;&gt; sim_utils.change_prim_property(</span>
+<span class="sd">        ...     prop_path=&quot;/World/Cube.customValue&quot;,</span>
+<span class="sd">        ...     value=42,</span>
+<span class="sd">        ...     type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,</span>
+<span class="sd">        ...     is_custom=True</span>
+<span class="sd">        ... )</span>
+<span class="sd">        True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># get stage handle</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
+
+    <span class="c1"># convert to Sdf.Path if needed</span>
+    <span class="n">prop_path</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">prop_path</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prop_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">prop_path</span>
+
+    <span class="c1"># get the prim path</span>
+    <span class="n">prim_path</span> <span class="o">=</span> <span class="n">prop_path</span><span class="o">.</span><span class="n">GetAbsoluteRootOrPrimPath</span><span class="p">()</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim does not exist at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+
+    <span class="c1"># get or create the property</span>
+    <span class="n">prop</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPropertyAtPath</span><span class="p">(</span><span class="n">prop_path</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prop</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">type_to_create_if_not_exist</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># create new attribute on the prim</span>
+            <span class="n">prop</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">CreateAttribute</span><span class="p">(</span><span class="n">prop_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">type_to_create_if_not_exist</span><span class="p">,</span> <span class="n">is_custom</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Property </span><span class="si">{</span><span class="n">prop_path</span><span class="si">}</span><span class="s2"> does not exist and &#39;type_to_create_if_not_exist&#39; was not provided.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prop</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to get or create property at path: &#39;</span><span class="si">{</span><span class="n">prop_path</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># set the value</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">prop</span><span class="o">.</span><span class="n">Clear</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">prop</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">()))</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -1309,6 +1407,7 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Visual material &#39;</span><span class="si">{</span><span class="n">material_path</span><span class="si">}</span><span class="s2">&#39; does not exist.&quot;</span><span class="p">)</span>
 
     <span class="c1"># resolve token for weaker than descendants</span>
+    <span class="c1"># bind material command expects a string token</span>
     <span class="k">if</span> <span class="n">stronger_than_descendants</span><span class="p">:</span>
         <span class="n">binding_strength</span> <span class="o">=</span> <span class="s2">&quot;strongerThanDescendants&quot;</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1462,19 +1561,14 @@
     <span class="n">ret_val</span> <span class="o">=</span> <span class="n">get_metrics_assembler_interface</span><span class="p">()</span><span class="o">.</span><span class="n">check_layers</span><span class="p">(</span>
         <span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">()</span><span class="o">.</span><span class="n">identifier</span><span class="p">,</span> <span class="n">sdf_layer</span><span class="o">.</span><span class="n">identifier</span><span class="p">,</span> <span class="n">stage_id</span>
     <span class="p">)</span>
+    <span class="c1"># log that metric assembler did not detect any issues</span>
     <span class="k">if</span> <span class="n">ret_val</span><span class="p">[</span><span class="s2">&quot;ret_val&quot;</span><span class="p">]:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="kn">import</span><span class="w"> </span><span class="nn">omni.metrics.assembler.ui</span>
-
-            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">&quot;AddReference&quot;</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="o">=</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">reference</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">Reference</span><span class="p">(</span><span class="n">usd_path</span><span class="p">)</span>
-            <span class="p">)</span>
-
-            <span class="k">return</span> <span class="n">prim</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span></div>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Metric assembler detected no issues between the current stage and the referenced USD file at path:&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="c1"># add reference to the prim</span>
+    <span class="k">return</span> <span class="n">_add_reference_to_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="get_usd_references"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.get_usd_references">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">get_usd_references</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
@@ -1680,7 +1774,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

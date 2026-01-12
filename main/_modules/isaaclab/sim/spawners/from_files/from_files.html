@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -321,6 +321,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
@@ -617,11 +618,11 @@
     <span class="n">add_labels</span><span class="p">,</span>
     <span class="n">bind_physics_material</span><span class="p">,</span>
     <span class="n">bind_visual_material</span><span class="p">,</span>
+    <span class="n">change_prim_property</span><span class="p">,</span>
     <span class="n">clone</span><span class="p">,</span>
     <span class="n">create_prim</span><span class="p">,</span>
     <span class="n">get_current_stage</span><span class="p">,</span>
     <span class="n">get_first_matching_child_prim</span><span class="p">,</span>
-    <span class="n">is_current_stage_in_memory</span><span class="p">,</span>
     <span class="n">select_usd_variants</span><span class="p">,</span>
     <span class="n">set_prim_visibility</span><span class="p">,</span>
 <span class="p">)</span>
@@ -831,25 +832,13 @@
     <span class="c1"># Change the color of the plane</span>
     <span class="c1"># Warning: This is specific to the default grid plane asset.</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">color</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># avoiding this step if stage is in memory since the &quot;ChangePropertyCommand&quot; kit command</span>
-        <span class="c1"># is not supported in stage in memory</span>
-        <span class="k">if</span> <span class="n">is_current_stage_in_memory</span><span class="p">():</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">&quot;Ground plane color modification is not supported while the stage is in memory. Skipping operation.&quot;</span>
-            <span class="p">)</span>
-
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">prop_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Looks/theGrid/Shader.inputs:diffuse_tint&quot;</span>
-
-            <span class="c1"># change the color</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">&quot;ChangePropertyCommand&quot;</span><span class="p">,</span>
-                <span class="n">prop_path</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">prop_path</span><span class="p">),</span>
-                <span class="n">value</span><span class="o">=</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">color</span><span class="p">),</span>
-                <span class="n">prev</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Color3f</span><span class="p">,</span>
-                <span class="n">usd_context_name</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
-            <span class="p">)</span>
+        <span class="c1"># change the color</span>
+        <span class="n">change_prim_property</span><span class="p">(</span>
+            <span class="n">prop_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Looks/theGrid/Shader.inputs:diffuse_tint&quot;</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">color</span><span class="p">),</span>
+            <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
+            <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Color3f</span><span class="p">,</span>
+        <span class="p">)</span>
     <span class="c1"># Remove the light from the ground plane</span>
     <span class="c1"># It isn&#39;t bright enough and messes up with the user&#39;s lighting settings</span>
     <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ToggleVisibilitySelectedPrims&quot;</span><span class="p">,</span> <span class="n">selected_paths</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/SphereLight&quot;</span><span class="p">],</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
@@ -1100,7 +1089,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

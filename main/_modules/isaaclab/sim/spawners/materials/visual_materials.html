@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -321,6 +321,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/overview/developer-guide/development.html">Extension Development</a></li>
@@ -608,10 +609,10 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">omni.kit.commands</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omni.usd.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">CreateMdlMaterialPrimCommand</span><span class="p">,</span> <span class="n">CreateShaderPrimFromSdrCommand</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdShade</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">attach_stage_to_usd_context</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">safe_set_attribute_on_usd_prim</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">clone</span><span class="p">,</span> <span class="n">safe_set_attribute_on_usd_prim</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils.stage</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_current_stage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">NVIDIA_NUCLEUS_DIR</span>
 
@@ -630,9 +631,9 @@
 <span class="sd">    both *specular* and *metallic* workflows. All color inputs are in linear color space (RGB).</span>
 <span class="sd">    For more information, see the `documentation &lt;https://openusd.org/release/spec_usdpreviewsurface.html&gt;`__.</span>
 
-<span class="sd">    The function calls the USD command `CreatePreviewSurfaceMaterialPrim`_ to create the prim.</span>
+<span class="sd">    The function calls the USD command `CreateShaderPrimFromSdrCommand`_ to create the prim.</span>
 
-<span class="sd">    .. _CreatePreviewSurfaceMaterialPrim: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreatePreviewSurfaceMaterialPrimCommand.html</span>
+<span class="sd">    .. _CreateShaderPrimFromSdrCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -655,18 +656,39 @@
 
     <span class="c1"># spawn material if it doesn&#39;t exist.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-        <span class="c1"># early attach stage to usd context if stage is in memory</span>
-        <span class="c1"># since stage in memory is not supported by the &quot;CreatePreviewSurfaceMaterialPrim&quot; kit command</span>
-        <span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># note: we don&#39;t use Omniverse&#39;s CreatePreviewSurfaceMaterialPrimCommand</span>
+        <span class="c1"># since it does not support USD stage as an argument. The created material</span>
+        <span class="c1"># in that case is always the one from USD Context which makes it difficult to</span>
+        <span class="c1"># handle scene creation on a custom stage.</span>
+        <span class="n">material_prim</span> <span class="o">=</span> <span class="n">UsdShade</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">Define</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">material_prim</span><span class="p">:</span>
+            <span class="n">shader_prim</span> <span class="o">=</span> <span class="n">CreateShaderPrimFromSdrCommand</span><span class="p">(</span>
+                <span class="n">parent_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span>
+                <span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;UsdPreviewSurface&quot;</span><span class="p">,</span>
+                <span class="n">stage_or_context</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Shader&quot;</span><span class="p">,</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">do</span><span class="p">()</span>
+            <span class="c1"># bind the shader graph to the material</span>
+            <span class="k">if</span> <span class="n">shader_prim</span><span class="p">:</span>
+                <span class="n">surface_out</span> <span class="o">=</span> <span class="n">shader_prim</span><span class="o">.</span><span class="n">GetOutput</span><span class="p">(</span><span class="s2">&quot;surface&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">surface_out</span><span class="p">:</span>
+                    <span class="n">material_prim</span><span class="o">.</span><span class="n">CreateSurfaceOutput</span><span class="p">()</span><span class="o">.</span><span class="n">ConnectToSource</span><span class="p">(</span><span class="n">surface_out</span><span class="p">)</span>
 
-        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CreatePreviewSurfaceMaterialPrim&quot;</span><span class="p">,</span> <span class="n">mtl_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">select_new_prim</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">displacement_out</span> <span class="o">=</span> <span class="n">shader_prim</span><span class="o">.</span><span class="n">GetOutput</span><span class="p">(</span><span class="s2">&quot;displacement&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">displacement_out</span><span class="p">:</span>
+                    <span class="n">material_prim</span><span class="o">.</span><span class="n">CreateDisplacementOutput</span><span class="p">()</span><span class="o">.</span><span class="n">ConnectToSource</span><span class="p">(</span><span class="n">displacement_out</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create preview surface shader at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
     <span class="c1"># obtain prim</span>
     <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Shader&quot;</span><span class="p">)</span>
+    <span class="c1"># check prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create preview surface material at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
     <span class="c1"># apply properties</span>
-    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>  <span class="c1"># type: ignore</span>
     <span class="k">del</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;func&quot;</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">safe_set_attribute_on_usd_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;inputs:</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">attr_value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -675,7 +697,9 @@
 
 
 <div class="viewcode-block" id="spawn_from_mdl_file"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.spawn_from_mdl_file">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_mdl_file</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">visual_materials_cfg</span><span class="o">.</span><span class="n">MdlMaterialCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">spawn_from_mdl_file</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">visual_materials_cfg</span><span class="o">.</span><span class="n">MdlFileCfg</span> <span class="o">|</span> <span class="n">visual_materials_cfg</span><span class="o">.</span><span class="n">GlassMdlCfg</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Load a material from its MDL file and override the settings with the given config.</span>
 
 <span class="sd">    NVIDIA&#39;s `Material Definition Language (MDL) &lt;https://www.nvidia.com/en-us/design-visualization/technologies/material-definition-language/&gt;`__</span>
@@ -708,25 +732,24 @@
 
     <span class="c1"># spawn material if it doesn&#39;t exist.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
-        <span class="c1"># early attach stage to usd context if stage is in memory</span>
-        <span class="c1"># since stage in memory is not supported by the &quot;CreateMdlMaterialPrim&quot; kit command</span>
-        <span class="n">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
         <span class="c1"># extract material name from path</span>
         <span class="n">material_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mdl_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-            <span class="s2">&quot;CreateMdlMaterialPrim&quot;</span><span class="p">,</span>
+        <span class="n">CreateMdlMaterialPrimCommand</span><span class="p">(</span>
             <span class="n">mtl_url</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mdl_path</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">NVIDIA_NUCLEUS_DIR</span><span class="o">=</span><span class="n">NVIDIA_NUCLEUS_DIR</span><span class="p">),</span>
             <span class="n">mtl_name</span><span class="o">=</span><span class="n">material_name</span><span class="p">,</span>
             <span class="n">mtl_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span>
+            <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
             <span class="n">select_new_prim</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">do</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
     <span class="c1"># obtain prim</span>
     <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Shader&quot;</span><span class="p">)</span>
+    <span class="c1"># check prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to create MDL material at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
     <span class="c1"># apply properties</span>
-    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>  <span class="c1"># type: ignore</span>
     <span class="k">del</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;func&quot;</span><span class="p">]</span>
     <span class="k">del</span> <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;mdl_path&quot;</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -780,7 +803,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>

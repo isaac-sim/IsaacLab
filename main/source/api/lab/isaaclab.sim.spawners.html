@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 08, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 12, 2026"/>
   </head>
   
   
@@ -324,6 +324,7 @@
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
@@ -6323,7 +6324,7 @@ When parsing physics material properties on an object, the following priority is
 <p>A preview surface is a physically-based surface that handles simple shaders while supporting
 both <em>specular</em> and <em>metallic</em> workflows. All color inputs are in linear color space (RGB).
 For more information, see the <a class="reference external" href="https://openusd.org/release/spec_usdpreviewsurface.html">documentation</a>.</p>
-<p>The function calls the USD command <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreatePreviewSurfaceMaterialPrimCommand.html">CreatePreviewSurfaceMaterialPrim</a> to create the prim.</p>
+<p>The function calls the USD command <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html">CreateShaderPrimFromSdrCommand</a> to create the prim.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This function is decorated with <code class="xref py py-func docutils literal notranslate"><span class="pre">clone()</span></code> that resolves prim path into list of paths
@@ -6411,7 +6412,7 @@ then the asset is spawned at all the matching prim paths.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.materials.spawn_from_mdl_file">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.spawners.materials.</span></span><span class="sig-name descname"><span class="pre">spawn_from_mdl_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">visual_materials_cfg.MdlMaterialCfg</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Usd.Prim</span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/spawners/materials/visual_materials.html#spawn_from_mdl_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.spawners.materials.spawn_from_mdl_file" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.spawners.materials.</span></span><span class="sig-name descname"><span class="pre">spawn_from_mdl_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.sim.spawners.materials.MdlFileCfg" title="isaaclab.sim.spawners.materials.visual_materials_cfg.MdlFileCfg"><span class="pre">visual_materials_cfg.MdlFileCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.sim.spawners.materials.GlassMdlCfg" title="isaaclab.sim.spawners.materials.visual_materials_cfg.GlassMdlCfg"><span class="pre">visual_materials_cfg.GlassMdlCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Usd.Prim</span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/spawners/materials/visual_materials.html#spawn_from_mdl_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.spawners.materials.spawn_from_mdl_file" title="Permalink to this definition">#</a></dt>
 <dd><p>Load a material from its MDL file and override the settings with the given config.</p>
 <p>NVIDIA’s <a class="reference external" href="https://www.nvidia.com/en-us/design-visualization/technologies/material-definition-language/">Material Definition Language (MDL)</a>
 is a language for defining physically-based materials. The MDL file format is a binary format
@@ -7843,7 +7844,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 08, 2026.
+  Last updated on Jan 12, 2026.
   <br/>
 </p>
   </div>
