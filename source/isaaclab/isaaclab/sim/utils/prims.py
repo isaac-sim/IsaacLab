@@ -15,12 +15,9 @@ import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni
 import omni.kit.commands
 import omni.usd
-import usdrt  # noqa: F401
 from isaacsim.core.cloner import Cloner
-from omni.usd.commands import DeletePrimsCommand, MovePrimCommand
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
@@ -28,7 +25,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
-from .stage import attach_stage_to_usd_context, get_current_stage, get_current_stage_id
+from .stage import get_current_stage, get_current_stage_id
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
@@ -188,13 +185,16 @@ def create_prim(
     return prim
 
 
-def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> None:
+def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> bool:
     """Removes the USD Prim and its descendants from the scene if able.
 
     Args:
         prim_path: The path of the prim to delete. If a list of paths is provided,
             the function will delete all the prims in the list.
         stage: The stage to delete the prim in. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        True if the prim or prims were deleted successfully, False otherwise.
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -213,10 +213,15 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # delete prims
-    DeletePrimsCommand(prim_path, stage=stage).do()
+    success, _ = omni.kit.commands.execute(
+        "DeletePrimsCommand",
+        paths=prim_path,
+        stage=stage,
+    )
+    return success
 
 
-def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> None:
+def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> bool:
     """Moves a prim from one path to another within a USD stage.
 
     This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
@@ -234,6 +239,9 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
         keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
         stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
 
+    Returns:
+        True if the prim was moved successfully, False otherwise.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
@@ -243,9 +251,14 @@ def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, s
     # get stage handle
     stage = get_current_stage() if stage is None else stage
     # move prim
-    MovePrimCommand(
-        path_from=path_from, path_to=path_to, keep_world_transform=keep_world_transform, stage_or_context=stage
-    ).do()
+    success, _ = omni.kit.commands.execute(
+        "MovePrimCommand",
+        path_from=path_from,
+        path_to=path_to,
+        keep_world_transform=keep_world_transform,
+        stage_or_context=stage,
+    )
+    return success
 
 
 """
@@ -393,19 +406,103 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
 
-    # early attach stage to usd context if stage is in memory
-    # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-    attach_stage_to_usd_context(attaching_early=True)
-
-    # change property
-    omni.kit.commands.execute(
-        "ChangePropertyCommand",
-        prop_path=Sdf.Path(f"{prim.GetPath()}.{attr_name}"),
+    # change property using the change_prim_property function
+    change_prim_property(
+        prop_path=f"{prim.GetPath()}.{attr_name}",
         value=value,
-        prev=None,
+        stage=prim.GetStage(),
         type_to_create_if_not_exist=sdf_type,
-        usd_context_name=prim.GetStage(),
     )
+
+
+def change_prim_property(
+    prop_path: str | Sdf.Path,
+    value: Any,
+    stage: Usd.Stage | None = None,
+    type_to_create_if_not_exist: Sdf.ValueTypeNames | None = None,
+    is_custom: bool = False,
+) -> bool:
+    """Change or create a property value on a USD prim.
+
+    This is a simplified property setter that works with the current edit target. If you need
+    complex layer management, use :class:`omni.kit.commands.ChangePropertyCommand` instead.
+
+    By default, this function changes the value of the property when it exists. If the property
+    doesn't exist, :attr:`type_to_create_if_not_exist` must be provided to create it.
+
+    Note:
+        The attribute :attr:`value` must be the correct type for the property.
+        For example, if the property is a float, the value must be a float.
+        If it is supposed to be a RGB color, the value must be of type :class:`Gf.Vec3f`.
+
+    Args:
+        prop_path: Property path in the format ``/World/Prim.propertyName``.
+        value: Value to set. If None, the attribute value goes to its default value.
+            If the attribute has no default value, it is a silent no-op.
+        stage: The USD stage. Defaults to None, in which case the current stage is used.
+        type_to_create_if_not_exist: If not None and property doesn't exist, a new property will
+            be created with the given type and value. Defaults to None.
+        is_custom: If the property is created, specify if it is a custom property (not part of
+            the schema). Defaults to False.
+
+    Returns:
+        True if the property was successfully changed, False otherwise.
+
+    Raises:
+        ValueError: If the prim does not exist at the specified path.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>> from pxr import Sdf
+        >>>
+        >>> # Change an existing property
+        >>> sim_utils.change_prim_property(
+        ...     prop_path="/World/Cube.size",
+        ...     value=2.0
+        ... )
+        True
+        >>>
+        >>> # Create a new custom property
+        >>> sim_utils.change_prim_property(
+        ...     prop_path="/World/Cube.customValue",
+        ...     value=42,
+        ...     type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,
+        ...     is_custom=True
+        ... )
+        True
+    """
+    # get stage handle
+    stage = get_current_stage() if stage is None else stage
+
+    # convert to Sdf.Path if needed
+    prop_path = Sdf.Path(prop_path) if isinstance(prop_path, str) else prop_path
+
+    # get the prim path
+    prim_path = prop_path.GetAbsoluteRootOrPrimPath()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim or not prim.IsValid():
+        raise ValueError(f"Prim does not exist at path: '{prim_path}'")
+
+    # get or create the property
+    prop = stage.GetPropertyAtPath(prop_path)
+
+    if not prop:
+        if type_to_create_if_not_exist is not None:
+            # create new attribute on the prim
+            prop = prim.CreateAttribute(prop_path.name, type_to_create_if_not_exist, is_custom)
+        else:
+            logger.error(f"Property {prop_path} does not exist and 'type_to_create_if_not_exist' was not provided.")
+            return False
+
+    if not prop:
+        logger.error(f"Failed to get or create property at path: '{prop_path}'")
+        return False
+
+    # set the value
+    if value is None:
+        return bool(prop.Clear())
+    else:
+        return bool(prop.Set(value, Usd.TimeCode.Default()))
 
 
 """
@@ -709,6 +806,7 @@ def bind_visual_material(
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     # resolve token for weaker than descendants
+    # bind material command expects a string token
     if stronger_than_descendants:
         binding_strength = "strongerThanDescendants"
     else:
@@ -862,19 +960,14 @@ def add_usd_reference(
     ret_val = get_metrics_assembler_interface().check_layers(
         stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
     )
+    # log that metric assembler did not detect any issues
     if ret_val["ret_val"]:
-        try:
-            import omni.metrics.assembler.ui
-
-            omni.kit.commands.execute(
-                "AddReference", stage=stage, prim_path=prim.GetPath(), reference=Sdf.Reference(usd_path)
-            )
-
-            return prim
-        except Exception:
-            return _add_reference_to_prim(prim)
-    else:
-        return _add_reference_to_prim(prim)
+        logger.info(
+            "Metric assembler detected no issues between the current stage and the referenced USD file at path:"
+            f" {usd_path}"
+        )
+    # add reference to the prim
+    return _add_reference_to_prim(prim)
 
 
 def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[str]:
