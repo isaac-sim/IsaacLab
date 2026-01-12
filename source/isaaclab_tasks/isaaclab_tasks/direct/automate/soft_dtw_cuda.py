@@ -32,7 +32,8 @@ import torch
 import torch.cuda
 from torch.autograd import Function
 
-from numba import cuda, jit, prange
+import numba.cuda as cuda
+from numba import jit, prange
 
 
 # ----------------------------------------------------------------------------------------------------------------------
