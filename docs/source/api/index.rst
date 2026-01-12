@@ -66,6 +66,19 @@ The following modules are available in the ``isaaclab_mimic`` extension:
    datagen
    envs
 
+isaaclab_multirotor extension
+-----------------------------
+
+The following modules are available in the ``isaaclab_multirotor`` extension:
+
+.. currentmodule:: isaaclab_multirotor
+
+.. autosummary::
+   :toctree: lab_multirotor
+
+   actuators
+   assets
+   mdp
 
 isaaclab_tasks extension
 ------------------------

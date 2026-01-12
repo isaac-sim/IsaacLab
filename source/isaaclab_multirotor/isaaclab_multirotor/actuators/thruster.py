@@ -125,10 +125,10 @@ class Thruster:
         and integrates with the selected kernel.
 
         Args:
-            control_action: (num_envs, num_motors) commanded per-motor thrust [N].
+            control_action: (num_envs, num_thrusters) commanded per-thruster thrust [N].
 
         Returns:
-            (num_envs, num_motors) updated thrust state [N].
+            (num_envs, num_thrusters) updated thrust state [N].
 
         """
         des_thrust = control_action.thrusts
