@@ -470,6 +470,177 @@ def test_select_usd_variants_in_usd_file():
 
 
 """
+Property Management.
+"""
+
+
+def test_change_prim_property_basic():
+    """Test change_prim_property() with existing property."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube prim
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # check initial value
+    assert prim.GetAttribute("size").Get() == 1.0
+
+    # change the property
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Cube.size",
+        value=2.0,
+        stage=stage,
+    )
+
+    # check that the change was successful
+    assert result is True
+    assert prim.GetAttribute("size").Get() == 2.0
+
+
+def test_change_prim_property_create_new():
+    """Test change_prim_property() creates new property when it doesn't exist."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # check that the property doesn't exist
+    assert prim.GetAttribute("customValue").Get() is None
+
+    # create a new property
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.customValue",
+        value=42,
+        stage=stage,
+        type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,
+        is_custom=True,
+    )
+
+    # check that the property was created successfully
+    assert result is True
+    assert prim.GetAttribute("customValue").Get() == 42
+
+
+def test_change_prim_property_clear_value():
+    """Test change_prim_property() clears property value when value is None."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube with an attribute
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # check initial value
+    assert prim.GetAttribute("size").Get() == 1.0
+
+    # clear the property value
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Cube.size",
+        value=None,
+        stage=stage,
+    )
+
+    # check that the value was cleared
+    assert result is True
+    # Note: After clearing, the attribute should go its default value
+    assert prim.GetAttribute("size").Get() == 2.0
+
+
+@pytest.mark.parametrize(
+    "attr_name,value,value_type,expected",
+    [
+        ("floatValue", 3.14, Sdf.ValueTypeNames.Float, 3.14),
+        ("boolValue", True, Sdf.ValueTypeNames.Bool, True),
+        ("intValue", 42, Sdf.ValueTypeNames.Int, 42),
+        ("stringValue", "test", Sdf.ValueTypeNames.String, "test"),
+        ("vec3Value", Gf.Vec3f(1.0, 2.0, 3.0), Sdf.ValueTypeNames.Float3, Gf.Vec3f(1.0, 2.0, 3.0)),
+        ("colorValue", Gf.Vec3f(1.0, 0.0, 0.5), Sdf.ValueTypeNames.Color3f, Gf.Vec3f(1.0, 0.0, 0.5)),
+    ],
+    ids=["float", "bool", "int", "string", "vec3", "color"],
+)
+def test_change_prim_property_different_types(attr_name: str, value, value_type, expected):
+    """Test change_prim_property() with different value types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # change the property
+    result = sim_utils.change_prim_property(
+        prop_path=f"/World/Test.{attr_name}",
+        value=value,
+        stage=stage,
+        type_to_create_if_not_exist=value_type,
+        is_custom=True,
+    )
+
+    # check that the change was successful
+    assert result is True
+    actual_value = prim.GetAttribute(attr_name).Get()
+
+    # handle float comparison separately for precision
+    if isinstance(expected, float):
+        assert math.isclose(actual_value, expected, abs_tol=1e-6)
+    else:
+        assert actual_value == expected
+
+
+@pytest.mark.parametrize(
+    "prop_path_input",
+    ["/World/Cube.size", Sdf.Path("/World/Cube.size")],
+    ids=["str_path", "sdf_path"],
+)
+def test_change_prim_property_path_types(prop_path_input):
+    """Test change_prim_property() with different path input types."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a cube prim
+    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
+
+    # change property using different path types
+    result = sim_utils.change_prim_property(
+        prop_path=prop_path_input,
+        value=3.0,
+        stage=stage,
+    )
+
+    # check that the change was successful
+    assert result is True
+    assert prim.GetAttribute("size").Get() == 3.0
+
+
+def test_change_prim_property_error_invalid_prim():
+    """Test change_prim_property() raises error for invalid prim path."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+
+    # try to change property on non-existent prim
+    with pytest.raises(ValueError, match="Prim does not exist"):
+        sim_utils.change_prim_property(
+            prop_path="/World/NonExistent.property",
+            value=1.0,
+            stage=stage,
+        )
+
+
+def test_change_prim_property_error_missing_type():
+    """Test change_prim_property() returns False when property doesn't exist and type not provided."""
+    # obtain stage handle
+    stage = sim_utils.get_current_stage()
+    # create a prim
+    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
+
+    # try to create property without providing type
+    result = sim_utils.change_prim_property(
+        prop_path="/World/Test.nonExistentProperty",
+        value=42,
+        stage=stage,
+    )
+
+    # should return False since type was not provided
+    assert result is False
+    # property should not have been created
+    assert prim.GetAttribute("nonExistentProperty").Get() is None
+
+
+"""
 Internal Helpers.
 """
 
