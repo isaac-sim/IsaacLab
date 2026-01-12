@@ -184,6 +184,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
 H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
+        variants={"Physics": "Physx"},
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -262,7 +263,7 @@ H1_CFG = ArticulationCfg(
 
 
 H1_MINIMAL_CFG = H1_CFG.copy()
-H1_MINIMAL_CFG.spawn.variants = {"Physx": "Physx_minimal"}
+H1_MINIMAL_CFG.spawn.variants = {"Physics": "Physx_minimal"}
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
@@ -568,9 +569,7 @@ Necessary modifications should be made to ensure the correct parent–child rela
 # Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
 G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd"
-G1_INSPIRE_FTP_CFG.spawn.variants = {"Physics": "PhysX"}
-G1_INSPIRE_FTP_CFG.spawn.variants = {"right_hand": "Inspire"}
-G1_INSPIRE_FTP_CFG.spawn.variants = {"left_hand": "Inspire"}
+G1_INSPIRE_FTP_CFG.spawn.variants = {"Physics": "PhysX", "right_hand": "Inspire", "left_hand": "Inspire"}
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
 G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True
