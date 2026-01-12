@@ -492,7 +492,7 @@ class FrameTransformer(SensorBase):
                 ],
             )
 
-    #def _set_debug_vis_impl(self, debug_vis: bool):
+    # def _set_debug_vis_impl(self, debug_vis: bool):
     #    # set visibility of markers
     #    # note: parent only deals with callbacks. not their visibility
     #    if debug_vis:
@@ -505,7 +505,7 @@ class FrameTransformer(SensorBase):
     #        if hasattr(self, "frame_visualizer"):
     #            self.frame_visualizer.set_visibility(False)
 
-    #def _debug_vis_callback(self, event):
+    # def _debug_vis_callback(self, event):
     #    return
     #    # Get the all frames pose
     #    frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)

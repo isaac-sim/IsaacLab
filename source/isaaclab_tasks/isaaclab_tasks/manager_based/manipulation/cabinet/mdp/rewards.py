@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import matrix_from_quat
