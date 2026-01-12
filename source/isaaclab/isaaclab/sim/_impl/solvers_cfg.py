@@ -91,7 +91,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
 
 @configclass
-class XPBOSolverCfg(NewtonSolverCfg):
+class XPBDSolverCfg(NewtonSolverCfg):
     """An implicit integrator using eXtended Position-Based Dynamics (XPBD) for rigid and soft body simulation.
 
     References:
