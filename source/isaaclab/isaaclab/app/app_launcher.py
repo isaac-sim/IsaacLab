@@ -803,9 +803,8 @@ class AppLauncher:
                 if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
-            if arg == "--config-file" and "pyproject.toml" in sys.argv[idx + 1]:
+            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
                 indexes_to_remove.append(idx)
-                indexes_to_remove.append(idx + 1)
             if arg == "--capture=no":
                 indexes_to_remove.append(idx)
         for idx in sorted(indexes_to_remove, reverse=True):
