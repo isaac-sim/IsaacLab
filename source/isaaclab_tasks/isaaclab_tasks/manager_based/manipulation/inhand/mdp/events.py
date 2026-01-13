@@ -5,7 +5,6 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
-
 from __future__ import annotations
 
 import torch

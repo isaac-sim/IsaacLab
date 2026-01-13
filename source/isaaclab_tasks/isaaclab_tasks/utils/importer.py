@@ -60,13 +60,16 @@ def _walk_packages(
         ``pkgutil.walk_packages`` function for more details.
 
     """
+    # Default blacklist
     if blacklist_pkgs is None:
         blacklist_pkgs = []
 
-    def seen(p, m={}):
+    def seen(p: str, m: dict[str, bool] = {}) -> bool:
+        """Check if a package has been seen before."""
         if p in m:
             return True
-        m[p] = True  # noqa: R503
+        m[p] = True
+        return False
 
     for info in pkgutil.iter_modules(path, prefix):
         # check blacklisted
@@ -85,7 +88,7 @@ def _walk_packages(
                 else:
                     raise
             else:
-                path = getattr(sys.modules[info.name], "__path__", None) or []
+                path: list = getattr(sys.modules[info.name], "__path__", [])
 
                 # don't traverse path items we've seen before
                 path = [p for p in path if not seen(p)]

@@ -144,11 +144,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         env = os.environ.copy()
 
         # Determine timeout for this test
-        timeout = (
-            test_settings.PER_TEST_TIMEOUTS[file_name]
-            if file_name in test_settings.PER_TEST_TIMEOUTS
-            else test_settings.DEFAULT_TIMEOUT
-        )
+        timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
         # Prepare command
         # Note: Command options matter as they are used for cleanups inside AppLauncher

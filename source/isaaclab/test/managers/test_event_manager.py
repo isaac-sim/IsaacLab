@@ -7,6 +7,7 @@
 # pyright: reportPrivateUsage=none
 
 """Launch Isaac Sim Simulator first."""
+
 from collections.abc import Sequence
 
 from isaaclab.app import AppLauncher

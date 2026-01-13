@@ -73,7 +73,7 @@ class CLIHandler:
         def transformer(result: list[str]) -> str:
             if "all" in result or "both" in result:
                 token = "all" if "all" in result else "both"
-                return f'{token} ({", ".join(choices[:choices.index("---")])})'
+                return f"{token} ({', '.join(choices[: choices.index('---')])})"
             return ", ".join(result)
 
         return inquirer.checkbox(

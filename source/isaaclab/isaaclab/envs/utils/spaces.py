@@ -61,7 +61,7 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
         Tensorized sampled space.
     """
 
-    def tensorize(s, x):
+    def tensorize(s: gym.spaces.Space, x: Any) -> Any:
         if isinstance(s, gym.spaces.Box):
             tensor = torch.tensor(x, device=device, dtype=torch.float32).reshape(batch_size, *s.shape)
             if fill_value is not None:
@@ -88,6 +88,9 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
             return {k: tensorize(_s, x[k]) for k, _s in s.items()}
         elif isinstance(s, gym.spaces.Tuple):
             return tuple([tensorize(_s, v) for _s, v in zip(s, x)])
+
+        # If the space is not supported, raise an error
+        raise ValueError(f"Unsupported Gymnasium space for tensorization: {s}")
 
     sample = (gym.vector.utils.batch_space(space, batch_size) if batch_size > 0 else space).sample()
     return tensorize(space, sample)

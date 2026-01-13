@@ -132,6 +132,8 @@ def get_pose_error(
         return pos_error, quat_error
     elif rot_error_type == "axis_angle":
         return pos_error, axis_angle_error
+    else:
+        raise ValueError(f"Unsupported rotation error type: {rot_error_type}. Valid: 'quat', 'axis_angle'.")
 
 
 def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
@@ -164,7 +166,7 @@ def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
         U, S, Vh = torch.linalg.svd(jacobian)
         S_inv = 1.0 / S
         min_singular_value = 1.0e-5
-        S_inv = torch.where(S > min_singular_value, S_inv, torch.zeros_like(S_inv))
+        S_inv = torch.where(min_singular_value < S, S_inv, torch.zeros_like(S_inv))
         jacobian_pinv = (
             torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6] @ torch.diag_embed(S_inv) @ torch.transpose(U, dim0=1, dim1=2)
         )

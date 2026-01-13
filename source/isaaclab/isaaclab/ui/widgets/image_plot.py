@@ -3,11 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import logging
 import numpy as np
 from contextlib import suppress
 from matplotlib import cm
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import omni
 
@@ -53,7 +55,7 @@ class ImagePlot(UIWidgetWrapper):
 
     def __init__(
         self,
-        image: Optional[np.ndarray] = None,
+        image: np.ndarray | None = None,
         label: str = "",
         widget_height: int = 200,
         min_value: float = 0.0,
@@ -156,7 +158,6 @@ class ImagePlot(UIWidgetWrapper):
         )
 
     def _build_widget(self):
-
         with omni.ui.VStack(spacing=3):
             with omni.ui.HStack():
                 # Write the leftmost label for what this plot is

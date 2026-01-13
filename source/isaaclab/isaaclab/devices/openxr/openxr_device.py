@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """OpenXR-powered device for teleoperation and interaction."""
+
 from __future__ import annotations
 
 import contextlib

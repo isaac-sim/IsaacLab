@@ -7,7 +7,6 @@
 Main data generation script.
 """
 
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse
