@@ -9,9 +9,14 @@ repos:
     hooks:
       # Run the linter
       - id: ruff
-        args: ["--fix"]
+        # args: ["--fix"]
       # Run the formatter
-      - id: ruff-format
+      # - id: ruff-format
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (python)
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
