@@ -151,13 +151,13 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         )
 
         # Prepare command
+        # Note: Command options matter as they are used for cleanups inside AppLauncher
         cmd = [
             sys.executable,
             "-m",
             "pytest",
             "--no-header",
-            "-c",
-            f"{workspace_root}/pytest.ini",
+            f"--config-file={workspace_root}/pyproject.toml",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
             "--tb=short",
         ]
