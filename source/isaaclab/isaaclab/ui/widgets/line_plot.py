@@ -157,7 +157,6 @@ class LiveLinePlot(UIWidgetWrapper):
         """
 
         for idx, y_coord in enumerate(y_coords):
-
             if len(self._y_data[idx]) > self._max_data_points:
                 self._y_data[idx] = self._y_data[idx][1:]
 

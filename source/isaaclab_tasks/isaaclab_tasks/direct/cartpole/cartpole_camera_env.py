@@ -91,7 +91,6 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 class CartpoleCameraEnv(DirectRLEnv):
-
     cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg
 
     def __init__(

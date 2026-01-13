@@ -6,6 +6,7 @@
 """
 Defines structure of information that is needed from an environment for data generation.
 """
+
 from copy import deepcopy
 
 

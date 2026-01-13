@@ -156,7 +156,6 @@ class ImagePlot(UIWidgetWrapper):
         )
 
     def _build_widget(self):
-
         with omni.ui.VStack(spacing=3):
             with omni.ui.HStack():
                 # Write the leftmost label for what this plot is

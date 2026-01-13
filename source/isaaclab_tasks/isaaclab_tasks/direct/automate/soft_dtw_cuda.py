@@ -52,7 +52,6 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
 
     # Go over each anti-diagonal. Only process threads that fall on the current on the anti-diagonal
     for p in range(n_passes):
-
         # The index is actually 'p - tid' but need to force it in-bounds
         J = max(0, min(p - tid, max_j - 1))
 
@@ -97,7 +96,6 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_pa
 
         # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
         if tid + J == rev_p and (tid < max_i and max_j > J):
-
             if math.isinf(R[k, i, j]):
                 R[k, i, j] = -math.inf
 
@@ -199,7 +197,6 @@ def compute_softdtw(D, gamma, bandwidth):
     for b in prange(B):
         for j in range(1, M + 1):
             for i in range(1, N + 1):
-
                 # Check the pruning condition
                 if 0 < bandwidth < np.abs(i - j):
                     continue
@@ -230,7 +227,6 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
     for k in prange(B):
         for j in range(M, 0, -1):
             for i in range(N, 0, -1):
-
                 if np.isinf(R[k, i, j]):
                     R[k, i, j] = -np.inf
 
@@ -442,7 +438,6 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
 
 # ----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-
     torch.manual_seed(1234)
 
     profile(128, 17, 15, 2, tol_backward=1e-6)

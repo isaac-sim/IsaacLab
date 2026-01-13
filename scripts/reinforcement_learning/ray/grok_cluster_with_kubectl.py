@@ -30,7 +30,8 @@ def get_namespace() -> str:
     """Get the current Kubernetes namespace from the context, fallback to default if not set"""
     try:
         namespace = (
-            subprocess.check_output(["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"])
+            subprocess
+            .check_output(["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"])
             .decode()
             .strip()
         )

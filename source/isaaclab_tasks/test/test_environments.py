@@ -28,6 +28,7 @@ import isaaclab_tasks  # noqa: F401
 # Local imports should be imported last
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
+
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
 @pytest.mark.isaacsim_ci

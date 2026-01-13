@@ -189,6 +189,9 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+preview = true
+
+# docstring-code-format = true
 
 [tool.pyright]
 

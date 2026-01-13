@@ -185,7 +185,6 @@ def generic_io_descriptor(
         inspect_hooks: list[Callable[..., Any]] = list(on_inspect or [])  # handles None
 
     def _apply(func: Callable[Concatenate[ManagerBasedEnv, P], R]) -> Callable[Concatenate[ManagerBasedEnv, P], R]:
-
         # Capture the signature of the function
         sig = inspect.signature(func)
 

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for GelSight utility functions - primarily focused on GelsightRender."""
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
