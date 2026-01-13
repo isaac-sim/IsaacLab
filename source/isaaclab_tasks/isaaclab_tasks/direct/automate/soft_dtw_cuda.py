@@ -399,7 +399,8 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
     n_iters = 6
 
     print(
-        f"Profiling forward() + backward() times for batch_size={batch_size}, seq_len_a={seq_len_a}, seq_len_b={seq_len_b}, dims={dims}..."
+        f"Profiling forward() + backward() times for batch_size={batch_size}, seq_len_a={seq_len_a},"
+        f" seq_len_b={seq_len_b}, dims={dims}..."
     )
 
     times_cpu = []
