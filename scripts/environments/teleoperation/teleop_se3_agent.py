@@ -94,14 +94,18 @@ def main() -> None:
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
     env_cfg.env_name = args_cli.task
-    # modify configuration (only applicable for ManagerBasedRLEnvCfg)
-    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
-        env_cfg.terminations.time_out = None
-        if "Lift" in args_cli.task:
-            # set the resampling time range to large number to avoid resampling
-            env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
-            # add termination condition for reaching the goal otherwise the environment won't reset
-            env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        raise ValueError(
+            "Teleoperation is only supported for ManagerBasedRLEnv environments. "
+            f"Received environment config type: {type(env_cfg).__name__}"
+        )
+    # modify configuration
+    env_cfg.terminations.time_out = None
+    if "Lift" in args_cli.task:
+        # set the resampling time range to large number to avoid resampling
+        env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
+        # add termination condition for reaching the goal otherwise the environment won't reset
+        env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
     if args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
