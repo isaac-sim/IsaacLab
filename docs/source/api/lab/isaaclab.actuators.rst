@@ -36,6 +36,9 @@ Actuator Base
   :inherited-members:
   :exclude-members: __init__, class_type
 
+.. autoclass:: isaaclab.actuators.actuator_base_cfg.ActuatorBaseCfg.DriveModelCfg
+  :members:
+
 Implicit Actuator
 -----------------
 
