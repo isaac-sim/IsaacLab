@@ -63,10 +63,6 @@ max-complexity = 30
 convention = "google"
 
 [tool.ruff.lint.isort]
-# Match isort behavior
-combine-as-imports = false
-order-by-type = true
-from-first = false
 
 # Custom import sections with separate sections for each Isaac Lab extension
 section-order = [
