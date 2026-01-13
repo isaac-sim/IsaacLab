@@ -78,10 +78,10 @@ section-order = [
     "omniverse-extensions",
     # Group Isaac Lab extensions together since they are all part of the Isaac Lab project
     "isaaclab",
-    "isaaclab-assets",
     "isaaclab-rl",
     "isaaclab-mimic",
     "isaaclab-tasks",
+    "isaaclab-assets",
     # First-party is reserved for project templates
     "first-party",
     "local-folder",
