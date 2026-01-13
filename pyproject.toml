@@ -92,7 +92,7 @@ known_omniverse_extensions = [
 # Imports from this repository
 known_first_party = "isaaclab"
 known_assets_firstparty = "isaaclab_assets"
-known_extra_firstparty = ["isaaclab_rl", "isaaclab_mimic"]
+known_extra_firstparty = ["isaaclab_rl", "isaaclab_mimic", "isaaclab_contrib"]
 known_task_firstparty = "isaaclab_tasks"
 # Imports from the local folder
 known_local_folder = "config"

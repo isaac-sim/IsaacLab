@@ -19,7 +19,6 @@ from . import (
     non_holonomic_actions,
     surface_gripper_actions,
     task_space_actions,
-    thrust_actions,
 )
 
 ##

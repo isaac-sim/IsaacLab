@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Drone ARL environments."""
+"""Configurations for state-based control environments."""

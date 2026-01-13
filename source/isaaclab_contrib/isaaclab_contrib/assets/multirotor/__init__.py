@@ -3,4 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Drone ARL environments."""
+"""Sub-module for multi rotor assets."""
+
+from .multirotor import Multirotor
+from .multirotor_cfg import MultirotorCfg
+from .multirotor_data import MultirotorData

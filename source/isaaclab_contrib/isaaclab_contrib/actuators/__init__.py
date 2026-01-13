@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Drone ARL environments."""
+from .thruster import Thruster
+from .thruster_cfg import ThrusterCfg
