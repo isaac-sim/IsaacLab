@@ -34,6 +34,7 @@ ignore = [
     "RET504", # Unnecessary variable assignment before return statement
     "RET505", # Unnecessary elif after return statement
     "SIM102", # Use a single if-statement instead of nested if-statements
+    "SIM103", # Return the negated condition directly
     "SIM108", # Use ternary operator instead of if-else statement
     "SIM117", # Merge with statements for context managers
     "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()

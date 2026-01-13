@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-import pathlib
-import subprocess
-import yaml
-
-import util
-from jinja2 import Environment, FileSystemLoader
-from kubernetes import config
-
 """This script helps create one or more KubeRay clusters.
 
 Usage:
@@ -34,6 +25,16 @@ Usage:
     --num_workers 1 2 --num_clusters 1 \
     --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4
 """
+
+import argparse
+import pathlib
+import subprocess
+
+import util
+import yaml
+from jinja2 import Environment, FileSystemLoader
+from kubernetes import config
+
 RAY_DIR = pathlib.Path(__file__).parent
 
 
