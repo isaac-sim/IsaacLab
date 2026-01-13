@@ -2149,25 +2149,16 @@ resource requirements.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+<span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
+<span class="sd">Usage:</span>
 
-<span class="hll"><span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">Usage:</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">.. code-block:: bash</span>
-</span><span class="hll"><span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
-</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">    # Examples</span>
-</span><span class="hll">
+<span class="sd">.. code-block:: bash</span>
+<span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
+<span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
+
+<span class="sd">    # Examples</span>
+<span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 8 GPUx1 nvidia l4 workers</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
@@ -2180,7 +2171,19 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
+</span><span class="hll">
+</span><span class="c1"># Local imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
+
+<span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -2896,7 +2899,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
         <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Episode/Episode_Termination/cart_out_of_bounds&quot;</span><span class="p">)</span>
 
         <span class="c1"># Mark the trial for stopping if conditions are met</span>
-        <span class="k">if</span> <span class="mi">20</span> <span class="o">&lt;=</span> <span class="nb">iter</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="o">&gt;</span> <span class="mf">0.85</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">iter</span> <span class="o">&gt;=</span> <span class="mi">20</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="o">&gt;</span> <span class="mf">0.85</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_bad_trials</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">trial_id</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">trial_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bad_trials</span>
@@ -3007,25 +3010,16 @@ where instructions are included in the following creation file.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+<span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
+<span class="sd">Usage:</span>
 
-<span class="hll"><span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">Usage:</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">.. code-block:: bash</span>
-</span><span class="hll"><span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
-</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">    # Examples</span>
-</span><span class="hll">
+<span class="sd">.. code-block:: bash</span>
+<span class="sd">    # If the head node is stuck on container creating, make sure to create a secret</span>
+<span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py -h</span>
+
+<span class="sd">    # Examples</span>
+<span class="hll">
 </span><span class="hll"><span class="sd">    # The following creates 8 GPUx1 nvidia l4 workers</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/launch.py --cluster_host google_cloud \</span>
 </span><span class="hll"><span class="sd">    --namespace &lt;NAMESPACE&gt; --image &lt;YOUR_ISAAC_RAY_IMAGE&gt; \</span>
@@ -3038,7 +3032,19 @@ where instructions are included in the following creation file.</p>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
+</span><span class="hll">
+</span><span class="c1"># Local imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
+
+<span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3976,7 +3982,7 @@ environment entrypoints and hydra arguments, although other workflows will work 
         <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Episode/Episode_Termination/cart_out_of_bounds&quot;</span><span class="p">)</span>
 
         <span class="c1"># Mark the trial for stopping if conditions are met</span>
-        <span class="k">if</span> <span class="mi">20</span> <span class="o">&lt;=</span> <span class="nb">iter</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="o">&gt;</span> <span class="mf">0.85</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">iter</span> <span class="o">&gt;=</span> <span class="mi">20</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_of_bounds</span> <span class="o">&gt;</span> <span class="mf">0.85</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_bad_trials</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">trial_id</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">trial_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bad_trials</span>

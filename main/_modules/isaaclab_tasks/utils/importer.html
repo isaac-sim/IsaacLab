@@ -661,13 +661,16 @@
 <span class="sd">        ``pkgutil.walk_packages`` function for more details.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Default blacklist</span>
     <span class="k">if</span> <span class="n">blacklist_pkgs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">blacklist_pkgs</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">seen</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="p">{}):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">seen</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="p">{})</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if a package has been seen before.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">m</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
-        <span class="n">m</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># noqa: R503</span>
+        <span class="n">m</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
 
     <span class="k">for</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">pkgutil</span><span class="o">.</span><span class="n">iter_modules</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
         <span class="c1"># check blacklisted</span>
@@ -686,7 +689,7 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">raise</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">path</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="s2">&quot;__path__&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                <span class="n">path</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="s2">&quot;__path__&quot;</span><span class="p">,</span> <span class="p">[])</span>
 
                 <span class="c1"># don&#39;t traverse path items we&#39;ve seen before</span>
                 <span class="n">path</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">path</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">seen</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>

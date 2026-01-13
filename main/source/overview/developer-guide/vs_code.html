@@ -742,16 +742,15 @@ refer to the <a class="reference external" href="https://code.visualstudio.com/d
 </section>
 <section id="setting-up-formatting-and-linting">
 <h1>Setting up formatting and linting<a class="headerlink" href="#setting-up-formatting-and-linting" title="Permalink to this heading">#</a></h1>
-<p>We use <a class="reference external" href="https://black.readthedocs.io/en/stable/">black</a> as a formatter and <a class="reference external" href="https://flake8.pycqa.org/en/latest/">flake8</a> as a linter. These are configured in the <code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code> file:</p>
+<p>We use <a class="reference external" href="https://black.readthedocs.io/en/stable/">black</a> as a formatter and <a class="reference external" href="https://github.com/astral-sh/ruff/">ruff</a> as a linter. These are configured in the <code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code> file:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">   </span><span class="nt">&quot;black-formatter.args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--line-length&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;120&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--unstable&quot;</span><span class="p">],</span>
-<span class="w">   </span><span class="nt">&quot;flake8.enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">   </span><span class="nt">&quot;flake8.args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--config&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/pyproject.toml&quot;</span><span class="p">],</span>
+<span class="w">   </span><span class="nt">&quot;ruff.configuration&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/pyproject.toml&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>The black formatter will automatically format your code to match the project’s style guide (120 character line length).
-The flake8 linter will show warnings and errors in your code to help you follow Python best practices and the project’s coding standards.</p>
+The ruff linter will show warnings and errors in your code to help you follow Python best practices and the project’s coding standards.</p>
 </section>
 
 
