@@ -164,9 +164,7 @@ reportPrivateUsage = "warning"
 
 
 [tool.codespell]
-skip = '*.usd,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
+skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
 ignore-words-list = "haa,slq,collapsable,buss,reacher"
-# todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
-exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"
