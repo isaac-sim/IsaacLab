@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-preview = true
-unstable = true
-
 # TODO: Remove this once isort is removed from the project
 [tool.isort]
 
