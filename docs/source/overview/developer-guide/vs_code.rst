@@ -80,7 +80,7 @@ refer to the `VSCode documentation <https://code.visualstudio.com/docs/python/en
 Setting up formatting and linting
 ---------------------------------
 
-We use `black <https://black.readthedocs.io/en/stable/>`_ as a formatter and `ruff <https://ruff.rs/>`_ as a linter. These are configured in the ``.vscode/settings.json`` file:
+We use `black <https://black.readthedocs.io/en/stable/>`_ as a formatter and `ruff <https://github.com/astral-sh/ruff/>`_ as a linter. These are configured in the ``.vscode/settings.json`` file:
 
 .. code-block:: json
 

@@ -516,7 +516,7 @@ We use the following tools for maintaining code quality:
 
 * `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
 * `black <https://black.readthedocs.io/en/stable/>`__: The uncompromising code formatter.
-* `ruff <https://ruff.rs/>`__: An extremely fast Python linter and formatter.
+* `ruff <https://github.com/astral-sh/ruff/>`__: An extremely fast Python linter and formatter.
 
 Please check `here <https://pre-commit.com/#install>`__ for instructions
 to set these up. To run over the entire repository, please execute the
