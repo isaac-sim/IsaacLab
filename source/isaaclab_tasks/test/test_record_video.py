@@ -20,10 +20,11 @@ import torch
 
 import omni.usd
 
-from env_test_utils import setup_environment
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+
+# Local imports should be imported last
+from env_test_utils import setup_environment  # isort: skip
 
 
 @pytest.fixture(scope="function")

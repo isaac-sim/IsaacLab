@@ -790,9 +790,9 @@ def test_functions_config():
     """Tests having functions as values in the configuration instance."""
     cfg = FunctionsDemoCfg()
     # check types
-    assert cfg.__annotations__["func"] == type(dummy_function1)
-    assert cfg.__annotations__["wrapped_func"] == type(wrapped_dummy_function3)
-    assert cfg.__annotations__["func_in_dict"] == dict
+    assert cfg.__annotations__["func"] is type(dummy_function1)
+    assert cfg.__annotations__["wrapped_func"] is type(wrapped_dummy_function3)
+    assert cfg.__annotations__["func_in_dict"] is dict
     # check calling
     assert cfg.func() == 1
     assert cfg.wrapped_func() == 4
@@ -992,10 +992,10 @@ def test_config_with_class_type():
     # since python 3.10, annotations are stored as strings
     annotations = {k: eval(v) if isinstance(v, str) else v for k, v in cfg.__annotations__.items()}
     # check types
-    assert annotations["class_name_1"] == type
+    assert annotations["class_name_1"] is type
     assert annotations["class_name_2"] == type[DummyClass]
     assert annotations["class_name_3"] == type[DummyClass]
-    assert annotations["class_name_4"] == ClassVar[type[DummyClass]]
+    assert annotations["class_name_4"] is ClassVar[type[DummyClass]]
     # check values
     assert cfg.class_name_1 == DummyClass
     assert cfg.class_name_2 == DummyClass

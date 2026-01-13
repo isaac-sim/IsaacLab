@@ -158,7 +158,7 @@ class VisualizationManager:
     # Type aliases for different callback signatures
     StandardCallback = Callable[["VisualizationManager", "DataCollector"], None]
     EventCallback = Callable[["VisualizationManager", "DataCollector", Any], None]
-    CallbackType = Union[StandardCallback, EventCallback]
+    CallbackType = Union[StandardCallback, EventCallback]  # noqa: UP007
 
     class TimeCountdown:
         """Internal class for managing periodic timer-based callbacks."""

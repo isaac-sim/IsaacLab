@@ -41,7 +41,7 @@ def object_poses_in_base_frame(
         return pos_object_base
     elif return_key == "quat":
         return quat_object_base
-    elif return_key is None:
+    else:
         return torch.cat((pos_object_base, quat_object_base), dim=1)
 
 

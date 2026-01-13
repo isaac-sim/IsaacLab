@@ -5,7 +5,6 @@
 
 """Class-based event terms specific to the gear assembly manipulation environments."""
 
-
 from __future__ import annotations
 
 import random

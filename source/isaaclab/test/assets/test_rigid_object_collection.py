@@ -511,7 +511,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
             torch.testing.assert_close(object_state_w[..., 3:7], object_link_state_w[..., 3:7])
 
             # lin_vel will not match
-            # center of mass vel will be constant (i.e. spining around com)
+            # center of mass vel will be constant (i.e. spinning around com)
             torch.testing.assert_close(
                 torch.zeros_like(object_com_state_w[..., 7:10]),
                 object_com_state_w[..., 7:10],

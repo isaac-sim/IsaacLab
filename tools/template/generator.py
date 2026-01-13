@@ -96,22 +96,22 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
     # workflow-specific content
     if task_spec["workflow"]["name"] == "direct":
         # - task/*env_cfg.py
-        template = jinja_env.get_template(f'tasks/direct_{task_spec["workflow"]["type"]}/env_cfg')
+        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f'{task_spec["filename"]}_env_cfg.py'), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
         # - task/*env.py
-        template = jinja_env.get_template(f'tasks/direct_{task_spec["workflow"]["type"]}/env')
-        _write_file(os.path.join(task_dir, f'{task_spec["filename"]}_env.py'), content=template.render(**specification))
+        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
+        _write_file(os.path.join(task_dir, f"{task_spec['filename']}_env.py"), content=template.render(**specification))
     elif task_spec["workflow"]["name"] == "manager-based":
         # - task/*env_cfg.py
-        template = jinja_env.get_template(f'tasks/manager-based_{task_spec["workflow"]["type"]}/env_cfg')
+        template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f'{task_spec["filename"]}_env_cfg.py'), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
         # - task/mdp folder
         shutil.copytree(
-            os.path.join(TEMPLATE_DIR, "tasks", f'manager-based_{task_spec["workflow"]["type"]}', "mdp"),
+            os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
             os.path.join(task_dir, "mdp"),
             dirs_exist_ok=True,
         )

@@ -13,7 +13,7 @@ import torch
 import warp as wp
 from typing import Union
 
-TensorData = Union[np.ndarray, torch.Tensor, wp.array]
+TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
 Union of numpy, torch, and warp arrays.

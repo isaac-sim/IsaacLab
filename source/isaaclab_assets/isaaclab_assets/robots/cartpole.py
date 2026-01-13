@@ -5,7 +5,6 @@
 
 """Configuration for a simple Cartpole robot."""
 
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg

@@ -317,7 +317,6 @@ def publish_pretrained_checkpoint(workflow, task_name, force_publish=False):
 
     # Not forcing, need to check review results
     if not force_publish:
-
         # Grab the review if it exists
         review = get_pretrained_checkpoint_review(workflow, task_name)
 
@@ -355,7 +354,6 @@ def get_job_summary_row(workflow, task_name):
 
 
 def main():
-
     # Figure out what workflows and tasks we'll be using
     if args.all:
         jobs = ["*:*"]
@@ -405,7 +403,6 @@ def main():
 
 
 if __name__ == "__main__":
-
     try:
         # Run the main function
         main()
