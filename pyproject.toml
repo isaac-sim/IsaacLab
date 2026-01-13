@@ -54,13 +54,21 @@ combine-as-imports = true
 order-by-type = true
 from-first = false
 
-# Custom import sections
+# Custom import sections with separate sections for each Isaac Lab extension
 section-order = [
     "future",
     "standard-library",
     "third-party",
+    # Group omniverse extensions separately since they are run-time dependencies
+    # which are pulled in by Isaac Lab extensions
     "omniverse-extensions",
-    "isaaclab-extensions",
+    # Group Isaac Lab extensions together since they are all part of the Isaac Lab project
+    "isaaclab",
+    "isaaclab-assets",
+    "isaaclab-rl",
+    "isaaclab-mimic",
+    "isaaclab-tasks",
+    # First-party is reserved for project templates
     "first-party",
     "local-folder",
 ]
@@ -75,15 +83,14 @@ section-order = [
     "carb",
     "usdrt",
     "Semantics",
+    "curobo",
 ]
 
-"isaaclab-extensions" = [
-    "isaaclab",
-    "isaaclab_assets",
-    "isaaclab_mimic",
-    "isaaclab_rl",
-    "isaaclab_tasks",
-]
+"isaaclab" = ["isaaclab"]
+"isaaclab-assets" = ["isaaclab_assets"]
+"isaaclab-rl" = ["isaaclab_rl"]
+"isaaclab-mimic" = ["isaaclab_mimic"]
+"isaaclab-tasks" = ["isaaclab_tasks"]
 
 [tool.ruff.format]
 # Use Black-compatible formatting
