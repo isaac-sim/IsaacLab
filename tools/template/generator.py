@@ -161,7 +161,7 @@ def _external(specification: dict) -> None:
     # repo files
     print("  |-- Copying repo files...")
     shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
-    shutil.copyfile(os.path.join(ROOT_DIR, ".flake8"), os.path.join(project_dir, ".flake8"))
+    shutil.copyfile(os.path.join(ROOT_DIR, "pyproject.toml"), os.path.join(project_dir, ".pyproject.toml"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
     if os.path.exists(os.path.join(ROOT_DIR, ".gitignore")):
         shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
