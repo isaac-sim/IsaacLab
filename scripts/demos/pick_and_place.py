@@ -23,9 +23,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from collections.abc import Sequence
-
 import torch
+from collections.abc import Sequence
 
 import carb
 import omni

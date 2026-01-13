@@ -13,9 +13,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import os
-
 import gymnasium as gym
+import os
 import pytest
 import torch
 

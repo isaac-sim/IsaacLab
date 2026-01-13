@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import json
-from typing import Any
-
 import gymnasium as gym
+import json
 import numpy as np
 import torch
+from typing import Any
 
 from ..common import SpaceType
 

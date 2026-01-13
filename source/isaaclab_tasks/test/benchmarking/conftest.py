@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-
 import pytest
 
 # Local imports should be imported last
