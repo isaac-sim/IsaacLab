@@ -815,7 +815,7 @@ class Articulation(AssetBase):
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
-        if int(get_version()[2]) >= 5:
+        if get_isaac_sim_version().major >= 5:
             # resolve indices
             physx_env_ids = env_ids
             if env_ids is None:
@@ -1637,7 +1637,7 @@ class Articulation(AssetBase):
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
         self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
         self._data.joint_effort_limits = self.root_physx_view.get_dof_max_forces().to(self.device).clone()
-        if int(get_version()[2]) >= 5:
+        if get_isaac_sim_version().major >= 5:
             self._data.default_joint_drive_model_parameters = (
                 self.root_physx_view.get_dof_drive_model_properties().to(self.device).clone()
             )
@@ -1772,7 +1772,7 @@ class Articulation(AssetBase):
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
                 drive_model=(
                     self._data.joint_drive_model_parameters[:, joint_ids]
-                    if int(get_version()[2]) >= 5
+                    if get_isaac_sim_version().major >= 5
                     else ActuatorBaseCfg.DriveModelCfg()
                 ),
             )

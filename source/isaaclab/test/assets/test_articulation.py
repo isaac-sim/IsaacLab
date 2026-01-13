@@ -10,14 +10,15 @@
 
 from isaaclab.app import AppLauncher
 
-HEADLESS = True
+HEADLESS = False
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=HEADLESS).app
 
 """Rest everything follows."""
 
 import ctypes
+import pathlib
 import pytest
 import torch
 
@@ -87,6 +88,31 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         articulation_cfg = SHADOW_HAND_CFG
+    elif articulation_type == "flywheel":
+        articulation_cfg = ArticulationCfg(
+            spawn=sim_utils.UrdfFileCfg(
+                fix_base=True,
+                merge_fixed_joints=False,
+                make_instanceable=False,
+                asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/flywheel.urdf",
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=32, solver_velocity_iteration_count=32
+                ),
+                joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+                    gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=stiffness, damping=damping)
+                ),
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(),
+            actuators={
+                "wheel": ImplicitActuatorCfg(
+                    joint_names_expr=[".*"],
+                    effort_limit_sim=effort_limit_sim,
+                    stiffness=stiffness,
+                    damping=damping,
+                    drive_model=drive_model,
+                ),
+            },
+        )
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -124,7 +150,6 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -135,7 +160,6 @@ def generate_articulation_cfg(
                     velocity_limit=velocity_limit,
                     stiffness=stiffness,
                     damping=damping,
-                    drive_model=drive_model,
                 ),
             },
         )
@@ -1390,11 +1414,11 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("drive_model", [(100.0, 200.0, 0.1), None])
-@pytest.mark.skipif(int(get_version()[2]) < 5, reason="Simulator version must be 5 or greater")
+@pytest.mark.skipif(get_isaac_sim_version().major < 5, reason="Simulator version must be 5 or greater")
 @pytest.mark.isaacsim_ci
 def test_setting_drive_model_explicit(sim, num_articulations, device, drive_model):
     """Test setting of velocity limit for explicit actuators."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_explicit", drive_model=drive_model)
+    articulation_cfg = generate_articulation_cfg(articulation_type="flywheel", drive_model=drive_model)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
         num_articulations=num_articulations,
@@ -1405,7 +1429,7 @@ def test_setting_drive_model_explicit(sim, num_articulations, device, drive_mode
 
     # collect dm init values
     physx_dm = articulation.root_physx_view.get_dof_drive_model_properties().to(device)
-    actuator_dm = articulation.actuators["joint"].drive_model
+    actuator_dm = articulation.actuators["wheel"].drive_model
 
     # check data buffer for joint_
     torch.testing.assert_close(articulation.data.joint_drive_model_parameters, physx_dm)
@@ -1429,11 +1453,11 @@ def test_setting_drive_model_explicit(sim, num_articulations, device, drive_mode
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("drive_model", [(100.0, 200.0, 0.1), None])
-@pytest.mark.skipif(int(get_version()[2]) < 5, reason="Simulator version must be 5 or greater")
+@pytest.mark.skipif(get_isaac_sim_version().major < 5, reason="Simulator version must be 5 or greater")
 @pytest.mark.isaacsim_ci
 def test_setting_drive_model_implicit(sim, num_articulations, device, drive_model):
     """Test setting of velocity limit for explicit actuators."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit", drive_model=drive_model)
+    articulation_cfg = generate_articulation_cfg(articulation_type="flywheel", drive_model=drive_model)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
         num_articulations=num_articulations,
@@ -1444,7 +1468,7 @@ def test_setting_drive_model_implicit(sim, num_articulations, device, drive_mode
 
     # collect dm init values
     physx_dm = articulation.root_physx_view.get_dof_drive_model_properties().to(device)
-    actuator_dm = articulation.actuators["joint"].drive_model
+    actuator_dm = articulation.actuators["wheel"].drive_model
 
     # check data buffer for joint_
     torch.testing.assert_close(articulation.data.joint_drive_model_parameters, physx_dm)
@@ -1546,7 +1570,7 @@ def _test_drive_model_constraints_implicit(
 ):
     print(f"Test Description: {description}")
     articulation_cfg = generate_articulation_cfg(
-        articulation_type="single_joint_implicit",
+        articulation_type="flywheel",
         effort_limit_sim=effort_limit,
         drive_model=drive_model,
         stiffness=1.0,
@@ -1565,6 +1589,7 @@ def _test_drive_model_constraints_implicit(
     maxf = physx.get_dof_max_forces()
     print(f"condition drive_model: {drive_model}, max forces: {effort_limit}")
     print(f"physx values drive model: {dm}, max forces: {maxf}")
+    print(f"max velocity: {physx.get_dof_max_velocities()}")
     all_indices = torch.arange(physx.count, device=device)
     dof_velocities = velocity_state * torch.ones(physx.count * physx.max_dofs, dtype=torch.float32, device=device)
     physx.set_dof_velocities(dof_velocities, all_indices)
@@ -1577,7 +1602,7 @@ def _test_drive_model_constraints_implicit(
     articulation.write_data_to_sim()
     mf = articulation.root_physx_view.get_dof_projected_joint_forces()
     mv = articulation.root_physx_view.get_dof_velocities()
-
+    zi = physx.get_inertias()[:, :, :]
     for i in range(500):
         sim.step()
         pos = physx.get_dof_positions()
@@ -1589,7 +1614,8 @@ def _test_drive_model_constraints_implicit(
         if i % 1 == 0:
             mf = articulation.root_physx_view.get_dof_projected_joint_forces()
             mv = articulation.root_physx_view.get_dof_velocities()
-            print(f"post step {i}: force {mf}, velocity {mv}")
+            zi = physx.get_inertias()[:, :, :]
+            print(f"post step {i}: force {mf}, velocity {mv}, zi {zi}")
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
