@@ -5,7 +5,6 @@ Repository organization
 
    IsaacLab
    ├── .vscode
-   ├── .flake8
    ├── CONTRIBUTING.md
    ├── CONTRIBUTORS.md
    ├── LICENSE
