@@ -74,7 +74,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
 .. currentmodule:: isaaclab_contrib
 
 .. autosummary::
-   :toctree: lab_multirotor
+   :toctree: lab_contrib
 
    actuators
    assets
