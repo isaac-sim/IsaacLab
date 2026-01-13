@@ -6,13 +6,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
-import isaacsim
 import omni.kit.commands
-import omni.usd
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
+
+if TYPE_CHECKING:
+    import isaacsim.asset.importer.mjcf
 
 
 class MjcfConverter(AssetConverterBase):
@@ -65,7 +67,7 @@ class MjcfConverter(AssetConverterBase):
             prim_path=f"/{file_basename}",
         )
 
-    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf._mjcf.ImportConfig:
         """Returns the import configuration for MJCF to USD conversion.
 
         Returns:

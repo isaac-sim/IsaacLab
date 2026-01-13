@@ -23,6 +23,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import pytest
+
 from env_test_utils import _run_environments
 
 import isaaclab_tasks  # noqa: F401

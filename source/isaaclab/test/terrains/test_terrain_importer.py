@@ -13,13 +13,13 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
+import pytest
 import torch
 import trimesh
 from typing import Literal
 
 import omni.kit
 import omni.kit.commands
-import pytest
 from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner

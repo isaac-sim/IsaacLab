@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import Union
-
 import warp as wp
+from typing import Union
 
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]
 """Type definition for a tensor data.

@@ -22,12 +22,13 @@ import contextlib
 import gymnasium as gym
 import json
 import numpy as np
+import pytest
 import re
 import torch
 from pathlib import Path
 
 import omni.usd
-import pytest
+
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 

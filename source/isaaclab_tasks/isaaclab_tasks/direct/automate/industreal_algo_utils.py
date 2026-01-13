@@ -46,10 +46,10 @@ import os
 # from pysdf import SDF
 import torch
 import trimesh
-from trimesh.exchange.load import load
 
 # from urdfpy import URDF
 import warp as wp
+from trimesh.exchange.load import load
 
 from isaaclab.utils.assets import retrieve_file_path
 

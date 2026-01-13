@@ -14,13 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
 import torch
 from dataclasses import MISSING
 from enum import Enum
+from flaky import flaky
 
 import carb
-import pytest
-from flaky import flaky
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils

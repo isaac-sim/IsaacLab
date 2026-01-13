@@ -59,64 +59,26 @@ section-order = [
     "future",
     "standard-library",
     "third-party",
+    "omniverse-extensions",
+    "isaaclab-extensions",
     "first-party",
-    "isaaclab-rl-library",
-    "isaaclab-mimic-library",
-    "isaaclab-tasks-library",
-    "isaaclab-assets-library",
     "local-folder",
 ]
 
-# Treat these as stdlib (even though they aren't)
-extra-standard-library = [
-    "numpy",
-    "torch",
-    "einops",
-    "tensordict",
-    "warp",
-    "scipy",
-    "open3d",
-    "cv2",
-    "torchvision",
-    "transformers",
-    "h5py",
-    "yaml",
-    "toml",
-    "wandb",
-    "tensorboard",
-    "hydra",
-    "omegaconf",
-    "bpy",
-    "trimesh",
-    "matplotlib",
-    "gymnasium",
-    "gym",
-    "hid",
-    "prettytable",
-    "tqdm",
-    "packaging",
-    "pytest",
-]
-
-# Third-party packages
-known-third-party = [
+# Omniverse extensions
+known-omniverse-extensions = [
     "isaacsim*",
     "omni*",
     "pxr",
     "carb",
+    "usdrt",
     "Semantics",
 ]
 
-"known-first-party" = ["isaaclab"]
-"known-local-folder" = ["config"]
-
-# Custom section names
-[tool.ruff.lint.isort.sections]
-
-"isaaclab-assets-library" = ["isaaclab_assets"]
-"isaaclab-rl-library" = ["isaaclab_rl"]
-"isaaclab-mimic-library" = ["isaaclab_mimic"]
-"isaaclab-tasks-library" = ["isaaclab_tasks"]
+# Isaac Lab extensions
+known-isaaclab-extensions = [
+    "isaaclab*",
+]
 
 
 [tool.ruff.format]
@@ -155,9 +117,7 @@ reportPrivateUsage = "warning"
 
 
 [tool.codespell]
-skip = '*.usd,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
+skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
 ignore-words-list = "haa,slq,collapsable,buss,reacher"
-# todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
-exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"

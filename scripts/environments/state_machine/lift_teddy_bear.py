@@ -42,9 +42,8 @@ disable_extension("omni.usd.metrics.assembler.ui")
 
 import gymnasium as gym
 import torch
-from collections.abc import Sequence
-
 import warp as wp
+from collections.abc import Sequence
 
 from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData
 

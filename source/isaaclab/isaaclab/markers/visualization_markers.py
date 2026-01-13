@@ -24,7 +24,6 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
@@ -396,18 +395,12 @@ class VisualizationMarkers:
                 child_prim.SetInstanceable(False)
             # check if prim is a mesh -> if so, make it invisible to secondary rays
             if child_prim.IsA(UsdGeom.Gprim):
-                # early attach stage to usd context if stage is in memory
-                # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                sim_utils.attach_stage_to_usd_context(attaching_early=True)
-
                 # invisible to secondary rays such as depth images
-                omni.kit.commands.execute(
-                    "ChangePropertyCommand",
-                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
+                sim_utils.change_prim_property(
+                    prop_path=f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays",
                     value=True,
-                    prev=None,
+                    stage=prim.GetStage(),
                     type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-                    usd_context_name=prim.GetStage(),
                 )
             # add children to list
             all_prims += child_prim.GetChildren()

@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
-
 import pytest
+import torch
 
 """Launch Isaac Sim Simulator first."""
 

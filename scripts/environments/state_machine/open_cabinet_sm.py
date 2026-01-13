@@ -40,9 +40,8 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-from collections.abc import Sequence
-
 import warp as wp
+from collections.abc import Sequence
 
 from isaaclab.sensors import FrameTransformer
 

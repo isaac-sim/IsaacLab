@@ -12,9 +12,8 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 
 """Rest of imports follows"""
 
-import torch
-
 import pytest
+import torch
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sim import build_simulation_context
