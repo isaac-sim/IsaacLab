@@ -29,11 +29,13 @@ Usage:
 import argparse
 import pathlib
 import subprocess
-
-import util
 import yaml
+
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
+
+# Local imports
+import util  # isort: skip
 
 RAY_DIR = pathlib.Path(__file__).parent
 
