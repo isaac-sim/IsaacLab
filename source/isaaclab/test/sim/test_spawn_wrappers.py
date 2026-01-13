@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,9 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
+
 import pytest
+
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
@@ -24,10 +24,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear()
@@ -39,7 +39,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
     """Test spawning of shapes randomly with global rigid body settings."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
 
     cfg = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -68,12 +68,12 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
     prim = cfg.func("/World/env_.*/Cone", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    assert str(prim.GetPath()) == "/World/env_0/Cone"
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
-        prim = prim_utils.get_prim_at_path(prim_path)
+        prim = sim.stage.GetPrimAtPath(prim_path)
         assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
 
 
@@ -81,7 +81,7 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
     """Test spawning of shapes randomly with individual rigid object settings."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
 
     mass_variations = [2.0, 3.0, 4.0]
     cfg = sim_utils.MultiAssetSpawnerCfg(
@@ -114,12 +114,12 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
     prim = cfg.func("/World/env_.*/Cone", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Cone"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Cone")
+    assert str(prim.GetPath()) == "/World/env_0/Cone"
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone")
     assert len(prim_paths) == num_clones
 
     for prim_path in prim_paths:
-        prim = prim_utils.get_prim_at_path(prim_path)
+        prim = sim.stage.GetPrimAtPath(prim_path)
         assert prim.GetAttribute("physics:mass").Get() in mass_variations
 
 
@@ -132,7 +132,7 @@ def test_spawn_multiple_files_with_global_settings(sim):
     """Test spawning of files randomly with global articulation settings."""
     num_clones = 10
     for i in range(num_clones):
-        prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
 
     cfg = sim_utils.MultiUsdFileCfg(
         usd_path=[
@@ -157,6 +157,6 @@ def test_spawn_multiple_files_with_global_settings(sim):
     prim = cfg.func("/World/env_.*/Robot", cfg)
 
     assert prim.IsValid()
-    assert prim_utils.get_prim_path(prim) == "/World/env_0/Robot"
-    prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Robot")
+    assert str(prim.GetPath()) == "/World/env_0/Robot"
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Robot")
     assert len(prim_paths) == num_clones

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,14 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import os
+import pytest
 import shutil
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-import pytest
-
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.utils.seed import configure_seed
 
 
 @pytest.fixture
@@ -65,7 +64,7 @@ def test_generation_reproducibility(use_global_seed, seed):
     Setting only locally is not tested as it is not supported.
     """
     # set initial seed
-    torch_utils.set_seed(seed)
+    configure_seed(seed)
 
     # create terrain generator
     cfg = ROUGH_TERRAINS_CFG
@@ -77,7 +76,7 @@ def test_generation_reproducibility(use_global_seed, seed):
     terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
 
     # set seed again
-    torch_utils.set_seed(seed)
+    configure_seed(seed)
 
     # create terrain generator
     terrain_generator = TerrainGenerator(cfg=cfg)
@@ -116,7 +115,7 @@ def test_generation_cache(output_dir, curriculum):
 
     # set a random seed to disturb the process
     # this is to ensure that the seed inside the terrain generator makes deterministic results
-    torch_utils.set_seed(12456)
+    configure_seed(12456)
 
     # create terrain generator with cache enabled
     terrain_generator = TerrainGenerator(cfg=cfg)

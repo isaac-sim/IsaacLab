@@ -1,6 +1,78 @@
 Changelog
 ---------
 
+0.11.12 (2025-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-GearAssembly`` environments.
+
+
+0.11.11 (2025-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reaching task environments for OpenArm unimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Play-v0``.
+* Added lifting a cube task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCubeLiftEnvCfg`; Gym ID ``Isaac-Lift-Cube-OpenArm-v0``.
+  * :class:`OpenArmCubeLiftEnvCfg_PLAY`; Gym ID ``Isaac-Lift-Cube-OpenArm-Play-v0``.
+* Added opening a drawer task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCabinetEnvCfg`; Gym ID ``Isaac-Open-Drawer-OpenArm-v0``.
+  * :class:`OpenArmCabinetEnvCfg_PLAY`; Gym ID ``Isaac-Open-Drawer-OpenArm-Play-v0``.
+* Added reaching task environments for OpenArm bimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-Bi-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Bi-Play-v0``.
+
+
+0.11.10 (2025-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added obs_groups to the RSL-RL PPO agent configuration for the ``Isaac-Reach-UR10e-v0`` environment.
+* Changed self.state_space to 19 in the ``Isaac-Reach-UR10e-ROS-Inference-v0`` environment.
+
+
+0.11.9 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXR motion controller support for the G1 robot locomanipulation environment
+  ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``. This enables teleoperation using XR motion controllers
+  in addition to hand tracking.
+* Added :class:`OpenXRDeviceMotionController` for motion controller-based teleoperation with headset anchoring control.
+* Added motion controller-specific retargeters:
+  * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
+  * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
+
+0.11.8 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed to use of ``num_rerenders_on_reset`` and ``DLAA`` in visuomotor imitation learning environments.
+
+
+0.11.7 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured all imports follows the string import style instead of direct import of environment.
+
+
 0.11.6 (2025-10-23)
 ~~~~~~~~~~~~~~~~~~~
 

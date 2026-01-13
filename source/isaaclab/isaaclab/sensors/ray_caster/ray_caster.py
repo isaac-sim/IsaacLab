@@ -1,36 +1,39 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import re
 import torch
+import warp as wp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.log
-import warp as wp
-from isaacsim.core.prims import XFormPrim
+import omni
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
     from .ray_caster_cfg import RayCasterCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RayCaster(SensorBase):
@@ -143,12 +146,12 @@ class RayCaster(SensorBase):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
-            available_prims = ",".join([str(p.GetPath()) for p in stage_utils.get_current_stage().Traverse()])
+            available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
             raise RuntimeError(
                 f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
             )
 
-        self._view, self._offset = self._get_trackable_prim_view(self.cfg.prim_path)
+        self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -192,14 +195,14 @@ class RayCaster(SensorBase):
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
-                omni.log.info(
+                logger.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
                 )
             else:
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
                 # print info
-                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+                logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
             RayCaster.meshes[mesh_prim_path] = wp_mesh
 
@@ -258,7 +261,7 @@ class RayCaster(SensorBase):
                 self.cfg.ray_alignment = "base"
                 msg += " Setting ray_alignment to 'base'."
             # log the warning
-            omni.log.warn(msg)
+            logger.warning(msg)
         # ray cast based on the sensor poses
         if self.cfg.ray_alignment == "world":
             # apply horizontal drift to ray starting position in ray caster frame
@@ -324,12 +327,31 @@ class RayCaster(SensorBase):
 
         self.ray_visualizer.visualize(viz_points)
 
-    def _get_trackable_prim_view(
+    """
+    Internal Helpers.
+    """
+
+    def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
-        """Get a prim view that can be used to track the pose of the mesh prims. Additionally, it resolves the
-        relative pose between the mesh and its corresponding physics prim. This is especially useful if the
-        mesh is not directly parented to the physics prim.
+    ) -> tuple[XformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
+        """Obtain a prim view that can be used to track the pose of the parget prim.
+
+        The target prim path is a regex expression that matches one or more mesh prims. While we can track its
+        pose directly using XFormPrim, this is not efficient and can be slow. Instead, we create a prim view
+        using the physics simulation view, which provides a more efficient way to track the pose of the mesh prims.
+
+        The function additionally resolves the relative pose between the mesh and its corresponding physics prim.
+        This is especially useful if the mesh is not directly parented to the physics prim.
+
+        Args:
+            target_prim_path: The target prim path to obtain the prim view for.
+
+        Returns:
+            A tuple containing:
+
+            - An XFormPrim or a physics prim view (ArticulationView or RigidBodyView).
+            - A tuple containing the positions and orientations of the mesh prims in the physics prim frame.
+
         """
 
         mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
@@ -339,47 +361,53 @@ class RayCaster(SensorBase):
         prim_view = None
 
         while prim_view is None:
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
-                omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
+                logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                 break
 
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
-                omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
+                logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
                 break
 
             new_root_prim = current_prim.GetParent()
             current_path_expr = current_path_expr.rsplit("/", 1)[0]
             if not new_root_prim.IsValid():
-                prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
+                prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
                 current_path_expr = target_prim_path
-                omni.log.warn(
+                logger.warning(
                     f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
                     " Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
                     " be updated correctly when running in headless mode and position lookups will be much slower. \n"
                     " If possible, ensure that the mesh or its parent is a physics prim (rigid body or articulation)."
                 )
                 break
+
+            # switch the current prim to the parent prim
             current_prim = new_root_prim
 
+        # obtain the relative transforms between target prim and the view prims
         mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        target_prims = sim_utils.find_matching_prims(current_path_expr)
-        if len(mesh_prims) != len(target_prims):
+        view_prims = sim_utils.find_matching_prims(current_path_expr)
+        if len(mesh_prims) != len(view_prims):
             raise RuntimeError(
                 f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
-                f" ({len(target_prims)})Please specify the correct mesh and physics prim paths more"
+                f" ({len(view_prims)})Please specify the correct mesh and physics prim paths more"
                 " specifically in your target expressions."
             )
         positions = []
         quaternions = []
-        for mesh, target in zip(mesh_prims, target_prims):
-            pos, orientation = sim_utils.resolve_prim_pose(mesh, target)
+        for mesh_prim, view_prim in zip(mesh_prims, view_prims):
+            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, view_prim)
             positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
             quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
 
         positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
         quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
+
         return prim_view, (positions, quaternions)
 
     """

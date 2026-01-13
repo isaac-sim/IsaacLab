@@ -1,19 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 import re
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.kit.app
-import omni.log
 import omni.physics.tensors.impl.api as physx
-import omni.timeline
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
@@ -26,6 +24,9 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
     from .rigid_object_collection_cfg import RigidObjectCollectionCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RigidObjectCollection(AssetBase):
@@ -545,7 +546,7 @@ class RigidObjectCollection(AssetBase):
         self._external_torque_b[env_ids[:, None], object_ids] = torques
 
         if is_global != self._use_global_wrench_frame:
-            omni.log.warn(
+            logger.warning(
                 f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
                 " may lead to unexpected behavior."
             )
@@ -590,6 +591,8 @@ class RigidObjectCollection(AssetBase):
     """
 
     def _initialize_impl(self):
+        # clear object names list to prevent double counting on re-initialization
+        self._object_names_list.clear()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         root_prim_path_exprs = []
@@ -648,9 +651,9 @@ class RigidObjectCollection(AssetBase):
             raise RuntimeError("Failed to create rigid body collection. Please check PhysX logs.")
 
         # log information about the rigid body
-        omni.log.info(f"Number of instances: {self.num_instances}")
-        omni.log.info(f"Number of distinct objects: {self.num_objects}")
-        omni.log.info(f"Object names: {self.object_names}")
+        logger.info(f"Number of instances: {self.num_instances}")
+        logger.info(f"Number of distinct objects: {self.num_objects}")
+        logger.info(f"Object names: {self.object_names}")
 
         # container for data access
         self._data = RigidObjectCollectionData(self.root_physx_view, self.num_objects, self.device)

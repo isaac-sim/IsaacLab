@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,6 +30,9 @@ class RslRlPpoActorCriticCfg:
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the policy. Default is scalar."""
+
+    state_dependent_std: bool = False
+    """Whether to use state-dependent standard deviation for the policy. Default is False."""
 
     actor_obs_normalization: bool = MISSING
     """Whether to normalize the observation for the actor network."""

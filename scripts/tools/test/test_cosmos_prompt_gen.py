@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,9 +7,8 @@
 
 import json
 import os
-import tempfile
-
 import pytest
+import tempfile
 
 from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 
@@ -17,7 +16,7 @@ from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 @pytest.fixture(scope="class")
 def temp_templates_file():
     """Create temporary templates file."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)  # noqa: SIM115
 
     # Create test templates
     test_templates = {
@@ -40,7 +39,7 @@ def temp_templates_file():
 @pytest.fixture
 def temp_output_file():
     """Create temporary output file."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)  # noqa: SIM115
     yield temp_file.name
     # Cleanup
     os.remove(temp_file.name)

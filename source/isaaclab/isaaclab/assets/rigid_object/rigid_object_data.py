@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ import weakref
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
-from isaaclab.sim.utils import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
 
 

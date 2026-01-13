@@ -1,13 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Custom kernels for warp."""
 
-from typing import Any
-
 import warp as wp
+from typing import Any
 
 
 @wp.kernel(enable_backward=False)
@@ -136,7 +135,6 @@ def raycast_static_meshes_kernel(
 
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
-
         wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
         # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison
@@ -221,7 +219,6 @@ def raycast_dynamic_meshes_kernel(
     mesh_query_ray_t = wp.mesh_query_ray(mesh[tid_env, tid_mesh_id], start_pos, direction, max_dist)
     # if the ray hit, store the hit data
     if mesh_query_ray_t.result:
-
         wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
         # check if hit distance is less than the current hit distance, only then update the memory
         # TODO, in theory we could use the output of atomic_min to avoid the non-thread safe next comparison

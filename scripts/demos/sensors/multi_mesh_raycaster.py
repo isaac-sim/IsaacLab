@@ -1,13 +1,22 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Example on using the MultiMesh Raycaster sensor.
+"""Example on using the Multi-Mesh Raycaster sensor.
 
-Usage:
-    `python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
+.. code-block:: bash
+
+    # with allegro hand
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type allegro_hand
+
+    # with anymal-D bodies
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type anymal_d
+
+    # with random multiple objects
+    python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+
 """
 
 import argparse
@@ -15,14 +24,14 @@ import argparse
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Example on using the raycaster sensor.")
+parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument(
     "--asset_type",
     type=str,
     default="allegro_hand",
     help="Asset type to use.",
-    choices=["allegro_hand", "anymal_d", "multi"],
+    choices=["allegro_hand", "anymal_d", "objects"],
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -73,14 +82,12 @@ if args_cli.asset_type == "allegro_hand":
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
@@ -91,16 +98,16 @@ if args_cli.asset_type == "allegro_hand":
 elif args_cli.asset_type == "anymal_d":
     asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
@@ -108,7 +115,7 @@ elif args_cli.asset_type == "anymal_d":
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
-elif args_cli.asset_type == "multi":
+elif args_cli.asset_type == "objects":
     asset_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
@@ -155,7 +162,7 @@ elif args_cli.asset_type == "multi":
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, 0.0, 0.6)),
         mesh_prim_paths=[
             "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Object"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Object"),
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
@@ -278,7 +285,7 @@ def main():
     scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
 
-    if args_cli.asset_type == "multi":
+    if args_cli.asset_type == "objects":
         randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
     # Play the simulator

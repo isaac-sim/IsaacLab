@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,14 +20,14 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 
 # -- Project information -----------------------------------------------------
 
@@ -124,11 +124,11 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    "torch": ("https://pytorch.org/docs/stable/", None),
+    "torch": ("https://docs.pytorch.org/docs/stable/", None),
     "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
-    "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
+    "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -157,6 +157,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
@@ -190,6 +191,8 @@ autodoc_mock_imports = [
     "nvidia.srl",
     "flatdict",
     "IPython",
+    "cv2",
+    "imageio",
     "ipywidgets",
     "mpl_toolkits",
 ]

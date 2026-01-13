@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -93,9 +93,9 @@ import contextlib
 import os
 
 import carb
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.app
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
@@ -187,7 +187,7 @@ def main():
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
         # Open the stage with USD
-        stage_utils.open_stage(mesh_converter.usd_path)
+        sim_utils.open_stage(mesh_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

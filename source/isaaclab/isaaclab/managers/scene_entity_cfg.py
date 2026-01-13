@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration terms for different managers."""
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
-from isaaclab.scene import InteractiveScene
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 
 @configclass

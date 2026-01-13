@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -434,7 +434,7 @@ def cube_poses_in_base_frame(
         return pos_cubes_base
     elif return_key == "quat":
         return quat_cubes_base
-    elif return_key is None:
+    else:
         return torch.cat((pos_cubes_base, quat_cubes_base), dim=1)
 
 
@@ -528,5 +528,5 @@ def ee_frame_pose_in_base_frame(
         return ee_pos_in_base
     elif return_key == "quat":
         return ee_quat_in_base
-    elif return_key is None:
+    else:
         return torch.cat((ee_pos_in_base, ee_quat_in_base), dim=1)

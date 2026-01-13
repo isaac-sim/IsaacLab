@@ -1,26 +1,29 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.log
+from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh
 
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
     from .ray_caster_camera_cfg import RayCasterCameraCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RayCasterCamera(RayCaster):
@@ -226,7 +229,7 @@ class RayCasterCamera(RayCaster):
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # camera position and rotation in opengl convention
         orientations = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=self._device)
@@ -404,7 +407,7 @@ class RayCasterCamera(RayCaster):
     def _compute_view_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Obtains the pose of the view the camera is attached to in the world frame.
 
-        .. deprecated v2.3.0:
+        .. deprecated v2.3.1:
             This function will be removed in a future release in favor of implementation :meth:`obtain_world_pose_from_view`.
 
         Returns:
@@ -413,7 +416,7 @@ class RayCasterCamera(RayCaster):
 
         """
         # deprecation
-        omni.log.warn(
+        logger.warning(
             "The function '_compute_view_world_poses' will be deprecated in favor of the util method"
             " 'obtain_world_pose_from_view'. Please use 'obtain_world_pose_from_view' instead...."
         )
@@ -425,7 +428,7 @@ class RayCasterCamera(RayCaster):
 
         This function applies the offset pose to the pose of the view the camera is attached to.
 
-        .. deprecated v2.3.0:
+        .. deprecated v2.3.1:
             This function will be removed in a future release. Instead, use the code block below:
 
             .. code-block:: python
@@ -438,7 +441,7 @@ class RayCasterCamera(RayCaster):
         """
 
         # deprecation
-        omni.log.warn(
+        logger.warning(
             "The function '_compute_camera_world_poses' will be deprecated in favor of the combination of methods"
             " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms'. Please use"
             " 'obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms' instead...."

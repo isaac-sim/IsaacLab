@@ -1,21 +1,21 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
 
+import cv2
 import enum
 import math
 import numpy as np
 import os
+import PIL.Image
 import tempfile
 import torch
 import yaml
 from dataclasses import dataclass
-
-import cv2
-import PIL.Image
 from PIL import ImageDraw
+
 from pxr import Kind, Sdf, Usd, UsdGeom, UsdShade
 
 

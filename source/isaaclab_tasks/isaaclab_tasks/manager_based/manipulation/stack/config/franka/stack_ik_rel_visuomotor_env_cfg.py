@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -204,8 +204,8 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_hand/wrist_cam",
             update_period=0.0,
-            height=84,
-            width=84,
+            height=200,
+            width=200,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
@@ -219,8 +219,8 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
-            height=84,
-            width=84,
+            height=200,
+            width=200,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
@@ -231,8 +231,8 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
         )
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,7 +14,7 @@ from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:
@@ -148,7 +148,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.target_prim_expr]
+                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
             # update position of the target meshes
@@ -156,8 +156,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
-            if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
-                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
+            if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
+                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
                 pos_w -= pos_offset
                 ori_w = math_utils.quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
@@ -172,7 +172,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             mesh_idx += count
 
         # ray cast and store the hits
-        self.ray_hits_w, ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
+        self.ray_hits_w[env_ids], ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
             self._ray_starts_w[env_ids],
             self._ray_directions_w[env_ids],
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
@@ -189,7 +189,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # update output buffers
         if "distance_to_image_plane" in self.cfg.data_types:
             # note: data is in camera frame so we only take the first component (z-axis of camera frame)
-
             distance_to_image_plane = (
                 math_utils.quat_apply(
                     math_utils.quat_inv(self._data.quat_w_world[env_ids]).repeat(1, self.num_rays),

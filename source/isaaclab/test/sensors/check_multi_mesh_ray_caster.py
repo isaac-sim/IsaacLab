@@ -1,16 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 
 """
-This script shows how to use the ray caster from the Isaac Lab framework.
+This script shows how to use the multi-mesh ray caster from the Isaac Lab framework.
 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/extensions/omni.isaac.lab/test/sensors/check_multi_mesh_ray_caster.py --headless
+    ./isaaclab.sh -p source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py --headless
+
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -44,7 +45,6 @@ simulation_app = app_launcher.app
 import random
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim
@@ -66,7 +66,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     cloner = GridCloner(spacing=10.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -141,13 +141,11 @@ def main():
     _ = TerrainImporter(terrain_importer_cfg)
 
     mesh_targets: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = [
-        MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/ground", track_mesh_transforms=False),
+        MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/ground", track_mesh_transforms=False),
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(
-                target_prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True
-            )
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(

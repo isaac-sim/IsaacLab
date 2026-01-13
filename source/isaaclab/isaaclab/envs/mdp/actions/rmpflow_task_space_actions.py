@@ -1,15 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+import logging
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-import omni.log
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -21,6 +20,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import rmpflow_actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RMPFlowAction(ActionTerm):
@@ -62,11 +64,11 @@ class RMPFlowAction(ActionTerm):
             self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        omni.log.info(
+        logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        omni.log.info(
+        logger.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
         # Avoid indexing across all joints for efficiency

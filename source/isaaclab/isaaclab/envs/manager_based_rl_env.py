@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,8 +12,6 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
-
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
@@ -57,7 +55,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -222,8 +219,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                for _ in range(self.cfg.num_rerenders_on_reset):
+                    self.sim.render()
 
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,11 +16,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import torch
-
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.version import get_version
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -34,6 +31,7 @@ from isaaclab.assets import (
 )
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.version import get_isaac_sim_version
 
 # from isaacsim.robot.surface_gripper import GripperView
 
@@ -112,7 +110,7 @@ def generate_surface_gripper(
 
     # Create Top-level Xforms, one for each articulation
     for i in range(num_surface_grippers):
-        prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
     surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_.*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
@@ -173,8 +171,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         device: The device to run the test on.
         add_ground_plane: Whether to add a ground plane to the simulation.
     """
-    isaac_sim_version = get_version()
-    if int(isaac_sim_version[2]) < 5:
+    if get_isaac_sim_version().major < 5:
         return
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
     surface_gripper, articulation, _ = generate_surface_gripper(
@@ -208,8 +205,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 @pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
-    isaac_sim_version = get_version()
-    if int(isaac_sim_version[2]) < 5:
+    if get_isaac_sim_version().major < 5:
         return
     num_articulations = 1
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)

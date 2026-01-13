@@ -1,11 +1,10 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 
 """Configuration for the ray-cast sensor."""
-
 
 from dataclasses import MISSING
 
@@ -23,7 +22,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     class RaycastTargetCfg:
         """Configuration for different ray-cast targets."""
 
-        target_prim_expr: str = MISSING
+        prim_expr: str = MISSING
         """The regex to specify the target prim to ray cast against."""
 
         is_shared: bool = False
@@ -49,8 +48,6 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         .. note::
             Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
         """
-
-        is_global: bool = False
 
     class_type: type = MultiMeshRayCaster
 

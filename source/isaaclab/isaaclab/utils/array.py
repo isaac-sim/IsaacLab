@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import warp as wp
 from typing import Union
 
-import warp as wp
-
-TensorData = Union[np.ndarray, torch.Tensor, wp.array]
+TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
 Union of numpy, torch, and warp arrays.

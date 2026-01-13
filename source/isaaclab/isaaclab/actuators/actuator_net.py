@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,7 +24,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,6 +6,7 @@
 """
 Defines structure of information that is needed from an environment for data generation.
 """
+
 from copy import deepcopy
 
 

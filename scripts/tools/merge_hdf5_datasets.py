@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,7 +30,6 @@ def merge_datasets():
         copy_attributes = True
 
         for filepath in args_cli.input_files:
-
             with h5py.File(filepath, "r") as input:
                 for episode, data in input["data"].items():
                     input.copy(f"data/{episode}", output, f"data/demo_{episode_idx}")

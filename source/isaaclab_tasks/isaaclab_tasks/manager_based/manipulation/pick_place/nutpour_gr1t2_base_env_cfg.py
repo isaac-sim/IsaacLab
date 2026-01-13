@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -359,8 +359,8 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 2
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]
