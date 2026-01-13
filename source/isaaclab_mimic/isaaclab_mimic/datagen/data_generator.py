@@ -187,10 +187,7 @@ class DataGenerator:
         Pretty print this object.
         """
         msg = str(self.__class__.__name__)
-        msg += " (\n\tdataset_path={}\n\tdemo_keys={}\n)".format(
-            self.dataset_path,
-            self.demo_keys,
-        )
+        msg += f" (\n\tdataset_path={self.dataset_path}\n\tdemo_keys={self.demo_keys}\n)"
         return msg
 
     def randomize_subtask_boundaries(self) -> dict[str, np.ndarray]:

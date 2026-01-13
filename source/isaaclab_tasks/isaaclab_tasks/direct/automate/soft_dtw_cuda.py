@@ -61,7 +61,7 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
         j = J + 1
 
         # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
-        if tid + J == p and (tid < max_i and J < max_j):
+        if tid + J == p and (tid < max_i and max_j > J):
             # Don't compute if outside bandwidth
             if not (abs(i - j) > bandwidth > 0):
                 r0 = -R[b, i - 1, j - 1] * inv_gamma
@@ -96,7 +96,7 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_pa
         j = J + 1
 
         # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
-        if tid + J == rev_p and (tid < max_i and J < max_j):
+        if tid + J == rev_p and (tid < max_i and max_j > J):
 
             if math.isinf(R[k, i, j]):
                 R[k, i, j] = -math.inf
@@ -403,9 +403,7 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
     n_iters = 6
 
     print(
-        "Profiling forward() + backward() times for batch_size={}, seq_len_a={}, seq_len_b={}, dims={}...".format(
-            batch_size, seq_len_a, seq_len_b, dims
-        )
+        f"Profiling forward() + backward() times for batch_size={batch_size}, seq_len_a={seq_len_a}, seq_len_b={seq_len_b}, dims={dims}..."
     )
 
     times_cpu = []
