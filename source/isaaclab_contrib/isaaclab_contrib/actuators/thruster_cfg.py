@@ -51,7 +51,7 @@ class ThrusterCfg:
     """If ``True``, use discrete mixing factor ``1/(dt + tau)``; if ``False``, use continuous ``1/tau``."""
 
     integration_scheme: Literal["rk4", "euler"] = "rk4"
-    """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
+    """Numerical integrator for the first-order model. Defaults to 'rk4'."""
 
     thruster_names_expr: list[str] = MISSING
     """Articulation's joint names that are part of the group."""
