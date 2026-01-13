@@ -151,6 +151,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         )
 
         # Prepare command
+        # Note: Command options matter as they are used for cleanups inside AppLauncher
         cmd = [
             sys.executable,
             "-m",
