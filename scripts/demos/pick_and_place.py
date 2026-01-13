@@ -21,8 +21,11 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import torch
+"""Rest everything follows."""
+
 from collections.abc import Sequence
+
+import torch
 
 import carb
 import omni
