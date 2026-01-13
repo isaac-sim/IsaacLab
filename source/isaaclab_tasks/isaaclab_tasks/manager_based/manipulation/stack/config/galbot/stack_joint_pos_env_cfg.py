@@ -277,11 +277,9 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        l, r = self.events.randomize_cube_positions.params["pose_range"]["y"]
-        self.events.randomize_cube_positions.params["pose_range"]["y"] = (
-            -r,
-            -l,
-        )  # move to area below right hand
+        # Move to area below right hand (invert y-axis)
+        left, right = self.events.randomize_cube_positions.params["pose_range"]["y"]
+        self.events.randomize_cube_positions.params["pose_range"]["y"] = (-right, -left)
 
         # Set actions for the specific robot type (galbot)
         self.actions.arm_action = mdp.JointPositionActionCfg(

@@ -6,7 +6,6 @@
 
 """Configuration for the ray-cast sensor."""
 
-
 from dataclasses import MISSING
 
 from isaaclab.utils import configclass

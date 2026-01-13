@@ -6,6 +6,7 @@
 """
 A collection of classes used to represent waypoints and trajectories.
 """
+
 import asyncio
 import inspect
 import torch

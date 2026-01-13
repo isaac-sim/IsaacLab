@@ -42,7 +42,6 @@ class CartpoleShowcaseEnv(CartpoleEnv):
         self.cartpole.set_joint_effort_target(target, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
-
         # fundamental spaces
         # - Box
         if isinstance(self.single_observation_space["policy"], gym.spaces.Box):

@@ -9,6 +9,7 @@
 """
 Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 """
+
 import enum
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg

@@ -105,7 +105,6 @@ def get_sdf_reward(
     sdf_reward = torch.zeros((num_envs,), dtype=torch.float32, device=device)
 
     for i in range(num_envs):
-
         # Create copy of plug mesh
         mesh_points = wp.clone(wp_plug_mesh.points)
         mesh_indices = wp.clone(wp_plug_mesh.indices)
