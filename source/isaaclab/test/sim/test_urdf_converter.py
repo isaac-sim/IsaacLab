@@ -12,8 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
+
+import numpy as np
 import pytest
 from packaging.version import Version
 

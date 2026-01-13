@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import itertools
 import logging
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import torch
 
 import isaacsim.core.utils.torch as torch_utils
 from isaacsim.core.simulation_manager import SimulationManager

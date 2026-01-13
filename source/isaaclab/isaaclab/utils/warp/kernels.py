@@ -5,8 +5,9 @@
 
 """Custom kernels for warp."""
 
-import warp as wp
 from typing import Any
+
+import warp as wp
 
 
 @wp.kernel(enable_backward=False)

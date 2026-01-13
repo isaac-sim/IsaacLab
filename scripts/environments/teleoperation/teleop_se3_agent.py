@@ -59,8 +59,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gymnasium as gym
 import logging
+
+import gymnasium as gym
 import torch
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg

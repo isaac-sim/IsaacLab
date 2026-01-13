@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+import pinocchio as pin
 import scipy.linalg.blas as blas
 import scipy.linalg.lapack as lapack
-
-import pinocchio as pin
 from pink.configuration import Configuration
 from pink.tasks import Task
 

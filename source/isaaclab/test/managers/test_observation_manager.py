@@ -15,10 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
-import torch
 from collections import namedtuple
 from typing import TYPE_CHECKING
+
+import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import (

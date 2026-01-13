@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
 
 import carb
 
@@ -32,7 +33,7 @@ XRPoseValidityFlags = None
 XRCoreEventType = None
 
 with contextlib.suppress(ModuleNotFoundError):
-    from omni.kit.xr.core import XRCore, XRPoseValidityFlags, XRCoreEventType
+    from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 
 from isaacsim.core.prims import SingleXFormPrim
 

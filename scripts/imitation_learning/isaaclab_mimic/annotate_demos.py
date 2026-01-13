@@ -58,8 +58,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import os
+
+import gymnasium as gym
 import torch
 
 import isaaclab_mimic.envs  # noqa: F401

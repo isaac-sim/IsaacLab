@@ -11,16 +11,16 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
-import gymnasium as gym
 import os
-import pytest
 import subprocess
 import sys
 import time
 
-import carb
-
 import env_benchmark_test_utils as utils
+import gymnasium as gym
+import pytest
+
+import carb
 
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 

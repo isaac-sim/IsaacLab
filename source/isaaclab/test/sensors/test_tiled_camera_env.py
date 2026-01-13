@@ -29,9 +29,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import sys
+
 import gymnasium as gym
 import pytest
-import sys
 
 import omni.usd
 

@@ -41,9 +41,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 import random
+
+import numpy as np
 from PIL import Image, ImageChops
 
 import isaacsim.core.utils.nucleus as nucleus_utils

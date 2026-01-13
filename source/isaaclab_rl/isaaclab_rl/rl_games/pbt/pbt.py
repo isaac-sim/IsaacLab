@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
 import os
 import random
 import sys
+
+import numpy as np
 import torch
 import torch.distributed as dist
-
 from rl_games.common.algo_observer import AlgoObserver
 
 from . import pbt_utils

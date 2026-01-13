@@ -60,9 +60,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 import random
+
+import numpy as np
 import torch
 
 import omni.replicator.core as rep

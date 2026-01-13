@@ -18,13 +18,13 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 # needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
 from __future__ import annotations
 
+import warnings
+from typing import Any
+
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
-import warnings
-from typing import Any
-
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
