@@ -41,6 +41,7 @@ class OVVisualizer(Visualizer):
         self._is_initialized = False
         self._sim_time = 0.0
         self._step_counter = 0
+        self._initial_camera_set = False  # Flag to defer camera setting to avoid threading conflicts
 
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         """Initialize OV visualizer."""
@@ -88,6 +89,12 @@ class OVVisualizer(Visualizer):
         """Update visualizer (no-op for OV - USD stage is auto-synced by Newton)."""
         if not self._is_initialized:
             return
+        
+        # Set initial camera view on first step (deferred from initialization to avoid threading conflicts)
+        if hasattr(self, '_initial_camera_set') and not self._initial_camera_set:
+            self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
+            self._initial_camera_set = True
+        
         self._sim_time += dt
         self._step_counter += 1
 
@@ -239,12 +246,13 @@ class OVVisualizer(Visualizer):
 
                 logger.info(f"[OVVisualizer] Created viewport '{self.cfg.viewport_name}'")
 
-                # Dock the viewport asynchronously (needs to wait for window creation)
-                asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
-
-                # Create dedicated camera for this viewport
+                # Create dedicated camera for this viewport BEFORE docking
+                # to avoid race conditions with viewport manipulation
                 if self._viewport_window:
                     self._create_and_assign_camera(usd_stage)
+
+                # Dock the viewport asynchronously (after camera setup)
+                asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
             else:
                 # Use existing viewport by name, or fall back to active viewport
                 if self.cfg.viewport_name:
@@ -269,8 +277,9 @@ class OVVisualizer(Visualizer):
             # Get viewport API for camera control
             self._viewport_api = self._viewport_window.viewport_api
 
-            # Set camera pose (uses existing camera if not created above)
-            self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
+            # Defer camera pose setting to avoid threading conflicts during initialization
+            # The camera view will be set on the first step() call instead
+            self._initial_camera_set = False
 
             logger.info(f"[OVVisualizer] Viewport configured (size: {self.cfg.window_width}x{self.cfg.window_height})")
 
