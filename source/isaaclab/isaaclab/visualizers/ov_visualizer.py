@@ -346,8 +346,8 @@ class OVVisualizer(Visualizer):
     def _create_and_assign_camera(self, usd_stage) -> None:
         """Create a dedicated camera for this viewport and assign it."""
         try:
-            # Create camera prim path based on viewport name
-            camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera"
+            # Create camera prim path based on viewport name (sanitize to enure valid USD path)
+            camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
 
             # Check if camera already exists
             camera_prim = usd_stage.GetPrimAtPath(camera_path)
