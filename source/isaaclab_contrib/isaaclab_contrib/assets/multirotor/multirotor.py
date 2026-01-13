@@ -18,8 +18,8 @@ import omni.log
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 
-from isaaclab_multirotor.actuators import Thruster
-from isaaclab_multirotor.utils.types import MultiRotorActions
+from isaaclab_contrib.actuators import Thruster
+from isaaclab_contrib.utils.types import MultiRotorActions
 
 from .multirotor_data import MultirotorData
 

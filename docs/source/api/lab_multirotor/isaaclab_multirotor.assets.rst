@@ -1,7 +1,7 @@
-isaaclab_multirotor.assets
+isaaclab_contrib.assets
 ==========================
 
-.. automodule:: isaaclab_multirotor.assets
+.. automodule:: isaaclab_contrib.assets
 
   .. rubric:: Classes
 

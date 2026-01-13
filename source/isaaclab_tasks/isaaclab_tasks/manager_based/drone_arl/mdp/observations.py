@@ -19,7 +19,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_multirotor.assets import Multirotor
+from isaaclab_contrib.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv

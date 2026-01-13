@@ -39,7 +39,7 @@ def make_thruster_cfg(num_motors: int):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_zero_thrust_const_is_handled(num_envs, num_motors, device):
     """When thrust_const_range contains zeros, Thruster clamps values and compute returns finite outputs."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
     cfg.thrust_const_range = (0.0, 0.0)
@@ -63,7 +63,7 @@ def test_zero_thrust_const_is_handled(num_envs, num_motors, device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_negative_thrust_range_results_finite(num_envs, num_motors, device):
     """Negative configured thrust ranges are clamped and yield finite outputs after hardening."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
     cfg.thrust_range = (-5.0, -1.0)
@@ -88,7 +88,7 @@ def test_negative_thrust_range_results_finite(num_envs, num_motors, device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_vs_slice_indices_and_subset_reset(num_envs, num_motors, device):
     """Compute should accept tensor or slice thruster indices, and reset_idx should affect only specified envs."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
 
@@ -124,7 +124,7 @@ def test_tensor_vs_slice_indices_and_subset_reset(num_envs, num_motors, device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_mixing_and_integration_modes(num_envs, num_motors, device):
     """Verify mixing factor selection and integration kernel choice reflect the config."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
 
@@ -151,7 +151,7 @@ def test_mixing_and_integration_modes(num_envs, num_motors, device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_thruster_compute_clamps_and_shapes(num_envs, num_motors, device):
     """Thruster.compute should return thrusts with correct shape and within clamp bounds."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
 
@@ -178,7 +178,7 @@ def test_thruster_compute_clamps_and_shapes(num_envs, num_motors, device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_thruster_reset_idx_changes_state(num_envs, num_motors, device):
     """reset_idx should re-sample parameters for specific env indices."""
-    from isaaclab_multirotor.actuators import Thruster
+    from isaaclab_contrib.actuators import Thruster
 
     cfg = make_thruster_cfg(num_motors)
 

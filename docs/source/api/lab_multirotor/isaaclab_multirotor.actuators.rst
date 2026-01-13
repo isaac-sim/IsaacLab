@@ -1,7 +1,7 @@
-isaaclab_multirotor.actuators
+isaaclab_contrib.actuators
 =============================
 
-.. automodule:: isaaclab_multirotor.actuators
+.. automodule:: isaaclab_contrib.actuators
 
   .. rubric:: Classes
 

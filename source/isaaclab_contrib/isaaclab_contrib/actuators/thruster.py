@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from isaaclab_multirotor.utils.types import MultiRotorActions
+from isaaclab_contrib.utils.types import MultiRotorActions
 
 if TYPE_CHECKING:
     from .thruster_cfg import ThrusterCfg

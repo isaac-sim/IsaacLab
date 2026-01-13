@@ -1,12 +1,12 @@
-isaaclab_multirotor.mdp
+isaaclab_contrib.mdp
 =======================
 
-.. automodule:: isaaclab_multirotor.mdp
+.. automodule:: isaaclab_contrib.mdp
 
 Actions
 -------
 
-.. automodule:: isaaclab_multirotor.mdp.actions
+.. automodule:: isaaclab_contrib.mdp.actions
 
   .. rubric:: Classes
 
@@ -18,7 +18,7 @@ Actions
 Thrust Action Configuration
 ---------------------------
 
-.. autoclass:: isaaclab_multirotor.mdp.actions.thrust_actions_cfg.ThrustActionCfg
+.. autoclass:: isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg
     :members:
     :inherited-members:
     :show-inheritance:
@@ -27,7 +27,7 @@ Thrust Action Configuration
 Thrust Action Implementation
 ----------------------------
 
-.. autoclass:: isaaclab_multirotor.mdp.actions.thrust_actions.ThrustAction
+.. autoclass:: isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction
     :members:
     :inherited-members:
     :show-inheritance:

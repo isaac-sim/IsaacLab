@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_multirotor.actuators import ThrusterCfg
+from isaaclab_contrib.actuators import ThrusterCfg
 
 from .multirotor import Multirotor
 

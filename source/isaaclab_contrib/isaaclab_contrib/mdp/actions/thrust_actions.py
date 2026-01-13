@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
 
-from isaaclab_multirotor.assets import Multirotor
+from isaaclab_contrib.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Installation script for the 'isaaclab_multirotor' python package."""
+"""Installation script for the 'isaaclab_contrib' python package."""
 
 import os
 import toml
@@ -17,7 +17,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 
 # Installation operation
 setup(
-    name="isaaclab_multirotor",
+    name="isaaclab_contrib",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -26,7 +26,7 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
     python_requires=">=3.10",
-    packages=["isaaclab_multirotor"],
+    packages=["isaaclab_contrib"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",

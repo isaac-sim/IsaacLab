@@ -27,7 +27,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import build_simulation_context
 
-from isaaclab_multirotor.assets import Multirotor, MultirotorCfg
+from isaaclab_contrib.assets import Multirotor, MultirotorCfg
 
 # Best-effort: suppress unraisable destructor warnings emitted during
 # teardown of partially-constructed assets in CI/dev environments. We still
@@ -170,7 +170,7 @@ def test_multirotor_cfg_defaults():
 
 
 def test_multirotor_data_annotations():
-    from isaaclab_multirotor.assets.multirotor.multirotor_data import MultirotorData
+    from isaaclab_contrib.assets.multirotor.multirotor_data import MultirotorData
 
     # The class defines attributes for thruster state; the defaults should be None
     md = MultirotorData.__new__(MultirotorData)

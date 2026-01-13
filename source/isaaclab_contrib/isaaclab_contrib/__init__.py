@@ -9,11 +9,11 @@ import os
 import toml
 
 # Conveniences to other module directories via relative paths
-ISAACLAB_MULTIROTOR_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+ISAACLAB_CONTRIB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 """Path to the extension source directory."""
 
-ISAACLAB_MULTIROTOR_METADATA = toml.load(os.path.join(ISAACLAB_MULTIROTOR_EXT_DIR, "config", "extension.toml"))
+ISAACLAB_CONTRIB_METADATA = toml.load(os.path.join(ISAACLAB_CONTRIB_EXT_DIR, "config", "extension.toml"))
 """Extension metadata dictionary parsed from the extension.toml file."""
 
 # Configure the module-level variables
-__version__ = ISAACLAB_MULTIROTOR_METADATA["package"]["version"]
+__version__ = ISAACLAB_CONTRIB_METADATA["package"]["version"]

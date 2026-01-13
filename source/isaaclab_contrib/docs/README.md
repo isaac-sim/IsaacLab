@@ -34,9 +34,9 @@ The extension provides the following key components:
 To use this extension in your code, import the required components:
 
 ```python
-from isaaclab_multirotor.assets import Multirotor, MultirotorCfg
-from isaaclab_multirotor.actuators import Thruster, ThrusterCfg
-from isaaclab_multirotor.mdp.actions import ThrustActionCfg
+from isaaclab_contrib.assets import Multirotor, MultirotorCfg
+from isaaclab_contrib.actuators import Thruster, ThrusterCfg
+from isaaclab_contrib.mdp.actions import ThrustActionCfg
 ```
 
 ### Example: Creating a Multirotor Asset
@@ -45,8 +45,8 @@ Here's how to configure and create a multirotor asset:
 
 ```python
 import isaaclab.sim as sim_utils
-from isaaclab_multirotor.assets import MultirotorCfg
-from isaaclab_multirotor.actuators import ThrusterCfg
+from isaaclab_contrib.assets import MultirotorCfg
+from isaaclab_contrib.actuators import ThrusterCfg
 
 # Define thruster actuator configuration
 thruster_cfg = ThrusterCfg(
@@ -73,7 +73,7 @@ To use thrust actions in your RL environment:
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab_multirotor.mdp.actions import ThrustActionCfg
+from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 @configclass
 class MyMultirotorEnvCfg(ManagerBasedRLEnvCfg):
@@ -95,7 +95,7 @@ class MyMultirotorEnvCfg(ManagerBasedRLEnvCfg):
 The extension follows Isaac Lab's standard structure:
 
 ```tree
-isaaclab_multirotor/
+isaaclab_contrib/
 ├── actuators/              # Thruster actuator implementations
 ├── assets/                 # Multirotor asset classes
 │   └── multirotor/
@@ -130,8 +130,8 @@ The extension includes comprehensive unit tests:
 
 ```bash
 # Test thruster actuator
-python -m pytest source/isaaclab_multirotor/test/actuators/test_thruster.py
+python -m pytest source/isaaclab_contrib/test/actuators/test_thruster.py
 
 # Test multirotor asset
-python -m pytest source/isaaclab_multirotor/test/assets/test_multirotor.py
+python -m pytest source/isaaclab_contrib/test/assets/test_multirotor.py
 ```
