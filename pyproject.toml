@@ -54,7 +54,7 @@ combine-as-imports = true
 order-by-type = true
 from-first = false
 
-# Import sections order
+# Custom import sections
 section-order = [
     "future",
     "standard-library",
@@ -65,21 +65,25 @@ section-order = [
     "local-folder",
 ]
 
-# Omniverse extensions
-known-omniverse-extensions = [
-    "isaacsim*",
-    "omni*",
+[tool.ruff.lint.isort.sections]
+# Define what belongs in each custom section
+
+"omniverse-extensions" = [
+    "isaacsim",
+    "omni",
     "pxr",
     "carb",
     "usdrt",
     "Semantics",
 ]
 
-# Isaac Lab extensions
-known-isaaclab-extensions = [
-    "isaaclab*",
+"isaaclab-extensions" = [
+    "isaaclab",
+    "isaaclab_assets",
+    "isaaclab_mimic",
+    "isaaclab_rl",
+    "isaaclab_tasks",
 ]
-
 
 [tool.ruff.format]
 # Use Black-compatible formatting
