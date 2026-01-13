@@ -38,6 +38,8 @@ ignore = [
     "SIM108", # Use ternary operator instead of if-else statement
     "SIM117", # Merge with statements for context managers
     "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()
+    "UP006",  # Use 'dict' instead of 'Dict' type annotation
+    "UP018",  # Unnecessary `float` call (rewrite as a literal)
 ]
 
 [tool.ruff.lint.per-file-ignores]

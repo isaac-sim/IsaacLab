@@ -8,6 +8,8 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
+from typing import Union
+
 import numpy as np
 import torch
 import warp as wp
