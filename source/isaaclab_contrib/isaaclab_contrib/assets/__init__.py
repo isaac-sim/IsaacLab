@@ -3,6 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-package for different assets, such as rigid objects and articulations."""
+"""Sub-package for different Isaac Lab external contributions."""
 
 from .multirotor import Multirotor, MultirotorCfg, MultirotorData
