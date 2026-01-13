@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Jinqi Wei
 * Jinyeob Kim
 * Johnson Sun
+* Juana Du
 * Kaixi Bao
 * Kris Wilson
 * Krishna Lakhi

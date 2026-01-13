@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.53.1 (2026-01-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added function :func:`~isaaclab.sim.utils.prims.change_prim_property` to change attributes on a USD prim.
+  This replaces the previously used USD command ``ChangeProperty`` that depends on Omniverse Kit API.
+
+Changed
+^^^^^^^
+
+* Replaced occurrences of ``ChangeProperty`` USD command to :func:`~isaaclab.sim.utils.prims.change_prim_property`.
+
+
 0.53.0 (2026-01-07)
 ~~~~~~~~~~~~~~~~~~~
 

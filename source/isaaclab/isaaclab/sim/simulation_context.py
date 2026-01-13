@@ -27,7 +27,7 @@ import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
@@ -146,6 +146,11 @@ class SimulationContext(_SimulationContext):
             self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
+        # cache stage if it is not already cached
+        stage_cache = UsdUtils.StageCache.Get()
+        stage_id = stage_cache.GetId(self._initial_stage).ToLongInt()
+        if stage_id < 0:
+            stage_cache.Insert(self._initial_stage)
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()

@@ -10,7 +10,6 @@ import re
 from packaging.version import Version
 from typing import TYPE_CHECKING
 
-import isaacsim
 import omni.kit.app
 import omni.kit.commands
 
