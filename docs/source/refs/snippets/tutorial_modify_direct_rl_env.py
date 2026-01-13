@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# fmt: off
+# ruff: noqa
 
 # [start-init-import]
 from .h1_env import H1Env, H1EnvCfg
@@ -25,6 +25,7 @@ gym.register(
 
 # [start-h1_env-import]
 from isaaclab_assets import H1_CFG
+
 # [end-h1_env-import]
 
 # [start-h1_env-spaces]
