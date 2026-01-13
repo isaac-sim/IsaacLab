@@ -48,7 +48,13 @@ class ThrusterCfg:
     """
 
     use_discrete_approximation: bool = True
-    """If ``True``, use discrete mixing factor ``1/(dt + tau)``; if ``False``, use continuous ``1/tau``."""
+"""
+Determines how the actuator/motor mixing factor is computed. Defaults to True.
+
+If True, uses the discrete-time factor ``1 / (dt + tau)``, accounting for the control loop timestep.  
+If False, uses the continuous-time factor ``1 / tau``.
+"""
+
 
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Defaults to 'rk4'."""
