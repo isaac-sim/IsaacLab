@@ -19,9 +19,9 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
-from ..utils.wrench_composer import WrenchComposer
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
@@ -127,15 +127,32 @@ class RigidObject(AssetBase):
         """
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            composed_force, composed_torque = self._get_final_wrenches()
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=composed_force.view(-1, 3),
-                torque_data=composed_torque.view(-1, 3),
-                position_data=None,
-                indices=self._ALL_INDICES,
-                is_global=False,
-            )
-            self._instantaneous_wrench_composer.reset()
+            if self._instantaneous_wrench_composer.active:
+                # Compose instantaneous wrench with permanent wrench
+                self._instantaneous_wrench_composer.add_forces_and_torques(
+                    self._ALL_INDICES_WP,
+                    self._ALL_BODY_INDICES_WP,
+                    forces=self._permanent_wrench_composer.composed_force,
+                    torques=self._permanent_wrench_composer.composed_torque,
+                )
+                # Apply both instantaneous and permanent wrench to the simulation
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._instantaneous_wrench_composer.composed_force_as_torch.view(-1, 3),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+            else:
+                # Apply permanent wrench to the simulation
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._permanent_wrench_composer.composed_force_as_torch.view(-1, 3),
+                    torque_data=self._permanent_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+        self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -517,8 +534,8 @@ class RigidObject(AssetBase):
         )
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self.num_instances, self.num_bodies, self.device, self)
-        self._permanent_wrench_composer = WrenchComposer(self.num_instances, self.num_bodies, self.device, self)
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
@@ -539,18 +556,6 @@ class RigidObject(AssetBase):
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
 
-    def _get_final_wrenches(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get the final wrenches for a step by composing the instantaneous and permanent wrenches."""
-        self._instantaneous_wrench_composer.add_forces_and_torques(
-            self._ALL_INDICES_WP,
-            self._ALL_BODY_INDICES_WP,
-            forces=self._permanent_wrench_composer.composed_force,
-            torques=self._permanent_wrench_composer.composed_torque,
-        )
-        return (
-            self._instantaneous_wrench_composer.composed_force_as_torch,
-            self._instantaneous_wrench_composer.composed_torque_as_torch,
-        )
 
     """
     Internal simulation callbacks.

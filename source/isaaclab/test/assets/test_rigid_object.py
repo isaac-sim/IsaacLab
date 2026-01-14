@@ -259,11 +259,6 @@ def test_external_force_buffer(device):
                 torques=external_wrench_b[..., 3:],
             )
 
-            final_force, final_torque = cube_object._get_final_wrenches()
-            for i in range(cube_object.num_instances):
-                assert final_force[i, 0, 0].item() == force * 2
-                assert final_torque[i, 0, 0].item() == force * 2
-
             # apply action to the object
             cube_object.write_data_to_sim()
 

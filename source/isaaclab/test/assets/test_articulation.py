@@ -846,11 +846,6 @@ def test_external_force_buffer(sim, num_articulations, device):
             body_ids=body_ids,
         )
 
-        final_force, final_torque = articulation._get_final_wrenches()
-        for i in range(num_articulations):
-            assert final_force[i, 0, 0].item() == force * 2
-            assert final_torque[i, 0, 0].item() == force * 2
-
         # apply action to the articulation
         articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
         articulation.write_data_to_sim()

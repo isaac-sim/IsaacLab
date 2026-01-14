@@ -10,12 +10,16 @@ import torch
 import warp as wp
 
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
+from isaaclab.utils.math import convert_quat
+from typing import TYPE_CHECKING
 
-from ..asset_base import AssetBase
-
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+    from isaaclab.assets import RigidObject
+    from isaaclab.assets import RigidObjectCollection
 
 class WrenchComposer:
-    def __init__(self, num_envs: int, num_bodies: int, device: str, asset: AssetBase | None = None) -> None:
+    def __init__(self, asset: Articulation | RigidObject | RigidObjectCollection) -> None:
         """Wrench composer.
 
         This class is used to compose forces and torques at the body's center of mass frame.
@@ -27,36 +31,42 @@ class WrenchComposer:
             device: Device to use.
             asset: Asset to use. Defaults to None.
         """
-        self.num_envs = num_envs
-        self.num_bodies = num_bodies
-        self.device = device
+        self.num_envs = asset.num_instances
+        # Avoid isinstance to prevent circular import issues, use attribute presence instead.
+        if hasattr(asset, "num_bodies"):
+            self.num_bodies = asset.num_bodies
+        else:
+            self.num_bodies = asset.num_objects
+        self.device = asset.device
         self._asset = asset
         self._active = False
 
-        if (self._asset.__class__.__name__ == "Articulation") or (self._asset.__class__.__name__ == "RigidObject"):
-            self._get_com_fn = lambda a=self._asset: a.data.body_com_pos_w[..., :3]
-        elif self._asset.__class__.__name__ == "RigidObjectCollection":
-            self._get_com_fn = lambda a=self._asset: a.data.object_com_pos_w[..., :3]
-        elif self._asset is None:
-            self._get_com_fn = lambda: wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        # Avoid isinstance here due to potential circular import issues; check by attribute presence instead.
+        if hasattr(self._asset.data, "body_link_pos_w") and hasattr(self._asset.data, "body_link_quat_w"):
+            self._get_link_position_fn = lambda a=self._asset: a.data.body_link_pos_w[..., :3]
+            self._get_link_quaternion_fn = lambda a=self._asset: a.data.body_link_quat_w[..., :4]
+        elif hasattr(self._asset.data, "object_link_pos_w") and hasattr(self._asset.data, "object_link_quat_w"):
+            self._get_link_position_fn = lambda a=self._asset: a.data.object_link_pos_w[..., :3]
+            self._get_link_quaternion_fn = lambda a=self._asset: a.data.object_link_quat_w[..., :4]
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
-        self._com_positions_updated = False
+        # Create buffers
+        self._composed_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._composed_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._ALL_ENV_INDICES_WP = wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32, device=self.device), dtype=wp.int32)
+        self._ALL_BODY_INDICES_WP = wp.from_torch(torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32)
 
-        self._composed_force_b = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
-        self._composed_torque_b = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
-        self._com_positions = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
         # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor every time.
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
         self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
-        # Env / body resolution buffers
-        self._ALL_ENV_INDICES_WP = wp.from_torch(
-            torch.arange(num_envs, dtype=torch.int32, device=device), dtype=wp.int32
-        )
-        self._ALL_BODY_INDICES_WP = wp.from_torch(
-            torch.arange(num_bodies, dtype=torch.int32, device=device), dtype=wp.int32
-        )
+        # Pinning the environment and body indices to the torch tensor to allow for slicing.
+        self._ALL_ENV_INDICES_TORCH = wp.to_torch(self._ALL_ENV_INDICES_WP)
+        self._ALL_BODY_INDICES_TORCH = wp.to_torch(self._ALL_BODY_INDICES_WP)
+
+        # Flag to check if the link poses have been updated.
+        self._link_poses_updated = False
+
 
     @property
     def active(self) -> bool:
@@ -167,32 +177,26 @@ class WrenchComposer:
                 body_ids = self._ALL_BODY_INDICES_WP
             else:
                 raise ValueError(f"Doesn't support slice input for body_ids: {body_ids}")
+
         # Resolve remaining inputs
         # -- don't launch if no forces or torques are provided
         if forces is None and torques is None:
             return
-        if forces is None:
-            forces = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
-        elif isinstance(forces, torch.Tensor):
+        if isinstance(forces, torch.Tensor):
             forces = wp.from_torch(forces, dtype=wp.vec3f)
-        if torques is None:
-            torques = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
-        elif isinstance(torques, torch.Tensor):
+        if isinstance(torques, torch.Tensor):
             torques = wp.from_torch(torques, dtype=wp.vec3f)
-        if positions is None:
-            positions = wp.empty((0, 0), dtype=wp.vec3f, device=self.device)
-        elif isinstance(positions, torch.Tensor):
+        if isinstance(positions, torch.Tensor):
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
-        if is_global:
-            if not self._com_positions_updated:
-                if self._asset is not None:
-                    self._com_positions = wp.from_torch(self._get_com_fn().clone(), dtype=wp.vec3f)
-                else:
-                    raise ValueError(
-                        "Center of mass positions are not available. Please provide an asset to the wrench composer."
-                    )
-                self._com_positions_updated = True
+        # Get the link positions and quaternions
+        if not self._link_poses_updated:
+            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+            self._link_quaternions = wp.from_torch(convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf)
+            self._link_poses_updated = True
+
+        # Set the active flag to true
+        self._active = True
 
         wp.launch(
             add_forces_and_torques_at_position,
@@ -203,14 +207,14 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._com_positions,
+                self._link_positions,
+                self._link_quaternions,
                 self._composed_force_b,
                 self._composed_torque_b,
                 is_global,
             ],
             device=self.device,
         )
-        self._active = True
 
     def set_forces_and_torques(
         self,
@@ -282,15 +286,13 @@ class WrenchComposer:
         elif isinstance(positions, torch.Tensor):
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
-        if is_global:
-            if not self._com_positions_updated:
-                if self._asset is not None:
-                    self._com_positions = wp.from_torch(self._get_com_fn().clone(), dtype=wp.vec3f)
-                else:
-                    raise ValueError(
-                        "Center of mass positions are not available. Please provide an asset to the wrench composer."
-                    )
-                self._com_positions_updated = True
+        # Get the link positions and quaternions
+        if not self._link_poses_updated:
+            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+            self._link_quaternions = wp.from_torch(convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf)
+            self._link_poses_updated = True
+
+        # Set the active flag to true
         self._active = True
 
         wp.launch(
@@ -302,7 +304,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._com_positions,
+                self._link_positions,
+                self._link_quaternions,
                 self._composed_force_b,
                 self._composed_torque_b,
                 is_global,
@@ -321,7 +324,6 @@ class WrenchComposer:
         if env_ids is None:
             self._composed_force_b.zero_()
             self._composed_torque_b.zero_()
-            self._com_positions.zero_()
             self._active = False
         else:
             indices = env_ids
@@ -337,6 +339,5 @@ class WrenchComposer:
 
             self._composed_force_b[indices].zero_()
             self._composed_torque_b[indices].zero_()
-            self._com_positions[indices].zero_()
 
-        self._com_positions_updated = False
+        self._link_poses_updated = False

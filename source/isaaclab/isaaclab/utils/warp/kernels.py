@@ -307,11 +307,55 @@ wp.overload(
 
 
 @wp.func
-def cast_to_com_frame(position: wp.vec3f, com_position: wp.vec3f, is_global: bool) -> wp.vec3f:
+def cast_to_link_frame(position: wp.vec3f, link_position: wp.vec3f, is_global: bool) -> wp.vec3f:
+    """ Casts a position to the link frame of the body.
+
+    Args:
+        position: The position to cast.
+        link_position: The link frame position.
+        is_global: Whether the position is in the global frame.
+
+    Returns:    
+        The position in the link frame of the body.
+    """
     if is_global:
-        return position - com_position
+        return position - link_position
     else:
         return position
+
+
+@wp.func
+def cast_force_to_link_frame(force: wp.vec3f, link_quat: wp.quatf, is_global: bool) -> wp.vec3f:
+    """ Casts a force to the link frame of the body.
+
+    Args:
+        force: The force to cast.
+        link_quat: The link frame quaternion.
+        is_global: Whether the force is applied in the global frame.
+    Returns:
+        The force in the link frame of the body.
+    """
+    if is_global:
+        return wp.quat_rotate_inv(link_quat, force)
+    else:
+        return force
+
+@wp.func
+def cast_torque_to_link_frame(torque: wp.vec3f, link_quat: wp.quatf, is_global: bool) -> wp.vec3f:
+    """ Casts a torque to the link frame of the body.
+
+    Args:
+        torque: The torque to cast.
+        link_quat: The link frame quaternion.
+        is_global: Whether the torque is applied in the global frame.
+
+    Returns:
+        The torque in the link frame of the body.
+    """
+    if is_global:
+        return wp.quat_rotate_inv(link_quat, torque)
+    else:
+        return torque
 
 
 @wp.kernel
@@ -321,29 +365,47 @@ def add_forces_and_torques_at_position(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
-    com_positions: wp.array2d(dtype=wp.vec3f),
+    link_positions: wp.array2d(dtype=wp.vec3f),
+    link_quaternions: wp.array2d(dtype=wp.quatf),
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
+    """ Adds forces and torques to the composed force and torque at the user-provided positions.
+    When is_global is False, the user-provided positions are offseting the application of the force relatively to the link frame of the body.
+    When is_global is True, the user-provided positions are the global positions of the force application.
+
+    Args:
+        env_ids: The environment ids.
+        body_ids: The body ids.
+        forces: The forces.
+        torques: The torques.
+        positions: The positions.
+        link_positions: The link frame positions.
+        link_quaternions: The link frame quaternions.
+        composed_forces_b: The composed forces.
+        composed_torques_b: The composed torques.
+        is_global: Whether the forces and torques are applied in the global frame.
+    """
+    # get the thread id
     tid_env, tid_body = wp.tid()
-    if forces.shape[0] > 0:
-        composed_forces_b[env_ids[tid_env], body_ids[tid_body]] += forces[tid_env, tid_body]
-        if (positions.shape[0] > 0) and (com_positions.shape[0] > 0):
+
+    # add the forces to the composed force, if the positions are provided, also adds a torque to the composed torque.
+    if forces:
+        # add the forces to the composed force
+        composed_forces_b[env_ids[tid_env], body_ids[tid_body]] += cast_force_to_link_frame(forces[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
+        # if there is a position offset, add a torque to the composed torque.
+        if positions:
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += (
                 wp.skew(
-                    cast_to_com_frame(
-                        positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    cast_to_link_frame(
+                        positions[tid_env, tid_body], link_positions[env_ids[tid_env], body_ids[tid_body]], is_global
                     )
                 )
-                @ forces[tid_env, tid_body]
+                @ cast_force_to_link_frame(forces[tid_env, tid_body],link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
             )
-        else:
-            composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += (
-                wp.skew(-com_positions[env_ids[tid_env], body_ids[tid_body]]) @ forces[tid_env, tid_body]
-            )
-    if torques.shape[0] > 0:
-        composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += torques[tid_env, tid_body]
+    if torques:
+        composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += cast_torque_to_link_frame(torques[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
 
 
 @wp.kernel
@@ -353,35 +415,45 @@ def set_forces_and_torques_at_position(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
-    com_positions: wp.array2d(dtype=wp.vec3f),
+    link_positions: wp.array2d(dtype=wp.vec3f),
+    link_quaternions: wp.array2d(dtype=wp.quatf),
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
+    """ Sets forces and torques to the composed force and torque at the user-provided positions.
+    When is_global is False, the user-provided positions are offseting the application of the force relatively to the link frame of the body.
+    When is_global is True, the user-provided positions are the global positions of the force application.
+
+    Args:
+        env_ids: The environment ids.
+        body_ids: The body ids.
+        forces: The forces.
+        torques: The torques.
+        positions: The positions.
+        link_positions: The link frame positions.
+        link_quaternions: The link frame quaternions.
+        composed_forces_b: The composed forces.
+        composed_torques_b: The composed torques.
+        is_global: Whether the forces and torques are applied in the global frame.
+    """
+    # get the thread id
     tid_env, tid_body = wp.tid()
 
-    if forces.shape[0] > 0:
-        composed_forces_b[env_ids[tid_env], body_ids[tid_body]] = forces[tid_env, tid_body]
-        if (positions.shape[0] > 0) and (com_positions.shape[0] > 0):
+    # set the torques to the composed torque
+    if torques:
+        composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = cast_torque_to_link_frame(torques[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
+    # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque from the force at that position.
+    if forces:
+        # set the forces to the composed force
+        composed_forces_b[env_ids[tid_env], body_ids[tid_body]] = cast_force_to_link_frame(forces[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
+        # if there is a position offset, set the torque from the force at that position.
+        if positions:
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = (
                 wp.skew(
-                    cast_to_com_frame(
-                        positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    cast_to_link_frame(
+                        positions[tid_env, tid_body], link_positions[env_ids[tid_env], body_ids[tid_body]], is_global
                     )
                 )
-                @ forces[tid_env, tid_body]
+                @ cast_force_to_link_frame(forces[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global)
             )
-            if torques.shape[0] > 0:
-                composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += torques[tid_env, tid_body]
-        elif com_positions.shape[0] > 0:
-            composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = (
-                wp.skew(-com_positions[env_ids[tid_env], body_ids[tid_body]]) @ forces[tid_env, tid_body]
-            )
-            if torques.shape[0] > 0:
-                composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += torques[tid_env, tid_body]
-        else:
-            if torques.shape[0] > 0:
-                composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = torques[tid_env, tid_body]
-    else:
-        if torques.shape[0] > 0:
-            composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = torques[tid_env, tid_body]

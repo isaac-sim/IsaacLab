@@ -260,10 +260,6 @@ def test_external_force_buffer(sim, device):
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
         )
-        final_force, final_torque = object_collection._get_final_wrenches()
-        for i in range(num_envs):
-            assert final_force[i, 0, 0].item() == force * 2
-            assert final_torque[i, 0, 0].item() == force * 2
 
         # apply action to the object collection
         object_collection.write_data_to_sim()

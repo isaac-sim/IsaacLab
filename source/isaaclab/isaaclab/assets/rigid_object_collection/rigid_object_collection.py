@@ -20,9 +20,9 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
-from ..utils.wrench_composer import WrenchComposer
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
@@ -171,15 +171,32 @@ class RigidObjectCollection(AssetBase):
         """
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            composed_force, composed_torque = self._get_final_wrenches()
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view(composed_force),
-                torque_data=self.reshape_data_to_view(composed_torque),
-                position_data=None,
-                indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                is_global=False,
-            )
-            self._instantaneous_wrench_composer.reset()
+            if self._instantaneous_wrench_composer.active:
+                # Compose instantaneous wrench with permanent wrench
+                self._instantaneous_wrench_composer.add_forces_and_torques(
+                    self._ALL_INDICES_WP,
+                    self._ALL_BODY_INDICES_WP,
+                    forces=self._permanent_wrench_composer.composed_force,
+                    torques=self._permanent_wrench_composer.composed_torque,
+                )
+                # Apply both instantaneous and permanent wrench to the simulation
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._instantaneous_wrench_composer.composed_force_as_torch.view(-1, 3),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+            else:
+                # Apply permanent wrench to the simulation
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._permanent_wrench_composer.composed_force_as_torch.view(-1, 3),
+                    torque_data=self._permanent_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+        self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -671,8 +688,8 @@ class RigidObjectCollection(AssetBase):
         self._ALL_OBJ_INDICES_WP = wp.from_torch(self._ALL_OBJ_INDICES.to(torch.int32), dtype=wp.int32)
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self.num_instances, self.num_objects, self.device, self)
-        self._permanent_wrench_composer = WrenchComposer(self.num_instances, self.num_objects, self.device, self)
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
 
         # set information about rigid body into data
         self._data.object_names = self.object_names
@@ -720,19 +737,6 @@ class RigidObjectCollection(AssetBase):
         elif isinstance(object_ids, Sequence):
             object_ids = torch.tensor(object_ids, device=self.device)
         return (object_ids.unsqueeze(1) * self.num_instances + env_ids).flatten()
-
-    def _get_final_wrenches(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get the final wrenches for a step by composing the instantaneous and permanent wrenches."""
-        self._instantaneous_wrench_composer.add_forces_and_torques(
-            env_ids=self._ALL_ENV_INDICES_WP,
-            body_ids=self._ALL_OBJ_INDICES_WP,
-            forces=self._permanent_wrench_composer.composed_force,
-            torques=self._permanent_wrench_composer.composed_torque,
-        )
-        return (
-            self._instantaneous_wrench_composer.composed_force_as_torch,
-            self._instantaneous_wrench_composer.composed_torque_as_torch,
-        )
 
     """
     Internal simulation callbacks.
