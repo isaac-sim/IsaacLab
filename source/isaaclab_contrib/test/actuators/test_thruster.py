@@ -12,9 +12,10 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 
 """Rest of imports follows"""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
-from types import SimpleNamespace
 
 
 def make_thruster_cfg(num_motors: int):

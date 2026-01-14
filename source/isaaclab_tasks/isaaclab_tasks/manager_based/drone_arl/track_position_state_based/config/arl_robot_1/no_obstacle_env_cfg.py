@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
-
 from isaaclab.utils import configclass
+
+from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 from .track_position_state_based_env_cfg import TrackPositionNoObstaclesEnvCfg
 
