@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,22 +41,18 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 import random
 
-try:
-    import isaacsim.storage.native as nucleus_utils
-except ModuleNotFoundError:
-    import isaacsim.core.utils.nucleus as nucleus_utils
+import numpy as np
+from PIL import Image, ImageChops
 
+import isaacsim.core.utils.nucleus as nucleus_utils
 import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation, RigidPrim, SingleGeometryPrim, SingleRigidPrim
-from isaacsim.core.utils.carb import set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
-from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom
 
 # check nucleus connection
@@ -85,7 +81,7 @@ def main():
         world.get_physics_context().enable_flatcache(True)
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Populate scene
     # Ground

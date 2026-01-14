@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,12 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 import os
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import pytest
+
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 
@@ -27,7 +27,7 @@ from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Setup: Create simulation context
     dt = 0.01
@@ -99,6 +99,6 @@ def test_create_prim_from_usd(test_setup_teardown):
     urdf_converter = MjcfConverter(mjcf_config)
 
     prim_path = "/World/Robot"
-    prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert sim.stage.GetPrimAtPath(prim_path).IsValid()

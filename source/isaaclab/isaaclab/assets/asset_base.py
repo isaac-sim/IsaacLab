@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,19 +8,19 @@ from __future__ import annotations
 import builtins
 import inspect
 import re
-import torch
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import isaacsim.core.utils.prims as prim_utils
+import torch
+
 import omni.kit.app
 import omni.timeline
 from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -176,7 +176,7 @@ class AssetBase(ABC):
 
         # iterate over the environment ids
         for env_id in env_ids:
-            prim_utils.set_prim_visibility(self._prims[env_id], visible)
+            sim_utils.set_prim_visibility(self._prims[env_id], visible)
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.

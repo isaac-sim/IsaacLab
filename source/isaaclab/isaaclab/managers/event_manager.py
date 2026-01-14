@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,18 +8,21 @@
 from __future__ import annotations
 
 import inspect
-import torch
+import logging
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class EventManager(ManagerBase):
@@ -185,7 +188,7 @@ class EventManager(ManagerBase):
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
-            omni.log.warn(f"Event mode '{mode}' is not defined. Skipping event.")
+            logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
         # check if mode is interval and dt is not provided
@@ -348,7 +351,7 @@ class EventManager(ManagerBase):
                 )
 
             if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
-                omni.log.warn(
+                logger.warning(
                     f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
                     " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
                 )
@@ -370,7 +373,7 @@ class EventManager(ManagerBase):
             # can be initialized before the simulation starts.
             # this is done to ensure that the USD-level randomization is possible before the simulation starts.
             if inspect.isclass(term_cfg.func) and term_cfg.mode == "prestartup":
-                omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
+                logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
                 term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
             # check if mode is a new mode

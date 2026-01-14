@@ -1,8 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 """Launch Isaac Sim Simulator first."""
+
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
@@ -22,7 +23,6 @@ simulation_app = AppLauncher(headless=True).app
 """Unit tests for NullSpacePostureTask with simplified robot configuration using Pink library directly."""
 
 import numpy as np
-
 import pytest
 from pink.configuration import Configuration
 from pink.tasks import FrameTask

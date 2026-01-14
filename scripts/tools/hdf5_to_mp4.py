@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,15 +21,12 @@ optional arguments:
     --framerate          Frames per second for the output video. (default: 30)
 """
 
-# Standard library imports
 import argparse
-import h5py
-import numpy as np
-
-# Third-party imports
 import os
 
 import cv2
+import h5py
+import numpy as np
 
 # Constants
 DEFAULT_VIDEO_HEIGHT = 704

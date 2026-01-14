@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -118,7 +118,7 @@ class Extraction(DisassemblyTask):
     assembly_id = "00015"
     assembly_dir = f"{ASSET_DIR}/{assembly_id}/"
     disassembly_dir = "disassembly_dir"
-    num_log_traj = 1000
+    num_log_traj = 100
 
     fixed_asset_cfg = Hole8mm()
     held_asset_cfg = Peg8mm()

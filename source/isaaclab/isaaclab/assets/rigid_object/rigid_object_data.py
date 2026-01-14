@@ -1,15 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 import weakref
+
+import torch
 
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
-from isaaclab.sim.utils import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -112,8 +113,11 @@ class RigidObjectData:
     default_inertia: torch.Tensor = None
     """Default inertia tensor read from the simulation. Shape is (num_instances, 9).
 
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    The inertia tensor should be given with respect to the center of mass, expressed in the rigid body's actor frame.
+    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
+    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##

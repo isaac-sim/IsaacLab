@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,8 +7,7 @@ name: Run linters using pre-commit
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened]
 
 jobs:
   pre-commit:
@@ -16,4 +15,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-python@v3
+      with:
+        python-version: "3.12"
     - uses: pre-commit/action@v3.0.0

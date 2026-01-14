@@ -1,9 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import MISSING
 from typing import Literal
+
+from pxr import PhysxSchema, UsdPhysics
 
 from isaaclab.utils import configclass
 
@@ -426,3 +429,250 @@ class DeformableBodyPropertiesCfg:
 
     max_depenetration_velocity: float | None = None
     """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
+
+
+@configclass
+class MeshCollisionPropertiesCfg:
+    """Properties to apply to a mesh in regards to collision.
+    See :meth:`set_mesh_collision_properties` for more information.
+
+    .. note::
+        If the values are MISSING, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    usd_func: callable = MISSING
+    """USD API function for modifying mesh collision properties.
+    Refer to
+    `original USD Documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html>`_
+    for more information.
+    """
+
+    physx_func: callable = MISSING
+    """PhysX API function for modifying mesh collision properties.
+    Refer to
+    `original PhysX Documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/annotated.html>`_
+    for more information.
+    """
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+
+@configclass
+class BoundingCubePropertiesCfg(MeshCollisionPropertiesCfg):
+    usd_func: callable = UsdPhysics.MeshCollisionAPI
+    """Original USD Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "boundingCube"
+    """Name of mesh collision approximation method. Default: "boundingCube".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+
+@configclass
+class BoundingSpherePropertiesCfg(MeshCollisionPropertiesCfg):
+    usd_func: callable = UsdPhysics.MeshCollisionAPI
+    """Original USD Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "boundingSphere"
+    """Name of mesh collision approximation method. Default: "boundingSphere".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+
+@configclass
+class ConvexDecompositionPropertiesCfg(MeshCollisionPropertiesCfg):
+    usd_func: callable = UsdPhysics.MeshCollisionAPI
+    """Original USD Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    physx_func: callable = PhysxSchema.PhysxConvexDecompositionCollisionAPI
+    """Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking.
+
+    Defaults to 64.
+    """
+    max_convex_hulls: int | None = None
+    """Maximum of convex hulls created during convex decomposition.
+    Default value is 32.
+    """
+    min_thickness: float | None = None
+    """Convex hull min thickness.
+
+    Range: [0, inf). Units are distance. Default value is 0.001.
+    """
+    voxel_resolution: int | None = None
+    """Voxel resolution used for convex decomposition.
+
+    Defaults to 500,000 voxels.
+    """
+    error_percentage: float | None = None
+    """Convex decomposition error percentage parameter.
+
+    Defaults to 10 percent. Units are percent.
+    """
+    shrink_wrap: bool | None = None
+    """Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics
+    mesh.
+
+    Defaults to False.
+    """
+
+
+@configclass
+class ConvexHullPropertiesCfg(MeshCollisionPropertiesCfg):
+    usd_func: callable = UsdPhysics.MeshCollisionAPI
+    """Original USD Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    physx_func: callable = PhysxSchema.PhysxConvexHullCollisionAPI
+    """Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking.
+
+    Defaults to 64.
+    """
+    min_thickness: float | None = None
+    """Convex hull min thickness.
+
+    Range: [0, inf). Units are distance. Default value is 0.001.
+    """
+
+
+@configclass
+class TriangleMeshPropertiesCfg(MeshCollisionPropertiesCfg):
+    physx_func: callable = PhysxSchema.PhysxTriangleMeshCollisionAPI
+    """Triangle mesh is only supported by PhysX API.
+
+    Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh).
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance, controls the distance at which vertices are welded.
+
+    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
+    Range: [0, inf) Units: distance
+    """
+
+
+@configclass
+class TriangleMeshSimplificationPropertiesCfg(MeshCollisionPropertiesCfg):
+    usd_func: callable = UsdPhysics.MeshCollisionAPI
+    """Original USD Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    physx_func: callable = PhysxSchema.PhysxTriangleMeshSimplificationCollisionAPI
+    """Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+    simplification_metric: float | None = None
+    """Mesh simplification accuracy.
+
+    Defaults to 0.55.
+    """
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance, controls the distance at which vertices are welded.
+
+    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
+    Range: [0, inf) Units: distance
+    """
+
+
+@configclass
+class SDFMeshPropertiesCfg(MeshCollisionPropertiesCfg):
+    physx_func: callable = PhysxSchema.PhysxSDFMeshCollisionAPI
+    """SDF mesh is only supported by PhysX API.
+
+    Original PhysX documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
+
+    More details and steps for optimizing SDF results can be found here:
+    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
+    """
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf".
+    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+    sdf_margin: float | None = None
+    """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
+
+
+    A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh's bounding
+    box diagonal length. Representing the margin relative to the bounding box diagonal length ensures that it is scale
+    independent. Margins allow for precise distance queries in a region slightly outside of the mesh's bounding box.
+
+    Default value is 0.01.
+    Range: [0, inf) Units: dimensionless
+    """
+    sdf_narrow_band_thickness: float | None = None
+    """Size of the narrow band around the mesh surface where high resolution SDF samples are available.
+
+    Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a
+    fraction of the mesh's bounding box diagonal length ensures that it is scale independent. A value of 0.01 is
+    usually large enough. The smaller the narrow band thickness, the smaller the memory consumption of the sparse SDF.
+
+    Default value is 0.01.
+    Range: [0, 1] Units: dimensionless
+    """
+    sdf_resolution: int | None = None
+    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh, divided by the resolution.
+
+    Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large
+    memory consumption, and slower cooking and simulation performance.
+
+    Default value is 256.
+    Range: (1, inf)
+    """
+    sdf_subgrid_resolution: int | None = None
+    """A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the
+    usage of a dense SDF.
+
+    A value in the range of 4 to 8 is a reasonable compromise between block size and the overhead introduced by block
+    addressing. The smaller a block, the more memory is spent on the address table. The bigger a block, the less
+    precisely the sparse SDF can adapt to the mesh's surface. In most cases sparsity reduces the memory consumption of
+    a SDF significantly.
+
+    Default value is 6.
+    Range: [0, inf)
+    """

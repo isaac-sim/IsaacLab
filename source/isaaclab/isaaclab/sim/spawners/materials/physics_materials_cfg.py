@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,10 +31,6 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
     """Physics material parameters for rigid bodies.
 
     See :meth:`spawn_rigid_body_material` for more information.
-
-    Note:
-        The default values are the `default values used by PhysX 5
-        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials>`__.
     """
 
     func: Callable = physics_materials.spawn_rigid_body_material
@@ -89,9 +85,6 @@ class DeformableBodyMaterialCfg(PhysicsMaterialCfg):
 
     See :meth:`spawn_deformable_body_material` for more information.
 
-    Note:
-        The default values are the `default values used by PhysX 5
-        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material>`__.
     """
 
     func: Callable = physics_materials.spawn_deformable_body_material

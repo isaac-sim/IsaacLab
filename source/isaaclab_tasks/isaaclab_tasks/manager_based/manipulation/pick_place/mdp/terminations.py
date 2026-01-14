@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,9 @@ the termination introduced by the function.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 
 def task_done_pick_place(
     env: ManagerBasedRLEnv,
+    task_link_name: str = "",
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     right_wrist_max_x: float = 0.26,
     min_x: float = 0.40,
@@ -54,6 +56,9 @@ def task_done_pick_place(
     Returns:
         Boolean tensor indicating which environments have completed the task.
     """
+    if task_link_name == "":
+        raise ValueError("task_link_name must be provided to task_done_pick_place")
+
     # Get object entity from the scene
     object: RigidObject = env.scene[object_cfg.name]
 
@@ -65,7 +70,7 @@ def task_done_pick_place(
 
     # Get right wrist position relative to environment origin
     robot_body_pos_w = env.scene["robot"].data.body_pos_w
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(task_link_name)
     right_wrist_x = robot_body_pos_w[:, right_eef_idx, 0] - env.scene.env_origins[:, 0]
 
     # Check all success conditions and combine with logical AND

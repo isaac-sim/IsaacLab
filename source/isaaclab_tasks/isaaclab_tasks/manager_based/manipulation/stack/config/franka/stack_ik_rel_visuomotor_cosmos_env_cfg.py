@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -105,11 +105,8 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # post init of parent
         super().__post_init__()
 
-        import carb
-        from isaacsim.core.utils.carb import set_carb_setting
-
-        carb_setting = carb.settings.get_settings()
-        set_carb_setting(carb_setting, "/rtx/domeLight/upperLowerStrategy", 4)
+        # set domeLight.upperLowerStrategy to 4 to remove rendering noise
+        self.sim.render.dome_light_upper_lower_strategy = 4
 
         SEMANTIC_MAPPING = {
             "class:cube_1": (120, 230, 255, 255),
@@ -156,8 +153,8 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         )
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 1
+        self.sim.render.antialiasing_mode = "OFF"
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]

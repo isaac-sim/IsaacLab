@@ -1,32 +1,25 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Spacemouse controller for SE(2) control."""
 
-import hid
-import numpy as np
+from __future__ import annotations
+
 import threading
 import time
-import torch
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import hid
+import numpy as np
+import torch
 
 from isaaclab.utils.array import convert_to_torch
 
 from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
-
-
-@dataclass
-class Se2SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE2 space mouse devices."""
-
-    v_x_sensitivity: float = 0.8
-    v_y_sensitivity: float = 0.4
-    omega_z_sensitivity: float = 1.0
-    sim_device: str = "cpu"
 
 
 class Se2SpaceMouse(DeviceBase):
@@ -168,3 +161,13 @@ class Se2SpaceMouse(DeviceBase):
                         # additional callbacks
                         if "R" in self._additional_callbacks:
                             self._additional_callbacks["R"]
+
+
+@dataclass
+class Se2SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE2 space mouse devices."""
+
+    v_x_sensitivity: float = 0.8
+    v_y_sensitivity: float = 0.4
+    omega_z_sensitivity: float = 1.0
+    class_type: type[DeviceBase] = Se2SpaceMouse

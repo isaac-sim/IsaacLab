@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,8 +30,9 @@ For more information, please check the `documentation`_.
 import argparse
 import os
 import shutil
-import toml
 from subprocess import PIPE, STDOUT, Popen
+
+import toml
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")

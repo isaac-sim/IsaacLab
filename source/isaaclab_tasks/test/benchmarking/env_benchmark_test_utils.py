@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,14 +6,15 @@
 import glob
 import json
 import math
-import numpy as np
 import os
 import re
-import yaml
 from datetime import datetime
 
-import carb
+import numpy as np
+import yaml
 from tensorboard.backend.event_processing import event_accumulator
+
+import carb
 
 
 def get_env_configs(configs_path):
@@ -150,9 +151,9 @@ def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
     repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-    from isaacsim.core.version import get_version
+    from isaaclab.utils.version import get_isaac_sim_version
 
-    if int(get_version()[2]) < 5:
+    if get_isaac_sim_version().major < 5:
         repo_path = os.path.join(repo_path, "..")
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -47,6 +47,15 @@ DEFORMABLE_TARGET_MARKER_CFG = VisualizationMarkersCfg(
 )
 """Configuration for the deformable object's kinematic target marker."""
 
+VISUO_TACTILE_SENSOR_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "tacsl_pts": sim_utils.SphereCfg(
+            radius=0.0002,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
+    },
+)
+"""Configuration for the visuo-tactile sensor marker."""
 
 ##
 # Frames.

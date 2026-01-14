@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,9 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
+
 import pytest
+
 from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics, UsdShade
 
@@ -25,10 +25,10 @@ from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear()
@@ -42,7 +42,7 @@ def test_spawn_preview_surface(sim):
     prim = cfg.func("/Looks/PreviewSurface", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/PreviewSurface")
+    assert sim.stage.GetPrimAtPath("/Looks/PreviewSurface").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
     # Check properties
     assert prim.GetAttribute("inputs:diffuseColor").Get() == cfg.diffuse_color
@@ -58,7 +58,7 @@ def test_spawn_mdl_material(sim):
     prim = cfg.func("/Looks/MdlMaterial", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/MdlMaterial")
+    assert sim.stage.GetPrimAtPath("/Looks/MdlMaterial").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
     # Check properties
     assert prim.GetAttribute("inputs:project_uvw").Get() == cfg.project_uvw
@@ -71,7 +71,7 @@ def test_spawn_glass_mdl_material(sim):
     prim = cfg.func("/Looks/GlassMaterial", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/GlassMaterial")
+    assert sim.stage.GetPrimAtPath("/Looks/GlassMaterial").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
     # Check properties
     assert prim.GetAttribute("inputs:thin_walled").Get() == cfg.thin_walled
@@ -91,7 +91,7 @@ def test_spawn_rigid_body_material(sim):
     prim = cfg.func("/Looks/RigidBodyMaterial", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/RigidBodyMaterial")
+    assert sim.stage.GetPrimAtPath("/Looks/RigidBodyMaterial").IsValid()
     # Check properties
     assert prim.GetAttribute("physics:staticFriction").Get() == cfg.static_friction
     assert prim.GetAttribute("physics:dynamicFriction").Get() == cfg.dynamic_friction
@@ -113,7 +113,7 @@ def test_spawn_deformable_body_material(sim):
     prim = cfg.func("/Looks/DeformableBodyMaterial", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/DeformableBodyMaterial")
+    assert sim.stage.GetPrimAtPath("/Looks/DeformableBodyMaterial").IsValid()
     # Check properties
     assert prim.GetAttribute("physxDeformableBodyMaterial:density").Get() == cfg.density
     assert prim.GetAttribute("physxDeformableBodyMaterial:dynamicFriction").Get() == cfg.dynamic_friction
@@ -139,7 +139,7 @@ def test_apply_rigid_body_material_on_visual_material(sim):
     prim = cfg.func("/Looks/Material", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/Looks/Material")
+    assert sim.stage.GetPrimAtPath("/Looks/Material").IsValid()
     # Check properties
     assert prim.GetAttribute("physics:staticFriction").Get() == cfg.static_friction
     assert prim.GetAttribute("physics:dynamicFriction").Get() == cfg.dynamic_friction
@@ -152,7 +152,7 @@ def test_bind_prim_to_material(sim):
     """Test binding a rigid body material on a mesh prim."""
 
     # create a mesh prim
-    object_prim = prim_utils.create_prim("/World/Geometry/box", "Cube")
+    object_prim = sim_utils.create_prim("/World/Geometry/box", "Cube")
     UsdPhysics.CollisionAPI.Apply(object_prim)
 
     # create a visual material

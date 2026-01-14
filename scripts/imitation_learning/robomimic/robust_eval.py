@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -76,14 +76,14 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import copy
-import gymnasium as gym
 import os
 import pathlib
 import random
-import torch
 
+import gymnasium as gym
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
+import torch
 
 from isaaclab_tasks.utils import parse_env_cfg
 

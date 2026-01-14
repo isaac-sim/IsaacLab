@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,9 +14,10 @@ Currently, the following models are supported:
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.assets import read_file
 from isaaclab.utils.types import ArticulationActions
@@ -24,7 +25,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):

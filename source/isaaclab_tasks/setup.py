@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,8 +6,8 @@
 """Installation script for the 'isaaclab_tasks' python package."""
 
 import os
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
@@ -24,8 +24,6 @@ INSTALL_REQUIRES = [
     "protobuf>=4.25.8,!=5.26.0",
     # basic logger
     "tensorboard",
-    # automate
-    "scikit-learn",
     "numba",
 ]
 
@@ -51,6 +49,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Isaac Sim :: 4.5.0",
         "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
     ],
     zip_safe=False,
 )

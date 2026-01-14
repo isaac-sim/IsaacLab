@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,13 +6,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
-import isaacsim
 import omni.kit.commands
-import omni.usd
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
+
+if TYPE_CHECKING:
+    import isaacsim.asset.importer.mjcf
 
 
 class MjcfConverter(AssetConverterBase):
@@ -31,7 +33,7 @@ class MjcfConverter(AssetConverterBase):
         From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.mjcf`` to
         ``isaacsim.asset.importer.mjcf``. This converter class now uses the latest extension from Isaac Sim.
 
-    .. _isaacsim.asset.importer.mjcf: https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
+    .. _isaacsim.asset.importer.mjcf:  https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
     """
 
     cfg: MjcfConverterCfg
@@ -65,7 +67,7 @@ class MjcfConverter(AssetConverterBase):
             prim_path=f"/{file_basename}",
         )
 
-    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf._mjcf.ImportConfig:
         """Returns the import configuration for MJCF to USD conversion.
 
         Returns:

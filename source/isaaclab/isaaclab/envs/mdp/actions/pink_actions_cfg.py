@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,14 +26,14 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     pink_controlled_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by pink IK."""
 
-    ik_urdf_fixed_joint_names: list[str] = MISSING
-    """List of joint names that specify the joints to be locked in URDF."""
-
     hand_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by hand retargeting."""
 
     controller: PinkIKControllerCfg = MISSING
     """Configuration for the Pink IK controller that will be used to solve the inverse kinematics."""
+
+    enable_gravity_compensation: bool = True
+    """Whether to compensate for gravity in the Pink IK controller."""
 
     target_eef_link_names: dict[str, str] = MISSING
     """Dictionary mapping task names to controlled link names for the Pink IK controller.

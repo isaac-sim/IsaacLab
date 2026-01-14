@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -35,10 +35,11 @@ simulation_app = SimulationApp(config)
 
 """Rest everything follows."""
 
-import torch
+import logging
 import traceback
 
-import carb
+import torch
+
 import omni
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
@@ -53,6 +54,9 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
@@ -100,7 +104,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     for prim in stage.Traverse():
         if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
             physics_scene_prim_path = prim.GetPrimPath()
-            carb.log_info(f"Physics scene prim path: {physics_scene_prim_path}")
+            logging.info(f"Physics scene prim path: {physics_scene_prim_path}")
             break
     # filter collisions within each environment instance
     cloner.filter_collisions(
@@ -188,8 +192,8 @@ if __name__ == "__main__":
         # Run the main function
         main()
     except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
+        logger.error(err)
+        logger.error(traceback.format_exc())
         raise
     finally:
         # close sim app

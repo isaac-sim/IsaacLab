@@ -1,15 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
@@ -23,6 +24,9 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from .rigid_object_cfg import RigidObjectCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class RigidObject(AssetBase):
@@ -436,7 +440,7 @@ class RigidObject(AssetBase):
         self._external_torque_b[env_ids, body_ids] = torques
 
         if is_global != self._use_global_wrench_frame:
-            omni.log.warn(
+            logger.warning(
                 f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
                 " may lead to unexpected behavior."
             )
@@ -464,7 +468,9 @@ class RigidObject(AssetBase):
 
         # find rigid root prims
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
+            traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
@@ -479,7 +485,9 @@ class RigidObject(AssetBase):
             )
 
         articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+            traverse_instance_prims=False,
         )
         if len(articulation_prims) != 0:
             if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
@@ -501,10 +509,10 @@ class RigidObject(AssetBase):
             raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the rigid body
-        omni.log.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        omni.log.info(f"Number of instances: {self.num_instances}")
-        omni.log.info(f"Number of bodies: {self.num_bodies}")
-        omni.log.info(f"Body names: {self.body_names}")
+        logger.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        logger.info(f"Number of instances: {self.num_instances}")
+        logger.info(f"Number of bodies: {self.num_bodies}")
+        logger.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectData(self.root_physx_view, self.device)

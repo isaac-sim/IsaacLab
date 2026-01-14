@@ -9,28 +9,47 @@ We do not expect to be able to provide support or debugging assistance until the
 Here is a non-exhaustive list of capabilities currently supported in the Newton experimental feature branch grouped by extension:
 
 * isaaclab:
-    * Articulation API
+    * Articulation API (supports both articulations and single-body articulations as rigid bodies)
     * Contact Sensor
     * Direct & Manager single agent workflows
     * Omniverse Kit visualizer
     * Newton visualizer
 * isaaclab_assets:
-    * Anymal-D
-    * Unitree H1 & G1
+    * Quadrupeds
+        * Anymal-B, Anymal-C, Anymal-D
+        * Unitree A1, Go1, Go2
+        * Spot
+    * Humanoids
+        * Unitree H1 & G1
+        * Cassie
+    * Arms and Hands
+        * Franka
+        * UR10
+        * Allegro Hand
     * Toy examples
         * Cartpole
         * Ant
         * Humanoid
 * isaaclab_tasks:
     * Direct:
-        * Cartpole
+        * Cartpole (State, RGB, Depth)
         * Ant
         * Humanoid
+        * Allegro Hand Repose Cube
     * Manager based:
+        * Cartpole (State)
+        * Ant
+        * Humanoid
         * Locomotion (velocity flat terrain)
+            * Anymal-B
+            * Anymal-C
             * Anymal-D
+            * Cassie
+            * A1
+            * Go1
+            * Go2
             * Unitree G1
             * Unitree H1
-
-Capabilities beyond the above are not currently available.
-We expect to support APIs related to rigid bodies soon in order to unlock manipulation based environments.
+        * Manipulation reach
+            * Franka
+            * UR10

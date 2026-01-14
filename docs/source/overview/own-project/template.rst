@@ -33,7 +33,7 @@ Running the template generator
 ------------------------------
 
 Install Isaac Lab by following the `installation guide <../../setup/installation/index.html>`_.
-We recommend using conda installation as it simplifies calling Python scripts from the terminal.
+We recommend using conda or uv installation as it simplifies calling Python scripts from the terminal.
 
 Then, run the following command to generate a new external project or internal task:
 

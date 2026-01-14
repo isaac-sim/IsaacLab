@@ -1,20 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
+
+import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg
+    from .actuator_base_cfg import ActuatorBaseCfg
 
 
 class ActuatorBase(ABC):
@@ -55,13 +56,21 @@ class ActuatorBase(ABC):
     effort_limit: torch.Tensor
     """The effort limit for the actuator group. Shape is (num_envs, num_joints).
 
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+    This limit is used differently depending on the actuator type:
+
+    - **Explicit actuators**: Used for internal torque clipping within the actuator model
+      (e.g., motor torque limits in DC motor models).
+    - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).
     """
 
     effort_limit_sim: torch.Tensor
     """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
 
     For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
+
+    - **Explicit actuators**: Typically set to a large value (1.0e9) to avoid double-clipping,
+      since the actuator model already clips efforts using :attr:`effort_limit`.
+    - **Implicit actuators**: Same as :attr:`effort_limit` (both values are synchronized).
     """
 
     velocity_limit: torch.Tensor
@@ -123,8 +132,11 @@ class ActuatorBase(ABC):
         are not specified in the configuration, then their values provided in the constructor are used.
 
         .. note::
-            The values in the constructor are typically obtained through the USD schemas corresponding
-            to the joints in the actuator model.
+            The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
+            corresponding to the joints in the actuator model; these values serve as default values if the parameters
+            are not specified in the cfg.
+
+
 
         Args:
             cfg: The configuration of the actuator model.
@@ -196,7 +208,12 @@ class ActuatorBase(ABC):
                 )
 
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
+        # Parse effort_limit with special default handling:
+        # - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)
+        # - Otherwise, use effort_limit_sim as the default
+        # Please refer to the documentation of the effort_limit and effort_limit_sim parameters for more details.
+        effort_default = effort_limit if self.cfg.effort_limit is None else self.effort_limit_sim
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)

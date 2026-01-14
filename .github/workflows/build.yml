@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,6 +10,7 @@ on:
     branches:
       - devel
       - main
+      - 'release/**'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -25,7 +26,7 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}
   DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
@@ -75,6 +76,20 @@ jobs:
         retention-days: 1
         compression-level: 9
 
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/isaaclab-tasks-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   test-general:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -121,11 +136,19 @@ jobs:
         retention-days: 1
         compression-level: 9
 
-    - name: Fail on Test Failure for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository && steps.run-general-tests.outcome == 'failure'
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-        exit 1
+        if [ -f "reports/general-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/general-tests-report.xml || grep -q 'errors="[1-9]' reports/general-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
 
   combine-results:
     needs: [test-isaaclab-tasks, test-general]

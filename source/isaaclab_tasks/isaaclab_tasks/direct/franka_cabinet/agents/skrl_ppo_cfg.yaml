@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,7 +19,7 @@ models:
     initial_log_std: 0.0
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [256, 128, 64]
         activations: elu
     output: ACTIONS
@@ -28,7 +28,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [256, 128, 64]
         activations: elu
     output: ONE

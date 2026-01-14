@@ -1,15 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Base class for teleoperation interface."""
 
-import torch
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
+
+import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
@@ -18,8 +20,14 @@ from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 class DeviceCfg:
     """Configuration for teleoperation devices."""
 
+    # Whether teleoperation should start active by default
+    teleoperation_active_default: bool = True
+    # Torch device string to place output tensors on
     sim_device: str = "cpu"
+    # Retargeters that transform device data into robot commands
     retargeters: list[RetargeterCfg] = field(default_factory=list)
+    # Concrete device class to construct for this config. Set by each device module.
+    class_type: type["DeviceBase"] | None = None
 
 
 @dataclass
@@ -52,9 +60,13 @@ class DeviceBase(ABC):
         """
         # Initialize empty list if None is provided
         self._retargeters = retargeters or []
+        # Aggregate required features across all retargeters
+        self._required_features = set()
+        for retargeter in self._retargeters:
+            self._required_features.update(retargeter.get_requirements())
 
     def __str__(self) -> str:
-        """Returns: A string containing the information of joystick."""
+        """Returns: A string identifier for the device."""
         return f"{self.__class__.__name__}"
 
     """
@@ -117,3 +129,32 @@ class DeviceBase(ABC):
         # With multiple retargeters, return a tuple of outputs
         # Concatenate retargeted outputs into a single tensor
         return torch.cat([retargeter.retarget(raw_data) for retargeter in self._retargeters], dim=-1)
+
+    # -----------------------------
+    # Shared data layout helpers (for retargeters across devices)
+    # -----------------------------
+    class TrackingTarget(Enum):
+        """Standard tracking targets shared across devices."""
+
+        HAND_LEFT = 0
+        HAND_RIGHT = 1
+        HEAD = 2
+        CONTROLLER_LEFT = 3
+        CONTROLLER_RIGHT = 4
+
+    class MotionControllerDataRowIndex(Enum):
+        """Rows in the motion-controller 2x7 array."""
+
+        POSE = 0
+        INPUTS = 1
+
+    class MotionControllerInputIndex(Enum):
+        """Indices in the motion-controller input row."""
+
+        THUMBSTICK_X = 0
+        THUMBSTICK_Y = 1
+        TRIGGER = 2
+        SQUEEZE = 3
+        BUTTON_0 = 4
+        BUTTON_1 = 5
+        PADDING = 6

@@ -149,6 +149,18 @@ teleoperation in Isaac Lab.
     cloudxr_teleoperation
 
 
+Setting up Haply Teleoperation
+------------------------------
+
+This guide explains how to use Haply Inverse3 and VerseGrip devices for robot teleoperation
+with directional force feedback in Isaac Lab.
+
+.. toctree::
+    :maxdepth: 1
+
+    haply_teleoperation
+
+
 Understanding Simulation Performance
 ------------------------------------
 

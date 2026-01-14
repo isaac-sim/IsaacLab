@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,12 +7,15 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
+from ..asset_base_cfg import AssetBaseCfg
+from .surface_gripper import SurfaceGripper
+
 
 @configclass
-class SurfaceGripperCfg:
+class SurfaceGripperCfg(AssetBaseCfg):
     """Configuration parameters for a surface gripper actuator."""
 
-    prim_expr: str = MISSING
+    prim_path: str = MISSING
     """The expression to find the grippers in the stage."""
 
     max_grip_distance: float | None = None
@@ -26,3 +29,5 @@ class SurfaceGripperCfg:
 
     retry_interval: float | None = None
     """The amount of time the gripper will spend trying to grasp an object."""
+
+    class_type: type = SurfaceGripper

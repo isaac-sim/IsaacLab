@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - devel
+      - 'release/**'
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -27,8 +28,7 @@ jobs:
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-        BRANCH_REF: ${{ secrets.BRANCH_REF }}
-      if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
+      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devel' || startsWith(github.ref, 'refs/heads/release/')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
 
   build-docs:

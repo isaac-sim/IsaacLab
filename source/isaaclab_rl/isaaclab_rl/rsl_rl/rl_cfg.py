@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,6 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
-from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationStudentTeacherCfg
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
@@ -31,6 +30,9 @@ class RslRlPpoActorCriticCfg:
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the policy. Default is scalar."""
+
+    state_dependent_std: bool = False
+    """Whether to use state-dependent standard deviation for the policy. Default is False."""
 
     actor_obs_normalization: bool = MISSING
     """Whether to normalize the observation for the actor network."""
@@ -236,18 +238,4 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     """The policy configuration."""
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
-    """The algorithm configuration."""
-
-
-@configclass
-class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
-    """Configuration of the runner for distillation algorithms."""
-
-    class_name: str = "DistillationRunner"
-    """The runner class name. Default is DistillationRunner."""
-
-    policy: RslRlDistillationStudentTeacherCfg = MISSING
-    """The policy configuration."""
-
-    algorithm: RslRlDistillationAlgorithmCfg = MISSING
     """The algorithm configuration."""

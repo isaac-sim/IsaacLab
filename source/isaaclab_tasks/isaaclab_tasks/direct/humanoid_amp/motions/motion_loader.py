@@ -1,12 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
+from __future__ import annotations
+
 import os
+
+import numpy as np
 import torch
-from typing import Optional
 
 
 class MotionLoader:
@@ -71,10 +73,10 @@ class MotionLoader:
         self,
         a: torch.Tensor,
         *,
-        b: Optional[torch.Tensor] = None,
-        blend: Optional[torch.Tensor] = None,
-        start: Optional[np.ndarray] = None,
-        end: Optional[np.ndarray] = None,
+        b: torch.Tensor | None = None,
+        blend: torch.Tensor | None = None,
+        start: np.ndarray | None = None,
+        end: np.ndarray | None = None,
     ) -> torch.Tensor:
         """Linear interpolation between consecutive values.
 
@@ -102,10 +104,10 @@ class MotionLoader:
         self,
         q0: torch.Tensor,
         *,
-        q1: Optional[torch.Tensor] = None,
-        blend: Optional[torch.Tensor] = None,
-        start: Optional[np.ndarray] = None,
-        end: Optional[np.ndarray] = None,
+        q1: torch.Tensor | None = None,
+        blend: torch.Tensor | None = None,
+        start: np.ndarray | None = None,
+        end: np.ndarray | None = None,
     ) -> torch.Tensor:
         """Interpolation between consecutive rotations (Spherical Linear Interpolation).
 
@@ -196,7 +198,7 @@ class MotionLoader:
         return duration * np.random.uniform(low=0.0, high=1.0, size=num_samples)
 
     def sample(
-        self, num_samples: int, times: Optional[np.ndarray] = None, duration: float | None = None
+        self, num_samples: int, times: np.ndarray | None = None, duration: float | None = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample motion data.
 

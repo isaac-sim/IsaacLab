@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.spatial.transform as tf
 import torch
 import trimesh
-from typing import TYPE_CHECKING
 
 from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane
@@ -397,7 +398,7 @@ def rails_terrain(
         A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
-    rail_height = cfg.rail_height_range[1] - difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
+    rail_height = cfg.rail_height_range[0] + difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
 
     # initialize list of meshes
     meshes_list = list()

@@ -1,15 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
+import torch
+
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdShade
@@ -23,6 +24,9 @@ from .deformable_object_data import DeformableObjectData
 
 if TYPE_CHECKING:
     from .deformable_object_cfg import DeformableObjectCfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class DeformableObject(AssetBase):
@@ -272,7 +276,9 @@ class DeformableObject(AssetBase):
 
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI),
+            traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
@@ -305,7 +311,7 @@ class DeformableObject(AssetBase):
                         material_prim = mat_prim
                         break
         if material_prim is None:
-            omni.log.info(
+            logger.info(
                 f"Failed to find a deformable material binding for '{root_prim.GetPath().pathString}'."
                 " The material properties will be set to default values and are not modifiable at runtime."
                 " If you want to modify the material properties, please ensure that the material is bound"
@@ -341,14 +347,14 @@ class DeformableObject(AssetBase):
             self._material_physx_view = None
 
         # log information about the deformable body
-        omni.log.info(f"Deformable body initialized at: {root_prim_path_expr}")
-        omni.log.info(f"Number of instances: {self.num_instances}")
-        omni.log.info(f"Number of bodies: {self.num_bodies}")
+        logger.info(f"Deformable body initialized at: {root_prim_path_expr}")
+        logger.info(f"Number of instances: {self.num_instances}")
+        logger.info(f"Number of bodies: {self.num_bodies}")
         if self._material_physx_view is not None:
-            omni.log.info(f"Deformable material initialized at: {material_prim_path_expr}")
-            omni.log.info(f"Number of instances: {self._material_physx_view.count}")
+            logger.info(f"Deformable material initialized at: {material_prim_path_expr}")
+            logger.info(f"Number of instances: {self._material_physx_view.count}")
         else:
-            omni.log.info("No deformable material found. Material properties will be set to default values.")
+            logger.info("No deformable material found. Material properties will be set to default values.")
 
         # container for data access
         self._data = DeformableObjectData(self.root_physx_view, self.device)
@@ -357,6 +363,11 @@ class DeformableObject(AssetBase):
         self._create_buffers()
         # update the deformable body data
         self.update(0.0)
+
+        # Initialize debug visualization handle
+        if self._debug_vis_handle is None:
+            # set initial state of debug visualization
+            self.set_debug_vis(self.cfg.debug_vis)
 
     def _create_buffers(self):
         """Create buffers for storing data."""

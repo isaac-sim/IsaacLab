@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,15 +8,18 @@
 This module provides utility functions to help with controller implementations.
 """
 
+import logging
 import os
+import re
 
 from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.asset.exporter.urdf")
 
-import nvidia.srl.tools.logger as logger
-import omni.log
 from nvidia.srl.from_usd.to_urdf import UsdToUrdf
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool = True) -> tuple[str, str]:
@@ -34,7 +37,7 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
         "edge_names_to_remove": None,
         "root": None,
         "parent_link_is_body_1": None,
-        "log_level": logger.level_from_name("ERROR"),
+        "log_level": logging.ERROR,
     }
 
     urdf_output_dir = os.path.join(output_path, "urdf")
@@ -89,12 +92,47 @@ def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: b
         old_str = f'<joint name="{joint}" type="revolute">'
         new_str = f'<joint name="{joint}" type="fixed">'
         if verbose:
-            omni.log.warn(f"Replacing {joint} with fixed joint")
-            omni.log.warn(old_str)
-            omni.log.warn(new_str)
+            logger.warning(f"Replacing {joint} with fixed joint")
+            logger.warning(old_str)
+            logger.warning(new_str)
             if old_str not in content:
-                omni.log.warn(f"Error: Could not find revolute joint named '{joint}' in URDF file")
+                logger.warning(f"Error: Could not find revolute joint named '{joint}' in URDF file")
         content = content.replace(old_str, new_str)
+
+    with open(urdf_path, "w") as file:
+        file.write(content)
+
+
+def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
+    """Change revolute joints to fixed joints in a URDF file.
+
+    This function modifies a URDF file by changing specified revolute joints to fixed joints.
+    This is useful when you want to disable certain joints in a robot model.
+
+    Args:
+        urdf_path: Path to the URDF file to modify.
+        fixed_joints: List of regular expressions matching joint names to convert from revolute to fixed.
+        verbose: Whether to print information about the changes being made.
+    """
+
+    with open(urdf_path) as file:
+        content = file.read()
+
+    # Find all revolute joints in the URDF
+    revolute_joints = re.findall(r'<joint name="([^"]+)" type="revolute">', content)
+
+    for joint in revolute_joints:
+        # Check if this joint matches any of the fixed joint patterns
+        should_fix = any(re.match(pattern, joint) for pattern in fixed_joints)
+
+        if should_fix:
+            old_str = f'<joint name="{joint}" type="revolute">'
+            new_str = f'<joint name="{joint}" type="fixed">'
+            if verbose:
+                logger.warning(f"Replacing {joint} with fixed joint")
+                logger.warning(old_str)
+                logger.warning(new_str)
+            content = content.replace(old_str, new_str)
 
     with open(urdf_path, "w") as file:
         file.write(content)

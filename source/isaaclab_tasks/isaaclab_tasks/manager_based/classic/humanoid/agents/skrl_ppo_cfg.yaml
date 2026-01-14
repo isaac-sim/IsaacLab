@@ -1,7 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+# ========================================= IMPORTANT NOTICE =========================================
+#
+# This file defines the agent configuration used to generate the "Training Performance" table in
+# https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html.
+# Ensure that the configurations for the other RL libraries are updated if this one is modified.
+#
+# ====================================================================================================
 
 seed: 42
 
@@ -19,7 +27,7 @@ models:
     initial_log_std: 0.0
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [400, 200, 100]
         activations: elu
     output: ACTIONS
@@ -28,7 +36,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [400, 200, 100]
         activations: elu
     output: ONE
@@ -67,14 +75,13 @@ agent:
   entropy_loss_scale: 0.0
   value_loss_scale: 2.0
   kl_threshold: 0.0
-  rewards_shaper_scale: 0.6
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
     directory: "humanoid"
     experiment_name: ""
-    write_interval: auto
-    checkpoint_interval: auto
+    write_interval: 32
+    checkpoint_interval: 3200
 
 
 # Sequential trainer

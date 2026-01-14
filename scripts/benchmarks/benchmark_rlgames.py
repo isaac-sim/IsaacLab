@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -62,20 +62,20 @@ from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 imports_time_begin = time.perf_counter_ns()
 
-import gymnasium as gym
 import math
 import os
 import random
-import torch
 from datetime import datetime
 
+import gymnasium as gym
+import torch
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+from isaaclab.utils.io import dump_yaml
 
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
@@ -87,6 +87,7 @@ imports_time_end = time.perf_counter_ns()
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.utils.timer import Timer
+
 from scripts.benchmarks.utils import (
     log_app_start_time,
     log_python_imports_time,
@@ -128,6 +129,17 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # check for invalid combination of CPU device with distributed training
+    if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
+        raise ValueError(
+            "Distributed training is not supported when using CPU device. "
+            "Please use GPU device (e.g., --device cuda) for distributed training."
+        )
+
+    # update agent device to match simulation device
+    if args_cli.device is not None:
+        agent_cfg["params"]["config"]["device"] = args_cli.device
+        agent_cfg["params"]["config"]["device_name"] = args_cli.device
 
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
@@ -168,8 +180,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
-    dump_pickle(os.path.join(log_root_path, log_dir, "params", "env.pkl"), env_cfg)
-    dump_pickle(os.path.join(log_root_path, log_dir, "params", "agent.pkl"), agent_cfg)
 
     # read configurations about the agent-training
     rl_device = agent_cfg["params"]["config"]["device"]

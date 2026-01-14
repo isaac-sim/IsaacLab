@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -64,13 +64,13 @@ simulation_app = app_launcher.app
 
 import numpy as np
 
-import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
+from isaacsim.core.api.materials import PhysicsMaterial
+from isaacsim.core.api.materials.preview_surface import PreviewSurface
+from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.materials import PhysicsMaterial, PreviewSurface
-from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.utils.viewports import set_camera_view
@@ -108,7 +108,7 @@ def main():
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.define_prim("/World/envs/env_0")
 
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -135,7 +135,7 @@ def main():
     else:
         # -- Ball geometry
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+        sim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
         # -- Ball physics
         SingleRigidPrim(
             prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)

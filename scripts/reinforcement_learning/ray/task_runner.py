@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -98,10 +98,12 @@ To stop all tasks early, press Ctrl+C; the script will cancel all running Ray ta
 """
 
 import argparse
-import yaml
 from datetime import datetime
 
-import util
+import yaml
+
+# Local imports
+import util  # isort: skip
 
 
 def parse_args() -> argparse.Namespace:

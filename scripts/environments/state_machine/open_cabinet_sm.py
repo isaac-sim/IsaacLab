@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -38,10 +38,10 @@ simulation_app = app_launcher.app
 
 """Rest everything else."""
 
-import gymnasium as gym
-import torch
 from collections.abc import Sequence
 
+import gymnasium as gym
+import torch
 import warp as wp
 
 from isaaclab.sensors import FrameTransformer
@@ -206,7 +206,7 @@ class OpenDrawerSm:
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
 
-        # approach infront of the handle
+        # approach in front of the handle
         self.handle_approach_offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.handle_approach_offset[:, 0] = -0.1
         self.handle_approach_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)

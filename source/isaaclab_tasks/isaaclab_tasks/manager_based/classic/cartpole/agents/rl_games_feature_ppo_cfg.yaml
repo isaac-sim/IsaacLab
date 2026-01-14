@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -57,7 +57,7 @@ params:
     mixed_precision: False
     normalize_input: True
     normalize_value: True
-    value_bootstraop: True
+    value_bootstrap: True
     num_actors: -1  # configured from the script (based on num_envs)
     reward_shaper:
       scale_value: 1.0

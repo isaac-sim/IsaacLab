@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,12 +12,15 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
+from collections.abc import Generator
 
-import isaacsim.core.utils.prims as prim_utils
+import numpy as np
 import pytest
+
+import omni.physx
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -32,6 +35,25 @@ def test_setup_teardown():
 
     # Teardown: Clear the simulation context after each test
     SimulationContext.clear_instance()
+
+
+@pytest.fixture
+def sim_with_stage_in_memory() -> Generator[SimulationContext, None, None]:
+    """Create a simulation context with stage in memory."""
+    # create stage in memory
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    sim = SimulationContext(cfg=cfg)
+    # update stage
+    sim_utils.update_stage()
+    # yield simulation context
+    yield sim
+    # stop simulation
+    omni.physx.get_physx_simulation_interface().detach_stage()
+    sim.stop()
+    # clear simulation context
+    sim.clear()
+    sim.clear_all_callbacks()
+    sim.clear_instance()
 
 
 @pytest.mark.isaacsim_ci
@@ -70,8 +92,8 @@ def test_initialization():
     assert sim.get_rendering_dt() == cfg.dt * cfg.render_interval
     assert not sim.has_rtx_sensors()
     # check valid paths
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX")
-    assert prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial")
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX").IsValid()
+    assert sim.stage.GetPrimAtPath("/Physics/PhysX/defaultMaterial").IsValid()
     # check valid gravity
     gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
     gravity = np.array(gravity_dir) * gravity_mag

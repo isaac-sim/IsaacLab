@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,11 +18,9 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
-import torch
 
-import isaacsim.core.utils.prims as prim_utils
 import pytest
-from isaacsim.core.version import get_version
+import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -33,6 +31,7 @@ from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.version import get_isaac_sim_version
 
 ##
 # Pre-defined configs
@@ -175,7 +174,7 @@ def generate_articulation(
 
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
-        prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
 
     return articulation, translations
@@ -1372,10 +1371,16 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, None])
+@pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.isaacsim_ci
 def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
-    """Test setting of the effort limit for implicit actuators."""
+    """Test setting of effort limit for implicit actuators.
+
+    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
+    - Case 1: If USD value == actuator config value: values match correctly
+    - Case 2: If USD value != actuator config value: actuator config value is used
+    - Case 3: If actuator config value is None: USD value is used as default
+    """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
         effort_limit_sim=effort_limit_sim,
@@ -1419,10 +1424,18 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, None])
+@pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
 @pytest.mark.isaacsim_ci
 def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
-    """Test setting of effort limit for explicit actuators."""
+    """Test setting of effort limit for explicit actuators.
+
+    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
+    - Case 1: If USD value == actuator config value: values match correctly
+    - Case 2: If USD value != actuator config value: actuator config value is used
+    - Case 3: If actuator config value is None: USD value is used as default
+
+    """
+
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_explicit",
         effort_limit_sim=effort_limit_sim,
@@ -1435,6 +1448,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     )
     # Play sim
     sim.reset()
+
+    # usd default effort limit is set to 80
+    usd_default_effort_limit = 80.0
 
     # collect limit init values
     physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device)
@@ -1452,8 +1468,9 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         # check physx effort limit does not match the one explicit actuator has
         assert not (torch.allclose(actuator_effort_limit, physx_effort_limit))
     else:
-        # check actuator effort_limit is the same as the PhysX default
-        torch.testing.assert_close(actuator_effort_limit, physx_effort_limit)
+        # When effort_limit is None, actuator should use USD default values
+        expected_actuator_effort_limit = torch.full_like(physx_effort_limit, usd_default_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
 
     # when using explicit actuators, the limits are set to high unless user overrides
     if effort_limit_sim is not None:
@@ -1462,6 +1479,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
+    torch.testing.assert_close(actuator_effort_limit_sim, expected_effort_limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
 
@@ -1879,7 +1897,6 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     rand_joint_vel = vel_dist.sample()
 
     articulation.write_joint_state_to_sim(rand_joint_pos, rand_joint_vel)
-    articulation.root_physx_view.get_jacobians()
     # make sure valued updated
     assert torch.count_nonzero(original_body_states[:, 1:] != articulation.data.body_state_w[:, 1:]) > (
         len(original_body_states[:, 1:]) / 2
@@ -1939,7 +1956,7 @@ def test_spatial_tendons(sim, num_articulations, device):
         device: The device to run the simulation on
     """
     # skip test if Isaac Sim version is less than 5.0
-    if int(get_version()[2]) < 5:
+    if get_isaac_sim_version().major < 5:
         pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
         return
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
@@ -1998,10 +2015,16 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     dynamic_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
     viscous_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
     friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-    if int(get_version()[2]) >= 5:
+
+    # Guarantee that the dynamic friction is not greater than the static friction
+    dynamic_friction = torch.min(dynamic_friction, friction)
+
+    # The static friction must be set first to be sure the dynamic friction is not greater than static
+    # when both are set.
+    articulation.write_joint_friction_coefficient_to_sim(friction)
+    if get_isaac_sim_version().major >= 5:
         articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
         articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
-    articulation.write_joint_friction_coefficient_to_sim(friction)
     articulation.write_data_to_sim()
 
     for _ in range(100):
@@ -2010,10 +2033,59 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # update buffers
         articulation.update(sim.cfg.dt)
 
-    if int(get_version()[2]) >= 5:
-        assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction)
-        assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
-    assert torch.allclose(articulation.data.joint_friction_coeff, friction)
+    if get_isaac_sim_version().major >= 5:
+        friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
+        joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
+        joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
+        joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
+        assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
+        assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
+    else:
+        joint_friction_coeff_sim = articulation.root_physx_view.get_dof_friction_properties()
+
+    assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
+
+    # For Isaac Sim >= 5.0: also test the combined API that can set dynamic and viscous via
+    # write_joint_friction_coefficient_to_sim; reset the sim to isolate this path.
+    if get_isaac_sim_version().major >= 5:
+        # Reset simulator to ensure a clean state for the alternative API path
+        sim.reset()
+
+        # Warm up a few steps to populate buffers
+        for _ in range(100):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        # New random coefficients
+        dynamic_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+        viscous_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+        friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+
+        # Guarantee that the dynamic friction is not greater than the static friction
+        dynamic_friction_2 = torch.min(dynamic_friction_2, friction_2)
+
+        # Use the combined setter to write all three at once
+        articulation.write_joint_friction_coefficient_to_sim(
+            joint_friction_coeff=friction_2,
+            joint_dynamic_friction_coeff=dynamic_friction_2,
+            joint_viscous_friction_coeff=viscous_friction_2,
+        )
+        articulation.write_data_to_sim()
+
+        # Step to let sim ingest new params and refresh data buffers
+        for _ in range(100):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
+        joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
+        friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
+        friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
+
+        # Validate values propagated
+        assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2.cpu())
+        assert torch.allclose(friction_dynamic_coef_sim_2, dynamic_friction_2.cpu())
+        assert torch.allclose(joint_friction_coeff_sim_2, friction_2.cpu())
 
 
 if __name__ == "__main__":

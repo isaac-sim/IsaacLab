@@ -1,21 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import numpy as np
-import torch
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Final
 
-from isaaclab.devices import OpenXRDevice
+import numpy as np
+import torch
+
+from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
-
-@dataclass
-class GripperRetargeterCfg(RetargeterCfg):
-    """Configuration for gripper retargeter."""
-
-    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class GripperRetargeter(RetargeterBase):
@@ -41,10 +37,9 @@ class GripperRetargeter(RetargeterBase):
         super().__init__(cfg)
         """Initialize the gripper retargeter."""
         # Store the hand to track
-        if cfg.bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+        if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
             raise ValueError(
-                "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
-                " OpenXRDevice.TrackingTarget.HAND_RIGHT"
+                "bound_hand must be either DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT"
             )
         self.bound_hand = cfg.bound_hand
         # Initialize gripper state
@@ -71,6 +66,9 @@ class GripperRetargeter(RetargeterBase):
 
         return torch.tensor([gripper_value], dtype=torch.float32, device=self._sim_device)
 
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        return [RetargeterBase.Requirement.HAND_TRACKING]
+
     def _calculate_gripper_command(self, thumb_pos: np.ndarray, index_pos: np.ndarray) -> bool:
         """Calculate gripper command from finger positions with hysteresis.
 
@@ -90,3 +88,11 @@ class GripperRetargeter(RetargeterBase):
             self._previous_gripper_command = True
 
         return self._previous_gripper_command
+
+
+@dataclass
+class GripperRetargeterCfg(RetargeterCfg):
+    """Configuration for gripper retargeter."""
+
+    bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    retargeter_type: type[RetargeterBase] = GripperRetargeter

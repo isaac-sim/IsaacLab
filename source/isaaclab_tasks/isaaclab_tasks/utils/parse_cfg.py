@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,11 +6,12 @@
 """Sub-module with utilities for parsing and loading configurations."""
 
 import collections
-import gymnasium as gym
 import importlib
 import inspect
 import os
 import re
+
+import gymnasium as gym
 import yaml
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -32,6 +33,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             kwargs={"env_entry_point_cfg": "path.to.config:ConfigClass"},
         )
 
+
     The parsed configuration object for above example can be obtained as:
 
     .. code-block:: python
@@ -39,6 +41,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         cfg = load_cfg_from_registry("My-Awesome-Task-v0", "env_entry_point_cfg")
+
 
     Args:
         task_name: The name of the environment.

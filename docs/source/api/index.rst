@@ -36,6 +36,8 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.converters
    lab/isaaclab.sim.schemas
    lab/isaaclab.sim.spawners
+   lab/isaaclab.sim.views
+   lab/isaaclab.sim.utils
 
 
 isaaclab_rl extension

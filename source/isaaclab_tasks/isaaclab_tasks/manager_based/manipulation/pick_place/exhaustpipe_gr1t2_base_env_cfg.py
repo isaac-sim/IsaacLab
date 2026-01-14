@@ -1,22 +1,22 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
-import torch
 from dataclasses import MISSING
+
+import torch
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import ActionTermCfg
+from isaaclab.managers import ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -184,13 +184,16 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
-        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos)
-        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat)
-        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos)
-        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
+        left_eef_pos = ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"})
+        left_eef_quat = ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"})
+        right_eef_pos = ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"})
+        right_eef_quat = ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"})
 
-        hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        head_joint_state = ObsTerm(func=mdp.get_head_state)
+        hand_joint_state = ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        head_joint_state = ObsTerm(
+            func=mdp.get_robot_joint_state,
+            params={"joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        )
 
         robot_pov_cam = ObsTerm(
             func=mdp.image,
@@ -320,9 +323,9 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 100
         self.sim.render_interval = 2
 
-        # # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        # Set settings for camera rendering
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]

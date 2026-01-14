@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -37,3 +37,16 @@ def test_check_file_path_invalid():
     usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_xyz.usd"
     # check file path
     assert assets_utils.check_file_path(usd_path) == 0
+
+
+def test_check_usd_path_with_timeout():
+    """Test checking a USD path with timeout."""
+    # robot file path
+    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    # check file path
+    assert assets_utils.check_usd_path_with_timeout(usd_path) is True
+
+    # invalid file path
+    usd_path = f"{assets_utils.ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_xyz.usd"
+    # check file path
+    assert assets_utils.check_usd_path_with_timeout(usd_path) is False

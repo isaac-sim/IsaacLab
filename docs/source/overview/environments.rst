@@ -3,7 +3,7 @@
 Available Environments
 ======================
 
-The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
+The following lists comprises of all the RL and IL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:
 
@@ -13,16 +13,23 @@ running the following command:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py
+         ./isaaclab.sh -p scripts/environments/list_envs.py --keyword <search_term>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
+      .. note::
+         Use ``--keyword <search_term>`` (optional) to filter environments by keyword.
+
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\list_envs.py
+         isaaclab.bat -p scripts\environments\list_envs.py --keyword <search_term>
+
 
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
@@ -100,54 +107,105 @@ for the lift-cube environment:
 .. table::
     :widths: 33 37 30
 
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | World              | Environment ID          | Description                                                                 |
-    +====================+=========================+=============================================================================+
-    | |reach-franka|     | |reach-franka-link|     | Move the end-effector to a sampled target pose with the Franka robot        |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |reach-ur10|       | |reach-ur10-link|       | Move the end-effector to a sampled target pose with the UR10 robot          |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |lift-cube|        | |lift-cube-link|        | Pick a cube and bring it to a sampled target position with the Franka robot |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |stack-cube|       | |stack-cube-link|       | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |
-    |                    |                         | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
-    |                    | |stack-cube-bp-link|    | manipulation motion generation                                              |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cabi-franka|      | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
-    |                    |                         |                                                                             |
-    |                    | |franka-direct-link|    |                                                                             |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-allegro|     | |cube-allegro-link|     | In-hand reorientation of a cube using Allegro hand                          |
-    |                    |                         |                                                                             |
-    |                    | |allegro-direct-link|   |                                                                             |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-link|      | In-hand reorientation of a cube using Shadow hand                           |
-    |                    |                         |                                                                             |
-    |                    | |cube-shadow-ff-link|   |                                                                             |
-    |                    |                         |                                                                             |
-    |                    | |cube-shadow-lstm-link| |                                                                             |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  |
-    |                    |                         | Requires running with ``--enable_cameras``.                                 |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |gr1_pp_waist|     | |gr1_pp_waist-link|     | Pick up and place an object in a basket with a GR-1 humanoid robot          |
-    |                    |                         | with waist degrees-of-freedom enables that provides a wider reach space.    |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | World                   | Environment ID               | Description                                                                 |
+    +=========================+==============================+=============================================================================+
+    | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |
+    |                         |                              | This policy has been deployed to a real robot                               |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |
+    |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
+    |                         | |stack-cube-bp-link|         | manipulation motion generation                                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |surface-gripper|       | |long-suction-link|          | Stack three cubes (bottom to top: blue, red, green)                         |
+    |                         |                              | with the UR10 arm and long surface gripper                                  |
+    |                         | |short-suction-link|         | or short surface gripper.                                                   |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
+    |                         |                              |                                                                             |
+    |                         | |franka-direct-link|         |                                                                             |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          |
+    |                         |                              |                                                                             |
+    |                         | |allegro-direct-link|        |                                                                             |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           |
+    |                         |                              |                                                                             |
+    |                         | |cube-shadow-ff-link|        |                                                                             |
+    |                         |                              |                                                                             |
+    |                         | |cube-shadow-lstm-link|      |                                                                             |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  |
+    |                         |                              | Requires running with ``--enable_cameras``.                                 |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |
+    |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |
+    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |
+    |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |
+    |                         |                              | controlled via Inverse Kinematics).                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
+    |                         |                              | a Galbot humanoid robot                                                     |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |reach_openarm_uni|     | |reach_openarm_uni-link|     | Move the end-effector to a sampled target pose with the OpenArm robot       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |lift_openarm_uni|      | |lift_openarm_uni-link|      | Pick a cube and bring it to a sampled target position with the OpenArm robot|
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
+.. |deploy-reach-ur10e| image:: ../_static/tasks/manipulation/ur10e_reach.jpg
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |g1_pick_place| image:: ../_static/tasks/manipulation/g1_pick_place.jpg
+.. |g1_pick_place_fixed| image:: ../_static/tasks/manipulation/g1_pick_place_fixed_base.jpg
+.. |g1_pick_place_lm| image:: ../_static/tasks/manipulation/g1_pick_place_locomanipulation.jpg
+.. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
 .. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
+.. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
+.. |agibot_place_mug| image:: ../_static/tasks/manipulation/agibot_place_mug.jpg
+.. |agibot_place_toy| image:: ../_static/tasks/manipulation/agibot_place_toy.jpg
+.. |kuka-allegro-lift| image:: ../_static/tasks/manipulation/kuka_allegro_lift.jpg
+.. |kuka-allegro-reorient| image:: ../_static/tasks/manipulation/kuka_allegro_reorient.jpg
+.. |reach_openarm_bi| image:: ../_static/tasks/manipulation/openarm_bi_reach.jpg
+.. |reach_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_reach.jpg
+.. |lift_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_lift.jpg
+.. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
+.. |deploy-reach-ur10e-link| replace:: `Isaac-Deploy-Reach-UR10e-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
 .. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_abs_env_cfg.py>`__
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_rel_env_cfg.py>`__
@@ -158,12 +216,26 @@ for the lift-cube environment:
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
 .. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |g1_pick_place-link| replace:: `Isaac-PickPlace-G1-InspireFTP-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`__
+.. |g1_pick_place_fixed-link| replace:: `Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`__
+.. |g1_pick_place_lm-link| replace:: `Isaac-PickPlace-Locomanipulation-G1-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/locomanipulation_g1_env_cfg.py>`__
+.. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 .. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
-
+.. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
+.. |kuka-allegro-lift-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Lift-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
+.. |kuka-allegro-reorient-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
+.. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
+.. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
+.. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArm-Bi-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
+.. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
+.. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/openarm/joint_pos_env_cfg.py>`__
+.. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/openarm/joint_pos_env_cfg.py>`__
+
 
 Contact-rich Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -211,13 +283,12 @@ We provide environments for both disassembly and assembly.
 
 .. attention::
 
-  CUDA is required for running the AutoMate environments.
-  Follow the below steps to install CUDA 12.8:
+  CUDA is recommended for running the AutoMate environments with 570 drivers. If running with Nvidia driver 570 on Linux with architecture x86_64, we follow the below steps to install CUDA 12.8. This allows for computing rewards in AutoMate environments with CUDA. If you have a different operation system or architecture, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_ for additional instruction.
 
   .. code-block:: bash
 
       wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
-      sudo sh cuda_12.8.0_570.86.10_linux.run
+      sudo sh cuda_12.8.0_570.86.10_linux.run --toolkit
 
   When using conda, cuda toolkit can be installed with:
 
@@ -225,7 +296,7 @@ We provide environments for both disassembly and assembly.
 
       conda install cudatoolkit
 
-  For addition instructions and Windows installation, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_.
+  With 580 drivers and CUDA 13, we are currently unable to enable CUDA for computing the rewards. The code automatically fallbacks to CPU, resulting in slightly slower performance.
 
 * |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
@@ -375,7 +446,7 @@ Environments based on legged locomotion tasks.
 
 .. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/flat_env_cfg.py>`__
 .. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/digit/rough_env_cfg.py>`__
-.. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-Flat-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/tracking/config/digit/loco_manip_env_cfg.py>`__
+.. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-LocoManip-Digit-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/tracking/config/digit/loco_manip_env_cfg.py>`__
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -882,6 +953,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Reach-UR10-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Deploy-Reach-UR10e-v0
+      - Isaac-Deploy-Reach-UR10e-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Repose-Cube-Allegro-Direct-v0
       -
       - Direct
@@ -918,6 +993,14 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+    * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
     * - Isaac-Stack-Cube-Franka-v0
       -
       - Manager Based
@@ -930,6 +1013,59 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-PickPlace-G1-InspireFTP-Abs-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
+      - Manager Based
+      -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
+      - Manager Based
+      -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
@@ -1022,3 +1158,19 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Reach-OpenArm-Bi-v0
+      - Isaac-Reach-OpenArm-Bi-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)
+    * - Isaac-Reach-OpenArm-v0
+      - Isaac-Reach-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
+    * - Isaac-Lift-Cube-OpenArm-v0
+      - Isaac-Lift-Cube-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)
+    * - Isaac-Open-Drawer-OpenArm-v0
+      - Isaac-Open-Drawer-OpenArm-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO)

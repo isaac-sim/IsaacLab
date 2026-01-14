@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - devel
+      - release/**
 
 # Concurrency control to prevent parallel runs
 concurrency:
@@ -22,7 +23,7 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || 'latest-base-5.0' }}
+  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '5.1.0' }}
   ISAACLAB_IMAGE_NAME: ${{ vars.ISAACLAB_IMAGE_NAME || 'isaac-lab-base' }}
 
 jobs:
@@ -43,8 +44,17 @@ jobs:
         fetch-depth: 0
         lfs: true
 
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/arm64
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
 
     - name: Login to NGC
       run: |
@@ -100,12 +110,48 @@ jobs:
           COMBINED_TAG="${REPO_SHORT_NAME}-${SAFE_BRANCH_NAME}-${IMAGE_BASE_VERSION}"
           BUILD_TAG="${COMBINED_TAG}-b${{ github.run_number }}"
 
+          # Determine if multiarch is supported by inspecting the base image manifest
+          echo "Checking if base image supports multiarch..."
+          BASE_IMAGE_FULL="${{ env.ISAACSIM_BASE_IMAGE }}:${IMAGE_BASE_VERSION}"
+
+          # Get architectures from the base image manifest
+          ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
+
+          if [ -z "$ARCHITECTURES" ]; then
+            echo "Could not inspect base image manifest: $BASE_IMAGE_FULL"
+            echo "Defaulting to AMD64 only for safety"
+            BUILD_PLATFORMS="linux/amd64"
+          else
+            echo "Base image architectures found:"
+            echo "$ARCHITECTURES" | sed 's/^/  - /'
+
+            # Check if both amd64 and arm64 are present
+            HAS_AMD64=$(echo "$ARCHITECTURES" | grep -c "amd64" || true)
+            HAS_ARM64=$(echo "$ARCHITECTURES" | grep -c "arm64" || true)
+
+            if [ "$HAS_AMD64" -gt 0 ] && [ "$HAS_ARM64" -gt 0 ]; then
+              echo "Base image supports multiarch (amd64 + arm64)"
+              BUILD_PLATFORMS="linux/amd64,linux/arm64"
+            elif [ "$HAS_AMD64" -gt 0 ]; then
+              echo "Base image only supports amd64"
+              BUILD_PLATFORMS="linux/amd64"
+            elif [ "$HAS_ARM64" -gt 0 ]; then
+              echo "Base image only supports arm64"
+              BUILD_PLATFORMS="linux/arm64"
+            else
+              echo "Unknown architecture support, defaulting to amd64"
+              BUILD_PLATFORMS="linux/amd64"
+            fi
+          fi
+
           echo "Building image: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
           echo "IsaacSim version: $IMAGE_BASE_VERSION"
+          echo "Base image: $BASE_IMAGE_FULL"
+          echo "Target platforms: $BUILD_PLATFORMS"
 
-          # Build Docker image once with both tags
+          # Build Docker image once with both tags for multiple architectures
           docker buildx build \
-            --platform linux/amd64 \
+            --platform $BUILD_PLATFORMS \
             --progress=plain \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG \
@@ -119,6 +165,6 @@ jobs:
             -f docker/Dockerfile.base \
             --push .
 
-          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
-          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG (platforms: $BUILD_PLATFORMS)"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG (platforms: $BUILD_PLATFORMS)"
         done

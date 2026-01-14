@@ -1,6 +1,731 @@
 Changelog
 ---------
 
+0.53.1 (2026-01-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added function :func:`~isaaclab.sim.utils.prims.change_prim_property` to change attributes on a USD prim.
+  This replaces the previously used USD command ``ChangeProperty`` that depends on Omniverse Kit API.
+
+Changed
+^^^^^^^
+
+* Replaced occurrences of ``ChangeProperty`` USD command to :func:`~isaaclab.sim.utils.prims.change_prim_property`.
+
+
+0.53.0 (2026-01-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.views.XformPrimView` class to provide a
+  view of the USD Xform operations. Compared to Isaac Sim implementation,
+  this class optimizes several operations using USD SDF API.
+
+Changed
+^^^^^^^
+
+* Switched the sensor classes to use the :class:`~isaaclab.sim.views.XformPrimView`
+  class for the internal view wherever applicable.
+
+Removed
+^^^^^^^
+
+* Removed the usage of :class:`isaacsim.core.utils.prims.XformPrim`
+  class from the sensor classes.
+
+
+0.52.2 (2026-01-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved logic for the URDF importer extension version pinning: the older extension version
+  is now pinned only on Isaac Sim 5.1 and later, while older Isaac Sim versions no longer
+  attempt to pin to a version that does not exist.
+
+
+0.52.1 (2026-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer body name collision when tracking bodies with the same name but different hierarchical paths
+  (e.g., Robot/left_hand vs Robot_1/left_hand). The sensor now uses the full prim path (with env_* patterns normalized)
+  as the unique body identifier instead of just the leaf body name. This ensures bodies at different hierarchy levels
+  are tracked separately. The change is backwards compatible: user-facing frame names still default to leaf names when
+  not explicitly provided, while internal body tracking uses full paths to avoid collisions. Works for both
+  environment-scoped paths (e.g., /World/envs/env_0/Robot) and non-environment paths (e.g., /World/Robot).
+
+
+0.52.0 (2026-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`~isaaclab.sim.utils.transforms` module to handle USD Xform operations.
+* Added passing of ``stage`` to the :func:`~isaaclab.sim.utils.prims.create_prim` function
+  inside spawning functions to allow for the creation of prims in a specific stage.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.sim.utils.prims.create_prim` function to use the :mod:`~isaaclab.sim.utils.transforms`
+  module for USD Xform operations. It removes the usage of Isaac Sim's XformPrim class.
+
+
+0.51.2 (2025-12-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ObservationManager.get_active_iterable_terms`
+  to handle observation data when not concatenated along the last dimension.
+
+
+0.51.1 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.version.get_isaac_sim_version` to get the version of Isaac Sim.
+  This function caches the version of Isaac Sim and returns it immediately if it has already been computed.
+  This helps avoid parsing the VERSION file from disk multiple times.
+
+Changed
+^^^^^^^
+
+* Changed the function :meth:`~isaaclab.utils.version.compare_versions` to use :mod:`packaging.version.Version` module.
+* Changed occurrences of :func:`isaacsim.core.version.get_version` to :func:`~isaaclab.utils.version.get_isaac_sim_version`.
+
+Removed
+^^^^^^^
+
+* Removed storing of Isaac Sim version inside the environment base classes defined inside
+  :mod:`isaaclab.envs` module.
+
+
+0.51.0 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tests for the :mod:`isaaclab.sim.utils.prims` module.
+* Added tests for the :mod:`isaaclab.sim.utils.stage` module.
+* Created :mod:`isaaclab.sim.utils.legacy` sub-module to keep deprecated functions.
+
+Removed
+^^^^^^^
+
+* Removed many unused USD prim and stage related operations from the :mod:`isaaclab.sim.utils` module.
+* Moved :mod:`isaaclab.sim.utils.nucleus` sub-module to the ``tests/deps/isaacsim`` directory as it
+  is only being used for Isaac Sim check scripts.
+
+Changed
+^^^^^^^
+
+* Changed the organization of the :mod:`isaaclab.sim.utils` module to make it clearer which functions
+  are related to the stage and which are related to the prims.
+* Modified imports of :mod:`~isaaclab.sim.utils.stage` and :mod:`~isaaclab.sim.utils.prims` modules
+  to only use the :mod:`isaaclab.sim.utils` module.
+* Moved ``logger.py`` to the :mod:`isaaclab.utils` module.
+
+
+0.50.7 (2025-12-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved ``pretrained_checkpoint.py`` to the :mod:`isaaclab_rl.utils` module.
+
+
+0.50.6 (2025-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issue where :meth:~isaaclab.envs.mdp.observations.body_pose_w` was modifying the original body pose data
+  when using slice or int for body_ids in the observation config. A clone of the data is now created to avoid modifying
+  the original data.
+
+
+0.50.5 (2025-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sensors.MultiMeshRayCaster` sensor to support tracking of dynamic meshes for ray-casting.
+  We keep the previous implementation of :class:`~isaaclab.sensors.RayCaster` for backwards compatibility.
+* Added :mod:`isaaclab.utils.mesh` sub-module to perform various Trimesh and USD Mesh related operations.
+
+
+0.50.4 (2025-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration` to enable external forces every position
+  iteration. This can help improve the accuracy of velocity updates. Consider enabling this flag if the velocities
+  generated by the simulation are noisy.
+* Added warning when :attr:`~isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration` is set to False and
+  the solver type is TGS.
+
+
+0.50.3 (2025-12-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing mesh collision approximation attribute when running :class:`~isaaclab.sim.converters.MeshConverter`.
+  The collision approximation attribute is now properly set on the USD prim when converting meshes with mesh collision
+  properties.
+
+
+0.50.2 (2025-11-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Prevent randomizing mass to zero in :meth:`~isaaclab.envs.mdp.events.randomize_mass_by_scale` to avoid physics errors.
+
+
+0.50.1 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed advanced indexing issue in resetting prev action
+  in :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` .
+
+
+0.50.0 (2025-12-8)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Implemented ability to attach an imu sensor to xform primitives in a usd file. This PR is based on work by '@GiulioRomualdi'
+  here: #3094 Addressing issue #3088.
+
+
+0.49.3 (2025-12-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`G1TriHandUpperBodyMotionControllerGripperRetargeter` and :class:`G1TriHandUpperBodyMotionControllerGripperRetargeterCfg` for retargeting the gripper state from motion controllers.
+* Added unit tests for the retargeters.
+
+
+0.49.2 (2025-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_friction_forces` to toggle tracking of friction forces between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.friction_forces_w` data field for tracking friction forces.
+
+
+0.49.1 (2025-11-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.prims`` to ``isaaclab.sim.utils.prims`` across repo to reduce IsaacLab dependencies.
+
+0.49.0 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the URDF Importer version to 2.4.31 to avoid issues with merging joints on the latest URDF importer in Isaac Sim 5.1
+
+
+0.48.9 (2025-11-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add navigation state API to IsaacLabManagerBasedRLMimicEnv
+* Add optional custom recorder config to MimicEnvCfg
+
+
+0.48.8 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+
+
+0.48.7 (2025-11-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaaclab.sim.utils`` to ``isaaclab.sim.utils.stage`` in ``isaaclab.devices.openxr.xr_anchor_utils.py``
+  to properly propagate the Isaac Sim stage context.
+
+
+
+
+0.48.6 (2025-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXR motion controller support for the G1 robot locomanipulation environment
+  ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``. This enables teleoperation using XR motion controllers
+  in addition to hand tracking.
+* Added :class:`OpenXRDeviceMotionController` for motion controller-based teleoperation with headset anchoring control.
+* Added motion controller-specific retargeters:
+  * :class:`G1TriHandControllerUpperBodyRetargeterCfg` for upper body and hand control using motion controllers.
+  * :class:`G1LowerBodyStandingControllerRetargeterCfg` for lower body control using motion controllers.
+
+
+0.48.5 (2025-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed import from ``isaacsim.core.utils.stage`` to ``isaaclab.sim.utils.stage`` to reduce IsaacLab dependencies.
+
+
+0.48.4 (2025-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored modules related to the actuator configs in order to remediate a circular import necessary to support future
+  actuator drive model improvements.
+
+
+0.48.3 (2025-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved retargeter and device declaration out of factory and into the devices/retargeters themselves.
+
+
+0.48.2 (2025-11-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed from using :meth:`isaacsim.core.utils.torch.set_seed` to :meth:`~isaaclab.utils.seed.configure_seed`
+
+
+0.48.1 (2025-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.haply.HaplyDevice` class for SE(3) teleoperation with dual Haply Inverse3 and Versegrip devices,
+  supporting robot manipulation with haptic feedback.
+* Added demo script ``scripts/demos/haply_teleoperation.py`` and documentation guide in
+  ``docs/source/how-to/haply_teleoperation.rst`` for Haply-based robot teleoperation.
+
+
+0.48.0 (2025-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Detected contacts are reported with the threshold of 0.0 (instead of 1.0). This increases the sensitivity of contact
+  detection.
+
+Fixed
+^^^^^
+
+* Removed passing the boolean flag to :meth:`isaaclab.sim.schemas.activate_contact_sensors` when activating contact
+  sensors. This was incorrectly modifying the threshold attribute to 1.0 when contact sensors were activated.
+
+
+0.47.11 (2025-11-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the bug where effort limits were being overridden in :class:`~isaaclab.actuators.ActuatorBase` when the ``effort_limit`` parameter is set to None.
+* Corrected the unit tests for three effort limit scenarios with proper assertions
+
+
+0.47.10 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``num_rerenders_on_reset`` parameter to ManagerBasedEnvCfg and DirectRLEnvCfg to configure the number
+  of render steps to perform after reset. This enables more control over DLSS rendering behavior after reset.
+
+Changed
+^^^^^^^
+
+* Added deprecation warning for ``rerender_on_reset`` parameter in ManagerBasedEnv and DirectRLEnv.
+
+
+0.47.9 (2025-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed termination term bookkeeping in :class:`~isaaclab.managers.TerminationManager`:
+  per-step termination and last-episode termination bookkeeping are now separated.
+  last-episode dones are now updated once per step from all term outputs, avoiding per-term overwrites
+  and ensuring Episode_Termination metrics reflect the actual triggering terms.
+
+
+0.47.8 (2025-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added parameter :attr:`~isaaclab.terrains.TerrainImporterCfg.use_terrain_origins` to allow generated sub terrains with grid origins.
+
+
+0.47.7 (2025-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Pink IK controller qpsolver from osqp to daqp.
+* Changed Null Space matrix computation in Pink IK's Null Space Posture Task to a faster matrix pseudo inverse computation.
+
+
+0.47.6 (2025-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an issue in recurrent policy evaluation in RSL-RL framework where the recurrent state was not reset after an episode termination.
+
+
+0.47.5 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added docstrings notes to clarify the friction coefficient modeling in Isaac Sim 4.5 and 5.0.
+
+
+0.47.4 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enhanced :meth:`~isaaclab.managers.RecorderManager.export_episodes` method to support customizable sequence of demo IDs:
+
+  - Added argument ``demo_ids`` to :meth:`~isaaclab.managers.RecorderManager.export_episodes` to accept a sequence of integers
+    for custom episode identifiers.
+
+* Enhanced :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` method to support customizable episode identifiers:
+
+  - Added argument ``demo_id`` to :meth:`~isaaclab.utils.datasets.HDF5DatasetFileHandler.write_episode` to accept a custom integer
+    for episode identifier.
+
+
+0.47.3 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the data type conversion in :class:`~isaaclab.sensors.tiled_camera.TiledCamera` to
+  support the correct data type when converting from numpy arrays to warp arrays on the CPU.
+
+
+0.47.2 (2025-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_pose` to resolve the pose of a prim with respect to another prim.
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_scale` to resolve the scale of a prim in the world frame.
+
+
+0.47.1 (2025-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Suppressed yourdfpy warnings when trying to load meshes from hand urdfs in dex_retargeting. These mesh files are not
+  used by dex_retargeting, but the parser is incorrectly configured by dex_retargeting to load them anyway which results
+  in warning spam.
+
+
+0.47.0 (2025-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed pickle utilities for saving and loading configurations as pickle contains security vulnerabilities in its APIs.
+  Configurations can continue to be saved and loaded through yaml.
+
+
+0.46.11 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for modifying the :attr:`/rtx/domeLight/upperLowerStrategy` Sim rendering setting.
+
+
+0.46.10 (2025-10-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ARM64 architecture for pink ik and dex-retargetting setup installations.
+
+
+0.46.9 (2025-10-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.devices.keyboard.se3_keyboard.Se3Keyboard.__del__` to use the correct method name
+  for unsubscribing from keyboard events "unsubscribe_to_keyboard_events" instead of "unsubscribe_from_keyboard_events".
+
+
+0.46.8 (2025-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed scaling factor for retargeting of GR1T2 hand.
+
+
+0.46.7 (2025-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed finger joint indices with manus extension.
+
+
+0.46.6 (2025-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added argument :attr:`traverse_instance_prims` to :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` to control whether to traverse instance prims
+  during the traversal. Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` did not return
+  instanced prims, which is now fixed.
+
+Changed
+^^^^^^^
+
+* Made parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` as the default behavior.
+* Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
+
+
+0.46.5 (2025-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed parameter :attr:`~isaaclab.sim.spawners.PhysxCfg.solve_articulation_contact_last`
+  to configure USD attribute ``physxscene:solveArticulationContactLast``. This parameter may
+  help improve solver stability with grippers, which previously required reducing simulation time-steps.
+  :class:`~isaaclab.sim.spawners.PhysxCfg`
+
+
+0.46.4 (2025-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed :attr:`~isaaclab.sim.simulation_context.SimulationContext.device` to return the device from the configuration.
+  Previously, it was returning the device from the simulation manager, which was causing a performance overhead.
+
+
+0.46.3 (2025-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Modified setter to support for viscous and dynamic joint friction coefficients in articulation based on IsaacSim 5.0.
+* Added randomization of viscous and dynamic joint friction coefficients in event term.
+
+
+0.46.2 (2025-09-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
+
+
+0.46.1 (2025-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved IO descriptors output directory to a subfolder under the task log directory.
+
+
+0.46.0 (2025-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added argument :attr:`traverse_instance_prims` to :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` to control whether to traverse instance prims
+  during the traversal. Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` did not return
+  instanced prims, which is now fixed.
+
+Changed
+^^^^^^^
+
+* Made parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` as the default behavior.
+* Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
+
+
+0.45.16 (2025-09-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added teleoperation environments for Unitree G1. This includes an environment with lower body fixed and upper body
+  controlled by IK, and an environment with the lower body controlled by a policy and the upper body controlled by IK.
+
+
+0.45.15 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
+
+0.45.14 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
+  classes to provide real-time visualization of teleoperation and inverse kinematics status in XR environments.
+
+
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.openxr.manus_vive.ManusVive` to support teleoperation with Manus gloves and Vive trackers.
+
+
+0.45.12 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.actions.SurfaceGripperBinaryAction` for supporting surface grippers in Manager-Based workflows.
+
+Changed
+^^^^^^^
+
+* Added AssetBase inheritance for :class:`~isaaclab.assets.surface_gripper.SurfaceGripper`.
+
+
+0.45.11 (2025-09-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes a high memory usage and perf slowdown issue in episode data by removing the use of torch.cat when appending to the episode data
+  at each timestep. The use of torch.cat was causing the episode data to be copied at each timestep, which causes high memory usage and
+  significant performance slowdown when recording longer episode data.
+* Patches the configclass to allow validate dict with key is not a string.
+
+Added
+^^^^^
+
+* Added optional episode metadata (ep_meta) to be stored in the HDF5 data attributes.
+* Added option to record data pre-physics step.
+* Added joint_target data to episode data. Joint target data can be optionally recorded by the user and replayed to improve
+  determinism of replay.
+
+
+0.45.10 (2025-09-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed regression in reach task configuration where the gripper command was being returned.
+* Added :attr:`~isaaclab.devices.Se3GamepadCfg.gripper_term` to :class:`~isaaclab.devices.Se3GamepadCfg`
+  to control whether the gamepad device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3SpaceMouseCfg.gripper_term` to :class:`~isaaclab.devices.Se3SpaceMouseCfg`
+  to control whether the spacemouse device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3KeyboardCfg.gripper_term` to :class:`~isaaclab.devices.Se3KeyboardCfg`
+  to control whether the keyboard device should return a gripper command.
+
+
 0.45.9 (2025-08-27)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -43,7 +768,7 @@ Added
 
 
 0.45.6 (2025-08-22)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -52,7 +777,7 @@ Fixed
 
 
 0.45.5 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -64,7 +789,7 @@ Fixed
 
 
 0.45.4 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -149,9 +874,9 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
-instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
-happeningduring the traing. Instead we log the episodic term done.
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that
+  logs the instantaneous term done count at reset. This let to inaccurate aggregation of termination count,
+  obscuring the what really happening during the training. Instead we log the episodic term done.
 
 
 0.44.9 (2025-07-30)
@@ -4872,8 +5597,7 @@ Added
 ~~~~~~~~~~~~~~~~~~
 
 * Added the :class:`isaaclab.app.AppLauncher` class to allow controlled instantiation of
-  the `SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html>`_
-  and extension loading for remote deployment and ROS bridges.
+  the SimulationApp and extension loading for remote deployment and ROS bridges.
 
 Changed
 ^^^^^^^
