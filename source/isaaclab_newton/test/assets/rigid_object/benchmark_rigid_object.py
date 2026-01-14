@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -581,7 +581,9 @@ def gen_inertias_warp(config: BenchmarkConfig) -> dict:
 def gen_inertias_torch(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs for set_inertias."""
     return {
-        "inertias": torch.rand(config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32),
+        "inertias": torch.rand(
+            config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
+        ),
         "env_ids": list(range(config.num_instances)),
         "body_ids": list(range(config.num_bodies)),
     }

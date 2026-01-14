@@ -619,9 +619,7 @@ class TestBodyLinkPoseW:
     - Checks that the returned value is a reference to the internal data.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -675,9 +673,7 @@ class TestBodyLinkVelW:
     - Checks that the timestamp is updated correctly.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -776,9 +772,7 @@ class TestBodyComPoseW:
     - Checks that the timestamp is updated correctly.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -875,9 +869,7 @@ class TestBodyComVelW:
     - Checks that the returned value is a reference to the internal data.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -933,9 +925,7 @@ class TestBodyState:
     - Checks that the returned value is correctly assembled from pose and velocity.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -1117,9 +1107,7 @@ class TestBodyComPoseB:
     - Checks that the returned value correctly combines position with identity quaternion.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -1687,9 +1675,7 @@ class TestBodySlicedProperties:
     For each property, we only check that they are the correct slice of the parent property.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -1776,9 +1762,7 @@ class TestBodyComPosQuatB:
     - Checks that body_com_quat_b is the quaternion slice of body_com_pose_b.
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2026,9 +2010,7 @@ class TestDeprecatedBodyProperties:
     - body_ang_acc_w -> body_com_ang_acc_w
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 
@@ -2040,9 +2022,7 @@ class TestDeprecatedBodyProperties:
 
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_all_deprecated_body_properties(
-        self, mock_newton_manager, num_instances: int, device: str
-    ):
+    def test_all_deprecated_body_properties(self, mock_newton_manager, num_instances: int, device: str):
         """Test that all deprecated body properties match their replacements."""
         rigid_object_data, mock_view = self._setup_method(num_instances, device)
 
@@ -2135,9 +2115,7 @@ class TestDeprecatedComProperties:
     - com_quat_b -> body_com_quat_b
     """
 
-    def _setup_method(
-        self, num_instances: int, device: str
-    ) -> tuple[RigidObjectData, MockNewtonArticulationView]:
+    def _setup_method(self, num_instances: int, device: str) -> tuple[RigidObjectData, MockNewtonArticulationView]:
         mock_view = MockNewtonArticulationView(num_instances, 1, 1, device)
         mock_view.set_mock_data()
 

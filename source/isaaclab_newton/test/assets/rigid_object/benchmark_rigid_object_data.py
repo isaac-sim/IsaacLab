@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -329,8 +329,7 @@ DEPRECATED_PROPERTIES = {
 }
 
 # List of properties that raise NotImplementedError - skip these
-NOT_IMPLEMENTED_PROPERTIES = {
-}
+NOT_IMPLEMENTED_PROPERTIES = {}
 
 # Private/internal properties and methods to skip
 INTERNAL_PROPERTIES = {

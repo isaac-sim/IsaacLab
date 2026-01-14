@@ -884,7 +884,9 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b is None:
-            self._body_com_pose_b = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device)
+            self._body_com_pose_b = wp.zeros(
+                (self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device
+            )
 
         wp.launch(
             generate_pose_from_position_with_unit_quaternion_batched,
@@ -2314,7 +2316,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_lin_acc_w = None
         self._body_com_ang_acc_w = None
         self._body_com_pose_b = None
-        
+
     def update(self, dt: float):
         # update the simulation timestamp
         self._sim_timestamp += dt

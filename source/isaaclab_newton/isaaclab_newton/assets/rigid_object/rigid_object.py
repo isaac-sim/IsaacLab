@@ -27,7 +27,6 @@ from newton.solvers import SolverNotifyFlags
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.helpers import deprecated
@@ -517,10 +516,10 @@ class RigidObject(BaseRigidObject):
         self._data._root_link_vel_b.timestamp = -1.0
         self._data._root_com_vel_b.timestamp = -1.0
 
-
     """
     Operations - Setters.
     """
+
     def set_masses(
         self,
         masses: torch.Tensor | wp.array,
@@ -784,7 +783,6 @@ class RigidObject(BaseRigidObject):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-
 
     """
     Internal Warp helpers.
