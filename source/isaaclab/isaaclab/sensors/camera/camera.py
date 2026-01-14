@@ -257,7 +257,6 @@ class Camera(SensorBase):
             matrices = np.asarray(matrices, dtype=float)
         # iterate over env_ids
         for i, intrinsic_matrix in zip(env_ids, matrices):
-
             height, width = self.image_shape
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(

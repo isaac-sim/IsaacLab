@@ -91,6 +91,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 class CartpoleCameraEnv(DirectRLEnv):
+    """Cartpole Camera Environment."""
 
     cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg
 

@@ -20,6 +20,7 @@ from isaaclab_tasks.manager_based.manipulation.reach.config.openarm.bimanual.rea
 
 @configclass
 class OpenArmReachEnvCfg(ReachEnvCfg):
+    """Configuration for the Bimanual OpenArm Reach Environment."""
 
     def __post_init__(self):
         # post init of parent

@@ -162,7 +162,6 @@ class XrAnchorSynchronizer:
                 pxr_mat.SetRotateOnly(pxr_anchor_quat)
                 self.__last_anchor_quat = pxr_anchor_quat
             else:
-
                 if self.__last_anchor_quat is None:
                     self.__last_anchor_quat = pxr_anchor_quat
 

@@ -87,7 +87,6 @@ class non_callable_complex_function_class(ManagerTermBase):
 
 
 class MyDataClass:
-
     def __init__(self, num_envs: int, device: str):
         self.pos_w = torch.rand((num_envs, 3), device=device)
         self.lin_vel_w = torch.rand((num_envs, 3), device=device)
@@ -282,7 +281,6 @@ def test_config_terms(setup_env):
 
         @configclass
         class SampleImageGroupCfg(ObservationGroupCfg):
-
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
 
@@ -336,7 +334,6 @@ def test_compute(setup_env):
 
         @configclass
         class ImageCfg(ObservationGroupCfg):
-
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
 
@@ -674,7 +671,6 @@ def test_serialize(setup_env):
     serialize_data = {"test": 0}
 
     class test_serialize_term(ManagerTermBase):
-
         def __init__(self, cfg: RewardTermCfg, env: ManagerBasedEnv):
             super().__init__(cfg, env)
 
