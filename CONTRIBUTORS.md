@@ -71,6 +71,7 @@ Guidelines for modifications:
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
 * HoJin Jeon
@@ -153,6 +154,7 @@ Guidelines for modifications:
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
+* Welf Rehberg
 * Xavier Nal
 * Xiaodi Yuan
 * Xinjie Yao
