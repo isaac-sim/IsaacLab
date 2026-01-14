@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from isaaclab_newton.assets.rigid_object import RigidObjectData as NewtonRigidObjectData
 
 
-class RigidObject(FactoryBase):
+class RigidObject(FactoryBase, BaseRigidObject):
     """Factory for creating articulation instances."""
 
     data: BaseRigidObjectData | NewtonRigidObjectData

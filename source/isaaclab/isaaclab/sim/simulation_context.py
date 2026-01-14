@@ -385,6 +385,7 @@ class SimulationContext:
 
         self.settings.set_bool("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
+        NewtonManager.set_device(self.device)
         NewtonManager._gravity_vector = self.cfg.gravity
         NewtonManager.set_solver_settings(newton_params)
 
@@ -1010,7 +1011,7 @@ class SimulationContext:
             # if not self.is_stopped():
             #     self.stop()
             NewtonManager.start_simulation()
-            # self.play()
+            self.play()
             NewtonManager.initialize_solver()
             self._is_playing = True
 
@@ -1135,6 +1136,7 @@ class SimulationContext:
     def play(self):
         """Starts the simulation."""
 
+        print("Playing simulation")
         if self.has_omniverse_visualizer():
             import omni.kit.app
             import omni.timeline
@@ -1326,6 +1328,7 @@ class SimulationContext:
         This method should be called when you want to destroy the simulation context
         and create a new one with different settings.
         """
+        print("Clearing simulation context instance")
         # clear the callback
         if cls._instance is not None:
             if (
@@ -1465,6 +1468,7 @@ def build_simulation_context(
         if create_new_stage:
             stage_utils.create_new_stage()
 
+        # FIXME: Why do we only do this if the sim_cfg is not provided? Should we always do this?
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device
             sim_cfg = SimulationCfg(dt=dt)

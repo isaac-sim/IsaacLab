@@ -2126,9 +2126,9 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Tendons are not implemented yet")
 
-    ##
-    # Internal Warp helpers.
-    ##
+    """
+    Internal Warp helpers.
+    """
 
     def _update_array_with_value(
         self,
