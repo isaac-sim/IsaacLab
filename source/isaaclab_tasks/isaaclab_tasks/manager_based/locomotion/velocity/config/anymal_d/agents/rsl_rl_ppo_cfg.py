@@ -5,7 +5,13 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
+from isaaclab_rl.rsl_rl import (
+    RslRlMLPModelCfg,
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoAlgorithmCfg,
+    RslRlRNNModelCfg,
+    RslRlSymmetryCfg,
+)
 
 from isaaclab_tasks.manager_based.locomotion.velocity.mdp.symmetry import anymal
 
@@ -16,13 +22,18 @@ class AnymalDRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "anymal_d_rough"
-    policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
-        actor_obs_normalization=False,
-        critic_obs_normalization=False,
-        actor_hidden_dims=[512, 256, 128],
-        critic_hidden_dims=[512, 256, 128],
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[512, 256, 128],
         activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=1.0,
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[512, 256, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=False,
     )
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
@@ -47,8 +58,31 @@ class AnymalDFlatPPORunnerCfg(AnymalDRoughPPORunnerCfg):
 
         self.max_iterations = 300
         self.experiment_name = "anymal_d_flat"
-        self.policy.actor_hidden_dims = [128, 128, 128]
-        self.policy.critic_hidden_dims = [128, 128, 128]
+        self.actor.hidden_dims = [128, 128, 128]
+        self.critic.hidden_dims = [128, 128, 128]
+
+
+@configclass
+class AnymalDFlatPPORunnerRecurrentCfg(AnymalDFlatPPORunnerCfg):
+    actor = RslRlRNNModelCfg(
+        hidden_dims=[128, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=1.0,
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+    critic = RslRlRNNModelCfg(
+        hidden_dims=[128, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=False,
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
 
 
 @configclass
