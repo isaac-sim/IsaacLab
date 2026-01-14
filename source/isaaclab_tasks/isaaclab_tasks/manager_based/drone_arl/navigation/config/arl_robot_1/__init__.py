@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Navigation-3DObstacles-ARL-robot-1-v0",
+    id="Isaac-Navigation-3DObstacles-ARL-Robot-1-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -24,7 +24,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Navigation-3DObstacles-ARL-robot-1-Play-v0",
+    id="Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

@@ -101,7 +101,7 @@ class ObstaclesSceneCfg:
         "back_wall": back_wall_cfg,
         "front_wall": front_wall_cfg,
         "bottom_wall": bottom_wall_cfg,
-        #"top_wall": top_wall_cfg,
+        "top_wall": top_wall_cfg,
     }
 
     obstacle_cfgs = {

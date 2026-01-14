@@ -78,6 +78,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
 
    actuators
    assets
+   controllers
    mdp
 
 isaaclab_tasks extension

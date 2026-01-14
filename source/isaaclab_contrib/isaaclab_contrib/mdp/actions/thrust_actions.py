@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
-from isaaclab.controllers.lee_acceleration_control import LeeAccController
-from isaaclab.controllers.lee_position_control import LeePosController
-from isaaclab.controllers.lee_velocity_control import LeeVelController
+from isaaclab_contrib.controllers.lee_acceleration_control import LeeAccController
+from isaaclab_contrib.controllers.lee_position_control import LeePosController
+from isaaclab_contrib.controllers.lee_velocity_control import LeeVelController
 
 
 class ThrustAction(ActionTerm):
