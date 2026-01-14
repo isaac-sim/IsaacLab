@@ -75,7 +75,6 @@ class InteractiveScene:
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-            
             # ANYmal-C robot spawned in each environment
             robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
