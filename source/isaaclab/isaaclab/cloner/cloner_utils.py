@@ -321,7 +321,7 @@ def newton_replicate(
                 protos[sources[row]],
                 xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
             )
-        
+
         # end the world context
         scene.end_world()
 
