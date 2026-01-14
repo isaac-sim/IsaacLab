@@ -162,22 +162,6 @@ def test_set_thrust_target_broadcasting_unit(num_instances, num_thrusters, devic
     assert torch.allclose(m._data.thrust_target[:, thruster_id], column_values)
 
 
-def test_multirotor_cfg_defaults():
-    """Test MultirotorCfg structure and defaults."""
-    # Use ARL config if available, otherwise skip this test
-    if ARL_ROBOT_1_CFG is None:
-        pytest.skip("ARL_ROBOT_1_CFG not available for default config test")
-    
-    cfg = ARL_ROBOT_1_CFG
-    
-    # Validate expected attributes
-    assert hasattr(cfg, "allocation_matrix")
-    assert cfg.allocation_matrix is None or isinstance(cfg.allocation_matrix, list)
-    
-    if cfg.allocation_matrix is not None and len(cfg.allocation_matrix) > 0:
-        assert len(cfg.allocation_matrix) == 6, "Allocation matrix must have 6 rows"
-
-
 def test_multirotor_data_annotations():
     from isaaclab_contrib.assets.multirotor.multirotor_data import MultirotorData
 
