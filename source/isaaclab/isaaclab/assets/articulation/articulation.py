@@ -13,10 +13,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from prettytable import PrettyTable
 
 import omni.physics.tensors.impl.api as physx
-import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
@@ -25,8 +25,8 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData

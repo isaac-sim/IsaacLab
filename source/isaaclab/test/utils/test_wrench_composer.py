@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,8 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
-import torch
-
 import pytest
+import torch
 import warp as wp
 
 from isaaclab.assets import RigidObject
@@ -437,9 +436,9 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
 
         # Verify
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
-            f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5
+        ), f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -470,9 +469,9 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
 
         # Verify
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
-            f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5
+        ), f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -500,9 +499,7 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         positions_global = wp.from_numpy(positions_global_np, dtype=wp.vec3f, device=device)
 
         # Apply global forces at global positions
-        wrench_composer.add_forces_and_torques(
-            forces=forces_global, positions=positions_global, is_global=True
-        )
+        wrench_composer.add_forces_and_torques(forces=forces_global, positions=positions_global, is_global=True)
 
         # Compute expected results:
         # 1. Force in local frame = quat_rotate_inv(link_quat, global_force)
@@ -535,15 +532,15 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
 
         # Verify forces
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
 
         # Verify torques
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -609,9 +606,9 @@ def test_90_degree_rotation_global_force(device: str):
     expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
-        f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_force_local, atol=1e-5
+    ), f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -645,9 +642,9 @@ def test_composition_mixed_local_and_global(device: str):
     expected_total = forces_local_np + global_forces_in_local
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
-        f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_total, atol=1e-4, rtol=1e-5
+    ), f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -674,9 +671,7 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         positions_local = wp.from_numpy(positions_local_np, dtype=wp.vec3f, device=device)
 
         # Apply local forces at local positions
-        wrench_composer.add_forces_and_torques(
-            forces=forces_local, positions=positions_local, is_global=False
-        )
+        wrench_composer.add_forces_and_torques(forces=forces_local, positions=positions_local, is_global=False)
 
         # Expected: forces stay as-is, torque = cross(position, force)
         expected_forces = forces_local_np
@@ -713,9 +708,7 @@ def test_global_force_at_link_origin_no_torque(device: str):
     positions_at_link = wp.from_numpy(link_pos_np, dtype=wp.vec3f, device=device)
 
     # Apply global forces at link origin
-    wrench_composer.add_forces_and_torques(
-        forces=forces_global, positions=positions_at_link, is_global=True
-    )
+    wrench_composer.add_forces_and_torques(forces=forces_global, positions=positions_at_link, is_global=True)
 
     # Expected: force rotated to local, torque = 0 (since position offset is zero)
     expected_forces = quat_rotate_inv_np(link_quat_np, forces_global_np)

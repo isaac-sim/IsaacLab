@@ -10,9 +10,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import omni.physics.tensors.impl.api as physx
-import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
@@ -555,7 +555,6 @@ class RigidObject(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
-
 
     """
     Internal simulation callbacks.

@@ -11,9 +11,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import omni.physics.tensors.impl.api as physx
-import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 

@@ -1,22 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
-
-import warp as wp
-
-from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
-from isaaclab.utils.math import convert_quat
 from typing import TYPE_CHECKING
 
+import torch
+import warp as wp
+
+from isaaclab.utils.math import convert_quat
+from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
+
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation
-    from isaaclab.assets import RigidObject
-    from isaaclab.assets import RigidObjectCollection
+    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+
 
 class WrenchComposer:
     def __init__(self, asset: Articulation | RigidObject | RigidObjectCollection) -> None:
@@ -54,8 +53,12 @@ class WrenchComposer:
         # Create buffers
         self._composed_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._composed_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
-        self._ALL_ENV_INDICES_WP = wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32, device=self.device), dtype=wp.int32)
-        self._ALL_BODY_INDICES_WP = wp.from_torch(torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32)
+        self._ALL_ENV_INDICES_WP = wp.from_torch(
+            torch.arange(self.num_envs, dtype=torch.int32, device=self.device), dtype=wp.int32
+        )
+        self._ALL_BODY_INDICES_WP = wp.from_torch(
+            torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32
+        )
 
         # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor every time.
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
@@ -66,7 +69,6 @@ class WrenchComposer:
 
         # Flag to check if the link poses have been updated.
         self._link_poses_updated = False
-
 
     @property
     def active(self) -> bool:
@@ -192,7 +194,9 @@ class WrenchComposer:
         # Get the link positions and quaternions
         if not self._link_poses_updated:
             self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf)
+            self._link_quaternions = wp.from_torch(
+                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+            )
             self._link_poses_updated = True
 
         # Set the active flag to true
@@ -289,7 +293,9 @@ class WrenchComposer:
         # Get the link positions and quaternions
         if not self._link_poses_updated:
             self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf)
+            self._link_quaternions = wp.from_torch(
+                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+            )
             self._link_poses_updated = True
 
         # Set the active flag to true

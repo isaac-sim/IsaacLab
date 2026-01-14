@@ -973,7 +973,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
 
         if i % 2 == 0:
             body_com_pos_w = articulation.data.body_com_pos_w[:, body_ids, :3]
-            #is_global = True
+            # is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
