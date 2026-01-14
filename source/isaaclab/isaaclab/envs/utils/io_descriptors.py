@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.assets.articulation import Articulation
     import torch
+
+    from isaaclab.assets.articulation import Articulation
+    from isaaclab.envs import ManagerBasedEnv
 
 import dataclasses
 import functools

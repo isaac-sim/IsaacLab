@@ -5,11 +5,12 @@
 
 """Test cases for HDF5 to MP4 conversion script."""
 
+import os
+import tempfile
+
 import h5py
 import numpy as np
-import os
 import pytest
-import tempfile
 
 from scripts.tools.hdf5_to_mp4 import get_num_demos, main, write_demo_to_mp4
 

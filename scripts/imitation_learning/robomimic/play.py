@@ -60,17 +60,17 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import copy
+import random
+
 import gymnasium as gym
 import numpy as np
-import random
-import torch
-
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
+import torch
 
 if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from isaaclab_tasks.utils import parse_env_cfg
 

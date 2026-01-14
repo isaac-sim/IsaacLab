@@ -124,12 +124,13 @@ import csv
 
 # Now everything else
 import fnmatch
-import gymnasium as gym
 import json
-import numpy as np
 import os
 import subprocess
 import sys
+
+import gymnasium as gym
+import numpy as np
 
 import omni.client
 from omni.client._omniclient import CopyBehavior

@@ -40,8 +40,9 @@ Not intended to be executed as a standalone script.
 
 # Force garbage collection for large arrays
 import gc
-import numpy as np
 import os
+
+import numpy as np
 
 # from pysdf import SDF
 import torch

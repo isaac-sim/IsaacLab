@@ -17,9 +17,10 @@ For more information: https://docs.blender.org/api/current/index.html
 The script was tested on Blender 3.2 on Ubuntu 20.04LTS.
 """
 
-import bpy
 import os
 import sys
+
+import bpy
 
 
 def parse_cli_args():

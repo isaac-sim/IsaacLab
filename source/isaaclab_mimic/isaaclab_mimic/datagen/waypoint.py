@@ -9,8 +9,9 @@ A collection of classes used to represent waypoints and trajectories.
 
 import asyncio
 import inspect
-import torch
 from copy import deepcopy
+
+import torch
 
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv

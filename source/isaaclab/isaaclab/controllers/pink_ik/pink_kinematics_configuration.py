@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 import pinocchio as pin
 from pink.configuration import Configuration
 from pink.exceptions import FrameNotFound

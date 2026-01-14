@@ -14,8 +14,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import flatdict
 import os
+
+import flatdict
 import pytest
 import toml
 

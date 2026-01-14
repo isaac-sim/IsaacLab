@@ -12,8 +12,9 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
-import numpy as np
 from typing import Any
+
+import numpy as np
 
 # import logger
 logger = logging.getLogger(__name__)

@@ -6,9 +6,10 @@
 import asyncio
 import contextlib
 import sys
-import torch
 import traceback
 from typing import Any
+
+import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
