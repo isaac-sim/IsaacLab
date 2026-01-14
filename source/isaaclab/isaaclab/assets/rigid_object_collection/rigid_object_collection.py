@@ -174,26 +174,26 @@ class RigidObjectCollection(AssetBase):
             if self._instantaneous_wrench_composer.active:
                 # Compose instantaneous wrench with permanent wrench
                 self._instantaneous_wrench_composer.add_forces_and_torques(
-                    self._ALL_INDICES_WP,
-                    self._ALL_BODY_INDICES_WP,
+                    env_ids=self._ALL_ENV_INDICES_WP,
+                    body_ids=self._ALL_OBJ_INDICES_WP,
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self.reshape_data_to_view(self._instantaneous_wrench_composer.composed_force_as_torch),
+                    torque_data=self.reshape_data_to_view(self._instantaneous_wrench_composer.composed_torque_as_torch),
                     position_data=None,
-                    indices=self._ALL_INDICES,
+                    indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
                     is_global=False,
                 )
             else:
                 # Apply permanent wrench to the simulation
                 self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._permanent_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self.reshape_data_to_view(self._permanent_wrench_composer.composed_force_as_torch),
+                    torque_data=self.reshape_data_to_view(self._permanent_wrench_composer.composed_torque_as_torch),
                     position_data=None,
-                    indices=self._ALL_INDICES,
+                    indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
                     is_global=False,
                 )
         self._instantaneous_wrench_composer.reset()

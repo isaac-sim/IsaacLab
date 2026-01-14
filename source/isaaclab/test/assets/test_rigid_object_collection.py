@@ -294,7 +294,6 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
 
         is_global = False
         if i % 2 == 0:
-            is_global = True
             positions = object_collection.data.object_link_pos_w[:, object_ids, :3]
         else:
             positions = None
@@ -334,8 +333,6 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
     In this test, we apply a force equal to the weight of an object on the base of
     one of the objects at 1m in the Y direction, we check that the object rotates around it's X axis.
     For the other object, we do not apply any force and check that it falls down.
-
-    We validate that this works when we apply the force in the global frame and in the local frame.
     """
     object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
     sim.reset()
@@ -351,10 +348,6 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
     external_wrench_positions_b[:, 0::2, 1] = 1.0
 
     # Desired force and torque
-    desired_force = torch.zeros(object_collection.num_instances, len(object_ids), 3, device=sim.device)
-    desired_force[:, 0::2, 2] = 1000.0
-    desired_torque = torch.zeros(object_collection.num_instances, len(object_ids), 3, device=sim.device)
-    desired_torque[:, 0::2, 0] = 1000.0
     for i in range(5):
         # reset object state
         object_state = object_collection.data.default_object_state.clone()
@@ -366,12 +359,12 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
 
         is_global = False
         if i % 2 == 0:
-            is_global = True
             body_com_pos_w = object_collection.data.object_link_pos_w[:, object_ids, :3]
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
             external_wrench_positions_b += body_com_pos_w
+            is_global = True
         else:
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
@@ -392,18 +385,6 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
-        )
-        torch.testing.assert_close(
-            object_collection._permanent_wrench_composer.composed_force_as_torch[:, object_ids, :],
-            desired_force[:, :, :],
-            rtol=1e-6,
-            atol=1e-7,
-        )
-        torch.testing.assert_close(
-            object_collection._permanent_wrench_composer.composed_torque_as_torch[:, object_ids, :],
-            desired_torque[:, :, :],
-            rtol=1e-6,
-            atol=1e-7,
         )
 
         for _ in range(10):

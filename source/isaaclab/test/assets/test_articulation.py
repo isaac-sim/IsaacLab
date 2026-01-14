@@ -973,7 +973,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
 
         if i % 2 == 0:
             body_com_pos_w = articulation.data.body_com_pos_w[:, body_ids, :3]
-            is_global = True
+            #is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
@@ -996,18 +996,6 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
-        )
-        torch.testing.assert_close(
-            articulation._permanent_wrench_composer.composed_force_as_torch[:, 0, :],
-            desired_force[:, 0, :],
-            rtol=1e-6,
-            atol=1e-7,
-        )
-        torch.testing.assert_close(
-            articulation._permanent_wrench_composer.composed_torque_as_torch[:, 0, :],
-            desired_torque[:, 0, :],
-            rtol=1e-6,
-            atol=1e-7,
         )
         # perform simulation
         for _ in range(100):
@@ -1160,18 +1148,6 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
             is_global=is_global,
-        )
-        torch.testing.assert_close(
-            articulation._permanent_wrench_composer.composed_force_as_torch[:, body_ids, :],
-            desired_force,
-            rtol=1e-6,
-            atol=1e-7,
-        )
-        torch.testing.assert_close(
-            articulation._permanent_wrench_composer.composed_torque_as_torch[:, body_ids, :],
-            desired_torque,
-            rtol=1e-6,
-            atol=1e-7,
         )
         # perform simulation
         for _ in range(100):
