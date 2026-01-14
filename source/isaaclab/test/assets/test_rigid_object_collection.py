@@ -295,6 +295,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
         is_global = False
         if i % 2 == 0:
             positions = object_collection.data.object_link_pos_w[:, object_ids, :3]
+            is_global = True
         else:
             positions = None
 
