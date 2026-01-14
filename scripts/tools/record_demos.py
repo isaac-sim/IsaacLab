@@ -89,10 +89,11 @@ simulation_app = app_launcher.app
 
 
 # Third-party imports
-import gymnasium as gym
 import logging
 import os
 import time
+
+import gymnasium as gym
 import torch
 
 import omni.ui as ui
@@ -105,8 +106,8 @@ import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 

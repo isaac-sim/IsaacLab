@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.spatial.transform as tf
 import torch
 import trimesh
-from typing import TYPE_CHECKING
 
 from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane

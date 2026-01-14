@@ -11,9 +11,10 @@ import functools
 import inspect
 import logging
 import re
-import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
+
+import torch
 
 import omni.kit.commands
 import omni.usd

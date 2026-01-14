@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 

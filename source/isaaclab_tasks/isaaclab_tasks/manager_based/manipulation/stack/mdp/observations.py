@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING, Literal
+
+import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection

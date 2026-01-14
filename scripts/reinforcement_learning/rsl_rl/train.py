@@ -55,6 +55,7 @@ simulation_app = app_launcher.app
 
 import importlib.metadata as metadata
 import platform
+
 from packaging import version
 
 # check minimum supported rsl-rl version
@@ -74,13 +75,13 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import logging
 import os
 import time
-import torch
 from datetime import datetime
 
+import gymnasium as gym
+import torch
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import (

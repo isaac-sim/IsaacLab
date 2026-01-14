@@ -61,8 +61,9 @@ simulation_app = app_launcher.app
 
 import cProfile
 import time
-import torch
 from typing import Literal
+
+import torch
 
 from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
 from isaacsim.core.utils.extensions import enable_extension

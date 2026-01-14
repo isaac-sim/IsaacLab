@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+
 import numpy as np
 import pytest
 import torch
