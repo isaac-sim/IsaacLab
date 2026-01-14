@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-import numpy as np
 import logging
+import numpy as np
 import re
 
 import warp as wp
@@ -21,6 +21,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
 
 logger = logging.getLogger(__name__)
+
 
 def flipped_match(x: str, y: str) -> re.Match | None:
     """Flipped match function.
@@ -208,7 +209,6 @@ class NewtonManager:
             elif NewtonManager._cfg.use_cuda_graph and not NewtonManager._device.startswith("cuda"):
                 logger.warning("CUDA graphs requested but device is CPU. Disabling CUDA graphs.")
                 NewtonManager._cfg.use_cuda_graph = False
-
 
     @classmethod
     def simulate(cls) -> None:

@@ -519,7 +519,9 @@ class RigidObjectData(BaseRigidObjectData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b is None:
-            self._body_com_pose_b = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device)
+            self._body_com_pose_b = wp.zeros(
+                (self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device
+            )
 
         wp.launch(
             generate_pose_from_position_with_unit_quaternion_batched,
@@ -1747,13 +1749,17 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_link_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._projected_gravity_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.float32, device=self.device)
-        self._body_link_vel_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+        self._body_link_vel_w = TimestampedWarpBuffer(
+            shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device
+        )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.transformf, device=self.device)
         self._root_com_vel_b = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._root_com_acc_w = TimestampedWarpBuffer(shape=(n_view,), dtype=wp.spatial_vectorf, device=self.device)
         self._body_com_pose_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.transformf, device=self.device)
-        self._body_com_acc_w = TimestampedWarpBuffer(shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+        self._body_com_acc_w = TimestampedWarpBuffer(
+            shape=(n_view, n_link), dtype=wp.spatial_vectorf, device=self.device
+        )
         # Empty memory pre-allocations
         self._root_state_w = None
         self._root_link_state_w = None

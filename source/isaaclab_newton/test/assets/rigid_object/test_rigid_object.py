@@ -1199,9 +1199,7 @@ class TestSettersBodiesMassCoMInertia:
         property_name: str,
         dtype: type = wp.float32,
     ):
-        rigid_object, mock_view, _ = create_test_rigid_object(
-            num_instances=num_instances, device=device
-        )
+        rigid_object, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1267,9 +1265,7 @@ class TestSettersBodiesMassCoMInertia:
         property_name: str,
         dtype: type = wp.float32,
     ):
-        rigid_object, mock_view, _ = create_test_rigid_object(
-            num_instances=num_instances, device=device
-        )
+        rigid_object, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
@@ -1448,7 +1444,6 @@ class TestCreateBuffers:
         assert rigid_object._ALL_INDICES.dtype == torch.long
         assert rigid_object._ALL_INDICES.device.type == device.split(":")[0]
         torch.testing.assert_close(rigid_object._ALL_INDICES, expected_indices)
-
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_create_buffers_single_environment(self, device: str):

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,10 +11,10 @@
 
 import ctypes
 import torch
-import warp as wp
 from typing import Literal
 
 import pytest
+import warp as wp
 from flaky import flaky
 
 import isaaclab.sim as sim_utils
@@ -37,6 +37,7 @@ from isaaclab.utils.math import (
 # FIXME: That should not be happening.
 # Need to create stage in memory to avoid weird leaks when running consecutive tests...
 SIM_CFG = SimulationCfg(create_stage_in_memory=True)
+
 
 def generate_cubes_scene(
     num_cubes: int = 1,
@@ -204,6 +205,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
             # Play sim
             sim.reset()
 
+
 # FIXME: Waiting on Wrench Composers here too...
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -272,8 +274,8 @@ def test_external_force_buffer(device):
             # check if the cube's force and torque buffers are correctly updated
             assert wp.to_torch(cube_object._external_force_b)[0, 0, 0].item() == force
             assert wp.to_torch(cube_object._external_torque_b)[0, 0, 0].item() == force
-            #assert cube_object.data._sim_bind_body_external_wrench_positions[0, 0, 0].item() == position
-            #assert cube_object._use_global_wrench_frame == (step == 0 or step == 3)
+            # assert cube_object.data._sim_bind_body_external_wrench_positions[0, 0, 0].item() == position
+            # assert cube_object._use_global_wrench_frame == (step == 0 or step == 3)
 
             # apply action to the object
             cube_object.write_data_to_sim()
@@ -283,6 +285,7 @@ def test_external_force_buffer(device):
 
             # update buffers
             cube_object.update(sim.cfg.dt)
+
 
 # FIXME: Bug here, likely coming from Newton? Works on GPU, doesn't work on CPU.
 @pytest.mark.parametrize("num_cubes", [2, 4])
@@ -346,6 +349,7 @@ def test_external_force_on_single_body(num_cubes, device):
             )
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
             assert torch.all(wp.to_torch(cube_object.data.root_pos_w)[1::2, 2] < 1.0)
+
 
 @pytest.mark.skip(reason="Waiting on Wrench Composers here too...")
 @pytest.mark.parametrize("num_cubes", [2, 4])
@@ -412,6 +416,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
             assert torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0)
 
+
 # FIXME: Bug here, CPU only too... It seems that when setting to the state, it can get ignored. It looks like the
 # simulation can override the state that we set, in CPU mode...
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -442,7 +447,9 @@ def test_set_rigid_object_state(num_cubes, device):
         # Set each state type individually as they are dependent on each other
         for state_type_to_randomize in state_types:
             state_dict = {
-                "root_pos_w": torch.zeros_like(wp.to_torch(cube_object.data.root_pos_w), device=sim.device) + position_offset,
+                "root_pos_w": (
+                    torch.zeros_like(wp.to_torch(cube_object.data.root_pos_w), device=sim.device) + position_offset
+                ),
                 "root_quat_w": default_orientation(num=num_cubes, device=sim.device),
                 "root_lin_vel_w": torch.zeros_like(wp.to_torch(cube_object.data.root_lin_vel_w), device=sim.device),
                 "root_ang_vel_w": torch.zeros_like(wp.to_torch(cube_object.data.root_ang_vel_w), device=sim.device),
@@ -530,6 +537,7 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(wp.to_torch(cube_object._external_force_b)) == 0
                 assert torch.count_nonzero(wp.to_torch(cube_object._external_torque_b)) == 0
 
+
 @pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -567,6 +575,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         # Check if material properties are set correctly
         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
+
 
 @pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -626,6 +635,7 @@ def test_rigid_body_no_friction(num_cubes, device):
             torch.testing.assert_close(
                 cube_object.data.root_lin_vel_w, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
             )
+
 
 @pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -709,6 +719,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                     torch.testing.assert_close(cube_object.data.root_pos_w, initial_root_pos, rtol=2e-3, atol=2e-3)
             if force == "above_mu":
                 assert (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
+
 
 @pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -832,6 +843,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         # Check if mass is set correctly
         torch.testing.assert_close(masses, masses_to_check)
 
+
 # FIXME: More CPU only bugs here...
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -872,6 +884,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
                 gravity[:, :, 2] = -9.81
             # Check the body accelerations are correct
             torch.testing.assert_close(wp.to_torch(cube_object.data.body_acc_w), gravity)
+
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -938,7 +951,9 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 # position will not match
                 # center of mass position will be constant (i.e. spinning around com)
                 torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3], atol=1e-1, rtol=1e-1)
-                torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2), atol=1e-1, rtol=1e-1)
+                torch.testing.assert_close(
+                    env_pos + offset, body_com_state_w[..., :3].squeeze(-2), atol=1e-1, rtol=1e-1
+                )
                 # link position will be moving but should stay constant away from center of mass
                 root_link_state_pos_rel_com = quat_apply_inverse(
                     root_link_state_w[..., 3:7],
@@ -1101,7 +1116,8 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
                 wp.to_torch(cube_object.data.root_com_state_w)[:, :3],
                 wp.to_torch(cube_object.data.root_com_state_w)[:, 3:7],
                 quat_rotate(
-                    quat_inv(wp.to_torch(cube_object.data.body_com_pose_b)[:, 0, 3:7]), -wp.to_torch(cube_object.data.body_com_pose_b)[:, 0, :3]
+                    quat_inv(wp.to_torch(cube_object.data.body_com_pose_b)[:, 0, 3:7]),
+                    -wp.to_torch(cube_object.data.body_com_pose_b)[:, 0, :3],
                 ),
                 quat_inv(wp.to_torch(cube_object.data.body_com_pose_b)[:, 0, 3:7]),
             )
@@ -1111,10 +1127,14 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             # skip 7:10 because they differs from link frame, this should be fine because we are only checking
             # if velocity update is triggered, which can be determined by comparing angular velocity
             torch.testing.assert_close(
-                wp.to_torch(cube_object.data.root_com_state_w)[:, 10:], wp.to_torch(cube_object.data.root_link_state_w)[:, 10:]
+                wp.to_torch(cube_object.data.root_com_state_w)[:, 10:],
+                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:],
             )
             torch.testing.assert_close(expected_root_link_pose, wp.to_torch(cube_object.data.root_state_w)[:, :7])
-            torch.testing.assert_close(wp.to_torch(cube_object.data.root_com_state_w)[:, 10:], wp.to_torch(cube_object.data.root_state_w)[:, 10:])
+            torch.testing.assert_close(
+                wp.to_torch(cube_object.data.root_com_state_w)[:, 10:],
+                wp.to_torch(cube_object.data.root_state_w)[:, 10:],
+            )
         elif state_location == "link":
             expected_com_pos, expected_com_quat = combine_frame_transforms(
                 wp.to_torch(cube_object.data.root_link_state_w)[:, :3],
@@ -1128,11 +1148,16 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             # skip 7:10 because they differs from link frame, this should be fine because we are only checking
             # if velocity update is triggered, which can be determined by comparing angular velocity
             torch.testing.assert_close(
-                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:], wp.to_torch(cube_object.data.root_com_state_w)[:, 10:]
+                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:],
+                wp.to_torch(cube_object.data.root_com_state_w)[:, 10:],
             )
-            torch.testing.assert_close(wp.to_torch(cube_object.data.root_link_state_w)[:, :7], wp.to_torch(cube_object.data.root_state_w)[:, :7])
             torch.testing.assert_close(
-                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:], wp.to_torch(cube_object.data.root_state_w)[:, 10:]
+                wp.to_torch(cube_object.data.root_link_state_w)[:, :7],
+                wp.to_torch(cube_object.data.root_state_w)[:, :7],
+            )
+            torch.testing.assert_close(
+                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:],
+                wp.to_torch(cube_object.data.root_state_w)[:, 10:],
             )
         elif state_location == "root":
             expected_com_pos, expected_com_quat = combine_frame_transforms(
@@ -1144,8 +1169,14 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
             # test both root_com_state_w and root_link_state_w successfully updated when root_pose updates
             torch.testing.assert_close(expected_com_pose, wp.to_torch(cube_object.data.root_com_state_w)[:, :7])
-            torch.testing.assert_close(wp.to_torch(cube_object.data.root_state_w)[:, 7:], wp.to_torch(cube_object.data.root_com_state_w)[:, 7:])
-            torch.testing.assert_close(wp.to_torch(cube_object.data.root_state_w)[:, :7], wp.to_torch(cube_object.data.root_link_state_w)[:, :7])
             torch.testing.assert_close(
-                wp.to_torch(cube_object.data.root_state_w)[:, 10:], wp.to_torch(cube_object.data.root_link_state_w)[:, 10:]
+                wp.to_torch(cube_object.data.root_state_w)[:, 7:], wp.to_torch(cube_object.data.root_com_state_w)[:, 7:]
+            )
+            torch.testing.assert_close(
+                wp.to_torch(cube_object.data.root_state_w)[:, :7],
+                wp.to_torch(cube_object.data.root_link_state_w)[:, :7],
+            )
+            torch.testing.assert_close(
+                wp.to_torch(cube_object.data.root_state_w)[:, 10:],
+                wp.to_torch(cube_object.data.root_link_state_w)[:, 10:],
             )
