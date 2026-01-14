@@ -24,7 +24,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import pytest
-
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper

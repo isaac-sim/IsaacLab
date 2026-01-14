@@ -34,11 +34,11 @@ for RL-Games :class:`Runner` class:
 # needed to import for allowing type-hinting:gym.spaces.Box | None
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
 import gymnasium
 import torch
-from collections.abc import Callable
-
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 

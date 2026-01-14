@@ -18,11 +18,12 @@ required arguments:
 """
 
 import argparse
-import cv2
 import glob
+import os
+
+import cv2
 import h5py
 import numpy as np
-import os
 
 
 def parse_args():

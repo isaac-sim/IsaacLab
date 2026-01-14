@@ -27,12 +27,12 @@
 # ----------------------------------------------------------------------------------------------------------------------
 
 import math
+
 import numpy as np
 import torch
 import torch.cuda
-from torch.autograd import Function
-
 from numba import cuda, jit, prange
+from torch.autograd import Function
 
 
 # ----------------------------------------------------------------------------------------------------------------------

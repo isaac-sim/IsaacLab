@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_assets.robots.unitree import G1_29DOF_CFG
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -37,6 +35,8 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.agile_loco
     AgileTeacherPolicyObservationsCfg,
 )
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
+
+from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,

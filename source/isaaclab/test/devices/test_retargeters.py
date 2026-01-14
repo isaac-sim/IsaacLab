@@ -16,11 +16,12 @@ HEADLESS = True
 app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
-import numpy as np
 import sys
-import torch
 import unittest
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import torch
 
 # Mock dependencies that might require a running simulation or specific hardware
 sys.modules["isaaclab.markers"] = MagicMock()

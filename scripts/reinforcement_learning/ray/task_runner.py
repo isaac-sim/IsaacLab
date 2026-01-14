@@ -98,10 +98,12 @@ To stop all tasks early, press Ctrl+C; the script will cancel all running Ray ta
 """
 
 import argparse
-import yaml
 from datetime import datetime
 
-import util
+import yaml
+
+# Local imports
+import util  # isort: skip
 
 
 def parse_args() -> argparse.Namespace:

@@ -16,10 +16,11 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
-import numpy as np
 import os
-import pytest
 import random
+
+import numpy as np
+import pytest
 import scipy.spatial.transform as tf
 import torch
 

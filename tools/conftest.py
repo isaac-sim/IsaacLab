@@ -5,20 +5,17 @@
 
 import contextlib
 import os
-import pytest
-
-# Platform-specific imports for real-time output streaming
 import select
 import subprocess
 import sys
 import time
 
-# Third-party imports
+import pytest
+from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
-from junitparser import Error, JUnitXml, TestCase, TestSuite
-
-import tools.test_settings as test_settings
+# Local imports
+import test_settings as test_settings  # isort: skip
 
 
 def pytest_ignore_collect(collection_path, config):
