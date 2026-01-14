@@ -19,7 +19,7 @@ class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
     max_iterations = 300
     save_interval = 50
     experiment_name = "anymal_d_flat"
-    obs_groups = {"policy": ["policy"], "teacher": ["policy"]}
+    obs_groups = {"student": ["policy"], "teacher": ["policy"]}
     student = RslRlMLPModelCfg(
         hidden_dims=[128, 128, 128],
         activation="elu",
