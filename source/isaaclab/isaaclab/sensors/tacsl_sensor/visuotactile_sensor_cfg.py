@@ -48,6 +48,7 @@ class GelSightRenderCfg:
         Using predefined sensor configuration::
 
             from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+
             sensor_cfg = VisuoTactileSensorCfg(render_cfg=GELSIGHT_R15_CFG)
 
         Using custom sensor data::

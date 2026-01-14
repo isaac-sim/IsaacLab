@@ -190,7 +190,7 @@ section-order = [
 
 [tool.ruff.format]
 
-# docstring-code-format = true
+docstring-code-format = true
 
 [tool.pyright]
 
