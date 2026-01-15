@@ -263,6 +263,12 @@ html_theme_options = {
     "check_switcher": False,  # Disable switcher check during local builds
     "icon_links": [
         {
+            "name": "Docker",
+            "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-lab",
+            "icon": "fa-brands fa-docker",
+            "type": "fontawesome",
+        },
+        {
             "name": "PyPI",
             "url": "https://pypi.org/project/isaaclab",
             "icon": "fa-brands fa-python",
