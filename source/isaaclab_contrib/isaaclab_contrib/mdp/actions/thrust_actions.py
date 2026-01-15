@@ -169,7 +169,61 @@ class ThrustAction(ActionTerm):
 
 
 class NavigationAction(ThrustAction):
-    """Navigation action term that applies velocity commands to multirotors."""
+    """Navigation action term that converts high-level velocity, position, or acceleration commands
+    to thrust commands using a geometric tracking controller.
+
+    This action term extends `ThrustAction` by adding a controller layer that computes wrench
+    (force and torque) commands from navigation setpoints, then allocates those wrenches to
+    individual thruster commands using the multirotor's allocation matrix.
+
+    Supported command types:
+        - "vel": Velocity commands (vx, vy, vz, yaw_rate) in body frame
+        - "pos": Position commands (x, y, z, yaw) in world frame
+        - "acc": Acceleration commands (ax, ay, az, yaw_accel) in body frame
+
+    The control pipeline:
+        1. Process raw actions (scale, offset, clip) using parent `ThrustAction`
+        2. Transform processed actions into setpoints (velocity/position/acceleration + yaw rate)
+        3. Compute 6-DOF wrench command using Lee controller (position/velocity/acceleration variant)
+        4. Solve thrust allocation: thrust_cmd = pinv(allocation_matrix) @ wrench_cmd
+        5. Apply thrust commands to thrusters
+
+    Attributes:
+        cfg: Configuration for the navigation action term, including command type and controller config.
+        _lc: Lee controller instance (LeeVelController, LeePosController, or LeeAccController).
+
+    Action Space:
+        The action dimension depends on `command_type`:
+        - "vel": 3D (forward_speed, pitch_angle, yaw_rate)
+        - "pos": 4D (x, y, z, yaw)
+        - "acc": 4D (ax, ay, az, yaw_accel)
+
+        Actions are expected in range [-1, 1] and are scaled to physical limits:
+        - Forward speed: [0, 2 * max_speed] via (action[0] + 1) * cos(pitch) * max_speed / 2
+        - Vertical speed: [0, 2 * max_speed] via (action[0] + 1) * sin(pitch) * max_speed / 2
+        - Pitch angle: [-pi/4, pi/4] via action[1] * max_inclination_angle
+        - Yaw rate: [-pi/3, pi/3] via action[2] * max_yawrate
+
+    Parameters (in apply_actions):
+        max_speed: Maximum translational speed in m/s (default: 2.0)
+        max_yawrate: Maximum yaw rate in rad/s (default: pi/3)
+        max_inclination_angle: Maximum pitch angle in rad (default: pi/4)
+
+    Notes:
+        - The controller's internal states (e.g., integral terms) are reset when `reset()` is called.
+        - Lateral velocity (vy) is currently hardcoded to 0.0.
+        - Requires the multirotor asset to have a valid `allocation_matrix` attribute.
+
+    Example:
+        ```python
+        cfg = NavigationActionCfg(
+            command_type="vel",
+            controller_cfg=LeeVelControllerCfg(...),
+            asset_name="robot"
+        )
+        nav_action = NavigationAction(cfg, env)
+        ```
+    """
 
     cfg: thrust_actions_cfg.NavigationActionCfg
     """The configuration of the action term."""
