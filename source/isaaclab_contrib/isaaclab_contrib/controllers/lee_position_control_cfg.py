@@ -28,7 +28,7 @@ class LeePosControllerCfg:
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """World gravity vector used by the controller [m/s^2]."""
 
-    K_pos_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((4.0, 4.0, 2.0), (3.0, 3.0, 2.5))
+    K_pos_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((4.0, 4.0, 2.5), (3.0, 3.0, 2.0))
     """Position error proportional gain range about body axes [unitless]."""
 
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))
