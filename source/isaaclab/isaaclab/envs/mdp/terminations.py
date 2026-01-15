@@ -17,7 +17,7 @@ import torch
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensor
+from isaaclab.sensors import ContactSensor, RayCaster
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -61,16 +61,24 @@ def bad_orientation(
 
 
 def root_height_below_minimum(
-    env: ManagerBasedRLEnv, minimum_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnv,
+    minimum_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
 ) -> torch.Tensor:
     """Terminate when the asset's root height is below the minimum height.
 
     Note:
-        This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
+        For rough terrain, sensor readings can adjust the asset height to account for the terrain.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2] < minimum_height
+    asset_height = asset.data.root_pos_w[:, 2]
+    if sensor_cfg is not None:
+        sensor: RayCaster = env.scene[sensor_cfg.name]
+        # Adjust the asset height using the sensor data
+        asset_height = asset_height - torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)
+    return asset_height < minimum_height
 
 
 """
