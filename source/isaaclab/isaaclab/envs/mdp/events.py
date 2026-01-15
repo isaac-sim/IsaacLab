@@ -1036,10 +1036,10 @@ def apply_external_force_torque(
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.permanent_wrench_composer.set_forces_and_torques(
-        env_ids=env_ids,
-        body_ids=asset_cfg.body_ids,
         forces=forces,
         torques=torques,
+        body_ids=asset_cfg.body_ids,
+        env_ids=env_ids,
     )
 
 

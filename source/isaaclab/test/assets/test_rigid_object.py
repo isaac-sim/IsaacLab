@@ -242,9 +242,9 @@ def test_external_force_buffer(device):
 
             # apply force
             cube_object.permanent_wrench_composer.set_forces_and_torques(
-                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
+                body_ids=body_ids,
             )
 
             # check if the cube's force and torque buffers are correctly updated
@@ -254,9 +254,9 @@ def test_external_force_buffer(device):
 
             # Check if the instantaneous wrench is correctly added to the permanent wrench
             cube_object.permanent_wrench_composer.add_forces_and_torques(
-                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
+                body_ids=body_ids,
             )
 
             # apply action to the object
@@ -319,10 +319,10 @@ def test_external_force_on_single_body(num_cubes, device):
 
             # apply force
             cube_object.permanent_wrench_composer.set_forces_and_torques(
-                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
                 positions=positions,
+                body_ids=body_ids,
                 is_global=is_global,
             )
             # perform simulation
@@ -406,17 +406,17 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
 
             # apply force
             cube_object.permanent_wrench_composer.set_forces_and_torques(
-                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
                 positions=external_wrench_positions_b,
+                body_ids=body_ids,
                 is_global=is_global,
             )
             cube_object.permanent_wrench_composer.add_forces_and_torques(
-                body_ids=body_ids,
                 forces=external_wrench_b[..., :3],
                 torques=external_wrench_b[..., 3:],
                 positions=external_wrench_positions_b,
+                body_ids=body_ids,
                 is_global=is_global,
             )
             torch.testing.assert_close(

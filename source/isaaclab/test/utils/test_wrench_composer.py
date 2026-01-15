@@ -160,7 +160,7 @@ def test_wrench_composer_add_force(device: str, num_envs: int, num_bodies: int):
             )
             forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
             # Add forces to wrench composer
-            wrench_composer.add_forces_and_torques(env_ids, body_ids, forces=forces)
+            wrench_composer.add_forces_and_torques(forces=forces, body_ids=body_ids, env_ids=env_ids)
             # Add forces to hand-calculated composed force
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
         # Get composed force from wrench composer
@@ -197,7 +197,7 @@ def test_wrench_composer_add_torque(device: str, num_envs: int, num_bodies: int)
             )
             torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
             # Add torques to wrench composer
-            wrench_composer.add_forces_and_torques(env_ids, body_ids, torques=torques)
+            wrench_composer.add_forces_and_torques(torques=torques, body_ids=body_ids, env_ids=env_ids)
             # Add torques to hand-calculated composed torque
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed torque from wrench composer
@@ -243,7 +243,7 @@ def test_add_forces_at_positons(device: str, num_envs: int, num_bodies: int):
             forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
             positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
             # Add forces at positions to wrench composer
-            wrench_composer.add_forces_and_torques(env_ids, body_ids, forces=forces, positions=positions)
+            wrench_composer.add_forces_and_torques(forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids)
             # Add forces to hand-calculated composed force
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
             # Add torques to hand-calculated composed torque: torque = cross(position, force)
@@ -294,7 +294,7 @@ def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
             torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
             positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
             # Add torques at positions to wrench composer
-            wrench_composer.add_forces_and_torques(env_ids, body_ids, torques=torques, positions=positions)
+            wrench_composer.add_forces_and_torques(torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids)
             # Add torques to hand-calculated composed torque
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed torque from wrench composer
@@ -345,7 +345,7 @@ def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodi
             positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
             # Add forces and torques at positions to wrench composer
             wrench_composer.add_forces_and_torques(
-                env_ids, body_ids, forces=forces, torques=torques, positions=positions
+                forces=forces, torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids
             )
             # Add forces to hand-calculated composed force
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
@@ -393,7 +393,7 @@ def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
         forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
         torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
         # Add forces and torques to wrench composer
-        wrench_composer.add_forces_and_torques(env_ids, body_ids, forces=forces, torques=torques)
+        wrench_composer.add_forces_and_torques(forces=forces, torques=torques, body_ids=body_ids, env_ids=env_ids)
         # Reset wrench composer
         wrench_composer.reset()
         # Get composed force and torque from wrench composer

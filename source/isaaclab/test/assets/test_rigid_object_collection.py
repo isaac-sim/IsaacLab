@@ -244,10 +244,10 @@ def test_external_force_buffer(sim, device):
         external_wrench_b[:, :, 3] = force
 
         object_collection.permanent_wrench_composer.set_forces_and_torques(
-            env_ids=None,
-            body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
+            body_ids=object_ids,
+            env_ids=None,
         )
 
         # check if the object collection's force and torque buffers are correctly updated
@@ -301,11 +301,11 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
 
         # apply force
         object_collection.permanent_wrench_composer.set_forces_and_torques(
-            env_ids=None,
-            body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=positions,
+            body_ids=object_ids,
+            env_ids=None,
             is_global=is_global,
         )
         for _ in range(10):
@@ -373,18 +373,18 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
 
         # apply force
         object_collection.permanent_wrench_composer.set_forces_and_torques(
-            env_ids=None,
-            body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=object_ids,
+            env_ids=None,
             is_global=is_global,
         )
         object_collection.permanent_wrench_composer.add_forces_and_torques(
-            body_ids=object_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=object_ids,
             is_global=is_global,
         )
 

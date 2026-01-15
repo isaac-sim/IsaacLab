@@ -100,10 +100,23 @@ class RigidObject(AssetBase):
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer.
+        
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer.
+        
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     """
@@ -130,10 +143,10 @@ class RigidObject(AssetBase):
             if self._instantaneous_wrench_composer.active:
                 # Compose instantaneous wrench with permanent wrench
                 self._instantaneous_wrench_composer.add_forces_and_torques(
-                    self._ALL_INDICES_WP,
-                    self._ALL_BODY_INDICES_WP,
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
+                    body_ids=self._ALL_BODY_INDICES_WP,
+                    env_ids=self._ALL_INDICES_WP,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_physx_view.apply_forces_and_torques_at_position(
@@ -445,11 +458,11 @@ class RigidObject(AssetBase):
 
         # Write to wrench composer
         self._permanent_wrench_composer.set_forces_and_torques(
-            env_ids,
-            body_ids,
             forces=wp.from_torch(forces, dtype=wp.vec3f) if forces is not None else None,
             torques=wp.from_torch(torques, dtype=wp.vec3f) if torques is not None else None,
             positions=wp.from_torch(positions, dtype=wp.vec3f) if positions is not None else None,
+            body_ids=body_ids,
+            env_ids=env_ids,
             is_global=is_global,
         )
 

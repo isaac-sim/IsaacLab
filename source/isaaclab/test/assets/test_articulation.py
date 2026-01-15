@@ -984,17 +984,17 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             external_wrench_positions_b[..., 2] = 0.0
 
         articulation.permanent_wrench_composer.set_forces_and_torques(
-            body_ids=body_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=body_ids,
             is_global=is_global,
         )
         articulation.permanent_wrench_composer.add_forces_and_torques(
-            body_ids=body_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=body_ids,
             is_global=is_global,
         )
         # perform simulation
@@ -1136,17 +1136,17 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
 
         # apply force
         articulation.permanent_wrench_composer.set_forces_and_torques(
-            body_ids=body_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=body_ids,
             is_global=is_global,
         )
         articulation.permanent_wrench_composer.add_forces_and_torques(
-            body_ids=body_ids,
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             positions=external_wrench_positions_b,
+            body_ids=body_ids,
             is_global=is_global,
         )
         # perform simulation

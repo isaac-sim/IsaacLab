@@ -102,9 +102,9 @@ def main():
         torques = torch.zeros_like(forces)
         forces[..., 2] = robot_mass * gravity / 4.0
         robot.permanent_wrench_composer.set_forces_and_torques(
-            body_ids=prop_body_ids,
             forces=forces,
             torques=torques,
+            body_ids=prop_body_ids,
         )
         robot.write_data_to_sim()
         # perform step
