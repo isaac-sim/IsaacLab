@@ -10,10 +10,6 @@ from isaaclab.utils import configclass
 
 from . import thrust_actions
 
-##
-# Multirotor actions.
-##
-
 
 @configclass
 class ThrustActionCfg(ActionTermCfg):
