@@ -141,7 +141,6 @@ class SceneFixture(SceneAsset, HasOccupancyMap):
         self.occupancy_map_resolution = occupancy_map_resolution
 
     def get_occupancy_map(self):
-
         local_occupancy_map = OccupancyMap.from_occupancy_boundary(
             boundary=self.occupancy_map_boundary, resolution=self.occupancy_map_resolution
         )

@@ -1791,7 +1791,6 @@ class Articulation(AssetBase):
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-
             joint_paths = self.root_physx_view.dof_paths[0]
 
             # iterate over all joints to find tendons attached to them
@@ -2034,15 +2033,17 @@ class Articulation(AssetBase):
 
             # add info on each term
             for index in range(self.num_fixed_tendons):
-                tendon_table.add_row([
-                    index,
-                    ft_stiffnesses[index],
-                    ft_dampings[index],
-                    ft_limit_stiffnesses[index],
-                    ft_limits[index],
-                    ft_rest_lengths[index],
-                    ft_offsets[index],
-                ])
+                tendon_table.add_row(
+                    [
+                        index,
+                        ft_stiffnesses[index],
+                        ft_dampings[index],
+                        ft_limit_stiffnesses[index],
+                        ft_limits[index],
+                        ft_rest_lengths[index],
+                        ft_offsets[index],
+                    ]
+                )
             # convert table to string
             logger.info(
                 f"Simulation parameters for fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
@@ -2068,13 +2069,15 @@ class Articulation(AssetBase):
             tendon_table.float_format = ".3"
             # add info on each term
             for index in range(self.num_spatial_tendons):
-                tendon_table.add_row([
-                    index,
-                    st_stiffnesses[index],
-                    st_dampings[index],
-                    st_limit_stiffnesses[index],
-                    st_offsets[index],
-                ])
+                tendon_table.add_row(
+                    [
+                        index,
+                        st_stiffnesses[index],
+                        st_dampings[index],
+                        st_limit_stiffnesses[index],
+                        st_offsets[index],
+                    ]
+                )
             # convert table to string
             logger.info(
                 f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()

@@ -811,10 +811,12 @@ def repeated_objects_terrain(
     meshes_list = list()
     # compute quantities
     origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * platform_height))
-    platform_corners = np.asarray([
-        [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
-        [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
-    ])
+    platform_corners = np.asarray(
+        [
+            [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
+            [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
+        ]
+    )
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample valid center for objects

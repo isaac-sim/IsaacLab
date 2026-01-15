@@ -134,7 +134,9 @@ def test_mixing_and_integration_modes(num_envs, num_motors, device):
     # discrete mixing
     cfg.use_discrete_approximation = True
     cfg.integration_scheme = "euler"
-    thr_d = Thruster(cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device))  # type: ignore[arg-type]
+    thr_d = Thruster(
+        cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device)
+    )  # type: ignore[arg-type]
     # bound method objects are recreated on access; compare underlying functions instead
     assert getattr(thr_d.mixing_factor_function, "__func__", None) is Thruster.discrete_mixing_factor
     assert getattr(thr_d._step_thrust, "__func__", None) is Thruster.compute_thrust_with_rpm_time_constant
@@ -142,7 +144,9 @@ def test_mixing_and_integration_modes(num_envs, num_motors, device):
     # continuous mixing and RK4
     cfg.use_discrete_approximation = False
     cfg.integration_scheme = "rk4"
-    thr_c = Thruster(cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device))  # type: ignore[arg-type]
+    thr_c = Thruster(
+        cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device)
+    )  # type: ignore[arg-type]
     assert getattr(thr_c.mixing_factor_function, "__func__", None) is Thruster.continuous_mixing_factor
     assert getattr(thr_c._step_thrust, "__func__", None) is Thruster.compute_thrust_with_rpm_time_constant_rk4
 

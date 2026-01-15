@@ -62,6 +62,7 @@ def configclass(cls, **kwargs):
             episode_length: int = 2000
             viewer: ViewerCfg = ViewerCfg()
 
+
         # create configuration instance
         env_cfg = EnvCfg(num_envs=24)
 
@@ -152,6 +153,7 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
         class C:
             x: int
             y: int
+
 
         c = C(1, 2)
         c1 = c.replace(x=3)

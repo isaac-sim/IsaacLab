@@ -435,7 +435,9 @@ class RayCasterCamera(RayCaster):
             .. code-block:: python
 
                 pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
-                pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids],  self._offset_quat[env_ids])
+                pos_w, quat_w = math_utils.combine_frame_transforms(
+                    pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+                )
 
         Returns:
             A tuple of the position (in meters) and quaternion (w, x, y, z) in "world" convention.

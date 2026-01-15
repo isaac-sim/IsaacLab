@@ -85,12 +85,14 @@ class CameraJobCfg(tuner.JobCfg):
                     if next_size <= 0:
                         break
 
-                    layers.append({
-                        "filters": tune.randint(16, 32).sample(),
-                        "kernel_size": str(kernel),
-                        "strides": str(stride),
-                        "padding": str(padding),
-                    })
+                    layers.append(
+                        {
+                            "filters": tune.randint(16, 32).sample(),
+                            "kernel_size": str(kernel),
+                            "strides": str(stride),
+                            "padding": str(padding),
+                        }
+                    )
                     size = next_size
 
                 return layers
@@ -98,7 +100,6 @@ class CameraJobCfg(tuner.JobCfg):
             cfg["hydra_args"]["agent.params.network.cnn.convs"] = tune.sample_from(get_cnn_layers)
 
         if vary_mlp:  # Vary the MLP structure; neurons (units) per layer, number of layers,
-
             max_num_layers = 6
             max_neurons_per_layer = 128
             if "env.observations.policy.image.params.model_name" in cfg["hydra_args"]:
@@ -140,12 +141,14 @@ class TheiaCameraJob(CameraJobCfg):
 
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice([
-            "theia-tiny-patch16-224-cddsv",
-            "theia-tiny-patch16-224-cdiv",
-            "theia-small-patch16-224-cdiv",
-            "theia-base-patch16-224-cdiv",
-            "theia-small-patch16-224-cddsv",
-            "theia-base-patch16-224-cddsv",
-        ])
+        cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice(
+            [
+                "theia-tiny-patch16-224-cddsv",
+                "theia-tiny-patch16-224-cdiv",
+                "theia-small-patch16-224-cdiv",
+                "theia-base-patch16-224-cdiv",
+                "theia-small-patch16-224-cddsv",
+                "theia-base-patch16-224-cddsv",
+            ]
+        )
         super().__init__(cfg, vary_env_count=True, vary_cnn=False, vary_mlp=True)

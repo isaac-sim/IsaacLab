@@ -309,7 +309,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         entity_list.append("contact_object")
 
     while simulation_app.is_running():
-
         if count == 122:
             # Reset robot and contact object positions
             count = 0

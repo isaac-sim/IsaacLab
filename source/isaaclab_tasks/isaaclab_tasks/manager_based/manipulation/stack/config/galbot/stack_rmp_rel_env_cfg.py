@@ -36,6 +36,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmCubeStackEnvCfg):
+    """Configuration for the Galbot Left Arm Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -104,7 +105,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 ##
 @configclass
 class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -174,7 +174,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
