@@ -17,6 +17,7 @@
 #
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
@@ -34,7 +35,7 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"
 # -- Project information -----------------------------------------------------
 
 project = "Isaac Lab"
-copyright = "2022-2026, The Isaac Lab Project Developers."
+copyright = f"2022-{datetime.now().year}, The Isaac Lab Project Developers."
 author = "The Isaac Lab Project Developers."
 
 # Read version from the package
@@ -252,12 +253,13 @@ html_theme_options = {
     "collapse_navigation": True,
     "copyright_override": {"start": 2022},
     "github_url": "https://github.com/isaac-sim/IsaacLab",
+    "navbar_start": ["navbar-logo", "version-switcher"],
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
     "use_edit_page_button": True,
     "navigation_depth": 2,
     "switcher": {
         "json_url": "https://isaac-sim.github.io/IsaacLab/main/_static/switcher.json",
-        "version_match": version,
+        "version_match": os.environ.get("SMV_CURRENT_VERSION", "main"),
     },
     "check_switcher": False,  # Disable switcher check during local builds
     "icon_links": [
