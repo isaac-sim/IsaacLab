@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import math
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from . import patterns_cfg

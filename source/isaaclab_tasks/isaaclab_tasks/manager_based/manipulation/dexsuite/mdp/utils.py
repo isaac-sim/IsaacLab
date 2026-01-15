@@ -5,6 +5,7 @@
 
 import hashlib
 import logging
+
 import numpy as np
 import torch
 import trimesh

@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.assets.articulation import Articulation
     import torch
+
+    from isaaclab.assets.articulation import Articulation
+    from isaaclab.envs import ManagerBasedEnv
 
 import dataclasses
 import functools
@@ -185,7 +186,6 @@ def generic_io_descriptor(
         inspect_hooks: list[Callable[..., Any]] = list(on_inspect or [])  # handles None
 
     def _apply(func: Callable[Concatenate[ManagerBasedEnv, P], R]) -> Callable[Concatenate[ManagerBasedEnv, P], R]:
-
         # Capture the signature of the function
         sig = inspect.signature(func)
 

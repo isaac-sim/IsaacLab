@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 from collections.abc import Sequence
+
+import torch
 
 import isaaclab.utils.math as PoseUtils
 

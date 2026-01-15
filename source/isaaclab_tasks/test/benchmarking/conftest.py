@@ -4,9 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
+
 import pytest
 
-import env_benchmark_test_utils as utils
+# Local imports should be imported last
+import env_benchmark_test_utils as utils  # isort: skip
 
 # Global variable for storing KPI data
 GLOBAL_KPI_STORE = {}

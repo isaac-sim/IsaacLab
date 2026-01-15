@@ -5,11 +5,11 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
-
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING, Literal
+
+import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg

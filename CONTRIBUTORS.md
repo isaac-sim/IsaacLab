@@ -66,11 +66,13 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
+* Emmanuel Ferdman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
 * HoJin Jeon
@@ -109,6 +111,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Michael Lin
 * Miguel Alonso Jr
+* Mihir Kulkarni
 * Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
@@ -152,6 +155,7 @@ Guidelines for modifications:
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
+* Welf Rehberg
 * Xavier Nal
 * Xiaodi Yuan
 * Xinjie Yao

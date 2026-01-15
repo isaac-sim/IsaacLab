@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import tempfile
+
 import torch
+from pink.tasks import FrameTask
 
 import carb
-
-from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp

@@ -7,8 +7,8 @@
 
 import itertools
 import os
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file

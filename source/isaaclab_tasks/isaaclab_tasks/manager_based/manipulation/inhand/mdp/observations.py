@@ -5,8 +5,9 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObject

@@ -17,10 +17,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
+from typing import Literal
+
 import pytest
 import torch
 from flaky import flaky
-from typing import Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -225,7 +226,6 @@ def test_external_force_buffer(device):
 
         # perform simulation
         for step in range(5):
-
             # initiate force tensor
             external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
             external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
@@ -997,7 +997,6 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 
         env_idx = env_idx.to(device)
         for i in range(10):
-
             # perform step
             sim.step()
             # update buffers

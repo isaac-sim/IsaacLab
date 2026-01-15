@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import inspect
 import logging
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg

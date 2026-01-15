@@ -65,6 +65,7 @@ simulation_app = app_launcher.app
 
 import cProfile
 import time
+
 import torch
 
 from isaacsim.core.simulation_manager import SimulationManager
