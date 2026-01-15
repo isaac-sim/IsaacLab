@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING, Literal
+
+import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -41,7 +42,7 @@ def object_poses_in_base_frame(
         return pos_object_base
     elif return_key == "quat":
         return quat_object_base
-    elif return_key is None:
+    else:
         return torch.cat((pos_object_base, quat_object_base), dim=1)
 
 

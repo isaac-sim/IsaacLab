@@ -5,6 +5,7 @@
 
 import os
 import tempfile
+
 import yaml
 
 from curobo.geom.sdf.world import CollisionCheckerType

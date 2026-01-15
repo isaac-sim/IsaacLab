@@ -198,7 +198,25 @@ def sim():
     # Reference frame for targets
     frame = "root"
 
-    yield sim, num_envs, robot_cfg, ee_marker, goal_marker, contact_forces, target_abs_pos_set_b, target_abs_pose_set_b, target_rel_pos_set, target_rel_pose_set_b, target_abs_wrench_set, target_abs_pose_variable_kp_set, target_abs_pose_variable_set, target_hybrid_set_b, target_hybrid_variable_kp_set, target_hybrid_set_tilted, frame
+    yield (
+        sim,
+        num_envs,
+        robot_cfg,
+        ee_marker,
+        goal_marker,
+        contact_forces,
+        target_abs_pos_set_b,
+        target_abs_pose_set_b,
+        target_rel_pos_set,
+        target_rel_pose_set_b,
+        target_abs_wrench_set,
+        target_abs_pose_variable_kp_set,
+        target_abs_pose_variable_set,
+        target_hybrid_set_b,
+        target_hybrid_variable_kp_set,
+        target_hybrid_set_tilted,
+        frame,
+    )
 
     # Cleanup
     sim.stop()

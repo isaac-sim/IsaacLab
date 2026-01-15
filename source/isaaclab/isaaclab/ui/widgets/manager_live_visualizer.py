@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import logging
-import numpy
 import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
+
+import numpy
 
 import omni.kit.app
 from isaacsim.core.api.simulation_context import SimulationContext

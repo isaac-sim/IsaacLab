@@ -5,10 +5,11 @@
 
 import builtins
 import logging
-import torch
 import warnings
 from collections.abc import Sequence
 from typing import Any
+
+import torch
 
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
@@ -263,6 +264,7 @@ class ManagerBasedEnv:
             output_dir: The directory to export the IO descriptors to.
         """
         import os
+
         import yaml
 
         IO_descriptors = self.get_IO_descriptors

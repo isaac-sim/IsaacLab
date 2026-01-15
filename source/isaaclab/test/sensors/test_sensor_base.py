@@ -14,10 +14,11 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import pytest
-import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg

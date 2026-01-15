@@ -36,6 +36,7 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.converters
    lab/isaaclab.sim.schemas
    lab/isaaclab.sim.spawners
+   lab/isaaclab.sim.views
    lab/isaaclab.sim.utils
 
 
@@ -65,6 +66,19 @@ The following modules are available in the ``isaaclab_mimic`` extension:
    datagen
    envs
 
+isaaclab_contrib extension
+-----------------------------
+
+The following modules are available in the ``isaaclab_contrib`` extension:
+
+.. currentmodule:: isaaclab_contrib
+
+.. autosummary::
+   :toctree: lab_contrib
+
+   actuators
+   assets
+   mdp
 
 isaaclab_tasks extension
 ------------------------
