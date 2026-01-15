@@ -1,0 +1,84 @@
+NVIDIA LICENSE AGREEMENT
+
+This NVIDIA License Agreement (“AGREEMENT”) is a legal agreement between you and NVIDIA Corporation ("NVIDIA") and governs your use of the  NVIDIA font, icons and other assets, and software, in each case if and when available (“Licensed Materials”).
+
+This AGREEMENT can be accepted only by an adult of legal age of majority in the country in which the Licensed Materials is used. If you are under the legal age of majority, you must ask your parent or legal guardian to consent to this AGREEMENT. If you are entering into this AGREEMENT on behalf of a company or other legal entity, you represent that you have legal authority and “you” will mean the entity you represent.
+
+By using the Licensed Materials, you affirm that you have reached the legal age of majority, you accept the terms of this AGREEMENT, and you take legal and financial responsibility for the actions of your permitted users.
+
+You agree to use the Licensed Materials only for purposes that are permitted by (a) this AGREEMENT, and (b) any applicable law, regulation or generally accepted practices or guidelines in the relevant jurisdictions.
+
+1.   LICENSE. Subject to the terms of this AGREEMENT, NVIDIA hereby grants you a limited, non-exclusive, non-assignable, non-transferable, non-sublicensable (except as expressly provided in this AGREEMENT) license to:
+1.1  use, copy and reproduce the Licensed Materials when provided in an NVIDIA products or service with the applicable NVIDIA product or service; and
+1.2  use, copy and reproduce the Licensed Materials when provided stand-alone with products, related packaging, advertising marketing collaterals and assets used for offline or online marketing, and web sites, in each case, in connection with NVIDIA’s products and services only (“PERMITTED PRODUCTS”).
+
+2. LIMITATIONS. Your license to use the Licensed Materials is restricted as follows:
+2.1  For Licensed Materials provided with an NVIDIA product or service, you must not separate or use the Licensed Materials apart from the applicable product or service.
+2.2 You may not reverse engineer, decompile or disassemble, or remove copyright or other proprietary notices from any portion of the Licensed Materials or copies of the Licensed Materials.
+2.3 Except as provided in this AGREEMENT, you may not copy, modify, adapt, convert the Licensed Materials, nor create derivative works from the Licensed Materials or any portion thereof. Further, you may not use the Licensed Materials in connection with software and/or hardware which create derivative works of such Licensed Materials.
+2.4 Except as provided in this AGREEMENT, you may not sell, rent, sublicense, transfer or distribute the Licensed Materials, or make its functionality available to others, or embed the Licensed Materials into a product or other content that is not a PERMITTED PRODUCT.
+2.5 You may not use the Licensed Materials for the purpose of developing competing products or technologies or assisting a third party in such activities.
+2.6 You may not bypass, disable, or circumvent any technical limitations, encryption, security, digital rights management or authentication mechanism in the Licensed Materials.
+2.7  You may not use the Licensed Materials in any manner that would cause it to become subject to an OSS License. “OSS License” means any software, data or documentation subject to any license identified as an open source license by the Open Source Initiative (http://opensource.org), Free Software Foundation (http://www.fsf.org) or other similar open source organization or listed by the Software Package Data Exchange (SPDX) Workgroup under the Linux Foundation (http://www.spdx.org).
+
+3. AUTHORIZED USERS. You may allow employees and contractors of your entity or of your subsidiary(ies) to access and use the Licensed Materials from your secure network to perform work on your behalf. If you are an academic institution you may allow users enrolled or employed by the academic institution to access and use the Licensed Materials from your secure network. You are responsible for the compliance with the terms of this AGREEMENT by your authorized users.
+
+4. UPDATES. NVIDIA is not obligated to support or update the Licensed Materials. This AGREEMENT also applies to Licensed Materials patches, workarounds or other updates, each of which will be deemed part of the Licensed Materials, unless other terms accompany those items.
+
+5. OWNERSHIP. NVIDIA reserves all rights, title and interest in and to the Licensed Materials not expressly granted to you under this AGREEMENT. The Licensed Materials and the related intellectual property rights therein, and all derivative works thereof, are and will remain the sole and exclusive property of NVIDIA or its licensors. The Licensed Materials is copyrighted and protected by the laws of the United States and other countries, and international treaty provisions.
+
+You agree to use trademarks associated with the Licensed Materials in accordance with the NVIDIA Trademark License Agreement (https://www.nvidia.com/content/dam/en-zz/Solutions/about-us/documents/Trademark-License-Agreement.pdf) and the NVIDIA Trademark and Logo Usage Guidelines (https://www.nvidia.com/content/dam/en-zz/Solutions/about-us/documents/NVIDIA-Trademark-and-Logo-Usage-Guidelines.pdf), including identification of the trademark owner and only in reference to output produced by the Licensed Materials. Referring to a trademark does not give you any ownership rights for that trademark and all use of any trademark shall inure to the sole benefit of NVIDIA.  You may not change any trademark or trade name designation for the Licensed Materials.
+
+6. FEEDBACK. You may, but are not obligated to, provide to NVIDIA suggestions, fixes, modifications, feature requests or other feedback regarding the Licensed Materials (“Feedback”). Feedback, even if designated as confidential by Customer, will not create any confidentiality obligation for NVIDIA or its Affiliates beyond not identifying Customer as the source of the Feedback. If Customer provides Feedback, Customer hereby grants NVIDIA, its Affiliates and its designees a non-exclusive, perpetual, irrevocable, sublicensable, worldwide, royalty-free, fully paid-up, and transferable license, under Customer’s Intellectual Property Rights, to publicly perform, publicly display, reproduce, use, make, have made, sell, offer for sale, distribute (through multiple tiers of distribution), import, create derivative works of, and otherwise commercialize and exploit the Feedback for any purpose at NVIDIA’s discretion. NVIDIA agrees that Customer Feedback is provided “as-is” without a warranty of any kind.
+
+7. NO WARRANTIES. THE LICENSED MATERIALS ARE PROVIDED "AS IS". TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NVIDIA DISCLAIMS ALL WARRANTIES AND REPRESENTATIONS OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, RELATING TO OR ARISING UNDER THE AGREEMENT, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF TITLE, NONINFRINGEMENT, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, USAGE OF TRADE AND COURSE OF DEALING. NVIDIA DOES NOT WARRANT THAT THE LICENSED MATERIALS WILL MEET YOUR REQUIREMENTS OR THAT THE OPERATION THEREOF WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT ALL ERRORS WILL BE CORRECTED. NVIDIA does not warrant or assume responsibility for the accuracy or completeness of any information, text, graphics, links or other items contained within the Licensed Materials.
+
+8. LIMITATIONS OF LIABILITY. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL NVIDIA BE LIABLE FOR ANY (I) INDIRECT, PUNITIVE, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES, OR (II) DAMAGES FOR THE (A) COST OF PROCURING SUBSTITUTE GOODS OR (B) LOSS OF PROFITS, REVENUES, USE, DATA OR GOODWILL ARISING OUT OF OR RELATED TO THIS AGREEMENT, WHETHER BASED ON BREACH OF CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY, OR OTHERWISE, AND EVEN IF NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND EVEN IF A PARTY'S REMEDIES FAIL THEIR ESSENTIAL PURPOSE. ADDITIONALLY, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NVIDIA’S TOTAL CUMULATIVE AGGREGATE LIABILITY FOR ANY AND ALL LIABILITIES, OBLIGATIONS OR CLAIMS ARISING OUT OF OR RELATED TO THIS AGREEMENT WILL NOT EXCEED TEN U.S. DOLLARS (US$10).
+
+9. TERMINATION. Your rights under this AGREEMENT will terminate automatically without notice from NVIDIA if you fail to comply with any term of this AGREEMENT or if you commence or participate in any legal proceeding against NVIDIA with respect to the Licensed Materials. NVIDIA may terminate this AGREEMENT with advance written notice to you. Upon any termination of this AGREEMENT, you agree to promptly discontinue use of the Licensed Materials and destroy all copies in your possession or control. All provisions of this AGREMENT will survive termination, except for the license granted to you and Section 3.
+
+10. APPLICABLE LAW. This AGREEMENT will be governed in all respects by the laws of the United States and of the State of Delaware, without regard to the conflicts of laws principles. The United Nations Convention on Contracts for the International Sale of Goods is specifically disclaimed. You agree to all terms of this AGREEMENT in the English language. The state or federal courts residing in Santa Clara County, California shall have exclusive jurisdiction over any dispute or claim arising out of this AGREEMENT. Notwithstanding this, you agree that NVIDIA shall still be allowed to apply for injunctive remedies or an equivalent type of urgent legal relief in any jurisdiction.
+
+11. NO ASSIGNMENT. This AGREMEENT and your rights and obligations thereunder may not be assigned by you by any means or operation of law without NVIDIA’s permission. Any attempted assignment not approved by NVIDIA in writing shall be void and of no effect.
+
+12. EXPORT. The Licensed Materials is subject to United States export laws and regulations. You agree to comply with all applicable U.S. and international export laws, including the Export Administration Regulations (EAR) administered by the U.S. Department of Commerce and economic sanctions administered by the U.S. Department of Treasury’s Office of Foreign Assets Control (OFAC). These laws include restrictions on destinations, end-users and end-use. By accepting this AGREEMENT, you confirm that you are not currently residing in a country or region currently embargoed by the U.S. and that you are not otherwise prohibited from receiving the Licensed Materials.
+
+13. GOVERNMENT USE. The Software, including its documentation and technology (“Protected Items”), are “Commercial products” as this term is defined at 48 C.F.R. 2.101, consisting of “commercial computer software” and “commercial computer software documentation” as such terms are used in, respectively, 48 C.F.R. 12.212 and 48 C.F.R. 227.7202 & 252.227-7014(a)(1). Before any Protected Items are supplied to the U.S. Government, you will (i) inform the U.S. Government in writing that the Protected Items are and must be treated as commercial computer software and commercial computer software documentation developed at private expense; (ii) inform the U.S. Government that the Protected Items are provided subject to the terms of this Agreement; and (iii) mark the Protected Items as commercial computer software and commercial computer software documentation developed at private expense. In no event will you permit the U.S. Government to acquire rights in Protected Items beyond those specified in 48 C.F.R. 52.227-19(b)(1)-(2) or 252.227-7013(c) except as expressly approved by NVIDIA in writing.
+
+14. NOTICES. Please direct your legal notices or other correspondence to NVIDIA Corporation, 2788 San Tomas Expressway, Santa Clara, California 95051, United States of America, Attention: Legal Department, with an emailed copy to legalnotices@nvidia.com.
+
+15. ENTIRE AGREEMENT. Regarding the subject matter of this Agreement, the parties agree that this Agreement constitutes the entire and exclusive agreement between the parties regarding the Licensed Materials and supersedes all prior and contemporaneous communications. If any provision of this Agreement is deemed invalid by a court of competent jurisdiction, the invalidity of such provision will not affect the validity of the remaining provisions of this Agreement, which will remain in full force and effect.
+
+(v. July 1, 2024)
+
+---
+
+BSD 3-Clause License
+
+Copyright (c) 2018, pandas
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

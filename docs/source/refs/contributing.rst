@@ -65,7 +65,7 @@ for the documentation are located in the ``IsaacLab/docs`` directory. The docume
 `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 
 We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
-`Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
+NVIDIA's modified version of the `PyData Sphinx Theme <https://pydata-sphinx-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
