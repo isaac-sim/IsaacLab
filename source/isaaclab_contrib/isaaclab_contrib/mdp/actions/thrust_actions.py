@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
@@ -170,10 +171,10 @@ class ThrustAction(ActionTerm):
 class NavigationAction(ThrustAction):
     """Navigation action term that applies velocity commands to multirotors."""
 
-    cfg: actions_cfg.NavigationActionCfg
+    cfg: thrust_actions_cfg.NavigationActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.NavigationActionCfg, env: ManagerBasedEnv) -> None:
+    def __init__(self, cfg: thrust_actions_cfg.NavigationActionCfg, env: ManagerBasedEnv) -> None:
 
         # Initialize parent class (this handles all the thruster setup)
         super().__init__(cfg, env)

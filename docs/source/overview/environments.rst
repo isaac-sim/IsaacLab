@@ -510,7 +510,7 @@ Multirotor
     +========================================+=============================================+========================================================================================+
     | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |
     +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
-    | |arl_robot_navigation| | |arl_robot_navigation-link| | Navigate through 3D obstacles with the ARL robot using depth camera sensing. |
+    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |
     +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
 
 Others

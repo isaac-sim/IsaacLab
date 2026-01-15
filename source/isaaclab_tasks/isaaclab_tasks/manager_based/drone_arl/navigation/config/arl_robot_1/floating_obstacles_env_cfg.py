@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,13 +6,13 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
-
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
     NavigationVelocityFloatingObstacleEnvCfg,
 )
+
+from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 
 @configclass
