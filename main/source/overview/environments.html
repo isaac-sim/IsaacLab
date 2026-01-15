@@ -432,6 +432,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -671,6 +674,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forge">FORGE</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#multirotor">Multirotor</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spaces-showcase">Spaces showcase</a></li>
 </ul>
@@ -1187,6 +1191,35 @@ sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linu
 <tr class="row-even"><td><p><img alt="anymal_c_nav" src="../../_images/anymal_c_nav.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/anymal_c/navigation_env_cfg.py">Isaac-Navigation-Flat-Anymal-C-v0</a></p></td>
 <td><p>Navigate towards a target x-y position and heading with the ANYmal C robot.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="multirotor">
+<h3>Multirotor<a class="headerlink" href="#multirotor" title="Permalink to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The multirotor entry provides an environment configuration for flying the ARL robot.
+See the <cite>drone_arl</cite> folder and the ARL robot config
+(<cite>ARL_ROBOT_1_CFG</cite>) in the codebase for details.</p>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.0%" />
+<col style="width: 37.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>World</p></th>
+<th class="head"><p>Environment ID</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><img alt="arl_robot_track_position_state_based" src="../../_images/arl_robot_1_track_position_state_based.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py">Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0</a></p></td>
+<td><p>Setpoint position control for the ARL robot using the track_position_state_based task.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2073,6 +2106,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forge">FORGE</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locomotion">Locomotion</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation">Navigation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#multirotor">Multirotor</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#others">Others</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spaces-showcase">Spaces showcase</a></li>
 </ul>

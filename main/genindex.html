@@ -431,6 +431,9 @@
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -801,6 +804,14 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions.__init__">(isaaclab.utils.types.ArticulationActions method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.__init__">(isaaclab_contrib.actuators.Thruster method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.__init__">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.__init__">(isaaclab_contrib.assets.MultirotorData method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.__init__">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.__init__">(isaaclab_mimic.datagen.DataGenerator method)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DatagenInfo.__init__">(isaaclab_mimic.datagen.DatagenInfo method)</a>
@@ -918,6 +929,8 @@
         <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceController.action_dim">(isaaclab.controllers.OperationalSpaceController property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.action_dim">(isaaclab.managers.ActionTerm property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.action_dim">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.action_l2">action_l2() (in module isaaclab.envs.mdp.rewards)</a>
@@ -1085,7 +1098,11 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print">actuator_value_resolution_debug_print (isaaclab.assets.ArticulationCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.actuator_value_resolution_debug_print">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBase">ActuatorBase (class in isaaclab.actuators)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg">ActuatorBaseCfg (class in isaaclab.actuators)</a>
@@ -1102,6 +1119,10 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.actuators">(isaaclab.assets.ArticulationCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.actuators">(isaaclab_contrib.assets.Multirotor attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.actuators">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher.add_app_launcher_args">add_app_launcher_args() (isaaclab.app.AppLauncher static method)</a>
@@ -1136,10 +1157,16 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.algorithm">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names">all_joint_names (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.allocation_matrix">allocation_matrix (isaaclab_contrib.assets.Multirotor property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.allocation_matrix">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.alpha">alpha (isaaclab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range">amplitude_range (isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg attribute)</a>
@@ -1148,6 +1175,8 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg.InitialStateCfg.ang_vel">(isaaclab.assets.RigidObjectCfg.InitialStateCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.ang_vel">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.ang_vel_xy_l2">ang_vel_xy_l2() (in module isaaclab.envs.mdp.rewards)</a>
@@ -1184,8 +1213,18 @@
         <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.RemotizedPDActuator.applied_effort">(isaaclab.actuators.RemotizedPDActuator attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.applied_torque">applied_torque (isaaclab.assets.ArticulationData attribute)</a>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.applied_thrust">applied_thrust (isaaclab_contrib.actuators.Thruster attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.applied_thrust">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.applied_torque">applied_torque (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.applied_torque">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.applied_torque_limits">applied_torque_limits() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager.apply">apply() (isaaclab.managers.EventManager method)</a>
@@ -1193,7 +1232,11 @@
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.apply_action">apply_action() (isaaclab.managers.ActionManager method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.apply_actions">apply_actions() (isaaclab.managers.ActionTerm method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.apply_delta_pose">apply_delta_pose() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.apply_external_force_torque">apply_external_force_torque() (in module isaaclab.envs.mdp.events)</a>
@@ -1251,7 +1294,11 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.articulation_root_prim_path">articulation_root_prim_path (isaaclab.assets.ArticulationCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.articulation_root_prim_path">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions">ArticulationActions (class in isaaclab.utils.types)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg">ArticulationCfg (class in isaaclab.assets)</a>
@@ -1308,6 +1355,8 @@
         <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ViewerCfg.asset_name">(isaaclab.envs.ViewerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTermCfg.asset_name">(isaaclab.managers.ActionTermCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.asset_name">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.AssetConverterBaseCfg.asset_path">asset_path (isaaclab.sim.converters.AssetConverterBaseCfg attribute)</a>
@@ -1417,11 +1466,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_acc_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_ang_acc_w">body_ang_acc_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_ang_acc_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_ang_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_ang_vel_w">body_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
@@ -1429,11 +1482,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_acc_w">body_com_acc_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_acc_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_ang_acc_w">body_com_ang_acc_w (isaaclab.assets.ArticulationData property)</a>
@@ -1441,11 +1498,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_ang_acc_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_ang_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_ang_vel_w">body_com_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_lin_acc_w">body_com_lin_acc_w (isaaclab.assets.ArticulationData property)</a>
@@ -1453,11 +1514,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_lin_acc_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_lin_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_lin_vel_w">body_com_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_pos_b">body_com_pos_b (isaaclab.assets.ArticulationData property)</a>
@@ -1465,11 +1530,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_pos_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_pos_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_pos_w">body_com_pos_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_pos_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_pose_b">body_com_pose_b (isaaclab.assets.ArticulationData property)</a>
@@ -1477,11 +1546,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_pose_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_pose_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_pose_w">body_com_pose_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_pose_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_quat_b">body_com_quat_b (isaaclab.assets.ArticulationData property)</a>
@@ -1489,11 +1562,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_quat_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_quat_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_quat_w">body_com_quat_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_quat_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_state_w">body_com_state_w (isaaclab.assets.ArticulationData property)</a>
@@ -1501,17 +1578,25 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_com_vel_w">body_com_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_com_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_com_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.body_ids">body_ids (isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_incoming_joint_wrench_b">body_incoming_joint_wrench_b (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_incoming_joint_wrench_b">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.body_incoming_wrench">body_incoming_wrench() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.body_lin_acc_l2">body_lin_acc_l2() (in module isaaclab.envs.mdp.rewards)</a>
@@ -1521,11 +1606,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_lin_acc_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_lin_acc_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_lin_vel_w">body_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -1535,11 +1624,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_lin_vel_w">body_link_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_pos_w">body_link_pos_w (isaaclab.assets.ArticulationData property)</a>
@@ -1547,11 +1640,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_pos_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_pose_w">body_link_pose_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_pose_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_quat_w">body_link_quat_w (isaaclab.assets.ArticulationData property)</a>
@@ -1559,17 +1656,23 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_quat_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_state_w">body_link_state_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_vel_w">body_link_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_link_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_name">body_name (isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg attribute)</a>
@@ -1599,6 +1702,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformer.body_names">(isaaclab.sensors.FrameTransformer property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.body_names">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_names">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_offset">body_offset (isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg attribute)</a>
 
@@ -1613,11 +1720,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_pos_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_pose_w">body_pose_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_pose_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.body_pose_w">body_pose_w() (in module isaaclab.envs.mdp.observations)</a>
@@ -1629,17 +1740,23 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_quat_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_state_w">body_state_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_vel_w">body_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.body_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg.border_height">border_height (isaaclab.terrains.TerrainGeneratorCfg attribute)</a>
@@ -1763,6 +1880,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter.cfg">(isaaclab.sim.converters.UrdfConverter attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.cfg">(isaaclab_contrib.assets.Multirotor attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.cfg">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction attribute)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv.cfg">(isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv attribute)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.cfg">(isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv attribute)</a>
@@ -1865,6 +1986,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg.clip">(isaaclab.managers.ObservationTermCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.modifiers.clip">clip() (in module isaaclab.utils.modifiers)</a>
 </li>
@@ -1960,6 +2083,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg.collision_group">(isaaclab.assets.RigidObjectCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.collision_group">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.collision_group">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverterCfg.collision_props">collision_props (isaaclab.sim.converters.MeshConverterCfg attribute)</a>
@@ -2077,6 +2202,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.com_pos_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.com_pos_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.com_quat_b">com_quat_b (isaaclab.assets.ArticulationData property)</a>
 
@@ -2084,6 +2211,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.com_quat_b">(isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.com_quat_b">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.com_quat_b">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.combine_frame_transforms">combine_frame_transforms() (in module isaaclab.utils.math)</a>
@@ -2165,6 +2294,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.interpolation.LinearInterpolation.compute">(isaaclab.utils.interpolation.LinearInterpolation method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.compute">(isaaclab_contrib.actuators.Thruster method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensor.compute_first_air">compute_first_air() (isaaclab.sensors.ContactSensor method)</a>
 </li>
@@ -2192,8 +2323,18 @@
         <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.RemotizedPDActuator.computed_effort">(isaaclab.actuators.RemotizedPDActuator attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.computed_torque">computed_torque (isaaclab.assets.ArticulationData attribute)</a>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.computed_thrust">computed_thrust (isaaclab_contrib.actuators.Thruster attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.computed_thrust">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.computed_torque">computed_torque (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.computed_torque">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationGroupCfg.concatenate_dim">concatenate_dim (isaaclab.managers.ObservationGroupCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationGroupCfg.concatenate_terms">concatenate_terms (isaaclab.managers.ObservationGroupCfg attribute)</a>
@@ -2511,6 +2652,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.TimestampedBuffer.data">(isaaclab.utils.buffers.TimestampedBuffer attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.data">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.data_augmentation_func">data_augmentation_func (isaaclab_rl.rsl_rl.RslRlSymmetryCfg attribute)</a>
 </li>
@@ -2615,6 +2758,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.debug_vis">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.debug_vis">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.decimation">decimation (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
@@ -2643,19 +2790,47 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_damping">default_fixed_tendon_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_limit">default_fixed_tendon_limit (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_limit">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_limit_stiffness">default_fixed_tendon_limit_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_limit_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_offset">default_fixed_tendon_offset (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_offset">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_pos_limits">default_fixed_tendon_pos_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_pos_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_rest_length">default_fixed_tendon_rest_length (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_rest_length">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_fixed_tendon_stiffness">default_fixed_tendon_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_fixed_tendon_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_inertia">default_inertia (isaaclab.assets.ArticulationData attribute)</a>
 
       <ul>
@@ -2663,35 +2838,83 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.default_inertia">(isaaclab.assets.RigidObjectData attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_inertia">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_armature">default_joint_armature (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_armature">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_damping">default_joint_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_dynamic_friction_coeff">default_joint_dynamic_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_dynamic_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_friction">default_joint_friction (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_friction">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_friction_coeff">default_joint_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_limits">default_joint_limits (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_limits">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_pos">default_joint_pos (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_pos">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_pos_limits">default_joint_pos_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_pos_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_stiffness">default_joint_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_vel">default_joint_vel (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_vel">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_joint_viscous_friction_coeff">default_joint_viscous_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_joint_viscous_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_mass">default_mass (isaaclab.assets.ArticulationData attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.default_mass">(isaaclab.assets.RigidObjectCollectionData attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.default_mass">(isaaclab.assets.RigidObjectData attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_mass">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.default_nodal_state_w">default_nodal_state_w (isaaclab.assets.DeformableObjectData attribute)</a>
@@ -2705,14 +2928,36 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.default_root_state">(isaaclab.assets.RigidObjectData attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_root_state">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_spatial_tendon_damping">default_spatial_tendon_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_spatial_tendon_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_spatial_tendon_limit_stiffness">default_spatial_tendon_limit_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_spatial_tendon_limit_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_spatial_tendon_offset">default_spatial_tendon_offset (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_spatial_tendon_offset">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.default_spatial_tendon_stiffness">default_spatial_tendon_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_spatial_tendon_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.default_thruster_rps">default_thruster_rps (isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_articulation_root_properties">define_articulation_root_properties() (in module isaaclab.sim.schemas)</a>
 </li>
@@ -2724,8 +2969,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.legacy.define_prim">define_prim() (in module isaaclab.sim.utils.legacy)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_rigid_body_properties">define_rigid_body_properties() (in module isaaclab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled">deformable_enabled (isaaclab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
@@ -2883,6 +3126,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.DelayBuffer.device">(isaaclab.utils.buffers.DelayBuffer property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.device">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.device">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv.device">(isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv property)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.device">(isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv property)</a>
@@ -2980,6 +3227,8 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.modifiers.IntegratorCfg.dt">(isaaclab.utils.modifiers.IntegratorCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.dt">(isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.io.dump_yaml">dump_yaml() (in module isaaclab.utils.io)</a>
@@ -3253,7 +3502,11 @@
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.export_episodes">export_episodes() (isaaclab.managers.RecorderManager method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.export_IO_descriptor">export_IO_descriptor (isaaclab.managers.ActionTerm property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.export_IO_descriptor">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors">export_io_descriptors (isaaclab.envs.ManagerBasedEnvCfg attribute)</a>
 
       <ul>
@@ -3367,17 +3620,27 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformer.find_bodies">(isaaclab.sensors.FrameTransformer method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.find_bodies">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_first_matching_prim">find_first_matching_prim() (in module isaaclab.sim.utils.queries)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_fixed_tendons">find_fixed_tendons() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.find_fixed_tendons">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.utils.find_flat_patches">find_flat_patches() (in module isaaclab.terrains.utils)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_global_fixed_joint_prim">find_global_fixed_joint_prim() (in module isaaclab.sim.utils.queries)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_joints">find_joints() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.find_joints">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_matching_prim_paths">find_matching_prim_paths() (in module isaaclab.sim.utils.queries)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.queries.find_matching_prims">find_matching_prims() (in module isaaclab.sim.utils.queries)</a>
@@ -3387,7 +3650,11 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.find_root_prim_path_from_regex">find_root_prim_path_from_regex() (in module isaaclab.utils.string)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_spatial_tendons">find_spatial_tendons() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.find_spatial_tendons">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.find_terms">find_terms() (isaaclab.managers.ActionManager method)</a>
 
       <ul>
@@ -3447,13 +3714,25 @@
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks">fixed_input_tasks (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_damping">fixed_tendon_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.fixed_tendon_ids">fixed_tendon_ids (isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_limit">fixed_tendon_limit (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_limit">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_limit_stiffness">fixed_tendon_limit_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_limit_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.fixed_tendon_names">fixed_tendon_names (isaaclab.assets.Articulation property)</a>
 
       <ul>
@@ -3461,15 +3740,35 @@
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.fixed_tendon_names">(isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.fixed_tendon_names">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_names">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_offset">fixed_tendon_offset (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_offset">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_pos_limits">fixed_tendon_pos_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_pos_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_rest_length">fixed_tendon_rest_length (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_rest_length">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_stiffness">fixed_tendon_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.fixed_tendon_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.fixed_tendons_props">fixed_tendons_props (isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 
       <ul>
@@ -3709,7 +4008,11 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.GaussianNoiseCfg">GaussianNoiseCfg (class in isaaclab.utils.noise)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.gear_ratio">gear_ratio (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.gear_ratio">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate">generate() (isaaclab_mimic.datagen.DataGenerator method)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate_eef_subtask_trajectory">generate_eef_subtask_trajectory() (isaaclab_mimic.datagen.DataGenerator method)</a>
@@ -3856,6 +4159,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.RetargeterBase.get_requirements">get_requirements() (isaaclab.devices.RetargeterBase method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_robot_eef_pose">get_robot_eef_pose() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 
       <ul>
@@ -3872,8 +4177,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.get_robot_eef_pose">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_scales">get_scales() (isaaclab.sim.views.XformPrimView method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_setting">get_setting() (isaaclab.sim.SimulationContext method)</a>
@@ -4077,6 +4380,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.has_debug_vis_implementation">(isaaclab.terrains.TerrainImporter property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.has_debug_vis_implementation">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.has_debug_vis_implementation">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.has_gui">has_gui() (isaaclab.sim.SimulationContext method)</a>
 </li>
@@ -4130,6 +4437,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.heading_w">(isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.heading_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.heading_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.height">height (isaaclab.sensors.CameraCfg attribute)</a>
@@ -4357,12 +4666,16 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg.init_state">(isaaclab.assets.RigidObjectCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.init_state">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg.initial_step">initial_step (isaaclab_rl.rsl_rl.RslRlRndCfg.LinearWeightScheduleCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorNetMLPCfg.input_idx">input_idx (isaaclab.actuators.ActuatorNetMLPCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorNetMLPCfg.input_order">input_order (isaaclab.actuators.ActuatorNetMLPCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.integration_scheme">integration_scheme (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.modifiers.Integrator">Integrator (class in isaaclab.utils.modifiers)</a>
 </li>
@@ -4407,7 +4720,11 @@
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains.inverted_pyramid_stairs_terrain">inverted_pyramid_stairs_terrain() (in module isaaclab.terrains.trimesh.mesh_terrains)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.IO_descriptor">IO_descriptor (isaaclab.managers.ActionTerm property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.IO_descriptor">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.is_alive">is_alive() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.stage.is_current_stage_in_memory">is_current_stage_in_memory() (in module isaaclab.sim.utils.stage)</a>
@@ -4439,7 +4756,11 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.is_fixed_base">is_fixed_base (isaaclab.assets.Articulation property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.is_fixed_base">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg.is_global_time">is_global_time (isaaclab.managers.EventTermCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.is_identity_pose">is_identity_pose() (in module isaaclab.utils.math)</a>
@@ -4494,6 +4815,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera.is_initialized">(isaaclab.sensors.TiledCamera property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.is_initialized">(isaaclab.sensors.VisuoTactileSensor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.is_initialized">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.is_lambda_expression">is_lambda_expression() (in module isaaclab.utils.string)</a>
@@ -4588,8 +4911,6 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp.actions
 
@@ -4597,6 +4918,8 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp.actions">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp.actions.actions_cfg
 
@@ -5004,6 +5327,34 @@
 </li>
       </ul></li>
       <li>
+    isaaclab_contrib.actuators
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#module-isaaclab_contrib.actuators">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_contrib.assets
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#module-isaaclab_contrib.assets">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_contrib.mdp
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#module-isaaclab_contrib.mdp">module</a>
+</li>
+      </ul></li>
+      <li>
+    isaaclab_contrib.mdp.actions
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#module-isaaclab_contrib.mdp.actions">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab_mimic.datagen
 
       <ul>
@@ -5068,13 +5419,25 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_acc">joint_acc (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_acc">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_acc_l2">joint_acc_l2() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_armature">joint_armature (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_armature">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_damping">joint_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_deviation_l1">joint_deviation_l1() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.joint_drive">joint_drive (isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
@@ -5092,21 +5455,41 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_dynamic_friction_coeff">joint_dynamic_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_dynamic_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_effort">joint_effort() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_effort_limits">joint_effort_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_effort_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.terminations.joint_effort_out_of_limit">joint_effort_out_of_limit() (in module isaaclab.envs.mdp.terminations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_effort_target">joint_effort_target (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_effort_target">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions.joint_efforts">joint_efforts (isaaclab.utils.types.ArticulationActions attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_friction">joint_friction (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_friction">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_friction_coeff">joint_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.joint_ids">joint_ids (isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBase.joint_indices">joint_indices (isaaclab.actuators.ActuatorBase property)</a>
@@ -5130,7 +5513,11 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_limits">joint_limits (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_limits">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBase.joint_names">joint_names (isaaclab.actuators.ActuatorBase property)</a>
 
       <ul>
@@ -5182,6 +5569,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.joint_names">(isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.joint_names">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_names">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -5210,13 +5601,21 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_pos">(isaaclab.assets.ArticulationData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.joint_pos">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_pos">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_pos">joint_pos() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_pos_limit_normalized">joint_pos_limit_normalized() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_pos_limits">joint_pos_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_pos_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_pos_limits">joint_pos_limits() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.terminations.joint_pos_out_of_limit">joint_pos_out_of_limit() (in module isaaclab.envs.mdp.terminations)</a>
@@ -5226,17 +5625,29 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_pos_rel">joint_pos_rel() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_pos_target">joint_pos_target (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_pos_target">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions.joint_positions">joint_positions (isaaclab.utils.types.ArticulationActions attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_stiffness">joint_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_torques_l2">joint_torques_l2() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.InitialStateCfg.joint_vel">joint_vel (isaaclab.assets.ArticulationCfg.InitialStateCfg attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_vel">(isaaclab.assets.ArticulationData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.joint_vel">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_vel">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_vel">joint_vel() (in module isaaclab.envs.mdp.observations)</a>
@@ -5246,7 +5657,11 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_vel_l2">joint_vel_l2() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_vel_limits">joint_vel_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_vel_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.joint_vel_limits">joint_vel_limits() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.terminations.joint_vel_out_of_limit">joint_vel_out_of_limit() (in module isaaclab.envs.mdp.terminations)</a>
@@ -5256,13 +5671,25 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.joint_vel_rel">joint_vel_rel() (in module isaaclab.envs.mdp.observations)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_vel_target">joint_vel_target (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_vel_target">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.types.ArticulationActions.joint_velocities">joint_velocities (isaaclab.utils.types.ArticulationActions attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_velocity_limits">joint_velocity_limits (isaaclab.assets.ArticulationData property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_velocity_limits">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_viscous_friction_coeff">joint_viscous_friction_coeff (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.joint_viscous_friction_coeff">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.JointActionCfg">JointActionCfg (class in isaaclab.envs.mdp.actions.actions_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.JointDrivePropertiesCfg">JointDrivePropertiesCfg (class in isaaclab.sim.schemas)</a>
@@ -5335,6 +5762,8 @@
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg.InitialStateCfg.lin_vel">(isaaclab.assets.RigidObjectCfg.InitialStateCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.lin_vel">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x">lin_vel_x (isaaclab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges attribute)</a>
@@ -5665,6 +6094,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.max_sim_vertices_per_body">max_sim_vertices_per_body (isaaclab.assets.DeformableObject property)</a>
 </li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.max_thrust_rate">max_thrust_rate (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.DelayBuffer.max_time_lag">max_time_lag (isaaclab.utils.buffers.DelayBuffer property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.JointDrivePropertiesCfg.max_velocity">max_velocity (isaaclab.sim.schemas.JointDrivePropertiesCfg attribute)</a>
@@ -5769,14 +6200,14 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">MeshRepeatedBoxesTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">MeshRepeatedBoxesTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">MeshRepeatedCylindersTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg">MeshRepeatedCylindersTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg">MeshRepeatedObjectsTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.ObjectCfg">MeshRepeatedObjectsTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -6011,6 +6442,14 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#module-isaaclab.utils.warp">isaaclab.utils.warp</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#module-isaaclab_contrib.actuators">isaaclab_contrib.actuators</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#module-isaaclab_contrib.assets">isaaclab_contrib.assets</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#module-isaaclab_contrib.mdp">isaaclab_contrib.mdp</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#module-isaaclab_contrib.mdp.actions">isaaclab_contrib.mdp.actions</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#module-isaaclab_mimic.datagen">isaaclab_mimic.datagen</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#module-isaaclab_mimic.envs">isaaclab_mimic.envs</a>
@@ -6053,6 +6492,14 @@
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg">MultiMeshRayCasterCfg.RaycastTargetCfg (class in isaaclab.sensors)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterData">MultiMeshRayCasterData (class in isaaclab.sensors)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor">Multirotor (class in isaaclab_contrib.assets)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg">MultirotorCfg (class in isaaclab_contrib.assets)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg">MultirotorCfg.InitialStateCfg (class in isaaclab_contrib.assets)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData">MultirotorData (class in isaaclab_contrib.assets)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.wrappers.MultiUsdFileCfg">MultiUsdFileCfg (class in isaaclab.sim.spawners.wrappers)</a>
 </li>
@@ -6249,13 +6696,13 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformer.num_bodies">(isaaclab.sensors.FrameTransformer property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_bodies">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg.num_cols">num_cols (isaaclab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.num_datagen_infos">num_datagen_infos (isaaclab_mimic.datagen.DataGenInfoPool property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv.num_envs">num_envs (isaaclab.envs.DirectMARLEnv property)</a>
 
       <ul>
@@ -6293,6 +6740,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.num_envs">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.num_envs">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv.num_envs">(isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv property)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.num_envs">(isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv property)</a>
@@ -6306,10 +6755,16 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.num_envs">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv property)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.num_fixed_steps">num_fixed_steps (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_fixed_tendons">num_fixed_tendons (isaaclab.assets.Articulation property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_fixed_tendons">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints">num_hand_joints (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_instances">num_instances (isaaclab.assets.Articulation property)</a>
@@ -6345,6 +6800,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.num_instances">(isaaclab.sensors.VisuoTactileSensor property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_instances">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.num_interpolation_steps">num_interpolation_steps (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
@@ -6366,6 +6823,8 @@
         <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.RemotizedPDActuator.num_joints">(isaaclab.actuators.RemotizedPDActuator property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_joints">(isaaclab.assets.Articulation property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_joints">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg.num_learning_epochs">num_learning_epochs (isaaclab_rl.rsl_rl.RslRlDistillationAlgorithmCfg attribute)</a>
@@ -6427,7 +6886,11 @@
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg.num_rows">num_rows (isaaclab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_spatial_tendons">num_spatial_tendons (isaaclab.assets.Articulation property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_spatial_tendons">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.num_states">num_states (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -6440,6 +6903,12 @@
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg.num_steps_per_env">(isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg.num_steps_per_env">(isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.num_thrusters">num_thrusters (isaaclab_contrib.actuators.Thruster property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.num_thrusters">(isaaclab_contrib.assets.Multirotor property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves">num_waves (isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg attribute)</a>
@@ -6656,6 +7125,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.offset">(isaaclab.sensors.TiledCameraCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.FixedTendonPropertiesCfg.offset">(isaaclab.sim.schemas.FixedTendonPropertiesCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.OffsetCfg">OffsetCfg (class in isaaclab.sensors)</a>
@@ -6943,6 +7414,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.OffsetCfg.pos">(isaaclab.sensors.TiledCameraCfg.OffsetCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.pos">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -7001,6 +7474,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg.preserve_order">(isaaclab.managers.SceneEntityCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.prev_action">prev_action (isaaclab.managers.ActionManager property)</a>
 </li>
@@ -7045,6 +7520,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporterCfg.prim_path">(isaaclab.terrains.TerrainImporterCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.prim_path">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.prim_paths">prim_paths (isaaclab.sim.views.XformPrimView property)</a>
 </li>
@@ -7071,11 +7548,19 @@
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.process_action">process_action() (isaaclab.managers.ActionManager method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.process_actions">process_actions() (isaaclab.managers.ActionTerm method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.sb3.process_sb3_cfg">process_sb3_cfg() (in module isaaclab_rl.sb3)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.processed_actions">processed_actions (isaaclab.managers.ActionTerm property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.processed_actions">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.project_points">project_points() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.MdlFileCfg.project_uvw">project_uvw (isaaclab.sim.spawners.materials.MdlFileCfg attribute)</a>
@@ -7088,6 +7573,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.projected_gravity_b">(isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.projected_gravity_b">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.projected_gravity_b">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.FisheyeCameraCfg.projection_type">projection_type (isaaclab.sim.spawners.sensors.FisheyeCameraCfg attribute)</a>
@@ -7305,7 +7792,11 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.logger.RateLimitFilter">RateLimitFilter (class in isaaclab.utils.logger)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.raw_actions">raw_actions (isaaclab.managers.ActionTerm property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.raw_actions">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction property)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.MultiMeshRayCasterCameraCfg.ray_alignment">ray_alignment (isaaclab.sensors.MultiMeshRayCasterCameraCfg attribute)</a>
 
       <ul>
@@ -7639,6 +8130,12 @@
 </li>
         <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.noise.NoiseModelWithAdditiveBias.reset">(isaaclab.utils.noise.NoiseModelWithAdditiveBias method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.reset">(isaaclab_contrib.actuators.Thruster method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.reset">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv.reset">(isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv method)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.reset">(isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv method)</a>
@@ -7652,8 +8149,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.reset">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.reset_idx">reset_idx() (isaaclab_contrib.actuators.Thruster method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_offset">reset_joints_by_offset() (in module isaaclab.envs.mdp.events)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_joints_by_scale">reset_joints_by_scale() (in module isaaclab.envs.mdp.events)</a>
@@ -7690,6 +8187,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.reset_to">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.reshape_data_to_view">reshape_data_to_view() (isaaclab.assets.RigidObjectCollection method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.reshape_view_to_data">reshape_view_to_data() (isaaclab.assets.RigidObjectCollection method)</a>
@@ -7885,11 +8384,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_ang_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_ang_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_ang_vel_w">root_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.root_ang_vel_w">root_ang_vel_w() (in module isaaclab.envs.mdp.observations)</a>
@@ -7899,11 +8402,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_ang_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_ang_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_ang_vel_w">root_com_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_lin_vel_b">root_com_lin_vel_b (isaaclab.assets.ArticulationData property)</a>
@@ -7911,11 +8418,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_lin_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_lin_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_lin_vel_w">root_com_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_pos_w">root_com_pos_w (isaaclab.assets.ArticulationData property)</a>
@@ -7923,11 +8434,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_pos_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_pose_w">root_com_pose_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_pose_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_quat_w">root_com_quat_w (isaaclab.assets.ArticulationData property)</a>
@@ -7935,17 +8450,23 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_quat_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_state_w">root_com_state_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_com_vel_w">root_com_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_com_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_com_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.terminations.root_height_below_minimum">root_height_below_minimum() (in module isaaclab.envs.mdp.terminations)</a>
@@ -7955,11 +8476,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_lin_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_lin_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_lin_vel_w">root_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.root_lin_vel_w">root_lin_vel_w() (in module isaaclab.envs.mdp.observations)</a>
@@ -7969,11 +8494,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_ang_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_ang_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_ang_vel_w">root_link_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_ang_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_lin_vel_b">root_link_lin_vel_b (isaaclab.assets.ArticulationData property)</a>
@@ -7981,11 +8510,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_lin_vel_b">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_lin_vel_b">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_lin_vel_w">root_link_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_lin_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.root_link_name">root_link_name (isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
@@ -7999,11 +8532,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_pos_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_pose_w">root_link_pose_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_pose_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_quat_w">root_link_quat_w (isaaclab.assets.ArticulationData property)</a>
@@ -8011,17 +8548,23 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_quat_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_state_w">root_link_state_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_link_vel_w">root_link_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_link_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_link_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.root_physx_view">root_physx_view (isaaclab.assets.Articulation property)</a>
@@ -8033,6 +8576,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.root_physx_view">(isaaclab.assets.RigidObjectCollection property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.root_physx_view">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_pos_w">root_pos_w (isaaclab.assets.ArticulationData property)</a>
 
@@ -8040,6 +8585,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.root_pos_w">(isaaclab.assets.DeformableObjectData property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_pos_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_pos_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.root_pos_w">root_pos_w() (in module isaaclab.envs.mdp.observations)</a>
@@ -8049,11 +8596,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_pose_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_pose_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_quat_w">root_quat_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_quat_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_quat_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.root_quat_w">root_quat_w() (in module isaaclab.envs.mdp.observations)</a>
@@ -8063,6 +8614,8 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_state_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_state_w">(isaaclab_contrib.assets.MultirotorData property)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.root_vel_w">root_vel_w (isaaclab.assets.ArticulationData property)</a>
 
@@ -8070,6 +8623,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.root_vel_w">(isaaclab.assets.DeformableObjectData property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.root_vel_w">(isaaclab.assets.RigidObjectData property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.root_vel_w">(isaaclab_contrib.assets.MultirotorData property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.InitialStateCfg.rot">rot (isaaclab.assets.ArticulationCfg.InitialStateCfg attribute)</a>
@@ -8091,10 +8646,16 @@
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.OffsetCfg.rot">(isaaclab.sensors.TiledCameraCfg.OffsetCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.rot">(isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverterCfg.rotation">rotation (isaaclab.sim.converters.MeshConverterCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.rotor_directions">rotor_directions (isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.materials.PreviewSurfaceCfg.roughness">roughness (isaaclab.sim.spawners.materials.PreviewSurfaceCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg.rps">rps (isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg">RslRlBaseRunnerCfg (class in isaaclab_rl.rsl_rl)</a>
 </li>
@@ -8210,6 +8771,8 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UsdFileCfg.scale">(isaaclab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.wrappers.MultiUsdFileCfg.scale">(isaaclab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.modifiers.scale">scale() (in module isaaclab.utils.modifiers)</a>
@@ -8421,6 +8984,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.serialize">(isaaclab.managers.ObservationManager method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.serialize">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
+</li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv.serialize">(isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv method)</a>
 </li>
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv.serialize">(isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv method)</a>
@@ -8489,6 +9054,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.set_debug_vis">(isaaclab.terrains.TerrainImporter method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_debug_vis">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.set_debug_vis">(isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_external_force_and_torque">set_external_force_and_torque() (isaaclab.assets.Articulation method)</a>
 
@@ -8497,21 +9066,51 @@
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.set_external_force_and_torque">(isaaclab.assets.RigidObjectCollection method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_external_force_and_torque">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_damping">set_fixed_tendon_damping() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_damping">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_limit">set_fixed_tendon_limit() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_limit">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_limit_stiffness">set_fixed_tendon_limit_stiffness() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_limit_stiffness">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_offset">set_fixed_tendon_offset() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_offset">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_position_limit">set_fixed_tendon_position_limit() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_position_limit">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_rest_length">set_fixed_tendon_rest_length() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_rest_length">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_fixed_tendon_stiffness">set_fixed_tendon_stiffness() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_fixed_tendon_stiffness">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.set_intrinsic_matrices">set_intrinsic_matrices() (isaaclab.sensors.Camera method)</a>
 
       <ul>
@@ -8523,11 +9122,23 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_effort_target">set_joint_effort_target() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_joint_effort_target">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_position_target">set_joint_position_target() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_joint_position_target">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_velocity_target">set_joint_velocity_target() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_joint_velocity_target">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_local_poses">set_local_poses() (isaaclab.sim.views.XformPrimView method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.utils.html#isaaclab.sim.utils.prims.set_prim_visibility">set_prim_visibility() (in module isaaclab.sim.utils.prims)</a>
@@ -8539,13 +9150,29 @@
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.set_setting">set_setting() (isaaclab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_spatial_tendon_damping">set_spatial_tendon_damping() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_spatial_tendon_damping">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_spatial_tendon_limit_stiffness">set_spatial_tendon_limit_stiffness() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_spatial_tendon_limit_stiffness">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_spatial_tendon_offset">set_spatial_tendon_offset() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_spatial_tendon_offset">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_spatial_tendon_stiffness">set_spatial_tendon_stiffness() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_spatial_tendon_stiffness">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.set_success_to_episodes">set_success_to_episodes() (isaaclab.managers.RecorderManager method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager.set_term_cfg">set_term_cfg() (isaaclab.managers.EventManager method)</a>
@@ -8556,6 +9183,8 @@
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager.set_term_cfg">(isaaclab.managers.TerminationManager method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_thrust_target">set_thrust_target() (isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.DelayBuffer.set_time_lag">set_time_lag() (isaaclab.utils.buffers.DelayBuffer method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ViewportCameraController.set_view_env_index">set_view_env_index() (isaaclab.envs.ui.ViewportCameraController method)</a>
@@ -8574,6 +9203,8 @@
         <li><a href="source/api/lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkers.set_visibility">(isaaclab.markers.VisualizationMarkers method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_visibility">(isaaclab.sim.views.XformPrimView method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_visibility">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Camera.set_world_poses">set_world_poses() (isaaclab.sensors.Camera method)</a>
@@ -8620,6 +9251,8 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.set_wrapper_attr">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold">settling_threshold (isaaclab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.setup_manager_visualizers">setup_manager_visualizers() (isaaclab.envs.ManagerBasedEnv method)</a>
@@ -8642,8 +9275,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv.setup_manager_visualizers">(isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
@@ -8799,11 +9430,23 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.soft_joint_pos_limit_factor">soft_joint_pos_limit_factor (isaaclab.assets.ArticulationCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.soft_joint_pos_limit_factor">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.soft_joint_pos_limits">soft_joint_pos_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.soft_joint_pos_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.soft_joint_vel_limits">soft_joint_vel_limits (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.soft_joint_vel_limits">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.PhysxCfg.solve_articulation_contact_last">solve_articulation_contact_last (isaaclab.sim.PhysxCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.ArticulationRootPropertiesCfg.solver_position_iteration_count">solver_position_iteration_count (isaaclab.sim.schemas.ArticulationRootPropertiesCfg attribute)</a>
@@ -8829,19 +9472,39 @@
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.FrameTransformerData.source_quat_w">source_quat_w (isaaclab.sensors.FrameTransformerData attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.spatial_tendon_damping">spatial_tendon_damping (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.spatial_tendon_damping">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.spatial_tendon_limit_stiffness">spatial_tendon_limit_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.spatial_tendon_limit_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.spatial_tendon_names">spatial_tendon_names (isaaclab.assets.Articulation property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.spatial_tendon_names">(isaaclab.assets.ArticulationData attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.spatial_tendon_names">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.spatial_tendon_names">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.spatial_tendon_offset">spatial_tendon_offset (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.spatial_tendon_offset">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.spatial_tendon_stiffness">spatial_tendon_stiffness (isaaclab.assets.ArticulationData attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.spatial_tendon_stiffness">(isaaclab_contrib.assets.MultirotorData attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.spatial_tendons_props">spatial_tendons_props (isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 
       <ul>
@@ -8862,6 +9525,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.spawn">(isaaclab.sensors.CameraCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.spawn">(isaaclab.sensors.TiledCameraCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.spawn">(isaaclab_contrib.assets.MultirotorCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.spawn_camera">spawn_camera() (in module isaaclab.sim.spawners.sensors)</a>
@@ -9172,6 +9837,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path">task_frame_rel_path (isaaclab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.tau_dec_range">tau_dec_range (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.tau_inc_range">tau_inc_range (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg.teacher_hidden_dims">teacher_hidden_dims (isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherCfg attribute)</a>
 
       <ul>
@@ -9240,8 +9909,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg.terminations">(isaaclab_mimic.envs.galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationTermCfg">TerminationTermCfg (class in isaaclab.managers)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.terrain">terrain (isaaclab.scene.InteractiveScene property)</a>
@@ -9252,6 +9919,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator.terrain_meshes">terrain_meshes (isaaclab.terrains.TerrainGenerator attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainImporter.terrain_names">terrain_names (isaaclab.terrains.TerrainImporter property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGenerator.terrain_origins">terrain_origins (isaaclab.terrains.TerrainGenerator attribute)</a>
@@ -9286,6 +9955,34 @@
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg.threshold">threshold (isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.thrust_const_range">thrust_const_range (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.thrust_range">thrust_range (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.thrust_target">thrust_target (isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction">ThrustAction (class in isaaclab_contrib.mdp.actions.thrust_actions)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg">ThrustActionCfg (class in isaaclab_contrib.mdp.actions.thrust_actions_cfg)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster">Thruster (class in isaaclab_contrib.actuators)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.thruster_force_direction">thruster_force_direction (isaaclab_contrib.assets.MultirotorCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.thruster_indices">thruster_indices (isaaclab_contrib.actuators.Thruster property)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.Thruster.thruster_names">thruster_names (isaaclab_contrib.actuators.Thruster property)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.thruster_names">(isaaclab_contrib.assets.Multirotor property)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData.thruster_names">(isaaclab_contrib.assets.MultirotorData attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.thruster_names_expr">thruster_names_expr (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg">ThrusterCfg (class in isaaclab_contrib.actuators)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCamera">TiledCamera (class in isaaclab.sensors)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg">TiledCameraCfg (class in isaaclab.sensors)</a>
@@ -9317,6 +10014,8 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.string.to_snake_case">to_snake_case() (in module isaaclab.utils.string)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorNetMLPCfg.torque_scale">torque_scale (isaaclab.actuators.ActuatorNetMLPCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.torque_to_thrust_ratio">torque_to_thrust_ratio (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.CollisionPropertiesCfg.torsional_patch_radius">torsional_patch_radius (isaaclab.sim.schemas.CollisionPropertiesCfg attribute)</a>
 </li>
@@ -9464,6 +10163,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.update">(isaaclab.assets.RigidObjectData method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.update">(isaaclab.scene.InteractiveScene method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.update">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.dict.update_class_from_dict">update_class_from_dict() (in module isaaclab.utils.dict)</a>
@@ -9619,7 +10320,11 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.use_default_offset">(isaaclab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset">(isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg attribute)</a>
+</li>
       </ul></li>
+      <li><a href="source/api/lab_contrib/isaaclab_contrib.actuators.html#isaaclab_contrib.actuators.ThrusterCfg.use_discrete_approximation">use_discrete_approximation (isaaclab_contrib.actuators.ThrusterCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.use_fabric">use_fabric (isaaclab.sim.SimulationCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlSymmetryCfg.use_mirror_loss">use_mirror_loss (isaaclab_rl.rsl_rl.RslRlSymmetryCfg attribute)</a>
@@ -10069,35 +10774,89 @@
 </li>
         <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.write_data_to_sim">(isaaclab.scene.InteractiveScene method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_data_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_fixed_tendon_properties_to_sim">write_fixed_tendon_properties_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_fixed_tendon_properties_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_armature_to_sim">write_joint_armature_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_armature_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_damping_to_sim">write_joint_damping_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_damping_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_effort_limit_to_sim">write_joint_effort_limit_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_effort_limit_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim">write_joint_friction_coefficient_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_friction_coefficient_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_friction_to_sim">write_joint_friction_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_friction_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_limits_to_sim">write_joint_limits_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_limits_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_position_limit_to_sim">write_joint_position_limit_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_position_limit_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_position_to_sim">write_joint_position_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_position_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_limits_to_sim">write_joint_limits_to_sim() (isaaclab.assets.Articulation method)</a>
-</li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_position_limit_to_sim">write_joint_position_limit_to_sim() (isaaclab.assets.Articulation method)</a>
-</li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_position_to_sim">write_joint_position_to_sim() (isaaclab.assets.Articulation method)</a>
-</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_state_to_sim">write_joint_state_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_state_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_stiffness_to_sim">write_joint_stiffness_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_stiffness_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_velocity_limit_to_sim">write_joint_velocity_limit_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_velocity_limit_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_velocity_to_sim">write_joint_velocity_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_joint_velocity_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim">write_nodal_kinematic_target_to_sim() (isaaclab.assets.DeformableObject method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObject.write_nodal_pos_to_sim">write_nodal_pos_to_sim() (isaaclab.assets.DeformableObject method)</a>
@@ -10129,11 +10888,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_com_pose_to_sim">(isaaclab.assets.RigidObject method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_com_pose_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_com_state_to_sim">write_root_com_state_to_sim() (isaaclab.assets.Articulation method)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_com_state_to_sim">(isaaclab.assets.RigidObject method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_com_state_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_com_velocity_to_sim">write_root_com_velocity_to_sim() (isaaclab.assets.Articulation method)</a>
@@ -10141,11 +10904,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_com_velocity_to_sim">(isaaclab.assets.RigidObject method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_com_velocity_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_link_pose_to_sim">write_root_link_pose_to_sim() (isaaclab.assets.Articulation method)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_link_pose_to_sim">(isaaclab.assets.RigidObject method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_link_pose_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_link_state_to_sim">write_root_link_state_to_sim() (isaaclab.assets.Articulation method)</a>
@@ -10153,11 +10920,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_link_state_to_sim">(isaaclab.assets.RigidObject method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_link_state_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_link_velocity_to_sim">write_root_link_velocity_to_sim() (isaaclab.assets.Articulation method)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_link_velocity_to_sim">(isaaclab.assets.RigidObject method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_link_velocity_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_pose_to_sim">write_root_pose_to_sim() (isaaclab.assets.Articulation method)</a>
@@ -10165,11 +10936,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_pose_to_sim">(isaaclab.assets.RigidObject method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_pose_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_state_to_sim">write_root_state_to_sim() (isaaclab.assets.Articulation method)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_state_to_sim">(isaaclab.assets.RigidObject method)</a>
+</li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_state_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_root_velocity_to_sim">write_root_velocity_to_sim() (isaaclab.assets.Articulation method)</a>
@@ -10177,9 +10952,15 @@
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObject.write_root_velocity_to_sim">(isaaclab.assets.RigidObject method)</a>
 </li>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_root_velocity_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_spatial_tendon_properties_to_sim">write_spatial_tendon_properties_to_sim() (isaaclab.assets.Articulation method)</a>
+
+      <ul>
+        <li><a href="source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.write_spatial_tendon_properties_to_sim">(isaaclab_contrib.assets.Multirotor method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
