@@ -154,9 +154,7 @@ class QuadcopterEnv(DirectRLEnv):
 
     def _apply_action(self):
         self._robot.permanent_wrench_composer.set_forces_and_torques(
-            body_ids=self._body_id,
-            forces=self._thrust,
-            torques=self._moment
+            body_ids=self._body_id, forces=self._thrust, torques=self._moment
         )
 
     def _get_observations(self) -> dict:

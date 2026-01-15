@@ -243,7 +243,9 @@ def test_add_forces_at_positons(device: str, num_envs: int, num_bodies: int):
             forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
             positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
             # Add forces at positions to wrench composer
-            wrench_composer.add_forces_and_torques(forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids)
+            wrench_composer.add_forces_and_torques(
+                forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids
+            )
             # Add forces to hand-calculated composed force
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
             # Add torques to hand-calculated composed torque: torque = cross(position, force)
@@ -294,7 +296,9 @@ def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
             torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
             positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
             # Add torques at positions to wrench composer
-            wrench_composer.add_forces_and_torques(torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids)
+            wrench_composer.add_forces_and_torques(
+                torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids
+            )
             # Add torques to hand-calculated composed torque
             hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
         # Get composed torque from wrench composer
