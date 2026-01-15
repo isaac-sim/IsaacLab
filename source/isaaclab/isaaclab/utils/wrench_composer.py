@@ -25,9 +25,6 @@ class WrenchComposer:
         It can compose global wrenches and local wrenches. The result is always in the center of mass frame of the body.
 
         Args:
-            num_envs: Number of environments.
-            num_bodies: Number of bodies.
-            device: Device to use.
             asset: Asset to use. Defaults to None.
         """
         self.num_envs = asset.num_instances
