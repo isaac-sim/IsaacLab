@@ -19,6 +19,7 @@ Added
 
 Changed
 ^^^^^^^
+
 * Deprecated :meth:`~isaaclab.assets.Articulation.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.Articulation.permanent_wrench_composer.set_forces_and_torques`.
 * Deprecated :meth:`~isaaclab.assets.RigidObject.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObject.permanent_wrench_composer.set_forces_and_torques`.
 * Deprecated :meth:`~isaaclab.assets.RigidObjectCollection.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObjectCollection.permanent_wrench_composer.set_forces_and_torques`.
