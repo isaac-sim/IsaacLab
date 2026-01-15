@@ -16,10 +16,13 @@ import types
 
 import pytest
 import torch
-
 from isaaclab_contrib.controllers import (
     lee_acceleration_control as acc_mod,
+)
+from isaaclab_contrib.controllers import (
     lee_position_control as pos_mod,
+)
+from isaaclab_contrib.controllers import (
     lee_velocity_control as vel_mod,
 )
 from isaaclab_contrib.controllers.lee_acceleration_control_cfg import LeeAccControllerCfg
@@ -61,9 +64,7 @@ class _DummyRobot:
         self.root_physx_view = _DummyPhysxView(num_envs, num_bodies, device)
 
 
-def _patch_aggregate(
-    monkeypatch: pytest.MonkeyPatch, module, num_envs: int, device: torch.device
-) -> None:
+def _patch_aggregate(monkeypatch: pytest.MonkeyPatch, module, num_envs: int, device: torch.device) -> None:
     """Monkeypatch aggregate_inertia_about_robot_com to a deterministic CPU-friendly stub."""
 
     def _agg(*_args, **_kwargs):
@@ -134,7 +135,7 @@ def test_lee_vel_randomize_params_within_bounds(monkeypatch: pytest.MonkeyPatch,
     # Ensure tensors are on the correct device
     K_vel_max = torch.tensor(cfg.K_vel_range[0], device=device, dtype=torch.float32)
     K_vel_min = torch.tensor(cfg.K_vel_range[1], device=device, dtype=torch.float32)
-        
+
     # Move controller gains to same device if needed
     K_vel_current = controller.K_vel_current.to(device)
 
@@ -183,7 +184,7 @@ def test_lee_acc_randomize_params_within_bounds(monkeypatch: pytest.MonkeyPatch,
     K_rot_max = torch.tensor(cfg.K_rot_range[0], device=device, dtype=torch.float32)
     K_rot_min = torch.tensor(cfg.K_rot_range[1], device=device, dtype=torch.float32)
     K_rot_current = controller.K_rot_current.to(device)
-    
+
     assert torch.all(K_rot_current >= K_rot_min), f"K_rot below minimum: {K_rot_current.min()} < {K_rot_min.min()}"
     assert torch.all(K_rot_current <= K_rot_max), f"K_rot above maximum: {K_rot_current.max()} > {K_rot_max.max()}"
 
@@ -192,9 +193,13 @@ def test_lee_acc_randomize_params_within_bounds(monkeypatch: pytest.MonkeyPatch,
     K_angvel_min = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
     K_angvel_current = controller.K_angvel_current.to(device)
 
-    assert torch.all(K_angvel_current >= K_angvel_min), f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
-    assert torch.all(K_angvel_current <= K_angvel_max), f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
-    
+    assert torch.all(
+        K_angvel_current >= K_angvel_min
+    ), f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
+    assert torch.all(
+        K_angvel_current <= K_angvel_max
+    ), f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
+
 
 # Cleanup after all tests complete
 def teardown_module():
