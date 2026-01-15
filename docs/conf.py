@@ -21,6 +21,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
@@ -29,8 +31,6 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
 
 # -- Project information -----------------------------------------------------
 
@@ -253,7 +253,6 @@ html_theme_options = {
     "collapse_navigation": True,
     "copyright_override": {"start": 2022},
     "github_url": "https://github.com/isaac-sim/IsaacLab",
-    "navbar_start": ["navbar-logo", "version-switcher"],
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
     "use_edit_page_button": True,
     "navigation_depth": 2,
