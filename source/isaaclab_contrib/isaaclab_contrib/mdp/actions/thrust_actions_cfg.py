@@ -39,8 +39,8 @@ class ThrustActionCfg(ActionTermCfg):
 
             thrust_action = ThrustActionCfg(
                 asset_name="robot",
-                scale=2.0,                  # Actions in [-1,1] become [-2,2] N
-                use_default_offset=True,    # Add hover thrust (e.g., 5N)
+                scale=2.0,  # Actions in [-1,1] become [-2,2] N
+                use_default_offset=True,  # Add hover thrust (e.g., 5N)
                 clip={".*": (0.0, 10.0)},  # Final thrust in [0, 10] N
             )
 
@@ -65,8 +65,8 @@ class ThrustActionCfg(ActionTermCfg):
             thrust_action = ThrustActionCfg(
                 asset_name="robot",
                 scale=3.0,
-                use_default_offset=True,     # Center around hover
-                clip={".*": (-2.0, 8.0)},   # Allow +/-2N deviation
+                use_default_offset=True,  # Center around hover
+                clip={".*": (-2.0, 8.0)},  # Allow +/-2N deviation
             )
 
     .. seealso::

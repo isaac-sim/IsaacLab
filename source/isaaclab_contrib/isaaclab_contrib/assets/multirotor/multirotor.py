@@ -62,8 +62,8 @@ class Multirotor(Articulation):
             thruster_cfg = ThrusterCfg(
                 thruster_names_expr=["rotor_[0-3]"],  # Match rotors 0-3
                 thrust_range=(0.0, 10.0),  # Min and max thrust in Newtons
-                rise_time_constant=0.1,     # Time constant for thrust increase
-                fall_time_constant=0.2,     # Time constant for thrust decrease
+                rise_time_constant=0.1,  # Time constant for thrust increase
+                fall_time_constant=0.2,  # Time constant for thrust decrease
             )
 
             # Create multirotor configuration
@@ -72,12 +72,12 @@ class Multirotor(Articulation):
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)
-                    [1.0, 1.0, 1.0, 1.0],      # Total vertical force
-                    [0.0, 0.0, 0.0, 0.0],      # Lateral force (x)
-                    [0.0, 0.0, 0.0, 0.0],      # Lateral force (y)
-                    [0.0, 0.1, 0.0, -0.1],     # Roll torque
-                    [-0.1, 0.0, 0.1, 0.0],     # Pitch torque
-                    [0.01, -0.01, 0.01, -0.01] # Yaw torque
+                    [1.0, 1.0, 1.0, 1.0],  # Total vertical force
+                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (x)
+                    [0.0, 0.0, 0.0, 0.0],  # Lateral force (y)
+                    [0.0, 0.1, 0.0, -0.1],  # Roll torque
+                    [-0.1, 0.0, 0.1, 0.0],  # Pitch torque
+                    [0.01, -0.01, 0.01, -0.01],  # Yaw torque
                 ],
             )
 
@@ -205,8 +205,8 @@ class Multirotor(Articulation):
                 # Set thrust for specific thrusters
                 multirotor.set_thrust_target(
                     torch.tensor([[5.0, 6.0]]),  # Different thrust for 2 thrusters
-                    thruster_ids=[0, 2],         # Apply to thrusters 0 and 2
-                    env_ids=[0]                  # Only in environment 0
+                    thruster_ids=[0, 2],  # Apply to thrusters 0 and 2
+                    env_ids=[0],  # Only in environment 0
                 )
         """
         # resolve indices

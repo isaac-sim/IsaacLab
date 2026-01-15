@@ -51,7 +51,7 @@ class MultirotorCfg(ArticulationCfg):
                 ),
                 init_state=MultirotorCfg.InitialStateCfg(
                     pos=(0.0, 0.0, 1.0),  # Start 1m above ground
-                    rps={".*": 110.0},    # All thrusters at 110 RPS (hover)
+                    rps={".*": 110.0},  # All thrusters at 110 RPS (hover)
                 ),
                 actuators={
                     "thrusters": ThrusterCfg(
@@ -62,12 +62,12 @@ class MultirotorCfg(ArticulationCfg):
                     ),
                 },
                 allocation_matrix=[
-                    [1.0, 1.0, 1.0, 1.0],       # Vertical thrust
-                    [0.0, 0.0, 0.0, 0.0],       # Lateral force X
-                    [0.0, 0.0, 0.0, 0.0],       # Lateral force Y
-                    [0.0, 0.13, 0.0, -0.13],    # Roll torque
-                    [-0.13, 0.0, 0.13, 0.0],    # Pitch torque
-                    [0.01, -0.01, 0.01, -0.01], # Yaw torque
+                    [1.0, 1.0, 1.0, 1.0],  # Vertical thrust
+                    [0.0, 0.0, 0.0, 0.0],  # Lateral force X
+                    [0.0, 0.0, 0.0, 0.0],  # Lateral force Y
+                    [0.0, 0.13, 0.0, -0.13],  # Roll torque
+                    [-0.13, 0.0, 0.13, 0.0],  # Pitch torque
+                    [0.01, -0.01, 0.01, -0.01],  # Yaw torque
                 ],
                 rotor_directions=[1, -1, 1, -1],  # Alternating CW/CCW
             )

@@ -52,6 +52,7 @@ class ThrustAction(ActionTerm):
             from isaaclab.envs import ManagerBasedRLEnvCfg
             from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
+
             @configclass
             class MyEnvCfg(ManagerBasedRLEnvCfg):
                 # ... other configuration ...
@@ -61,9 +62,9 @@ class ThrustAction(ActionTerm):
                     # Direct thrust control (normalized actions)
                     thrust = ThrustActionCfg(
                         asset_name="robot",
-                        scale=5.0,              # Convert [-1, 1] to [-5, 5] N
+                        scale=5.0,  # Convert [-1, 1] to [-5, 5] N
                         use_default_offset=True,  # Add hover thrust as offset
-                        clip={".*": (-2.0, 8.0)}, # Clip to safe thrust range
+                        clip={".*": (-2.0, 8.0)},  # Clip to safe thrust range
                     )
 
     """

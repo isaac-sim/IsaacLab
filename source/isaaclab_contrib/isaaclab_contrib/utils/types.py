@@ -41,13 +41,13 @@ class MultiRotorActions:
             # Create actions for all thrusters
             actions = MultiRotorActions(
                 thrusts=torch.ones(num_envs, 4) * 5.0,
-                thruster_indices=slice(None)  # All thrusters
+                thruster_indices=slice(None),  # All thrusters
             )
 
             # Create actions for specific thrusters
             actions = MultiRotorActions(
                 thrusts=torch.tensor([[6.0, 7.0]]),
-                thruster_indices=[0, 2]  # Only thrusters 0 and 2
+                thruster_indices=[0, 2],  # Only thrusters 0 and 2
             )
 
     Note:
