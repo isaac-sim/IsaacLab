@@ -8,10 +8,11 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import torch
 import warp as wp
-from collections.abc import Sequence
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.array import TensorData, convert_to_torch

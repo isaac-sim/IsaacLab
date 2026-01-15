@@ -12,9 +12,10 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import MISSING
+
 import pytest
 import torch
-from dataclasses import MISSING
 
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.utils import configclass

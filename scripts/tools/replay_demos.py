@@ -63,16 +63,17 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import os
+
+import gymnasium as gym
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -250,7 +251,7 @@ def main():
                         if next_episode_index is not None:
                             replayed_episode_count += 1
                             current_episode_indices[env_id] = next_episode_index
-                            print(f"{replayed_episode_count :4}: Loading #{next_episode_index} episode to env_{env_id}")
+                            print(f"{replayed_episode_count:4}: Loading #{next_episode_index} episode to env_{env_id}")
                             episode_data = dataset_file_handler.load_episode(
                                 episode_names[next_episode_index], env.device
                             )
@@ -278,7 +279,7 @@ def main():
                     state_from_dataset = env_episode_data_map[0].get_next_state()
                     if state_from_dataset is not None:
                         print(
-                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1 :4}",
+                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1:4}",
                             end="",
                         )
                         current_runtime_state = env.scene.get_state(is_relative=True)

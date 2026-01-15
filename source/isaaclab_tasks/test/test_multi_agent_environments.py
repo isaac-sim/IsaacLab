@@ -16,9 +16,10 @@ simulation_app = app_launcher.app
 
 import pytest
 
-from env_test_utils import _check_random_actions, setup_environment
-
 import isaaclab_tasks  # noqa: F401
+
+# Local imports should be imported last
+from env_test_utils import _check_random_actions, setup_environment  # isort: skip
 
 
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])

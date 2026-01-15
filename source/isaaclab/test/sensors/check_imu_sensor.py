@@ -36,8 +36,9 @@ simulation_app = SimulationApp(config)
 """Rest everything follows."""
 
 import logging
-import torch
 import traceback
+
+import torch
 
 import omni
 from isaacsim.core.cloner import GridCloner

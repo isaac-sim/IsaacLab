@@ -10,9 +10,10 @@ Manus and Vive for teleoperation and interaction.
 from __future__ import annotations
 
 import contextlib
-import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
 from packaging import version
 
 import carb

@@ -14,8 +14,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 import random
+
+import pytest
 
 import isaaclab.utils.string as string_utils
 

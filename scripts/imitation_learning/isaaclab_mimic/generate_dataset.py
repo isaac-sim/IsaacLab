@@ -7,7 +7,6 @@
 Main data generation script.
 """
 
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -62,11 +61,12 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import asyncio
-import gymnasium as gym
 import inspect
 import logging
-import numpy as np
 import random
+
+import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv

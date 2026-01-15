@@ -14,9 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import math
 import os
-import pytest
 import random
 import tempfile
+
+import pytest
 
 import omni
 from pxr import UsdGeom, UsdPhysics

@@ -47,7 +47,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
   Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
 * **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
-  store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
+  store frequently reused resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * **.env.base**: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
 * **docker-compose.cloudxr-runtime.patch.yaml**: A patch file that is applied to enable CloudXR Runtime support for

@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import gymnasium as gym
 import math
+from typing import Any
+
+import gymnasium as gym
 import numpy as np
 import torch
-from typing import Any
 
 from ..common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
 from ..direct_marl_env import DirectMARLEnv

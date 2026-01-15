@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import inspect
-import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 import omni.kit.app
 

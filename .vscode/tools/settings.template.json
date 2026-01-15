@@ -62,14 +62,9 @@
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",
     // We use "black" as a formatter:
-    "python.formatting.provider": "black",
-    "python.formatting.blackArgs": ["--line-length", "120"],
-    // Use flake8 for linting
-    "python.linting.pylintEnabled": false,
-    "python.linting.flake8Enabled": true,
-    "python.linting.flake8Args": [
-        "--max-line-length=120"
-    ],
+    "black-formatter.args": ["--line-length", "120", "--unstable"],
+    // Use ruff as a linter
+    "ruff.configuration": "${workspaceFolder}/pyproject.toml",
     // Use docstring generator
     "autoDocstring.docstringFormat": "google",
     "autoDocstring.guessTypes": true,
