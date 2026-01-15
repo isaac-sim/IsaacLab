@@ -7,11 +7,11 @@ import datetime
 import os
 import random
 import socket
-import yaml
 from collections import OrderedDict
 from pathlib import Path
-from prettytable import PrettyTable
 
+import yaml
+from prettytable import PrettyTable
 from rl_games.algos_torch.torch_ext import safe_filesystem_op, safe_save
 
 

@@ -486,6 +486,28 @@ Navigation
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
 
 
+Multirotor
+~~~~~~~~~~
+
+.. note::
+    The multirotor entry provides an environment configuration for flying the ARL robot.
+    See the `drone_arl` folder and the ARL robot config
+    (`ARL_ROBOT_1_CFG`) in the codebase for details.
+
+.. |arl_robot_track_position_state_based-link| replace:: `Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py>`__
+
+.. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
+
+.. table::
+    :widths: 33 37 30
+
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
+    | World                                  | Environment ID                              | Description                                                                            |
+    +========================================+=============================================+========================================================================================+
+    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
+
+
 Others
 ~~~~~~
 

@@ -8,9 +8,10 @@
 import collections.abc
 import hashlib
 import json
-import torch
 from collections.abc import Iterable, Mapping, Sized
 from typing import Any
+
+import torch
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable, string_to_slice

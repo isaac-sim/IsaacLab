@@ -20,9 +20,10 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 from __future__ import annotations
 
 import logging
+from dataclasses import MISSING
+
 import numpy as np
 import torch
-from dataclasses import MISSING
 
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt

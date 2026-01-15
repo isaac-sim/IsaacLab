@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import numpy as np
 import threading
 import time
-import torch
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 
 try:
     import websockets

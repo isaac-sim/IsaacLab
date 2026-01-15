@@ -110,8 +110,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import enum
-import gymnasium as gym
 import random
+
+import gymnasium as gym
 import torch
 
 import omni.kit

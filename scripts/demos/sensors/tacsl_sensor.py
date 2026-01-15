@@ -17,10 +17,11 @@ tactile sensing with the gelsight finger setup.
 """
 
 import argparse
-import cv2
 import math
-import numpy as np
 import os
+
+import cv2
+import numpy as np
 import torch
 
 from isaaclab.app import AppLauncher
@@ -69,8 +70,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from isaaclab_assets.sensors import GELSIGHT_R15_CFG
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -82,6 +81,8 @@ from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileS
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
+
+from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 
 @configclass

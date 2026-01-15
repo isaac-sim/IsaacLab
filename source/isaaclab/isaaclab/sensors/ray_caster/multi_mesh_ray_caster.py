@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import re
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar
+
+import numpy as np
 import torch
 import trimesh
 import warp as wp
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
 
 import omni.physics.tensors.impl.api as physx
 

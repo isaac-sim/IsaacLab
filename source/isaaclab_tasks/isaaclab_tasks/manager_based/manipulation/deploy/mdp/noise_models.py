@@ -9,10 +9,11 @@ from __future__ import annotations
 
 __all__ = ["ResetSampledConstantNoiseModel", "ResetSampledConstantNoiseModelCfg"]
 
-import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModel, NoiseModelCfg

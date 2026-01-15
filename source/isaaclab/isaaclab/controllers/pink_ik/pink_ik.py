@@ -14,10 +14,10 @@ Reference:
 
 from __future__ import annotations
 
-import numpy as np
-import torch
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 from pink import solve_ik
 
 from isaaclab.assets import ArticulationCfg

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import logging
 import math
+from typing import Literal
+
 import numpy as np
 import torch
 import torch.nn.functional
-from typing import Literal
 
 # import logger
 logger = logging.getLogger(__name__)

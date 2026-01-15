@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import math
 import random
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaacsim.core.utils.extensions import enable_extension
 

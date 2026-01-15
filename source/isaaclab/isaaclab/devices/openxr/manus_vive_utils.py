@@ -5,8 +5,9 @@
 
 import contextlib
 import logging
-import numpy as np
 from time import time
+
+import numpy as np
 
 from isaacsim.core.utils.extensions import enable_extension
 

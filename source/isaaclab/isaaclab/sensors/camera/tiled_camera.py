@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import torch
 import warp as wp
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
 
 import carb
 from pxr import UsdGeom

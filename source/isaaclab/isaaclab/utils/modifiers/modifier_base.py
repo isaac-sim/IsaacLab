@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from .modifier_cfg import ModifierCfg

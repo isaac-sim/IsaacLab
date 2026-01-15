@@ -14,9 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import importlib
 import json
+from typing import cast
+
 import pytest
 import torch
-from typing import cast
 
 # Import device classes to test
 from isaaclab.devices import (

@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import Any
+
+import torch
 
 import carb
 from isaacsim.core.cloner import GridCloner

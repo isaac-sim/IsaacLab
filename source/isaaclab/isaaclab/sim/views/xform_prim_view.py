@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import torch
-from collections.abc import Sequence
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 

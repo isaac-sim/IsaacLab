@@ -74,15 +74,15 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import logging
 import os
 import random
 import time
 from datetime import datetime
-from packaging import version
 
+import gymnasium as gym
 import skrl
+from packaging import version
 
 # check for minimum supported skrl version
 SKRL_VERSION = "1.4.3"

@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Any
+
+import torch
 
 from isaaclab.utils import configclass
 

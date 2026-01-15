@@ -73,11 +73,12 @@ simulation_app = app_launcher.app
 
 import asyncio
 import contextlib
-import gymnasium as gym
-import numpy as np
 import os
 import random
 import time
+
+import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg

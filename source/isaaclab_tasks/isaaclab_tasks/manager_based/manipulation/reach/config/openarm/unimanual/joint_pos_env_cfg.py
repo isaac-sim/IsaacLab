@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
-
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
 
@@ -15,6 +10,11 @@ import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.reach.config.openarm.unimanual.reach_openarm_uni_env_cfg import (
     ReachEnvCfg,
 )
+
+##
+# Pre-defined configs
+##
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 ##
 # Environment configuration

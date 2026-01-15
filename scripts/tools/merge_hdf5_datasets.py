@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-import h5py
 import os
+
+import h5py
 
 parser = argparse.ArgumentParser(description="Merge a set of HDF5 datasets.")
 parser.add_argument(

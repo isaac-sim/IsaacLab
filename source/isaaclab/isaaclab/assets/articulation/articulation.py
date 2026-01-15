@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager

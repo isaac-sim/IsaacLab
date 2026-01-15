@@ -9,9 +9,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-import pytest
 import random
 from typing import Any
+
+import pytest
 
 SEED: int = 42
 random.seed(SEED)
@@ -22,9 +23,10 @@ headless = True
 app_launcher = AppLauncher(headless=headless)
 simulation_app: Any = app_launcher.app
 
+from collections.abc import Generator
+
 import gymnasium as gym
 import torch
-from collections.abc import Generator
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject

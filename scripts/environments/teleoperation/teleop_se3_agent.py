@@ -59,13 +59,15 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gymnasium as gym
 import logging
+
+import gymnasium as gym
 import torch
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
@@ -93,6 +95,11 @@ def main() -> None:
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
     env_cfg.env_name = args_cli.task
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        raise ValueError(
+            "Teleoperation is only supported for ManagerBasedRLEnv environments. "
+            f"Received environment config type: {type(env_cfg).__name__}"
+        )
     # modify configuration
     env_cfg.terminations.time_out = None
     if "Lift" in args_cli.task:

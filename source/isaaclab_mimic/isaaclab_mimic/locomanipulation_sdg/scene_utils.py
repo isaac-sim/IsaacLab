@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import numpy as np
 import random
+
+import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils

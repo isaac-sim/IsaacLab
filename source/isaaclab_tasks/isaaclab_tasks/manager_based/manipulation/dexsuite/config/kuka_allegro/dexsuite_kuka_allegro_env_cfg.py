@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
-
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
+
+from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp

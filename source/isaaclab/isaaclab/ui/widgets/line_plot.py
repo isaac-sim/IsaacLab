@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import colorsys
-import numpy as np
 from contextlib import suppress
 from typing import TYPE_CHECKING
+
+import numpy as np
 
 import omni
 from isaacsim.core.api.simulation_context import SimulationContext
