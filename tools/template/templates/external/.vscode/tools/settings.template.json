@@ -55,9 +55,7 @@
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",
-    // We use "black" as a formatter:
-    "black-formatter.args": ["--line-length", "120", "--unstable"],
-    // Use ruff as a linter
+    // Use ruff as a formatter and linter
     "ruff.configuration": "${workspaceFolder}/pyproject.toml",
     // Use docstring generator
     "autoDocstring.docstringFormat": "google",

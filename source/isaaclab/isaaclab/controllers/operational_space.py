@@ -510,7 +510,6 @@ class OperationalSpaceController:
 
             # Null space position control
             if self.cfg.nullspace_control == "position":
-
                 # Check if the current joint positions and velocities are provided
                 if current_joint_pos is None or current_joint_vel is None:
                     raise ValueError("Current joint positions and velocities are required for null-space control.")

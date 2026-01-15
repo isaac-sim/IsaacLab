@@ -156,8 +156,8 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
         >>> with sim_utils.use_stage(stage_in_memory):
-        ...    # operate on the specified stage
-        ...    pass
+        ...     # operate on the specified stage
+        ...     pass
         >>> # operate on the default stage attached to the USD context
     """
     if get_isaac_sim_version().major < 5:
@@ -275,7 +275,6 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
-        ...
         >>> sim_utils.close_stage(callback)
         True
         >>> sim_utils.close_stage(callback)

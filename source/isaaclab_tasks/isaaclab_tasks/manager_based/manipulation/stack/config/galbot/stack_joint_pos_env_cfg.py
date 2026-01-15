@@ -56,6 +56,7 @@ class EventCfg:
 
 @configclass
 class ObservationGalbotLeftArmGripperCfg:
+    """Observations for the Galbot Left Arm Gripper."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -156,7 +157,6 @@ class ObservationGalbotLeftArmGripperCfg:
 
 @configclass
 class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -272,7 +272,6 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
 
 @configclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
