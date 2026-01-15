@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class RMPFlowAction(ActionTerm):
+    """RMPFlow task space action term."""
 
     cfg: rmpflow_actions_cfg.RMPFlowActionCfg
     """The configuration of the action term."""

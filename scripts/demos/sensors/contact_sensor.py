@@ -99,7 +99,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Simulate physics
     while simulation_app.is_running():
-
         if count % 500 == 0:
             # reset counter
             count = 0

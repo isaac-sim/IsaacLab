@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-preview = true
-unstable = true
-
 [tool.ruff]
 line-length = 120
 target-version = "py310"
@@ -103,14 +97,8 @@ section-order = [
 "isaaclab-tasks" = ["isaaclab_tasks"]
 
 [tool.ruff.format]
-# Use Black-compatible formatting
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-preview = true
 
-# docstring-code-format = true
+docstring-code-format = true
 
 [tool.pyright]
 

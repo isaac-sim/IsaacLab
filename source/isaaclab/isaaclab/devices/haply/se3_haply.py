@@ -332,10 +332,12 @@ class HaplyDevice(DeviceBase):
                                     current_force = self.feedback_force.copy()
 
                                 request_msg = {
-                                    "inverse3": [{
-                                        "device_id": self.inverse3_device_id,
-                                        "commands": {"set_cursor_force": {"values": current_force}},
-                                    }]
+                                    "inverse3": [
+                                        {
+                                            "device_id": self.inverse3_device_id,
+                                            "commands": {"set_cursor_force": {"values": current_force}},
+                                        }
+                                    ]
                                 }
                                 await ws.send(json.dumps(request_msg))
 

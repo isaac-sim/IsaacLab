@@ -240,9 +240,9 @@ class DataGenerator:
             assert np.all((subtask_boundaries[:, :, 1] - subtask_boundaries[:, :, 0]) > 0), "got empty subtasks!"
 
             # Ensure subtask indices increase (both starts and ends)
-            assert np.all(
-                (subtask_boundaries[:, 1:, :] - subtask_boundaries[:, :-1, :]) > 0
-            ), "subtask indices do not strictly increase"
+            assert np.all((subtask_boundaries[:, 1:, :] - subtask_boundaries[:, :-1, :]) > 0), (
+                "subtask indices do not strictly increase"
+            )
 
             # Ensure subtasks are in order
             subtask_inds_flat = subtask_boundaries.reshape(subtask_boundaries.shape[0], -1)
@@ -410,17 +410,17 @@ class DataGenerator:
                         (concurrent_task_spec_key, concurrent_subtask_ind)
                     ]["transform"]
                 else:
-                    assert (
-                        "transform" not in runtime_subtask_constraints_dict[(eef_name, subtask_ind)]
-                    ), "transform should not be set for concurrent task"
+                    assert "transform" not in runtime_subtask_constraints_dict[(eef_name, subtask_ind)], (
+                        "transform should not be set for concurrent task"
+                    )
                     # Need to transform demo according to scheme
                     coord_transform_scheme = runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
                         "coordination_scheme"
                     ]
                     if coord_transform_scheme != SubTaskConstraintCoordinationScheme.REPLAY:
-                        assert (
-                            subtask_object_name is not None
-                        ), f"object reference should not be None for {coord_transform_scheme} coordination scheme"
+                        assert subtask_object_name is not None, (
+                            f"object reference should not be None for {coord_transform_scheme} coordination scheme"
+                        )
 
         if need_source_demo_selection:
             selected_src_demo_inds[eef_name] = self.select_source_demo(
@@ -446,9 +446,9 @@ class DataGenerator:
         if (eef_name, subtask_ind) in runtime_subtask_constraints_dict:
             if runtime_subtask_constraints_dict[(eef_name, subtask_ind)]["type"] == SubTaskConstraintType.COORDINATION:
                 # Store selected source demo ind for concurrent task
-                runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
-                    "selected_src_demo_ind"
-                ] = selected_src_demo_ind
+                runtime_subtask_constraints_dict[(eef_name, subtask_ind)]["selected_src_demo_ind"] = (
+                    selected_src_demo_ind
+                )
                 concurrent_task_spec_key = runtime_subtask_constraints_dict[(eef_name, subtask_ind)][
                     "concurrent_task_spec_key"
                 ]

@@ -164,10 +164,12 @@ def test_axis_angle_from_quat(device):
     # Quaternions of the form (2,4) and (2,2,4)
     quats = [
         torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]).to(device),
-        torch.Tensor([
-            [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
-            [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
-        ]).to(device),
+        torch.Tensor(
+            [
+                [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
+                [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
+            ]
+        ).to(device),
     ]
 
     # Angles of the form (2,3) and (2,2,3)
@@ -598,10 +600,12 @@ def test_pose_inv():
         np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
     # Check against a batch of matrices
-    test_mats = torch.stack([
-        math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
-        for _ in range(100)
-    ])
+    test_mats = torch.stack(
+        [
+            math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
+            for _ in range(100)
+        ]
+    )
     result = np.array(math_utils.pose_inv(test_mats))
     expected = np.linalg.inv(np.array(test_mats))
     np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
@@ -1249,36 +1253,48 @@ def test_euler_xyz_from_quat():
     """
     quats = [
         torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
-        torch.Tensor([
-            [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
-            [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
-            [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
-        ]),
-        torch.Tensor([
-            [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
-            [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
-        ]),
-        torch.Tensor([
-            [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
-            [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
-        ]),
+        torch.Tensor(
+            [
+                [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
+                [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
+                [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
+                [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
+                [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+            ]
+        ),
     ]
 
     expected_euler_angles = [
         torch.Tensor([[0.0, 0.0, 0.0]]),  # identity
-        torch.Tensor([
-            [torch.pi / 4, 0.0, 0.0],  # 45° about x
-            [0.0, -torch.pi / 4, 0.0],  # -45° about y
-            [0.0, 0.0, -torch.pi / 4],  # -45° about z
-        ]),
-        torch.Tensor([
-            [-torch.pi / 2, 0.0, 0.0],  # -90° about x
-            [0.0, 0.0, -torch.pi / 2],  # -90° about z
-        ]),
-        torch.Tensor([
-            [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
-            [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
-        ]),
+        torch.Tensor(
+            [
+                [torch.pi / 4, 0.0, 0.0],  # 45° about x
+                [0.0, -torch.pi / 4, 0.0],  # -45° about y
+                [0.0, 0.0, -torch.pi / 4],  # -45° about z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [-torch.pi / 2, 0.0, 0.0],  # -90° about x
+                [0.0, 0.0, -torch.pi / 2],  # -90° about z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
+                [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
+            ]
+        ),
     ]
 
     # Test 1: default no-wrap range from (-π, π]

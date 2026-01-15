@@ -764,7 +764,6 @@ class VisuoTactileSensor(SensorBase):
         num_pts = self.num_tactile_points
 
         if collision_mask.any() or self.cfg.visualize_sdf_closest_pts:
-
             # Get contact object and elastomer velocities (com velocities)
             contact_object_velocities = self._contact_object_body_view.get_velocities()
             contact_object_linvel_w_com = contact_object_velocities[env_ids, :3]

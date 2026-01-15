@@ -1052,12 +1052,12 @@ def build_simulation_context(
     ..  code-block:: python
 
         with build_simulation_context() as sim:
-             # Design the scene
+            # Design the scene
 
-             # Play the simulation
-             sim.reset()
-             while sim.is_playing():
-                 sim.step()
+            # Play the simulation
+            sim.reset()
+            while sim.is_playing():
+                sim.step()
 
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.

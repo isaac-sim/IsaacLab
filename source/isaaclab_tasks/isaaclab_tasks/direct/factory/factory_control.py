@@ -128,9 +128,7 @@ def get_pose_error(
 
         fingertip_midpoint_quat_norm = torch_utils.quat_mul(
             fingertip_midpoint_quat, torch_utils.quat_conjugate(fingertip_midpoint_quat)
-        )[
-            :, 0
-        ]  # scalar component
+        )[:, 0]  # scalar component
         fingertip_midpoint_quat_inv = torch_utils.quat_conjugate(
             fingertip_midpoint_quat
         ) / fingertip_midpoint_quat_norm.unsqueeze(-1)

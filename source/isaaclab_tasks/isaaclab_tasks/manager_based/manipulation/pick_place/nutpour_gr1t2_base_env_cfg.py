@@ -36,6 +36,7 @@ from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
 ##
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
+    """Configuration for the GR1T2 Nut Pour Base Scene."""
 
     # Table
     table = AssetBaseCfg(
@@ -310,44 +311,48 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3),
     #                 right arm quat (4), left/right hand joint pos (22)]
-    idle_action = torch.tensor([[
-        -0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ]])
+    idle_action = torch.tensor(
+        [
+            [
+                -0.22878,
+                0.2536,
+                1.0953,
+                0.5,
+                0.5,
+                -0.5,
+                0.5,
+                0.22878,
+                0.2536,
+                1.0953,
+                0.5,
+                0.5,
+                -0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ]
+        ]
+    )
 
     def __post_init__(self):
         """Post initialization."""

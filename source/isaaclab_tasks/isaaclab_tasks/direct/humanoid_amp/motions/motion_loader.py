@@ -192,9 +192,9 @@ class MotionLoader:
             Time samples, between 0 and the specified/motion duration.
         """
         duration = self.duration if duration is None else duration
-        assert (
-            duration <= self.duration
-        ), f"The specified duration ({duration}) is longer than the motion duration ({self.duration})"
+        assert duration <= self.duration, (
+            f"The specified duration ({duration}) is longer than the motion duration ({self.duration})"
+        )
         return duration * np.random.uniform(low=0.0, high=1.0, size=num_samples)
 
     def sample(

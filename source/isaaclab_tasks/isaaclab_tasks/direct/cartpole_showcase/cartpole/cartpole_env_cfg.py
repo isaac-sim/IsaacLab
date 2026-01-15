@@ -421,10 +421,12 @@ class DictBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Dict({
-        "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    })  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
+    observation_space = spaces.Dict(
+        {
+            "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        }
+    )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
@@ -451,10 +453,12 @@ class DictDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Dict({
-        "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    })  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
+    observation_space = spaces.Dict(
+        {
+            "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        }
+    )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
@@ -488,10 +492,12 @@ class DictMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Dict({
-        "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    })  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
+    observation_space = spaces.Dict(
+        {
+            "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        }
+    )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]
 
 
@@ -521,10 +527,12 @@ class TupleBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: (2, 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: (2, 2)
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
@@ -551,10 +559,12 @@ class TupleDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: (2, 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: (2, 2)
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
@@ -588,8 +598,10 @@ class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space = spaces.Tuple((
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
-    ))  # or for simplicity: (2, 2)
+    observation_space = spaces.Tuple(
+        (
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+            spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
+        )
+    )  # or for simplicity: (2, 2)
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]

@@ -80,22 +80,24 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         left_hand_joints = -left_hand_joints
 
         # Combine joints in the expected order: [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1), right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
-        all_hand_joints = np.array([
-            left_hand_joints[3],  # left_index_proximal
-            left_hand_joints[5],  # left_middle_proximal
-            left_hand_joints[0],  # left_thumb_base
-            right_hand_joints[3],  # right_index_proximal
-            right_hand_joints[5],  # right_middle_proximal
-            right_hand_joints[0],  # right_thumb_base
-            left_hand_joints[4],  # left_index_distal
-            left_hand_joints[6],  # left_middle_distal
-            left_hand_joints[1],  # left_thumb_middle
-            right_hand_joints[4],  # right_index_distal
-            right_hand_joints[6],  # right_middle_distal
-            right_hand_joints[1],  # right_thumb_middle
-            left_hand_joints[2],  # left_thumb_tip
-            right_hand_joints[2],  # right_thumb_tip
-        ])
+        all_hand_joints = np.array(
+            [
+                left_hand_joints[3],  # left_index_proximal
+                left_hand_joints[5],  # left_middle_proximal
+                left_hand_joints[0],  # left_thumb_base
+                right_hand_joints[3],  # right_index_proximal
+                right_hand_joints[5],  # right_middle_proximal
+                right_hand_joints[0],  # right_thumb_base
+                left_hand_joints[4],  # left_index_distal
+                left_hand_joints[6],  # left_middle_distal
+                left_hand_joints[1],  # left_thumb_middle
+                right_hand_joints[4],  # right_index_distal
+                right_hand_joints[6],  # right_middle_distal
+                right_hand_joints[1],  # right_thumb_middle
+                left_hand_joints[2],  # left_thumb_tip
+                right_hand_joints[2],  # right_thumb_tip
+            ]
+        )
 
         # Convert to tensors
         left_wrist_tensor = torch.tensor(
