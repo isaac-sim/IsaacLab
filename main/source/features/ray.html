@@ -1178,10 +1178,12 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
     <span class="n">repeat_search</span> <span class="o">=</span> <span class="n">Repeater</span><span class="p">(</span><span class="n">searcher</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">repeat_run_count</span><span class="p">)</span>
 
     <span class="c1"># Configure the stoppers</span>
-    <span class="n">stoppers</span><span class="p">:</span> <span class="n">CombinedStopper</span> <span class="o">=</span> <span class="n">CombinedStopper</span><span class="p">(</span><span class="o">*</span><span class="p">[</span>
-        <span class="n">LogExtractionErrorStopper</span><span class="p">(</span><span class="n">max_errors</span><span class="o">=</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="p">),</span>
-        <span class="o">*</span><span class="p">([</span><span class="n">stopper</span><span class="p">]</span> <span class="k">if</span> <span class="n">stopper</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]),</span>
-    <span class="p">])</span>
+    <span class="n">stoppers</span><span class="p">:</span> <span class="n">CombinedStopper</span> <span class="o">=</span> <span class="n">CombinedStopper</span><span class="p">(</span>
+        <span class="o">*</span><span class="p">[</span>
+            <span class="n">LogExtractionErrorStopper</span><span class="p">(</span><span class="n">max_errors</span><span class="o">=</span><span class="n">MAX_LOG_EXTRACTION_ERRORS</span><span class="p">),</span>
+            <span class="o">*</span><span class="p">([</span><span class="n">stopper</span><span class="p">]</span> <span class="k">if</span> <span class="n">stopper</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]),</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">progress_reporter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;RAY_AIR_NEW_OUTPUT&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;0&quot;</span>

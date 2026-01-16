@@ -1931,12 +1931,12 @@ lighting.</p>
 overwritten based on arguments to the function.</p>
 <p>An example usage of the context manager function:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">build_simulation_context</span><span class="p">()</span> <span class="k">as</span> <span class="n">sim</span><span class="p">:</span>
-     <span class="c1"># Design the scene</span>
+    <span class="c1"># Design the scene</span>
 
-     <span class="c1"># Play the simulation</span>
-     <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-     <span class="k">while</span> <span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
-         <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="c1"># Play the simulation</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="k">while</span> <span class="n">sim</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
 </pre></div>
 </div>
 <dl class="field-list simple">

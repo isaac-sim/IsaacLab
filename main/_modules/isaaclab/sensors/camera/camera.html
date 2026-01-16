@@ -862,7 +862,6 @@
             <span class="n">matrices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
         <span class="c1"># iterate over env_ids</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">intrinsic_matrix</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">matrices</span><span class="p">):</span>
-
             <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
 
             <span class="n">params</span> <span class="o">=</span> <span class="n">sensor_utils</span><span class="o">.</span><span class="n">convert_camera_intrinsics_to_usd</span><span class="p">(</span>

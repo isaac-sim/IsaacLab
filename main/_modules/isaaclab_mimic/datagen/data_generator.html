@@ -844,9 +844,9 @@
             <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;got empty subtasks!&quot;</span>
 
             <span class="c1"># Ensure subtask indices increase (both starts and ends)</span>
-            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span>
-                <span class="p">(</span><span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span>
-            <span class="p">),</span> <span class="s2">&quot;subtask indices do not strictly increase&quot;</span>
+            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span>
+                <span class="s2">&quot;subtask indices do not strictly increase&quot;</span>
+            <span class="p">)</span>
 
             <span class="c1"># Ensure subtasks are in order</span>
             <span class="n">subtask_inds_flat</span> <span class="o">=</span> <span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
@@ -1014,17 +1014,17 @@
                         <span class="p">(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)</span>
                     <span class="p">][</span><span class="s2">&quot;transform&quot;</span><span class="p">]</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="k">assert</span> <span class="p">(</span>
-                        <span class="s2">&quot;transform&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)]</span>
-                    <span class="p">),</span> <span class="s2">&quot;transform should not be set for concurrent task&quot;</span>
+                    <span class="k">assert</span> <span class="s2">&quot;transform&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)],</span> <span class="p">(</span>
+                        <span class="s2">&quot;transform should not be set for concurrent task&quot;</span>
+                    <span class="p">)</span>
                     <span class="c1"># Need to transform demo according to scheme</span>
                     <span class="n">coord_transform_scheme</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
                         <span class="s2">&quot;coordination_scheme&quot;</span>
                     <span class="p">]</span>
                     <span class="k">if</span> <span class="n">coord_transform_scheme</span> <span class="o">!=</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">REPLAY</span><span class="p">:</span>
-                        <span class="k">assert</span> <span class="p">(</span>
-                            <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-                        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;object reference should not be None for </span><span class="si">{</span><span class="n">coord_transform_scheme</span><span class="si">}</span><span class="s2"> coordination scheme&quot;</span>
+                        <span class="k">assert</span> <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;object reference should not be None for </span><span class="si">{</span><span class="n">coord_transform_scheme</span><span class="si">}</span><span class="s2"> coordination scheme&quot;</span>
+                        <span class="p">)</span>
 
         <span class="k">if</span> <span class="n">need_source_demo_selection</span><span class="p">:</span>
             <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_source_demo</span><span class="p">(</span>
@@ -1050,9 +1050,9 @@
         <span class="k">if</span> <span class="p">(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
                 <span class="c1"># Store selected source demo ind for concurrent task</span>
-                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
-                    <span class="s2">&quot;selected_src_demo_ind&quot;</span>
-                <span class="p">]</span> <span class="o">=</span> <span class="n">selected_src_demo_ind</span>
+                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;selected_src_demo_ind&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">selected_src_demo_ind</span>
+                <span class="p">)</span>
                 <span class="n">concurrent_task_spec_key</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
                     <span class="s2">&quot;concurrent_task_spec_key&quot;</span>
                 <span class="p">]</span>

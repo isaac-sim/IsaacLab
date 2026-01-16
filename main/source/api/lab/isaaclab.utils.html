@@ -1106,6 +1106,7 @@ conversion and easily copying class instances.</p>
     <span class="n">episode_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2000</span>
     <span class="n">viewer</span><span class="p">:</span> <span class="n">ViewerCfg</span> <span class="o">=</span> <span class="n">ViewerCfg</span><span class="p">()</span>
 
+
 <span class="c1"># create configuration instance</span>
 <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">EnvCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
 
@@ -3922,7 +3923,7 @@ or delays or decaying filters.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">modifiers</span>
 
 <span class="c1"># define custom keyword arguments to pass to ModifierCfg</span>
-<span class="n">kwarg_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;arg_1&quot;</span> <span class="p">:</span> <span class="n">VAL_1</span><span class="p">,</span> <span class="s2">&quot;arg_2&quot;</span> <span class="p">:</span> <span class="n">VAL_2</span><span class="p">}</span>
+<span class="n">kwarg_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;arg_1&quot;</span><span class="p">:</span> <span class="n">VAL_1</span><span class="p">,</span> <span class="s2">&quot;arg_2&quot;</span><span class="p">:</span> <span class="n">VAL_2</span><span class="p">}</span>
 
 <span class="c1"># create modifier configuration object</span>
 <span class="c1"># func is the class name of the modifier and params is the dictionary of arguments</span>

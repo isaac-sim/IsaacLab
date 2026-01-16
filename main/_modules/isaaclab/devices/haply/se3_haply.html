@@ -936,10 +936,12 @@
                                     <span class="n">current_force</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feedback_force</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
                                 <span class="n">request_msg</span> <span class="o">=</span> <span class="p">{</span>
-                                    <span class="s2">&quot;inverse3&quot;</span><span class="p">:</span> <span class="p">[{</span>
-                                        <span class="s2">&quot;device_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">inverse3_device_id</span><span class="p">,</span>
-                                        <span class="s2">&quot;commands&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;set_cursor_force&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;values&quot;</span><span class="p">:</span> <span class="n">current_force</span><span class="p">}},</span>
-                                    <span class="p">}]</span>
+                                    <span class="s2">&quot;inverse3&quot;</span><span class="p">:</span> <span class="p">[</span>
+                                        <span class="p">{</span>
+                                            <span class="s2">&quot;device_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">inverse3_device_id</span><span class="p">,</span>
+                                            <span class="s2">&quot;commands&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;set_cursor_force&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;values&quot;</span><span class="p">:</span> <span class="n">current_force</span><span class="p">}},</span>
+                                        <span class="p">}</span>
+                                    <span class="p">]</span>
                                 <span class="p">}</span>
                                 <span class="k">await</span> <span class="n">ws</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">request_msg</span><span class="p">))</span>
 

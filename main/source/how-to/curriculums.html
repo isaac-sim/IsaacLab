@@ -761,7 +761,9 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">    .. code-block:: python</span>
 
 <span class="sd">        def modify_fn(env, env_ids, old_value, **modify_params) -&gt; new_value | modify_env_param.NO_CHANGE:</span>
-<span class="sd">            ...</span>
+<span class="sd">            # modify the value based on the old value and the modify parameters</span>
+<span class="sd">            new_value = old_value + modify_params[&quot;value&quot;]</span>
+<span class="sd">            return new_value</span>
 
 <span class="sd">    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,</span>
 <span class="sd">    ``old_value`` is the current value of the target attribute, and ``modify_params``</span>
@@ -797,6 +799,7 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">                # to the setter being called, which may add overhead.</span>
 <span class="sd">                return mdp.modify_env_param.NO_CHANGE</span>
 
+
 <span class="sd">            object_physics_material_curriculum = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_env_param,</span>
 <span class="sd">                params={</span>
@@ -806,9 +809,9 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">                        &quot;static_friction_range&quot;: [0.5, 1.0],</span>
 <span class="sd">                        &quot;dynamic_friction_range&quot;: [0.3, 1.0],</span>
 <span class="sd">                        &quot;restitution_range&quot;: [0.0, 0.5],</span>
-<span class="sd">                        &quot;num_step&quot;: 120000</span>
-<span class="sd">                    }</span>
-<span class="sd">                }</span>
+<span class="sd">                        &quot;num_step&quot;: 120000,</span>
+<span class="sd">                    },</span>
+<span class="sd">                },</span>
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -971,13 +974,14 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">                    return value</span>
 <span class="sd">                return mdp.modify_term_cfg.NO_CHANGE</span>
 
+
 <span class="sd">            command_object_pose_xrange_adr = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_term_cfg,</span>
 <span class="sd">                params={</span>
-<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note: `_manager.cfg` is omitted</span>
+<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,  # note: `_manager.cfg` is omitted</span>
 <span class="sd">                    &quot;modify_fn&quot;: override_value,</span>
-<span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-.75, -.25), &quot;num_steps&quot;: 12000}</span>
-<span class="sd">                }</span>
+<span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-0.75, -0.25), &quot;num_steps&quot;: 12000},</span>
+<span class="sd">                },</span>
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1059,7 +1063,9 @@ is desired.</p>
 <span class="sd">    .. code-block:: python</span>
 
 <span class="sd">        def modify_fn(env, env_ids, old_value, **modify_params) -&gt; new_value | modify_env_param.NO_CHANGE:</span>
-<span class="sd">            ...</span>
+<span class="sd">            # modify the value based on the old value and the modify parameters</span>
+<span class="sd">            new_value = old_value + modify_params[&quot;value&quot;]</span>
+<span class="sd">            return new_value</span>
 
 <span class="sd">    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,</span>
 <span class="sd">    ``old_value`` is the current value of the target attribute, and ``modify_params``</span>
@@ -1095,6 +1101,7 @@ is desired.</p>
 <span class="sd">                # to the setter being called, which may add overhead.</span>
 <span class="sd">                return mdp.modify_env_param.NO_CHANGE</span>
 
+
 <span class="sd">            object_physics_material_curriculum = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_env_param,</span>
 <span class="sd">                params={</span>
@@ -1104,9 +1111,9 @@ is desired.</p>
 <span class="sd">                        &quot;static_friction_range&quot;: [0.5, 1.0],</span>
 <span class="sd">                        &quot;dynamic_friction_range&quot;: [0.3, 1.0],</span>
 <span class="sd">                        &quot;restitution_range&quot;: [0.0, 0.5],</span>
-<span class="sd">                        &quot;num_step&quot;: 120000</span>
-<span class="sd">                    }</span>
-<span class="sd">                }</span>
+<span class="sd">                        &quot;num_step&quot;: 120000,</span>
+<span class="sd">                    },</span>
+<span class="sd">                },</span>
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1299,13 +1306,14 @@ syntax. It otherwise behaves identically to <code class="xref py py-class docuti
 <span class="sd">                    return value</span>
 <span class="sd">                return mdp.modify_term_cfg.NO_CHANGE</span>
 
+
 <span class="sd">            command_object_pose_xrange_adr = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_term_cfg,</span>
 <span class="sd">                params={</span>
-<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note: `_manager.cfg` is omitted</span>
+<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,  # note: `_manager.cfg` is omitted</span>
 <span class="sd">                    &quot;modify_fn&quot;: override_value,</span>
-<span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-.75, -.25), &quot;num_steps&quot;: 12000}</span>
-<span class="sd">                }</span>
+<span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-0.75, -0.25), &quot;num_steps&quot;: 12000},</span>
+<span class="sd">                },</span>
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 

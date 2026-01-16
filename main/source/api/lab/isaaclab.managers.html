@@ -1346,12 +1346,13 @@ manager. Each term should the <a class="reference internal" href="#isaaclab.mana
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.mdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBaseCfg</span>
 
+
 <span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MyManagerCfg</span><span class="p">:</span>
-
     <span class="n">my_term_1</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span> <span class="o">=</span> <span class="n">ManagerTermBaseCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
     <span class="n">my_term_2</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span> <span class="o">=</span> <span class="n">ManagerTermBaseCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
     <span class="n">my_term_3</span><span class="p">:</span> <span class="n">ManagerTermBaseCfg</span> <span class="o">=</span> <span class="n">ManagerTermBaseCfg</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
 
 <span class="c1"># define manager instance</span>
 <span class="n">my_manager</span> <span class="o">=</span> <span class="n">ManagerBase</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">ManagerCfg</span><span class="p">(),</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>

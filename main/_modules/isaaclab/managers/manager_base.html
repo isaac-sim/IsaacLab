@@ -649,12 +649,13 @@
 <span class="sd">        from isaaclab.utils import configclass</span>
 <span class="sd">        from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg</span>
 
+
 <span class="sd">        @configclass</span>
 <span class="sd">        class MyManagerCfg:</span>
-
 <span class="sd">            my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)</span>
 <span class="sd">            my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)</span>
 <span class="sd">            my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)</span>
+
 
 <span class="sd">        # define manager instance</span>
 <span class="sd">        my_manager = ManagerBase(cfg=ManagerCfg(), env=env)</span>

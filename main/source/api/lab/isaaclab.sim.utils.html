@@ -935,8 +935,8 @@ compatibility, it falls back to a no-op context manager in Isaac Sim &lt; 5.0.</
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">stage_in_memory</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">CreateInMemory</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">use_stage</span><span class="p">(</span><span class="n">stage_in_memory</span><span class="p">):</span>
-<span class="gp">... </span>   <span class="c1"># operate on the specified stage</span>
-<span class="gp">... </span>   <span class="k">pass</span>
+<span class="gp">... </span>    <span class="c1"># operate on the specified stage</span>
+<span class="gp">... </span>    <span class="k">pass</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># operate on the default stage attached to the USD context</span>
 </pre></div>
 </div>
@@ -1021,7 +1021,6 @@ in which case the stage will be closed without a callback.</p>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">callback</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;callback:&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
-<span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">close_stage</span><span class="p">(</span><span class="n">callback</span><span class="p">)</span>
 <span class="go">True</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">close_stage</span><span class="p">(</span><span class="n">callback</span><span class="p">)</span>
@@ -1509,7 +1508,7 @@ in which case a uniform scale of 1.0 is applied.</p></li>
 <span class="gp">... </span>    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Parent/Cube&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">prim_type</span><span class="o">=</span><span class="s2">&quot;Cube&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
-<span class="gp">... </span>    <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">}</span>
+<span class="gp">... </span>    <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">},</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">Usd.Prim(&lt;/World/Parent/Cube&gt;)</span>
 <span class="gp">&gt;&gt;&gt;</span>
@@ -1518,7 +1517,7 @@ in which case a uniform scale of 1.0 is applied.</p></li>
 <span class="gp">... </span>    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Parent/Sphere&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">prim_type</span><span class="o">=</span><span class="s2">&quot;Sphere&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
-<span class="gp">... </span>    <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">Usd.Prim(&lt;/World/Parent/Sphere&gt;)</span>
 </pre></div>
@@ -1711,10 +1710,7 @@ the schema). Defaults to False.</p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sdf</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Change an existing property</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">change_prim_property</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">prop_path</span><span class="o">=</span><span class="s2">&quot;/World/Cube.size&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">value</span><span class="o">=</span><span class="mf">2.0</span>
-<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sim_utils</span><span class="o">.</span><span class="n">change_prim_property</span><span class="p">(</span><span class="n">prop_path</span><span class="o">=</span><span class="s2">&quot;/World/Cube.size&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
 <span class="go">True</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a new custom property</span>
@@ -1722,7 +1718,7 @@ the schema). Defaults to False.</p></li>
 <span class="gp">... </span>    <span class="n">prop_path</span><span class="o">=</span><span class="s2">&quot;/World/Cube.customValue&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">type_to_create_if_not_exist</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">ValueTypeNames</span><span class="o">.</span><span class="n">Int</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">is_custom</span><span class="o">=</span><span class="kc">True</span>
+<span class="gp">... </span>    <span class="n">is_custom</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="go">True</span>
 </pre></div>
@@ -1934,6 +1930,7 @@ selections as follows:</p>
     <span class="n">color</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;red&quot;</span>
     <span class="n">size</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;small&quot;</span><span class="p">,</span> <span class="s2">&quot;large&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;large&quot;</span>
 
+
 <span class="n">select_usd_variants</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Table&quot;</span><span class="p">,</span>
     <span class="n">variants</span><span class="o">=</span><span class="n">TableVariants</span><span class="p">(),</span>
@@ -2072,7 +2069,7 @@ error message when returning False.</p>
 <span class="gp">... </span>    <span class="n">prim</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span>
 <span class="gp">... </span>    <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>  <span class="c1"># identity rotation (w, x, y, z)</span>
-<span class="gp">... </span>    <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Batch processing for performance</span>
@@ -2234,9 +2231,7 @@ the root prim (“/”), the world pose is returned unchanged.</p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Convert world pose to local (relative to ref_prim)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">world_pos</span> <span class="o">=</span> <span class="p">(</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">world_quat</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>  <span class="c1"># identity rotation</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">local_pos</span><span class="p">,</span> <span class="n">local_quat</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">convert_world_pose_to_local</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">world_pos</span><span class="p">,</span> <span class="n">world_quat</span><span class="p">,</span> <span class="n">ref_prim</span>
-<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">local_pos</span><span class="p">,</span> <span class="n">local_quat</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">convert_world_pose_to_local</span><span class="p">(</span><span class="n">world_pos</span><span class="p">,</span> <span class="n">world_quat</span><span class="p">,</span> <span class="n">ref_prim</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Local position: </span><span class="si">{</span><span class="n">local_pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Local orientation: </span><span class="si">{</span><span class="n">local_quat</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>

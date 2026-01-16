@@ -677,9 +677,10 @@
 
 <span class="sd">        from isaaclab_assets.robots.anymal import ANYMAL_C_CFG</span>
 
+
 <span class="sd">        @configclass</span>
 <span class="sd">        class MySceneCfg(InteractiveSceneCfg):</span>
-
+<span class="sd">            # ANYmal-C robot spawned in each environment</span>
 <span class="sd">            robot = ANYMAL_C_CFG.replace(prim_path=&quot;{ENV_REGEX_NS}/Robot&quot;)</span>
 
 <span class="sd">    Then the robot can be accessed from the scene as follows:</span>

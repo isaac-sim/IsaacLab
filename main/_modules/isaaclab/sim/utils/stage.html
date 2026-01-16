@@ -760,8 +760,8 @@
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; stage_in_memory = Usd.Stage.CreateInMemory()</span>
 <span class="sd">        &gt;&gt;&gt; with sim_utils.use_stage(stage_in_memory):</span>
-<span class="sd">        ...    # operate on the specified stage</span>
-<span class="sd">        ...    pass</span>
+<span class="sd">        ...     # operate on the specified stage</span>
+<span class="sd">        ...     pass</span>
 <span class="sd">        &gt;&gt;&gt; # operate on the default stage attached to the USD context</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
@@ -879,7 +879,6 @@
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; def callback(*args, **kwargs):</span>
 <span class="sd">        ...     print(&quot;callback:&quot;, args, kwargs)</span>
-<span class="sd">        ...</span>
 <span class="sd">        &gt;&gt;&gt; sim_utils.close_stage(callback)</span>
 <span class="sd">        True</span>
 <span class="sd">        &gt;&gt;&gt; sim_utils.close_stage(callback)</span>

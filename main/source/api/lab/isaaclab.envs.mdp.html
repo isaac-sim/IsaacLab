@@ -4847,7 +4847,9 @@ which is a tensor of sampled physics material properties.</p>
 <p>The term uses the <code class="docutils literal notranslate"><span class="pre">modify_fn</span></code> parameter to specify the function that modifies the value of the target attribute.
 The function should have the signature:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">modify_fn</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">old_value</span><span class="p">,</span> <span class="o">**</span><span class="n">modify_params</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">new_value</span> <span class="o">|</span> <span class="n">modify_env_param</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>
-    <span class="o">...</span>
+    <span class="c1"># modify the value based on the old value and the modify parameters</span>
+    <span class="n">new_value</span> <span class="o">=</span> <span class="n">old_value</span> <span class="o">+</span> <span class="n">modify_params</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">new_value</span>
 </pre></div>
 </div>
 <p>where <code class="docutils literal notranslate"><span class="pre">env</span></code> is the learning environment, <code class="docutils literal notranslate"><span class="pre">env_ids</span></code> are the sub-environment indices,
@@ -4879,6 +4881,7 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
     <span class="c1"># to the setter being called, which may add overhead.</span>
     <span class="k">return</span> <span class="n">mdp</span><span class="o">.</span><span class="n">modify_env_param</span><span class="o">.</span><span class="n">NO_CHANGE</span>
 
+
 <span class="n">object_physics_material_curriculum</span> <span class="o">=</span> <span class="n">CurrTerm</span><span class="p">(</span>
     <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">modify_env_param</span><span class="p">,</span>
     <span class="n">params</span><span class="o">=</span><span class="p">{</span>
@@ -4888,9 +4891,9 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
             <span class="s2">&quot;static_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
             <span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
             <span class="s2">&quot;restitution_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span>
-            <span class="s2">&quot;num_step&quot;</span><span class="p">:</span> <span class="mi">120000</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
+            <span class="s2">&quot;num_step&quot;</span><span class="p">:</span> <span class="mi">120000</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -4956,13 +4959,14 @@ thus transforming the simplified address into a full manager path.</p>
         <span class="k">return</span> <span class="n">value</span>
     <span class="k">return</span> <span class="n">mdp</span><span class="o">.</span><span class="n">modify_term_cfg</span><span class="o">.</span><span class="n">NO_CHANGE</span>
 
+
 <span class="n">command_object_pose_xrange_adr</span> <span class="o">=</span> <span class="n">CurrTerm</span><span class="p">(</span>
     <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">modify_term_cfg</span><span class="p">,</span>
     <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="s2">&quot;commands.object_pose.ranges.pos_x&quot;</span><span class="p">,</span>   <span class="c1"># note: `_manager.cfg` is omitted</span>
+        <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="s2">&quot;commands.object_pose.ranges.pos_x&quot;</span><span class="p">,</span>  <span class="c1"># note: `_manager.cfg` is omitted</span>
         <span class="s2">&quot;modify_fn&quot;</span><span class="p">:</span> <span class="n">override_value</span><span class="p">,</span>
-        <span class="s2">&quot;modify_params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">.75</span><span class="p">,</span> <span class="o">-</span><span class="mf">.25</span><span class="p">),</span> <span class="s2">&quot;num_steps&quot;</span><span class="p">:</span> <span class="mi">12000</span><span class="p">}</span>
-    <span class="p">}</span>
+        <span class="s2">&quot;modify_params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.75</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">),</span> <span class="s2">&quot;num_steps&quot;</span><span class="p">:</span> <span class="mi">12000</span><span class="p">},</span>
+    <span class="p">},</span>
 <span class="p">)</span>
 </pre></div>
 </div>

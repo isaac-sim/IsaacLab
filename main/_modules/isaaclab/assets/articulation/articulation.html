@@ -2395,7 +2395,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_spatial_tendon_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
         <span class="c1"># parse fixed tendons properties if they exist</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-
             <span class="n">joint_paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">dof_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
             <span class="c1"># iterate over all joints to find tendons attached to them</span>
@@ -2638,15 +2637,17 @@
 
             <span class="c1"># add info on each term</span>
             <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">):</span>
-                <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
-                    <span class="n">index</span><span class="p">,</span>
-                    <span class="n">ft_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">ft_dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">ft_limit_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">ft_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">ft_rest_lengths</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">ft_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                <span class="p">])</span>
+                <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">(</span>
+                    <span class="p">[</span>
+                        <span class="n">index</span><span class="p">,</span>
+                        <span class="n">ft_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">ft_dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">ft_limit_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">ft_limits</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">ft_rest_lengths</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">ft_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="p">]</span>
+                <span class="p">)</span>
             <span class="c1"># convert table to string</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Simulation parameters for fixed tendons in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">tendon_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">()</span>
@@ -2672,13 +2673,15 @@
             <span class="n">tendon_table</span><span class="o">.</span><span class="n">float_format</span> <span class="o">=</span> <span class="s2">&quot;.3&quot;</span>
             <span class="c1"># add info on each term</span>
             <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_spatial_tendons</span><span class="p">):</span>
-                <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">([</span>
-                    <span class="n">index</span><span class="p">,</span>
-                    <span class="n">st_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">st_dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">st_limit_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                    <span class="n">st_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
-                <span class="p">])</span>
+                <span class="n">tendon_table</span><span class="o">.</span><span class="n">add_row</span><span class="p">(</span>
+                    <span class="p">[</span>
+                        <span class="n">index</span><span class="p">,</span>
+                        <span class="n">st_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">st_dampings</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">st_limit_stiffnesses</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                        <span class="n">st_offsets</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="p">]</span>
+                <span class="p">)</span>
             <span class="c1"># convert table to string</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Simulation parameters for spatial tendons in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">tendon_table</span><span class="o">.</span><span class="n">get_string</span><span class="p">()</span>

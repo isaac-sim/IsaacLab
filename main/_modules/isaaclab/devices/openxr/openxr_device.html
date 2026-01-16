@@ -951,15 +951,17 @@
             <span class="n">quatw</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">GetReal</span><span class="p">()</span>
 
             <span class="c1"># Store in w, x, y, z order to match our convention</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
-                <span class="n">position</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-                <span class="n">position</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
-                <span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
-                <span class="n">quatw</span><span class="p">,</span>
-                <span class="n">quati</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-                <span class="n">quati</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
-                <span class="n">quati</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
-            <span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">position</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">position</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                    <span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                    <span class="n">quatw</span><span class="p">,</span>
+                    <span class="n">quati</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">quati</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                    <span class="n">quati</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_headpose</span>
 

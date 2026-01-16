@@ -1114,7 +1114,6 @@
 
             <span class="c1"># Null space position control</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_control</span> <span class="o">==</span> <span class="s2">&quot;position&quot;</span><span class="p">:</span>
-
                 <span class="c1"># Check if the current joint positions and velocities are provided</span>
                 <span class="k">if</span> <span class="n">current_joint_pos</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">current_joint_vel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Current joint positions and velocities are required for null-space control.&quot;</span><span class="p">)</span>

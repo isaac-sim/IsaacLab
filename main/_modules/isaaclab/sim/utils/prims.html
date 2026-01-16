@@ -724,7 +724,7 @@
 <span class="sd">        ...     prim_path=&quot;/World/Parent/Cube&quot;,</span>
 <span class="sd">        ...     prim_type=&quot;Cube&quot;,</span>
 <span class="sd">        ...     position=(1.0, 0.5, 0.0),</span>
-<span class="sd">        ...     attributes={&quot;size&quot;: 2.0}</span>
+<span class="sd">        ...     attributes={&quot;size&quot;: 2.0},</span>
 <span class="sd">        ... )</span>
 <span class="sd">        Usd.Prim(&lt;/World/Parent/Cube&gt;)</span>
 <span class="sd">        &gt;&gt;&gt;</span>
@@ -733,7 +733,7 @@
 <span class="sd">        ...     prim_path=&quot;/World/Parent/Sphere&quot;,</span>
 <span class="sd">        ...     prim_type=&quot;Sphere&quot;,</span>
 <span class="sd">        ...     translation=(0.5, 0.0, 0.0),</span>
-<span class="sd">        ...     scale=(2.0, 2.0, 2.0)</span>
+<span class="sd">        ...     scale=(2.0, 2.0, 2.0),</span>
 <span class="sd">        ... )</span>
 <span class="sd">        Usd.Prim(&lt;/World/Parent/Sphere&gt;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1063,10 +1063,7 @@
 <span class="sd">        &gt;&gt;&gt; from pxr import Sdf</span>
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; # Change an existing property</span>
-<span class="sd">        &gt;&gt;&gt; sim_utils.change_prim_property(</span>
-<span class="sd">        ...     prop_path=&quot;/World/Cube.size&quot;,</span>
-<span class="sd">        ...     value=2.0</span>
-<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; sim_utils.change_prim_property(prop_path=&quot;/World/Cube.size&quot;, value=2.0)</span>
 <span class="sd">        True</span>
 <span class="sd">        &gt;&gt;&gt;</span>
 <span class="sd">        &gt;&gt;&gt; # Create a new custom property</span>
@@ -1074,7 +1071,7 @@
 <span class="sd">        ...     prop_path=&quot;/World/Cube.customValue&quot;,</span>
 <span class="sd">        ...     value=42,</span>
 <span class="sd">        ...     type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,</span>
-<span class="sd">        ...     is_custom=True</span>
+<span class="sd">        ...     is_custom=True,</span>
 <span class="sd">        ... )</span>
 <span class="sd">        True</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1634,6 +1631,7 @@
 <span class="sd">        class TableVariants:</span>
 <span class="sd">            color: Literal[&quot;blue&quot;, &quot;red&quot;] = &quot;red&quot;</span>
 <span class="sd">            size: Literal[&quot;small&quot;, &quot;large&quot;] = &quot;large&quot;</span>
+
 
 <span class="sd">        select_usd_variants(</span>
 <span class="sd">            prim_path=&quot;/World/Table&quot;,</span>

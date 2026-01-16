@@ -1039,7 +1039,9 @@
 <span class="sd">            .. code-block:: python</span>
 
 <span class="sd">                pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)</span>
-<span class="sd">                pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids],  self._offset_quat[env_ids])</span>
+<span class="sd">                pos_w, quat_w = math_utils.combine_frame_transforms(</span>
+<span class="sd">                    pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]</span>
+<span class="sd">                )</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A tuple of the position (in meters) and quaternion (w, x, y, z) in &quot;world&quot; convention.</span>
