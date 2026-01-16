@@ -24,6 +24,7 @@ from isaaclab_newton.kernels import (
     split_state_to_pose_and_velocity,
     transform_CoM_pose_to_link_frame_masked_root,
     update_soft_joint_pos_limits,
+    update_default_joint_pos,
     update_wrench_array_with_force,
     update_wrench_array_with_torque,
     vec13f,
@@ -1841,6 +1842,10 @@ class Articulation(BaseArticulation):
             ],
         )
 
+        # Assign joint and body names to the data
+        self._data.joint_names = self.joint_names
+        self._data.body_names = self.body_names
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default pose with quaternion already in (x, y, z, w) format
@@ -2066,6 +2071,21 @@ class Articulation(BaseArticulation):
                 joint_pos = default_joint_pos[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
+            raise ValueError(msg)
+
+        # check that the default joint velocities are within the limits
+        joint_max_vel = wp.to_torch(self._root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))
+        out_of_range = torch.abs(wp.to_torch(self.data.default_joint_vel)) > joint_max_vel
+        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
+        if len(violated_indices) > 0:
+            # prepare message for violated joints
+            msg = "The following joints have default velocities out of the limits: \n"
+            for idx in violated_indices:
+                joint_name = self.data.joint_names[idx]
+                joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
+                joint_vel = wp.to_torch(self._data._default_joint_vel)[0, idx]
+                # add to message
+                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
     def _log_articulation_info(self):
@@ -2301,6 +2321,18 @@ class Articulation(BaseArticulation):
                 joint_mask,
                 (self.num_instances, self.num_joints),
             )
+
+        # Update default joint position
+        wp.launch(
+            update_default_joint_pos,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.joint_pos_limits_lower,
+                self._data.joint_pos_limits_upper,
+                self._data.default_joint_pos,
+            ],
+            device=self.device,
+        )
 
         # Update soft joint limits
         wp.launch(

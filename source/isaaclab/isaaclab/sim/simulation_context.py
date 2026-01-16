@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -1001,11 +1001,6 @@ class SimulationContext:
     def reset(self, soft: bool = False):
         self.settings.set_bool("/app/player/playSimulations", False)
         self._disable_app_control_on_stop_handle = True
-        # # check if we need to raise an exception that was raised in a callback
-        # if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-        #     exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-        #     builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-        #     raise exception_to_raise
 
         if not soft:
             # if not self.is_stopped():
@@ -1032,6 +1027,12 @@ class SimulationContext:
             self.initialize_visualizers()
 
         self._disable_app_control_on_stop_handle = False
+
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
 
     def step(self, render: bool = True):
         """Steps the simulation.
