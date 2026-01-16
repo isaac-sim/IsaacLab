@@ -2319,12 +2319,9 @@ class TestHeadingW:
             mock_view.set_mock_data(
                 root_transforms=wp.from_torch(root_pose, dtype=wp.transformf),
             )
-            print(articulation_data._sim_bind_root_link_pose_w)
-            print(articulation_data.FORWARD_VEC_B)
             # Compute expected heading: atan2(rotated_forward.y, rotated_forward.x)
             rotated_forward = math_utils.quat_apply(root_pose[:, 3:], forward_vec_b.expand(num_instances, 3))
             expected = torch.atan2(rotated_forward[:, 1], rotated_forward[:, 0])
-            print(f"expected: {expected}")
 
             # Compare the computed value
             assert torch.allclose(wp.to_torch(articulation_data.heading_w), expected, atol=1e-6, rtol=1e-6)

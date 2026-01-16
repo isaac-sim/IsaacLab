@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Micro-benchmarking framework for Articulation class.
+"""Micro-benchmarking framework for RigidObject class.
 
 This module provides a benchmarking framework to measure the performance of setter and writer
-methods in the Articulation class. Each method is benchmarked under two scenarios:
+methods in the RigidObject class. Each method is benchmarked under two scenarios:
 
 1. **Best Case (Warp)**: Inputs are Warp arrays with masks - this is the optimal path that
    avoids any data conversion overhead.
@@ -15,12 +15,12 @@ methods in the Articulation class. Each method is benchmarked under two scenario
    conversion from Torch to Warp and from indices to masks.
 
 Usage:
-    python benchmark_articulation.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B] [--num_joints J]
+    python benchmark_rigid_object.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B]
 
 Example:
-    python benchmark_articulation.py --num_iterations 1000 --warmup_steps 10
-    python benchmark_articulation.py --mode warp  # Only run Warp benchmarks
-    python benchmark_articulation.py --mode torch  # Only run Torch benchmarks
+    python benchmark_rigid_object.py --num_iterations 1000 --warmup_steps 10
+    python benchmark_rigid_object.py --mode warp  # Only run Warp benchmarks
+    python benchmark_rigid_object.py --mode torch  # Only run Torch benchmarks
 """
 
 from __future__ import annotations
@@ -37,14 +37,14 @@ from enum import Enum
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-from isaaclab_newton.assets.articulation.articulation import Articulation
-from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject
+from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_newton.kernels import vec13f
 
-# Import mock classes from shared module
+# Import mock classes from shared module (reusing articulation's mock_interface)
 from mock_interface import MockNewtonArticulationView, MockNewtonModel
 
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
 # Initialize Warp
 wp.init()
@@ -264,13 +264,10 @@ class BenchmarkConfig:
     """Number of warmup steps before timing."""
 
     num_instances: int = 4096
-    """Number of articulation instances."""
+    """Number of rigid object instances."""
 
-    num_bodies: int = 12
-    """Number of bodies per articulation."""
-
-    num_joints: int = 11
-    """Number of joints per articulation."""
+    num_bodies: int = 1
+    """Number of bodies per rigid object."""
 
     device: str = "cuda:0"
     """Device to run benchmarks on."""
@@ -313,7 +310,7 @@ class MethodBenchmark:
     """Name of the method."""
 
     method_name: str
-    """Actual method name on the Articulation class."""
+    """Actual method name on the RigidObject class."""
 
     input_generator_warp: Callable
     """Function to generate Warp inputs."""
@@ -322,40 +319,36 @@ class MethodBenchmark:
     """Function to generate Torch inputs."""
 
     category: str = "general"
-    """Category of the method (e.g., 'root_state', 'joint_state', 'joint_params')."""
+    """Category of the method (e.g., 'root_state', 'body_state')."""
 
 
-def create_test_articulation(
+def create_test_rigid_object(
     num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
+    num_bodies: int = 1,
     device: str = "cuda:0",
-) -> tuple[Articulation, MockNewtonArticulationView, MagicMock]:
-    """Create a test Articulation instance with mocked dependencies."""
-    joint_names = [f"joint_{i}" for i in range(num_joints)]
+) -> tuple[RigidObject, MockNewtonArticulationView, MagicMock]:
+    """Create a test RigidObject instance with mocked dependencies."""
     body_names = [f"body_{i}" for i in range(num_bodies)]
 
-    articulation = object.__new__(Articulation)
+    rigid_object = object.__new__(RigidObject)
 
-    articulation.cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        soft_joint_pos_limit_factor=1.0,
-        actuators={},
+    rigid_object.cfg = RigidObjectCfg(
+        prim_path="/World/Object",
     )
 
     mock_view = MockNewtonArticulationView(
         num_instances=num_instances,
         num_bodies=num_bodies,
-        num_joints=num_joints,
+        num_joints=0,
         device=device,
         is_fixed_base=False,
-        joint_names=joint_names,
+        joint_names=[],
         body_names=body_names,
     )
     mock_view.set_mock_data()
 
-    object.__setattr__(articulation, "_root_view", mock_view)
-    object.__setattr__(articulation, "_device", device)
+    object.__setattr__(rigid_object, "_root_view", mock_view)
+    object.__setattr__(rigid_object, "_device", device)
 
     mock_newton_manager = MagicMock()
     mock_model = MockNewtonModel()
@@ -366,11 +359,11 @@ def create_test_articulation(
     mock_newton_manager.get_control.return_value = mock_control
     mock_newton_manager.get_dt.return_value = 0.01
 
-    with patch("isaaclab_newton.assets.articulation.articulation_data.NewtonManager", mock_newton_manager):
-        data = ArticulationData(mock_view, device)
-        object.__setattr__(articulation, "_data", data)
+    with patch("isaaclab_newton.assets.rigid_object.rigid_object_data.NewtonManager", mock_newton_manager):
+        data = RigidObjectData(mock_view, device)
+        object.__setattr__(rigid_object, "_data", data)
 
-    return articulation, mock_view, mock_newton_manager
+    return rigid_object, mock_view, mock_newton_manager
 
 
 # =============================================================================
@@ -381,11 +374,6 @@ def create_test_articulation(
 def make_warp_env_mask(num_instances: int, device: str) -> wp.array:
     """Create an all-true environment mask."""
     return wp.ones((num_instances,), dtype=wp.bool, device=device)
-
-
-def make_warp_joint_mask(num_joints: int, device: str) -> wp.array:
-    """Create an all-true joint mask."""
-    return wp.ones((num_joints,), dtype=wp.bool, device=device)
 
 
 def make_warp_body_mask(num_bodies: int, device: str) -> wp.array:
@@ -530,312 +518,6 @@ def gen_root_link_state_torch(config: BenchmarkConfig) -> dict:
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
-    }
-
-
-# --- Joint State ---
-def gen_joint_state_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_state_to_sim."""
-    return {
-        "position": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "velocity": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_state_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_state_to_sim."""
-    return {
-        "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Position ---
-def gen_joint_position_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_position_to_sim."""
-    return {
-        "position": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_position_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_position_to_sim."""
-    return {
-        "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Velocity ---
-def gen_joint_velocity_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_velocity_to_sim."""
-    return {
-        "velocity": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_velocity_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_velocity_to_sim."""
-    return {
-        "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Stiffness ---
-def gen_joint_stiffness_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_stiffness_to_sim."""
-    return {
-        "stiffness": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_stiffness_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_stiffness_to_sim."""
-    return {
-        "stiffness": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Damping ---
-def gen_joint_damping_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_damping_to_sim."""
-    return {
-        "damping": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_damping_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_damping_to_sim."""
-    return {
-        "damping": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Position Limit ---
-def gen_joint_position_limit_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_position_limit_to_sim."""
-    return {
-        "lower_limits": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * -3.14,
-            dtype=wp.float32,
-        ),
-        "upper_limits": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 3.14,
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_position_limit_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_position_limit_to_sim."""
-    return {
-        "lower_limits": (
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * -3.14
-        ),
-        "upper_limits": (
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 3.14
-        ),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Velocity Limit ---
-def gen_joint_velocity_limit_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_velocity_limit_to_sim."""
-    return {
-        "limits": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_velocity_limit_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_velocity_limit_to_sim."""
-    return {
-        "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Effort Limit ---
-def gen_joint_effort_limit_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_effort_limit_to_sim."""
-    return {
-        "limits": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0,
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_effort_limit_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_effort_limit_to_sim."""
-    return {
-        "limits": (
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0
-        ),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Armature ---
-def gen_joint_armature_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_armature_to_sim."""
-    return {
-        "armature": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1,
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_armature_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_armature_to_sim."""
-    return {
-        "armature": (
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1
-        ),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Joint Friction Coefficient ---
-def gen_joint_friction_coefficient_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_joint_friction_coefficient_to_sim."""
-    return {
-        "joint_friction_coeff": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5,
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_joint_friction_coefficient_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for write_joint_friction_coefficient_to_sim."""
-    return {
-        "joint_friction_coeff": (
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5
-        ),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Set Joint Position Target ---
-def gen_set_joint_position_target_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for set_joint_position_target."""
-    return {
-        "target": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_set_joint_position_target_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for set_joint_position_target."""
-    return {
-        "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Set Joint Velocity Target ---
-def gen_set_joint_velocity_target_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for set_joint_velocity_target."""
-    return {
-        "target": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_set_joint_velocity_target_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for set_joint_velocity_target."""
-    return {
-        "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
-    }
-
-
-# --- Set Joint Effort Target ---
-def gen_set_joint_effort_target_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for set_joint_effort_target."""
-    return {
-        "target": wp.from_torch(
-            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-            dtype=wp.float32,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-        "joint_mask": make_warp_joint_mask(config.num_joints, config.device),
-    }
-
-
-def gen_set_joint_effort_target_torch(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs for set_joint_effort_target."""
-    return {
-        "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-        "joint_ids": list(range(config.num_joints)),
     }
 
 
@@ -990,100 +672,6 @@ METHOD_BENCHMARKS = [
         input_generator_torch=gen_root_link_state_torch,
         category="root_state_deprecated",
     ),
-    # Joint State Writers
-    MethodBenchmark(
-        name="write_joint_state_to_sim",
-        method_name="write_joint_state_to_sim",
-        input_generator_warp=gen_joint_state_warp,
-        input_generator_torch=gen_joint_state_torch,
-        category="joint_state",
-    ),
-    MethodBenchmark(
-        name="write_joint_position_to_sim",
-        method_name="write_joint_position_to_sim",
-        input_generator_warp=gen_joint_position_warp,
-        input_generator_torch=gen_joint_position_torch,
-        category="joint_state",
-    ),
-    MethodBenchmark(
-        name="write_joint_velocity_to_sim",
-        method_name="write_joint_velocity_to_sim",
-        input_generator_warp=gen_joint_velocity_warp,
-        input_generator_torch=gen_joint_velocity_torch,
-        category="joint_state",
-    ),
-    # Joint Parameter Writers
-    MethodBenchmark(
-        name="write_joint_stiffness_to_sim",
-        method_name="write_joint_stiffness_to_sim",
-        input_generator_warp=gen_joint_stiffness_warp,
-        input_generator_torch=gen_joint_stiffness_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_damping_to_sim",
-        method_name="write_joint_damping_to_sim",
-        input_generator_warp=gen_joint_damping_warp,
-        input_generator_torch=gen_joint_damping_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_position_limit_to_sim",
-        method_name="write_joint_position_limit_to_sim",
-        input_generator_warp=gen_joint_position_limit_warp,
-        input_generator_torch=gen_joint_position_limit_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_velocity_limit_to_sim",
-        method_name="write_joint_velocity_limit_to_sim",
-        input_generator_warp=gen_joint_velocity_limit_warp,
-        input_generator_torch=gen_joint_velocity_limit_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_effort_limit_to_sim",
-        method_name="write_joint_effort_limit_to_sim",
-        input_generator_warp=gen_joint_effort_limit_warp,
-        input_generator_torch=gen_joint_effort_limit_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_armature_to_sim",
-        method_name="write_joint_armature_to_sim",
-        input_generator_warp=gen_joint_armature_warp,
-        input_generator_torch=gen_joint_armature_torch,
-        category="joint_params",
-    ),
-    MethodBenchmark(
-        name="write_joint_friction_coefficient_to_sim",
-        method_name="write_joint_friction_coefficient_to_sim",
-        input_generator_warp=gen_joint_friction_coefficient_warp,
-        input_generator_torch=gen_joint_friction_coefficient_torch,
-        category="joint_params",
-    ),
-    # Target Setters
-    MethodBenchmark(
-        name="set_joint_position_target",
-        method_name="set_joint_position_target",
-        input_generator_warp=gen_set_joint_position_target_warp,
-        input_generator_torch=gen_set_joint_position_target_torch,
-        category="targets",
-    ),
-    MethodBenchmark(
-        name="set_joint_velocity_target",
-        method_name="set_joint_velocity_target",
-        input_generator_warp=gen_set_joint_velocity_target_warp,
-        input_generator_torch=gen_set_joint_velocity_target_torch,
-        category="targets",
-    ),
-    MethodBenchmark(
-        name="set_joint_effort_target",
-        method_name="set_joint_effort_target",
-        input_generator_warp=gen_set_joint_effort_target_warp,
-        input_generator_torch=gen_set_joint_effort_target_torch,
-        category="targets",
-    ),
     # Body Properties
     MethodBenchmark(
         name="set_masses",
@@ -1117,15 +705,15 @@ METHOD_BENCHMARKS = [
 
 
 def benchmark_method(
-    articulation: Articulation,
+    rigid_object: RigidObject,
     method_benchmark: MethodBenchmark,
     mode: InputMode,
     config: BenchmarkConfig,
 ) -> BenchmarkResult:
-    """Benchmark a single method of Articulation.
+    """Benchmark a single method of RigidObject.
 
     Args:
-        articulation: The Articulation instance.
+        rigid_object: The RigidObject instance.
         method_benchmark: The method benchmark definition.
         mode: Input mode (WARP or TORCH).
         config: Benchmark configuration.
@@ -1136,7 +724,7 @@ def benchmark_method(
     method_name = method_benchmark.method_name
 
     # Check if method exists
-    if not hasattr(articulation, method_name):
+    if not hasattr(rigid_object, method_name):
         return BenchmarkResult(
             name=method_benchmark.name,
             mode=mode,
@@ -1147,7 +735,7 @@ def benchmark_method(
             skip_reason="Method not found",
         )
 
-    method = getattr(articulation, method_name)
+    method = getattr(rigid_object, method_name)
     input_generator = (
         method_benchmark.input_generator_warp if mode == InputMode.WARP else method_benchmark.input_generator_torch
     )
@@ -1228,7 +816,7 @@ def benchmark_method(
 
 
 def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict]:
-    """Run all benchmarks for Articulation.
+    """Run all benchmarks for RigidObject.
 
     Args:
         config: Benchmark configuration.
@@ -1242,10 +830,9 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
     hardware_info = get_hardware_info()
     print_hardware_info(hardware_info)
 
-    # Create articulation
-    articulation, mock_view, _ = create_test_articulation(
+    # Create rigid object
+    rigid_object, mock_view, _ = create_test_rigid_object(
         num_instances=config.num_instances,
-        num_joints=config.num_joints,
         num_bodies=config.num_bodies,
         device=config.device,
     )
@@ -1259,7 +846,7 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
 
     print(f"\nBenchmarking {len(METHOD_BENCHMARKS)} methods...")
     print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
-    print(f"        {config.num_instances} instances, {config.num_bodies} bodies, {config.num_joints} joints")
+    print(f"        {config.num_instances} instances, {config.num_bodies} bodies")
     print(f"Modes:  {', '.join(m.value for m in modes)}")
     print("-" * 100)
 
@@ -1268,7 +855,7 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
             mode_str = f"[{mode.value.upper():5}]"
             print(f"[{i + 1}/{len(METHOD_BENCHMARKS)}] {mode_str} {method_benchmark.name}...", end=" ", flush=True)
 
-            result = benchmark_method(articulation, method_benchmark, mode, config)
+            result = benchmark_method(rigid_object, method_benchmark, mode, config)
             results.append(result)
 
             if result.skipped:
@@ -1361,7 +948,6 @@ def export_results_json(results: list[BenchmarkResult], config: BenchmarkConfig,
                 "warmup_steps": config.warmup_steps,
                 "num_instances": config.num_instances,
                 "num_bodies": config.num_bodies,
-                "num_joints": config.num_joints,
                 "device": config.device,
                 "mode": config.mode,
             },
@@ -1426,13 +1012,13 @@ def get_default_output_filename() -> str:
     from datetime import datetime
 
     datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return f"articulation_benchmark_{datetime_str}.json"
+    return f"rigid_object_benchmark_{datetime_str}.json"
 
 
 def main():
     """Main entry point for the benchmarking script."""
     parser = argparse.ArgumentParser(
-        description="Micro-benchmarking framework for Articulation class.",
+        description="Micro-benchmarking framework for RigidObject class.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -1451,19 +1037,7 @@ def main():
         "--num_instances",
         type=int,
         default=16384,
-        help="Number of articulation instances.",
-    )
-    parser.add_argument(
-        "--num_bodies",
-        type=int,
-        default=12,
-        help="Number of bodies per articulation.",
-    )
-    parser.add_argument(
-        "--num_joints",
-        type=int,
-        default=11,
-        help="Number of joints per articulation.",
+        help="Number of rigid object instances.",
     )
     parser.add_argument(
         "--device",
@@ -1497,8 +1071,7 @@ def main():
         num_iterations=args.num_iterations,
         warmup_steps=args.warmup_steps,
         num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=args.num_joints,
+        num_bodies=1,
         device=args.device,
         mode=args.mode,
     )
