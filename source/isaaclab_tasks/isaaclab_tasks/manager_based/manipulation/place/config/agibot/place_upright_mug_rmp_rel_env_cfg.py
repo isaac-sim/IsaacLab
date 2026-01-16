@@ -151,6 +151,7 @@ Env to Place Upright Mug with AgiBot Left Arm using RMPFlow
 
 
 class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2BoxEnvCfg):
+    """Configuration for the Agibot Place Upright Mug RMP Rel Environment."""
 
     def __post_init__(self):
         # post init of parent

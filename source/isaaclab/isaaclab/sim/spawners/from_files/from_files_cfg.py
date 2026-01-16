@@ -104,9 +104,9 @@ class UsdFileCfg(FileCfg):
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
-    This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-    or a dictionary mapping between the two. Please check the :meth:`~isaaclab.sim.utils.select_usd_variants` function
-    for more information.
+    This can either be a configclass object, in which case each attribute is used as a variant set name and
+    its specified value, or a dictionary mapping between the two. Please check the
+    :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
     """
 
 
@@ -174,13 +174,15 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
     compliant_contact_stiffness: float | None = None
     """Stiffness of the compliant contact. Defaults to None.
 
-    This parameter is the same as :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
+    This parameter is the same as
+    :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
     """
 
     compliant_contact_damping: float | None = None
     """Damping of the compliant contact. Defaults to None.
 
-    This parameter is the same as :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
+    This parameter is the same as
+    :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
     """
 
     physics_material_prim_path: str | list[str] | None = None

@@ -295,6 +295,7 @@ class SpotTerminationsCfg:
 
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Spot robot in a flat environment."""
 
     # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()

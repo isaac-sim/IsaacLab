@@ -325,7 +325,8 @@ class WaypointTrajectory:
             if need_fixed:
                 # segment of constant target poses equal to @other's first target pose
 
-                # account for the fact that we pop'd the first element of @other in anticipation of an interpolation segment
+                # account for the fact that we pop'd the first element of
+                # @other in anticipation of an interpolation segment
                 num_steps_fixed_to_use = num_steps_fixed if need_interp else (num_steps_fixed + 1)
                 self.add_waypoint_sequence_for_target_pose(
                     pose=target_for_interpolation.pose,

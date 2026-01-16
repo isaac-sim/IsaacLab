@@ -184,10 +184,12 @@ def _external(specification: dict) -> None:
         # replace placeholder in scripts
         for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
             _replace_in_file(
-                [(
-                    "# PLACEHOLDER: Extension template (do not remove this comment)",
-                    f"import {name}.tasks  # noqa: F401",
-                )],
+                [
+                    (
+                        "# PLACEHOLDER: Extension template (do not remove this comment)",
+                        f"import {name}.tasks  # noqa: F401",
+                    )
+                ],
                 src=file,
             )
     # - other scripts
@@ -198,10 +200,12 @@ def _external(specification: dict) -> None:
     )
     for script in ["zero_agent.py", "random_agent.py"]:
         _replace_in_file(
-            [(
-                "# PLACEHOLDER: Extension template (do not remove this comment)",
-                f"import {name}.tasks  # noqa: F401",
-            )],
+            [
+                (
+                    "# PLACEHOLDER: Extension template (do not remove this comment)",
+                    f"import {name}.tasks  # noqa: F401",
+                )
+            ],
             src=os.path.join(ROOT_DIR, "scripts", "environments", script),
             dst=os.path.join(dir, script),
         )
@@ -279,9 +283,9 @@ def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool =
             basename = os.path.basename(file).replace("_cfg", "")
             if basename.startswith(f"{rl_library}_"):
                 algorithm = basename.replace(f"{rl_library}_", "").upper()
-                assert (
-                    algorithm in SINGLE_AGENT_ALGORITHMS or algorithm in MULTI_AGENT_ALGORITHMS
-                ), f"{algorithm} algorithm is not listed in the supported algorithms"
+                assert algorithm in SINGLE_AGENT_ALGORITHMS or algorithm in MULTI_AGENT_ALGORITHMS, (
+                    f"{algorithm} algorithm is not listed in the supported algorithms"
+                )
                 if single_agent and algorithm in SINGLE_AGENT_ALGORITHMS:
                     data[rl_library].append(algorithm)
                 if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:

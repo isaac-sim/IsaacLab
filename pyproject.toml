@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-preview = true
-unstable = true
-
 [tool.ruff]
 line-length = 120
 target-version = "py310"
@@ -39,8 +33,6 @@ select = [
 # Ignore specific rules (matching your flake8 config)
 ignore = [
     "E402",   # Module level import not at top of file
-    "E501",   # Line too long (handled by formatter)
-    "E203",   # Whitespace before ':' (conflicts with formatter)
     "D401",   # First line should be in imperative mood
     "RET504", # Unnecessary variable assignment before return statement
     "RET505", # Unnecessary elif after return statement
@@ -103,14 +95,8 @@ section-order = [
 "isaaclab-tasks" = ["isaaclab_tasks"]
 
 [tool.ruff.format]
-# Use Black-compatible formatting
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-preview = true
 
-# docstring-code-format = true
+docstring-code-format = true
 
 [tool.pyright]
 

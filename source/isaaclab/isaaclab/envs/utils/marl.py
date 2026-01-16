@@ -18,8 +18,8 @@ from ..direct_rl_env import DirectRLEnv
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
     """Convert the multi-agent environment instance to a single-agent environment instance.
 
-    The converted environment will be an instance of the single-agent environment interface class (:class:`DirectRLEnv`).
-    As part of the conversion process, the following operations are carried out:
+    The converted environment will be an instance of the single-agent environment interface class
+    (:class:`DirectRLEnv`). As part of the conversion process, the following operations are carried out:
 
     * The observations of all the agents in the original multi-agent environment are concatenated to compose
         the single-agent observation. If the use of the environment state is defined as the observation,

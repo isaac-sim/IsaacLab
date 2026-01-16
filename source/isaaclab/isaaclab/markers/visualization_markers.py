@@ -100,7 +100,7 @@ class VisualizationMarkers:
                         radius=1.0,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
                     ),
-                }
+                },
             )
             # Create the markers instance
             # This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.

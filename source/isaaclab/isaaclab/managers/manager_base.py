@@ -45,12 +45,13 @@ class ManagerTermBase(ABC):
         from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
+
         @configclass
         class MyManagerCfg:
-
             my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+
 
         # define manager instance
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)

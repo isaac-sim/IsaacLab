@@ -1054,7 +1054,8 @@ class Articulation(AssetBase):
             self.uses_external_wrench_positions = True
             self._external_wrench_positions_b.flatten(0, 1)[indices] = positions.flatten(0, 1)
         else:
-            # If the positions are not provided, and the flag is set, then we need to ensure that the desired positions are zeroed.
+            # If the positions are not provided, and the flag is set, then we need to ensure
+            # that the desired positions are zeroed.
             if self.uses_external_wrench_positions:
                 self._external_wrench_positions_b.flatten(0, 1)[indices] = 0.0
 
@@ -1143,7 +1144,8 @@ class Articulation(AssetBase):
         """Set fixed tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1195,7 +1197,8 @@ class Articulation(AssetBase):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1247,7 +1250,8 @@ class Articulation(AssetBase):
         """Set fixed tendon rest length efforts into internal buffers.
 
         This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon rest length, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1328,7 +1332,8 @@ class Articulation(AssetBase):
         """Set spatial tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -1359,12 +1364,14 @@ class Articulation(AssetBase):
         """Set spatial tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon damping, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).
-            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None,
+                which means all spatial tendons.
+            env_ids: The environment indices to set the damping for. Defaults to None, which means all environments.
         """
         if get_isaac_sim_version().major < 5:
             logger.warning(
@@ -1390,11 +1397,13 @@ class Articulation(AssetBase):
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
-            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None,
+                which means all spatial tendons.
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
         if get_isaac_sim_version().major < 5:
@@ -1421,7 +1430,8 @@ class Articulation(AssetBase):
         """Set spatial tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon offset, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -1451,8 +1461,10 @@ class Articulation(AssetBase):
         """Write spatial tendon properties into the simulation.
 
         Args:
-            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the properties for. Defaults to None (all environments).
+            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None,
+                which means all spatial tendons.
+            env_ids: The environment indices to set the properties for. Defaults to None,
+                which means all environments.
         """
         # resolve indices
         physx_env_ids = env_ids
@@ -1791,7 +1803,6 @@ class Articulation(AssetBase):
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-
             joint_paths = self.root_physx_view.dof_paths[0]
 
             # iterate over all joints to find tendons attached to them
@@ -2034,15 +2045,17 @@ class Articulation(AssetBase):
 
             # add info on each term
             for index in range(self.num_fixed_tendons):
-                tendon_table.add_row([
-                    index,
-                    ft_stiffnesses[index],
-                    ft_dampings[index],
-                    ft_limit_stiffnesses[index],
-                    ft_limits[index],
-                    ft_rest_lengths[index],
-                    ft_offsets[index],
-                ])
+                tendon_table.add_row(
+                    [
+                        index,
+                        ft_stiffnesses[index],
+                        ft_dampings[index],
+                        ft_limit_stiffnesses[index],
+                        ft_limits[index],
+                        ft_rest_lengths[index],
+                        ft_offsets[index],
+                    ]
+                )
             # convert table to string
             logger.info(
                 f"Simulation parameters for fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
@@ -2068,13 +2081,15 @@ class Articulation(AssetBase):
             tendon_table.float_format = ".3"
             # add info on each term
             for index in range(self.num_spatial_tendons):
-                tendon_table.add_row([
-                    index,
-                    st_stiffnesses[index],
-                    st_dampings[index],
-                    st_limit_stiffnesses[index],
-                    st_offsets[index],
-                ])
+                tendon_table.add_row(
+                    [
+                        index,
+                        st_stiffnesses[index],
+                        st_dampings[index],
+                        st_limit_stiffnesses[index],
+                        st_offsets[index],
+                    ]
+                )
             # convert table to string
             logger.info(
                 f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
