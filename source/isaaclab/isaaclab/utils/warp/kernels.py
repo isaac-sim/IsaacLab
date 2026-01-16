@@ -373,8 +373,9 @@ def add_forces_and_torques_at_position(
     is_global: bool,
 ):
     """Adds forces and torques to the composed force and torque at the user-provided positions.
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the link frame of the body.
-    When is_global is True, the user-provided positions are the global positions of the force application.
+    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the
+    link frame of the body. When is_global is True, the user-provided positions are the global positions of the force
+    application.
 
     Args:
         env_ids: The environment ids.
@@ -426,8 +427,9 @@ def set_forces_and_torques_at_position(
     is_global: bool,
 ):
     """Sets forces and torques to the composed force and torque at the user-provided positions.
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the link frame of the body.
-    When is_global is True, the user-provided positions are the global positions of the force application.
+    When is_global is False, the user-provided positions are offsetting the application of the force relatively
+    to the link frame of the body. When is_global is True, the user-provided positions are the global positions
+    of the force application.
 
     Args:
         env_ids: The environment ids.
@@ -449,7 +451,8 @@ def set_forces_and_torques_at_position(
         composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = cast_torque_to_link_frame(
             torques[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
         )
-    # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque from the force at that position.
+    # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque
+    # from the force at that position.
     if forces:
         # set the forces to the composed force
         composed_forces_b[env_ids[tid_env], body_ids[tid_body]] = cast_force_to_link_frame(

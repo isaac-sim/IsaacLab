@@ -57,7 +57,7 @@ class WrenchComposer:
             torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32
         )
 
-        # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor every time.
+        # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
         self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
         # Pinning the environment and body indices to the torch tensor to allow for slicing.
@@ -136,8 +136,9 @@ class WrenchComposer:
 
         The user can provide any combination of forces, torques, and positions.
 
-        .. note:: Users may want to call `reset` function after every simulation step to ensure no force is carried over to the next step.
-        However, this may not necessary if the user calls `set_forces_and_torques` function instead of `add_forces_and_torques`.
+        .. note:: Users may want to call `reset` function after every simulation step to ensure no force is carried
+        over to the next step. However, this may not necessary if the user calls `set_forces_and_torques` function
+        instead of `add_forces_and_torques`.
 
         Args:
             forces: Forces. (num_envs, num_bodies, 3). Defaults to None.

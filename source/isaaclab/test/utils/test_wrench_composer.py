@@ -440,9 +440,9 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
 
         # Verify
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(
-            composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5
-        ), f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
+            f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -473,9 +473,9 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
 
         # Verify
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(
-            composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5
-        ), f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
+            f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -513,19 +513,6 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         position_offset_global = positions_global_np - link_pos_np
 
         # 3. Torque = skew(position_offset_global) @ force_global, then rotate to local
-        # Actually the kernel computes: skew(cast_to_link_frame(pos)) @ cast_force_to_link_frame(force)
-        # cast_to_link_frame with is_global=True: pos - link_pos
-        # cast_force_to_link_frame with is_global=True: quat_rotate_inv(quat, force)
-        # So torque_local = skew(pos - link_pos) @ quat_rotate_inv(quat, force)
-        # But wait - skew is applied to position which is still in global frame offset...
-        # Let me re-read the kernel...
-        # The kernel does: skew(cast_to_link_frame(pos, link_pos, is_global)) @ cast_force_to_link_frame(force, quat, is_global)
-        # cast_to_link_frame returns pos - link_pos when is_global=True
-        # So torque = skew(pos_global - link_pos) @ quat_rotate_inv(quat, force_global)
-        # This seems like a mixed frame calculation... the position offset is in global frame
-        # but the force is in local frame. Let me check if this is intentional.
-
-        # For now, let's compute what the kernel actually does:
         expected_torques_local = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
         for i in range(num_envs):
             for j in range(num_bodies):
@@ -536,15 +523,15 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
 
         # Verify forces
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(
-            composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4
-        ), f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
+            f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        )
 
         # Verify torques
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(
-            composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4
-        ), f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
+            f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
+        )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -610,9 +597,9 @@ def test_90_degree_rotation_global_force(device: str):
     expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(
-        composed_force_np, expected_force_local, atol=1e-5
-    ), f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
+    assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
+        f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
+    )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -646,9 +633,9 @@ def test_composition_mixed_local_and_global(device: str):
     expected_total = forces_local_np + global_forces_in_local
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(
-        composed_force_np, expected_total, atol=1e-4, rtol=1e-5
-    ), f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
+    assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
+        f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
+    )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
