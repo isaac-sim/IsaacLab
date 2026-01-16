@@ -31,7 +31,8 @@ optional arguments:
   -h, --help                    Show this help message and exit
   --make-instanceable,          Make the asset instanceable for efficient cloning. (default: False)
   --collision-approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
-                                Set to \"none\" to not add a collision mesh to the converted mesh. (default: convexDecomposition)
+                                Set to \"none\" to not add a collision mesh to the converted mesh.
+                                (default: convexDecomposition)
   --mass                        The mass (in kg) to assign to the converted asset. (default: None)
 
 """

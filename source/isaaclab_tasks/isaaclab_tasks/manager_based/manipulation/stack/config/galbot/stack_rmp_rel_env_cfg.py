@@ -298,8 +298,10 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeft
             joint_names=["left_gripper_.*_joint"],
             open_command_expr={"left_gripper_.*_joint": 0.035},
             close_command_expr={"left_gripper_.*_joint": 0.023},
-            # real gripper close data is 0.0235, close to it to meet data distribution, but smaller to ensure robust grasping.
-            # during VLA inference, we set the close command to '0.023' since the VLA has never seen the gripper fully closed.
+            # real gripper close data is 0.0235, close to it to meet data distribution,
+            # but smaller to ensure robust grasping.
+            # during VLA inference, we set the close command to '0.023' since the VLA
+            # has never seen the gripper fully closed.
         )
 
 

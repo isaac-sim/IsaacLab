@@ -74,13 +74,16 @@ class LiveLinePlot(UIWidgetWrapper):
         """Create a new LiveLinePlot widget.
 
         Args:
-            y_data: A list of lists of floats containing the data to plot. Each list of floats represents a series in the plot.
+            y_data: A list of lists of floats containing the data to plot. Each list of floats represents a
+                series in the plot.
             y_min: The minimum y value to display. Defaults to -10.
             y_max: The maximum y value to display. Defaults to 10.
             plot_height: The height of the plot in pixels. Defaults to 150.
             show_legend: Whether to display the legend. Defaults to True.
-            legends: A list of strings containing the legend labels for each series. If None, the default labels are "Series_0", "Series_1", etc. Defaults to None.
-            max_datapoints: The maximum number of data points to display. If the number of data points exceeds this value, the oldest data points are removed. Defaults to 200.
+            legends: A list of strings containing the legend labels for each series. If None, the default
+                labels are "Series_0", "Series_1", etc. Defaults to None.
+            max_datapoints: The maximum number of data points to display. If the number of data points exceeds
+                this value, the oldest data points are removed. Defaults to 200.
         """
         super().__init__(self._create_ui_widget())
         self.plot_height = plot_height
@@ -307,8 +310,13 @@ class LiveLinePlot(UIWidgetWrapper):
                                         height=0,
                                     )
                                     with omni.ui.Placer(offset_x=-20):
+                                        label_value = (
+                                            self._y_max
+                                            - first_space * grid_resolution
+                                            - grid_line_idx * grid_resolution
+                                        )
                                         omni.ui.Label(
-                                            f"{(self._y_max - first_space * grid_resolution - grid_line_idx * grid_resolution):.3f}",
+                                            f"{label_value:.3f}",
                                             width=8,
                                             height=8,
                                             alignment=omni.ui.Alignment.RIGHT_TOP,

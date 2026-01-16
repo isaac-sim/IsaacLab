@@ -389,8 +389,10 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
                             # number of joints in both hands
                             num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
-                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is consistent with robot.joint_names[-24:]
-                            # The order of the joints does matter as it will be used for converting pink_ik actions to final control actions in IsaacLab.
+                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is
+                            # consistent with robot.joint_names[-24:]
+                            # The order of the joints does matter as it will be used for
+                            # converting pink_ik actions to final control actions in IsaacLab.
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),
                     ],

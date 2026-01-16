@@ -745,7 +745,6 @@ class DisassemblyEnv(DirectRLEnv):
         """Lift gripper by specified distance. Called outside RL loop (i.e., after last step of episode)."""
 
         ctrl_tgt_pos = torch.empty_like(self.fingertip_midpoint_pos).copy_(self.fingertip_midpoint_pos)
-        # ctrl_tgt_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self.device).repeat((self.num_envs,1))
         ctrl_tgt_quat = torch.empty_like(self.fingertip_midpoint_quat).copy_(self.fingertip_midpoint_quat)
         ctrl_tgt_pos[:, 2] += lift_distance
         if len(env_ids) == 0:

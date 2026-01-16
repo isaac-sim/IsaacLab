@@ -290,7 +290,8 @@ def resolve_matching_names_values(
     For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].
     If :attr:`preserve_order` is False, then the function will return the indices of the matched strings, the
     matched strings, and the values as: ([0, 1, 2, 3, 4], ['a', 'b', 'c', 'd', 'e'], [1, 2, 2, 1, 1]). When
-    :attr:`preserve_order` is True, it will return them as: ([0, 3, 4, 1, 2], ['a', 'd', 'e', 'b', 'c'], [1, 1, 1, 2, 2]).
+    :attr:`preserve_order` is True, it will return them as:
+    ([0, 3, 4, 1, 2], ['a', 'd', 'e', 'b', 'c'], [1, 1, 1, 2, 2]).
 
     Args:
         data: A dictionary of regular expressions and values to match the strings in the list.

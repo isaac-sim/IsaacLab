@@ -211,9 +211,13 @@ class MotionLoader:
                 If ``times`` is defined, this parameter is ignored.
 
         Returns:
-            Sampled motion DOF positions (with shape (N, num_dofs)), DOF velocities (with shape (N, num_dofs)),
-            body positions (with shape (N, num_bodies, 3)), body rotations (with shape (N, num_bodies, 4), as wxyz quaternion),
-            body linear velocities (with shape (N, num_bodies, 3)) and body angular velocities (with shape (N, num_bodies, 3)).
+            A tuple containing sampled motion data:
+                - DOF positions (with shape (N, num_dofs))
+                - DOF velocities (with shape (N, num_dofs))
+                - Body positions (with shape (N, num_bodies, 3))
+                - Body rotations (with shape (N, num_bodies, 4), as wxyz quaternion)
+                - Body linear velocities (with shape (N, num_bodies, 3))
+                - Body angular velocities (with shape (N, num_bodies, 3))
         """
         times = self.sample_times(num_samples, duration) if times is None else times
         index_0, index_1, blend = self._compute_frame_blend(times)

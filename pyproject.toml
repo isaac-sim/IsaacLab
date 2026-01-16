@@ -33,8 +33,6 @@ select = [
 # Ignore specific rules (matching your flake8 config)
 ignore = [
     "E402",   # Module level import not at top of file
-    "E501",   # Line too long (handled by formatter)
-    "E203",   # Whitespace before ':' (conflicts with formatter)
     "D401",   # First line should be in imperative mood
     "RET504", # Unnecessary variable assignment before return statement
     "RET505", # Unnecessary elif after return statement

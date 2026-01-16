@@ -5,7 +5,8 @@
 
 """Test cases for PinkKinematicsConfiguration class."""
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# Import pinocchio in the main script to force the use of the dependencies installed
+# by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
