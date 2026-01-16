@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Base class for data generator.
-"""
+"""Base class for data generator."""
 
 import asyncio
 import copy
@@ -136,11 +134,10 @@ def get_delta_pose_with_scheme(
 
 
 class DataGenerator:
-    """
-    The main data generator class that generates new trajectories from source datasets.
+    """The main data generator class that generates new trajectories from source datasets.
 
-    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human
-    collected source demonstrations.
+    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a
+    few human collected source demonstrations.
 
     The data generator works by parsing demonstrations into object-centric subtask segments, stored in
     :class:`DataGenInfoPool`. It then adapts these subtask segments to new scenes by transforming each
@@ -160,8 +157,8 @@ class DataGenerator:
             env: environment to use for data generation
             src_demo_datagen_info_pool: source demo datagen info pool
             dataset_path: path to hdf5 dataset to use for generation
-            demo_keys: list of demonstration keys to use in file. If not provided, all demonstration keys
-                will be used.
+            demo_keys: list of demonstration keys to use in file. If not provided,
+                all demonstration keys will be used.
         """
         self.env = env
         self.env_cfg = env.cfg
@@ -186,16 +183,14 @@ class DataGenerator:
             raise ValueError("Either src_demo_datagen_info_pool or dataset_path must be provided")
 
     def __repr__(self):
-        """
-        Pretty print this object.
-        """
+        """Pretty print this object."""
         msg = str(self.__class__.__name__)
         msg += f" (\n\tdataset_path={self.dataset_path}\n\tdemo_keys={self.demo_keys}\n)"
         return msg
 
     def randomize_subtask_boundaries(self) -> dict[str, np.ndarray]:
-        """
-        Apply random offsets to sample subtask boundaries according to the task spec.
+        """Apply random offsets to sample subtask boundaries according to the task spec.
+
         Recall that each demonstration is segmented into a set of subtask segments, and the
         end index (and start index when skillgen is enabled) of each subtask can have a random offset.
         """
@@ -263,8 +258,7 @@ class DataGenerator:
         selection_strategy_name: str,
         selection_strategy_kwargs: dict | None = None,
     ) -> int:
-        """
-        Helper method to run source subtask segment selection.
+        """Helper method to run source subtask segment selection.
 
         Args:
             eef_name: name of end effector
@@ -277,7 +271,7 @@ class DataGenerator:
             selection_strategy_kwargs: extra kwargs for running selection strategy
 
         Returns:
-            selected_src_demo_ind: selected source demo index
+            The selected source demo index
         """
         if subtask_object_name is None:
             # no reference object - only random selection is supported
@@ -339,8 +333,7 @@ class DataGenerator:
         runtime_subtask_constraints_dict: dict,
         selected_src_demo_inds: dict,
     ) -> WaypointTrajectory:
-        """
-        Build a transformed waypoint trajectory for a single subtask of an end-effector.
+        """Build a transformed waypoint trajectory for a single subtask of an end-effector.
 
         This method selects a source demonstration segment for the specified subtask,
         slices the corresponding EEF poses/targets/gripper actions using the randomized
@@ -550,8 +543,7 @@ class DataGenerator:
         prev_executed_traj: list[Waypoint] | None,
         subtask_trajectory: WaypointTrajectory,
     ) -> list[Waypoint]:
-        """
-        Merge a subtask trajectory into an executable trajectory for the robot end-effector.
+        """Merge a subtask trajectory into an executable trajectory for the robot end-effector.
 
         This constructs a new `WaypointTrajectory` by first creating an initial
         interpolation segment, then merging the provided `subtask_trajectory` onto it.
@@ -632,8 +624,7 @@ class DataGenerator:
         export_demo: bool = True,
         motion_planner: Any | None = None,
     ) -> dict:
-        """
-        Attempt to generate a new demonstration.
+        """Attempt to generate a new demonstration.
 
         Args:
             env_id: environment ID
@@ -645,16 +636,16 @@ class DataGenerator:
             motion_planner: motion planner to use for motion planning
 
         Returns:
-            A dictionary with the following items:
-                initial_state (dict): initial simulator state for the executed trajectory
-                states (list): simulator state at each timestep
-                observations (list): observation dictionary at each timestep
-                datagen_infos (list): datagen_info at each timestep
-                actions (np.array): action executed at each timestep
-                success (bool): whether the trajectory successfully solved the task or not
-                src_demo_inds (list): list of selected source demonstration indices for each subtask
-                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for
-                    each timestep of the trajectory.
+            A dictionary containing the following items:
+                - initial_state (dict): initial simulator state for the executed trajectory
+                - states (list): simulator state at each timestep
+                - observations (list): observation dictionary at each timestep
+                - datagen_infos (list): datagen_info at each timestep
+                - actions (np.array): action executed at each timestep
+                - success (bool): whether the trajectory successfully solved the task or not
+                - src_demo_inds (list): list of selected source demonstration indices for each subtask
+                - src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for
+                  each timestep of the trajectory.
         """
         # With skillgen, a motion planner is required to generate collision-free transitions between subtasks.
         if self.env_cfg.datagen_config.use_skillgen and motion_planner is None:
