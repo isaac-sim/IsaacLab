@@ -37,7 +37,7 @@ class LeeVelController:
         self.cfg = cfg
         self.robot: Multirotor = asset
         self.device = device
-        
+
         # Aggregate mass and inertia about the robot COM for all bodies
         root_quat_exp = self.robot.data.root_link_quat_w.unsqueeze(1).expand(num_envs, self.robot.num_bodies, 4)
         body_link_pos_delta = self.robot.data.body_link_pos_w - self.robot.data.root_pos_w.unsqueeze(1)
@@ -109,10 +109,17 @@ class LeeVelController:
         """Randomize controller gains for the given environments if enabled."""
         if not self.cfg.randomize_params:
             return
-        self.K_vel_current[env_ids] = math_utils.sample_uniform(self.K_vel_range[env_ids, 0], self.K_vel_range[env_ids, 1], self.K_vel_range[env_ids,0].shape, self.device)
-        self.K_rot_current[env_ids] = math_utils.sample_uniform(self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1], self.K_rot_range[env_ids,0].shape, self.device)
+        self.K_vel_current[env_ids] = math_utils.sample_uniform(
+            self.K_vel_range[env_ids, 0], self.K_vel_range[env_ids, 1], self.K_vel_range[env_ids, 0].shape, self.device
+        )
+        self.K_rot_current[env_ids] = math_utils.sample_uniform(
+            self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1], self.K_rot_range[env_ids, 0].shape, self.device
+        )
         self.K_angvel_current[env_ids] = math_utils.sample_uniform(
-            self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1], self.K_angvel_range[env_ids,0].shape, self.device
+            self.K_angvel_range[env_ids, 0],
+            self.K_angvel_range[env_ids, 1],
+            self.K_angvel_range[env_ids, 0].shape,
+            self.device,
         )
 
     def compute_acceleration(self, setpoint_velocity):
