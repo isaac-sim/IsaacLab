@@ -8,6 +8,13 @@ Changelog
 * Updated dex-retargeting to 0.5.0 with numpy 2.0+ dependency.
 * Added albedo annotator for faster diffuse albedo rendering. This path will be the most performant when GUI is not required and only albedo and/or depth annotations are requested.
 
+0.50.6 (2026-01-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+
+* Removed explicit URDF importer extension version dependency in :class:`~isaaclab.sim.converters.urdf_converter.UrdfConverter` and related code.
+
 
 0.50.5 (2025-12-15)
 ~~~~~~~~~~~~~~~~~~~
