@@ -310,8 +310,13 @@ class LiveLinePlot(UIWidgetWrapper):
                                         height=0,
                                     )
                                     with omni.ui.Placer(offset_x=-20):
+                                        label_value = (
+                                            self._y_max
+                                            - first_space * grid_resolution
+                                            - grid_line_idx * grid_resolution
+                                        )
                                         omni.ui.Label(
-                                            f"{(self._y_max - first_space * grid_resolution - grid_line_idx * grid_resolution):.3f}",
+                                            f"{label_value:.3f}",
                                             width=8,
                                             height=8,
                                             alignment=omni.ui.Alignment.RIGHT_TOP,

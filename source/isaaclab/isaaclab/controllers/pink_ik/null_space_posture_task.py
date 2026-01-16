@@ -40,7 +40,8 @@ class NullSpacePostureTask(Task):
 
     .. math::
 
-        \mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) = \mathbf{I} - \mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}
+        \mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) =
+            \mathbf{I} -\mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}
 
     where:
         - :math:`\mathbf{J}_{\text{primary}}` is the combined Jacobian of all higher priority tasks
@@ -70,7 +71,9 @@ class NullSpacePostureTask(Task):
 
     .. math::
 
-        \left\| \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q}) \right\|_{W_{\text{posture}}}^2
+        \left\|
+            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+        \right\|_{W_{\text{posture}}}^2
 
     This formulation allows the robot to maintain a desired posture while respecting the constraints
     imposed by higher priority tasks (e.g., end-effector positioning).

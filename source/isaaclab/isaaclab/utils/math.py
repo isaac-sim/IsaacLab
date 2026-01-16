@@ -1528,7 +1528,10 @@ def convert_camera_frame_orientation_convention(
 
     .. math::
 
-        T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+        T_{ROS} =
+            \begin{bmatrix}
+                1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1
+            \end{bmatrix} T_{USD}
 
     On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
     and +Z pointing up. The camera can also be set in this convention by rotating the camera by :math:`90^{\circ}`
@@ -1536,7 +1539,10 @@ def convert_camera_frame_orientation_convention(
 
     .. math::
 
-        T_{WORLD} = \begin{bmatrix} 0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+        T_{WORLD} =
+            \begin{bmatrix}
+                0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1
+            \end{bmatrix} T_{USD}
 
     Thus, based on their application, cameras follow different conventions for their orientation. This function
     converts a quaternion from one convention to another.

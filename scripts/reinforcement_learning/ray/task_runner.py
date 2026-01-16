@@ -104,7 +104,7 @@ YAML configuration example-2:
           hostname: "xxx"
 
 To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.
-"""
+"""  # noqa: E501
 
 import argparse
 from datetime import datetime
