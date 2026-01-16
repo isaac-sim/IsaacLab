@@ -38,7 +38,6 @@ class DatagenInfo:
         gripper_action=None,
     ):
         """Initialize the DatagenInfo object.
-        
         Args:
             eef_pose (torch.Tensor or None): robot end effector poses of shape [..., 4, 4]
             object_poses (dict or None): dictionary mapping object name to object poses
