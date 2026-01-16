@@ -152,7 +152,10 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
 
 
 def test_no_change(assets):
-    """Call conversion twice on the same input asset. This should not generate a new USD file if the hash is the same."""
+    """Call conversion twice on the same input asset.
+
+    This should not generate a new USD file if the hash is the same.
+    """
     # create an initial USD file from asset
     mesh_config = MeshConverterCfg(asset_path=assets["obj"])
     mesh_converter = MeshConverter(mesh_config)

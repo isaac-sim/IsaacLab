@@ -21,7 +21,8 @@ class DatagenInfo:
     Core Elements:
     - **eef_pose**: Captures the current 6 dimensional poses of the robot's end-effector.
     - **object_poses**: Captures the 6 dimensional poses of relevant objects in the scene.
-    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.
+    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify
+      the precise start of a subtask from a demonstration.
     - **subtask_term_signals**: Captures subtask completions signals.
     - **target_eef_pose**: Captures the target 6 dimensional poses for robot's end effector at each time step.
     - **gripper_action**:  Captures the gripper's state.

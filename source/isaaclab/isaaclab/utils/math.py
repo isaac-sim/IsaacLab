@@ -708,7 +708,8 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
     .. deprecated v2.1.0:
-         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.
+         This function will be removed in a future release in favor of the faster implementation
+         :meth:`quat_apply_inverse`.
 
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
@@ -1704,7 +1705,8 @@ def pose_inv(pose: torch.Tensor) -> torch.Tensor:
     # Take transpose of last 2 dimensions
     inv_pose[..., :3, :3] = pose[..., :3, :3].transpose(-1, -2)
 
-    # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1] so we add a dimension and take it away after
+    # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1]
+    # so we add a dimension and take it away after
     inv_pose[..., :3, 3] = torch.matmul(-inv_pose[..., :3, :3], pose[..., :3, 3:4])[..., 0]
     inv_pose[..., 3, 3] = 1.0
     return inv_pose

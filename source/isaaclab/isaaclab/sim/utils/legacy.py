@@ -328,7 +328,8 @@ def get_next_free_path(path: str) -> str:
     """Gets a new prim path that doesn't exist in the stage given a base path.
 
     .. deprecated:: 2.3.0
-        This function is deprecated. Please use the :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` function instead.
+        This function is deprecated. Please use the
+        :func:`isaaclab.sim.utils.queries.get_next_free_prim_path` function instead.
 
     Args:
         path: The base prim path to check.

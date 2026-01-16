@@ -82,7 +82,8 @@ class FeatureExtractor:
         Args:
             cfg: Configuration for the feature extractor model.
             device: Device to run the model on.
-            log_dir: Directory to save checkpoints. If None, uses local "logs" folder resolved with respect to this file.
+            log_dir: Directory to save checkpoints. Default is None, which uses the local
+                "logs" folder resolved relative to this file.
         """
 
         self.cfg = cfg

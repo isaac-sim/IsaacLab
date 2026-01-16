@@ -55,8 +55,10 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
     Args:
         space: Gymnasium space.
         device: The device where the tensor should be created.
-        batch_size: Batch size. If the specified value is greater than zero, a batched space will be created and sampled from it.
-        fill_value: The value to fill the created tensors with. If None (default value), tensors will keep their random values.
+        batch_size: Batch size. If the specified value is greater than zero, a batched space
+            will be created and sampled from it.
+        fill_value: The value to fill the created tensors with. If None (default value), tensors
+            will keep their random values.
 
     Returns:
         Tensorized sampled space.

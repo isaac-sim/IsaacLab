@@ -80,10 +80,10 @@ class modify_env_param(ManagerTermBase):
     current value, and the setter writes a new value back to the attribute.
 
     This term processes getter/setter accessors for a target attribute in an(specified by
-    as an "address" in the term configuration`cfg.params["address"]`) the first time it is called, then on each invocation
-    reads the current value, applies a user-provided `modify_fn`, and writes back
-    the result. Since None in this case can sometime be desirable value to write, we
-    use token, NO_CHANGE, as non-modification signal to this class, see usage below.
+    as an "address" in the term configuration :attr:`cfg.params["address"]`) the first time it is called,
+    then on each invocation reads the current value, applies a user-provided :attr:`modify_fn`,
+    and writes back the result. Since :obj:`None` in this case can sometime be desirable value
+    to write, we use token, :attr:`NO_CHANGE`, as non-modification signal to this class, see usage below.
 
     Usage:
         .. code-block:: python

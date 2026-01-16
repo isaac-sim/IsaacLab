@@ -58,7 +58,8 @@ class NullSpacePostureTask(Task):
             \mathbf{J}_2(\mathbf{q})
         \end{bmatrix}
 
-    where :math:`\mathbf{J}_1(\mathbf{q})` and :math:`\mathbf{J}_2(\mathbf{q})` are the Jacobians for the first and second frame tasks, respectively.
+    where :math:`\mathbf{J}_1(\mathbf{q})` and :math:`\mathbf{J}_2(\mathbf{q})` are the Jacobians for the
+    first and second frame tasks, respectively.
 
     The null space projector ensures that joint velocities in the null space produce zero velocity
     for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.
@@ -217,7 +218,8 @@ class NullSpacePostureTask(Task):
             - :math:`\mathbf{I}` is the identity matrix
 
         The null space projector ensures that joint velocities in the null space produce
-        zero velocity for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.
+        zero velocity for the primary tasks:
+        :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.
 
         If no controlled frames are specified, returns the identity matrix.
 

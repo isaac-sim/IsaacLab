@@ -142,9 +142,10 @@ class DataGenerator:
     The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human
     collected source demonstrations.
 
-    The data generator works by parsing demonstrations into object-centric subtask segments, stored in DataGenInfoPool.
-    It then adapts these subtask segments to new scenes by transforming each segment according to the new scene’s context,
-    stitching them into a coherent trajectory for a robotic end-effector to execute.
+    The data generator works by parsing demonstrations into object-centric subtask segments, stored in
+    :class:`DataGenInfoPool`. It then adapts these subtask segments to new scenes by transforming each
+    segment according to the new scene's context, stitching them into a coherent trajectory for a robotic
+    end-effector to execute.
     """
 
     def __init__(
@@ -269,7 +270,8 @@ class DataGenerator:
             eef_name: name of end effector
             eef_pose: current end effector pose
             object_pose: current object pose for this subtask
-            src_demo_current_subtask_boundaries: start and end indices for subtask segment in source demonstrations of shape (N, 2)
+            src_demo_current_subtask_boundaries: start and end indices for subtask segment
+                in source demonstrations of shape (N, 2)
             subtask_object_name: name of reference object for this subtask
             selection_strategy_name: name of selection strategy
             selection_strategy_kwargs: extra kwargs for running selection strategy
@@ -405,7 +407,8 @@ class DataGenerator:
                     # The concurrent task has started, so we should use the same source demo
                     selected_src_demo_inds[eef_name] = concurrent_selected_src_ind
                     need_source_demo_selection = False
-                    # This transform is set at after the first data generation iteration/first run of the main while loop
+                    # This transform is set at after the first data generation iteration/first
+                    # run of the main while loop
                     use_delta_transform = runtime_subtask_constraints_dict[
                         (concurrent_task_spec_key, concurrent_subtask_ind)
                     ]["transform"]
@@ -577,7 +580,7 @@ class DataGenerator:
                 Trajectory segment for the current subtask that will be merged after the initial interpolation segment.
 
         Returns:
-            list[Waypoint]: The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),
+            The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),
             with the temporary initial waypoint removed.
         """
         is_first_subtask = subtask_index == 0
@@ -642,7 +645,7 @@ class DataGenerator:
             motion_planner: motion planner to use for motion planning
 
         Returns:
-            results (dict): dictionary with the following items:
+            A dictionary with the following items:
                 initial_state (dict): initial simulator state for the executed trajectory
                 states (list): simulator state at each timestep
                 observations (list): observation dictionary at each timestep
@@ -650,7 +653,8 @@ class DataGenerator:
                 actions (np.array): action executed at each timestep
                 success (bool): whether the trajectory successfully solved the task or not
                 src_demo_inds (list): list of selected source demonstration indices for each subtask
-                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for each timestep of the trajectory
+                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for
+                    each timestep of the trajectory.
         """
         # With skillgen, a motion planner is required to generate collision-free transitions between subtasks.
         if self.env_cfg.datagen_config.use_skillgen and motion_planner is None:
@@ -740,7 +744,8 @@ class DataGenerator:
                                         eef_name, current_eef_subtask_indices[eef_name], self.env.cfg
                                     )
 
-                                # Plan motion using motion planner with comprehensive world update and attachment handling
+                                # Plan motion using motion planner with comprehensive world update
+                                # and attachment handling
                                 if motion_planner:
                                     print(f"\n--- Environment {env_id}: Planning motion to target pose ---")
                                     print(f"Target pose: {target_eef_pose}")
@@ -794,7 +799,8 @@ class DataGenerator:
                                 )
                                 current_eef_subtask_step_indices[eef_name] = 0
                         else:
-                            # Motion-planned trajectory has been executed, so we are ready to move to execute the next subtask
+                            # Motion-planned trajectory has been executed, so we are ready to move to
+                            # execute the next subtask
                             print("Finished executing motion-planned trajectory")
                             # It is important to pass the prev_executed_traj to merge_eef_subtask_trajectory
                             # so that it can correctly interpolate from the last pose of the motion-planned trajectory
