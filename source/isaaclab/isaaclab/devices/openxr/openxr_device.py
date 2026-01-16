@@ -24,8 +24,21 @@ from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
 from ..device_base import DeviceBase, DeviceCfg
+from .osc_receiver import BodyOscReceiver
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrCfg
+
+# Body tracker names for OpenXR (excludes "head" since head is tracked via OpenXR directly)
+BODY_TRACKER_NAMES: tuple[str, ...] = (
+    "hip",
+    "chest",
+    "left_foot",
+    "right_foot",
+    "left_knee",
+    "right_knee",
+    "left_elbow",
+    "right_elbow",
+)
 
 # For testing purposes, we need to mock the XRCore, XRPoseValidityFlags classes
 XRCore = None
@@ -96,6 +109,11 @@ class OpenXRDevice(DeviceBase):
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
+        self._previous_body_trackers = {name: default_pose.copy() for name in BODY_TRACKER_NAMES}
+
+        # Body tracking via OSC - lazily initialized when needed
+        self._osc_receiver: BodyOscReceiver | None = None
+        self._body_osc_port = cfg.body_osc_port
 
         if self._xr_cfg.anchor_prim_path is not None:
             anchor_path = self._xr_cfg.anchor_prim_path
@@ -222,6 +240,7 @@ class OpenXRDevice(DeviceBase):
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
+        self._previous_body_trackers = {name: default_pose.copy() for name in BODY_TRACKER_NAMES}
         if hasattr(self, "_anchor_sync") and self._anchor_sync is not None:
             self._anchor_sync.reset()
 
@@ -261,6 +280,9 @@ class OpenXRDevice(DeviceBase):
 
         if RetargeterBase.Requirement.HEAD_TRACKING in self._required_features:
             data[DeviceBase.TrackingTarget.HEAD] = self._calculate_headpose()
+
+        if RetargeterBase.Requirement.BODY_TRACKING in self._required_features:
+            data[DeviceBase.TrackingTarget.BODY] = self._calculate_body_trackers()
 
         if RetargeterBase.Requirement.MOTION_CONTROLLER in self._required_features:
             # Optionally include motion controller pose+inputs if devices are available
@@ -360,6 +382,34 @@ class OpenXRDevice(DeviceBase):
             )
 
         return self._previous_headpose
+
+    def _calculate_body_trackers(self) -> dict[str, np.ndarray]:
+        """Calculate and update body tracker poses from OSC receiver.
+
+        Returns:
+            Dictionary mapping tracker names to their poses (7-element arrays).
+        """
+        # Lazily initialize OSC receiver on first use
+        if self._osc_receiver is None:
+            self._osc_receiver = BodyOscReceiver(port=self._body_osc_port)
+            logger.info(f"Initialized body OSC receiver on port {self._body_osc_port}")
+
+        for tracker_name in BODY_TRACKER_NAMES:
+            if tracker_name == "head":
+                # Head is tracked via OpenXR, not OSC
+                continue
+            try:
+                tracker_pose = self._osc_receiver.get_pose(tracker_name)
+                position = tracker_pose[:3]
+                quat = tracker_pose[3:]
+                # Convert from (x,y,z,qx,qy,qz,qw) to (x,y,z,qw,qx,qy,qz)
+                self._previous_body_trackers[tracker_name] = np.array(
+                    [position[0], position[1], position[2], quat[3], quat[0], quat[1], quat[2]],
+                    dtype=np.float32,
+                )
+            except (ValueError, IndexError):
+                continue
+        return self._previous_body_trackers
 
     # -----------------------------
     # Controller button binding utilities
@@ -508,4 +558,9 @@ class OpenXRDeviceCfg(DeviceCfg):
     """Configuration for OpenXR devices."""
 
     xr_cfg: XrCfg | None = None
+    """XR-specific configuration for anchor, rotation, and rendering settings."""
+
+    body_osc_port: int = 9000
+    """UDP port for receiving body tracking data via OSC protocol."""
+
     class_type: type[DeviceBase] = OpenXRDevice

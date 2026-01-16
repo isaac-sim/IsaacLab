@@ -141,6 +141,7 @@ class DeviceBase(ABC):
         HEAD = 2
         CONTROLLER_LEFT = 3
         CONTROLLER_RIGHT = 4
+        BODY = 5
 
     class MotionControllerDataRowIndex(Enum):
         """Rows in the motion-controller 2x7 array."""

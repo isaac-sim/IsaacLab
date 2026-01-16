@@ -100,7 +100,7 @@ import torch
 
 import omni.ui as ui
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg, Se2Keyboard, Se2KeyboardCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 
@@ -445,6 +445,16 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks)
     teleop_interface.add_callback("R", reset_recording_instance)
+
+    # Add keyboard control for VR mode
+    def toggle_recording_instance():
+        nonlocal running_recording_instance
+        running_recording_instance = not running_recording_instance
+        print(f"Recording toggled: {running_recording_instance}")
+
+    keyboard = Se2Keyboard(Se2KeyboardCfg())
+    keyboard.add_callback("R", reset_recording_instance)
+    keyboard.add_callback("S", toggle_recording_instance)
 
     # Reset before starting
     env.sim.reset()

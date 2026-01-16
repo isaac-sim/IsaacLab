@@ -16,6 +16,7 @@ import isaaclab.utils.math as PoseUtils
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # This import exception is suppressed because gr1_t2_dex_retargeting_utils depends
 # on pinocchio which is not available on Windows.
@@ -48,21 +49,51 @@ class GR1T2Retargeter(RetargeterBase):
         self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
+        # Pre-compute joint index mappings for faster retargeting
+        self._left_joint_indices = [
+            self._hand_joint_names.index(name) for name in self._hands_controller.get_left_joint_names()
+        ]
+        self._right_joint_indices = [
+            self._hand_joint_names.index(name) for name in self._hands_controller.get_right_joint_names()
+        ]
+        self._num_joints = len(self._hands_controller.get_joint_names())
+
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
         self._num_open_xr_hand_joints = cfg.num_open_xr_hand_joints
         self._sim_device = cfg.sim_device
         if self._enable_visualization:
-            marker_cfg = VisualizationMarkersCfg(
-                prim_path="/Visuals/markers",
+            sphere_marker_cfg = VisualizationMarkersCfg(
+                prim_path="/Visuals/sphere_markers",
                 markers={
                     "joint": sim_utils.SphereCfg(
-                        radius=0.005,
+                        radius=0.03,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
                     ),
                 },
             )
+            marker_cfg = VisualizationMarkersCfg(
+                prim_path="/Visuals/markers",
+                markers={
+                    "frame": sim_utils.UsdFileCfg(
+                        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+                        scale=(0.01, 0.01, 0.01),
+                    ),
+                }
+            )
+            # Green spheres for IK targets (after transform)
+            ik_target_marker_cfg = VisualizationMarkersCfg(
+                prim_path="/Visuals/ik_target_markers",
+                markers={
+                    "joint": sim_utils.SphereCfg(
+                        radius=0.03,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                    ),
+                },
+            )
             self._markers = VisualizationMarkers(marker_cfg)
+            self._sphere_markers = VisualizationMarkers(sphere_marker_cfg)
+            self._ik_target_markers = VisualizationMarkers(ik_target_marker_cfg)
 
     def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to robot end-effector commands.
@@ -80,42 +111,62 @@ class GR1T2Retargeter(RetargeterBase):
         # Access the left and right hand data using the enum key
         left_hand_poses = data[DeviceBase.TrackingTarget.HAND_LEFT]
         right_hand_poses = data[DeviceBase.TrackingTarget.HAND_RIGHT]
+        body_poses = data[DeviceBase.TrackingTarget.BODY]
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
 
+        left_palm = left_hand_poses.get("palm")
+        right_palm = right_hand_poses.get("palm")
+
+        left_wrist[3:] = left_palm[3:]
+        right_wrist[3:] = right_palm[3:]
+
         if self._enable_visualization:
             joints_position = np.zeros((self._num_open_xr_hand_joints, 3))
+            joints_orientation = np.zeros((self._num_open_xr_hand_joints, 4))
 
             joints_position[::2] = np.array([pose[:3] for pose in left_hand_poses.values()])
             joints_position[1::2] = np.array([pose[:3] for pose in right_hand_poses.values()])
+            joints_orientation[::2] = np.array([pose[3:] for pose in left_hand_poses.values()])
+            joints_orientation[1::2] = np.array([pose[3:] for pose in right_hand_poses.values()])
 
-            self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device))
+            body_joints_position = np.array([pose[:3] for pose in body_poses.values()])
+            body_joints_orientation = np.array([pose[3:] for pose in body_poses.values()])
 
-        # Create array of zeros with length matching number of joint names
-        left_hands_pos = self._hands_controller.compute_left(left_hand_poses)
-        indexes = [self._hand_joint_names.index(name) for name in self._hands_controller.get_left_joint_names()]
-        left_retargeted_hand_joints = np.zeros(len(self._hands_controller.get_joint_names()))
-        left_retargeted_hand_joints[indexes] = left_hands_pos
-        left_hand_joints = left_retargeted_hand_joints
+            self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device),
+                                    orientations=torch.tensor(joints_orientation, device=self._sim_device))
 
-        right_hands_pos = self._hands_controller.compute_right(right_hand_poses)
-        indexes = [self._hand_joint_names.index(name) for name in self._hands_controller.get_right_joint_names()]
-        right_retargeted_hand_joints = np.zeros(len(self._hands_controller.get_joint_names()))
-        right_retargeted_hand_joints[indexes] = right_hands_pos
-        right_hand_joints = right_retargeted_hand_joints
-        retargeted_hand_joints = left_hand_joints + right_hand_joints
+            self._sphere_markers.visualize(translations=torch.tensor(body_joints_position, device=self._sim_device),
+                                          orientations=torch.tensor(body_joints_orientation, device=self._sim_device))
+
+        # Compute retargeted hand joints using pre-computed index mappings
+        retargeted_hand_joints = np.zeros(self._num_joints, dtype=np.float32)
+        retargeted_hand_joints[self._left_joint_indices] = self._hands_controller.compute_left(left_hand_poses)
+        retargeted_hand_joints[self._right_joint_indices] = self._hands_controller.compute_right(right_hand_poses)
 
         # Convert numpy arrays to tensors and concatenate them
-        left_wrist_tensor = torch.tensor(left_wrist, dtype=torch.float32, device=self._sim_device)
-        right_wrist_tensor = torch.tensor(self._retarget_abs(right_wrist), dtype=torch.float32, device=self._sim_device)
+        left_wrist_transformed = self._retarget_abs(left_wrist)
+        right_wrist_transformed = self._retarget_abs(right_wrist)
+
+        # Visualize IK targets (after transform) as green spheres
+        if self._enable_visualization:
+            ik_targets_pos = np.array([left_wrist_transformed[:3], right_wrist_transformed[:3]])
+            ik_targets_quat = np.array([left_wrist_transformed[3:], right_wrist_transformed[3:]])
+            self._ik_target_markers.visualize(
+                translations=torch.tensor(ik_targets_pos, device=self._sim_device),
+                orientations=torch.tensor(ik_targets_quat, device=self._sim_device)
+            )
+
+        left_wrist_tensor = torch.tensor(left_wrist_transformed, dtype=torch.float32, device=self._sim_device)
+        right_wrist_tensor = torch.tensor(right_wrist_transformed, dtype=torch.float32, device=self._sim_device)
         hand_joints_tensor = torch.tensor(retargeted_hand_joints, dtype=torch.float32, device=self._sim_device)
 
         # Combine all tensors into a single tensor
         return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
 
     def get_requirements(self) -> list[RetargeterBase.Requirement]:
-        return [RetargeterBase.Requirement.HAND_TRACKING]
+        return [RetargeterBase.Requirement.HAND_TRACKING, RetargeterBase.Requirement.BODY_TRACKING]
 
     def _retarget_abs(self, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.

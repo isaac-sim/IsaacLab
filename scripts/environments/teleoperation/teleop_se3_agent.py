@@ -64,7 +64,7 @@ import logging
 import gymnasium as gym
 import torch
 
-from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg, Se2Keyboard, Se2KeyboardCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -170,6 +170,11 @@ def main() -> None:
         teleoperation_active = False
         print("Teleoperation deactivated")
 
+    def toggle_teleoperation() -> None:
+        nonlocal teleoperation_active
+        teleoperation_active = not teleoperation_active
+        print(f"Teleoperation toggled: {teleoperation_active}")
+
     # Create device config if not already in env_cfg
     teleoperation_callbacks: dict[str, Callable[[], None]] = {
         "R": reset_recording_instance,
@@ -243,6 +248,10 @@ def main() -> None:
     teleop_interface.reset()
 
     print("Teleoperation started. Press 'R' to reset the environment.")
+
+    keyboard = Se2Keyboard(Se2KeyboardCfg())
+    keyboard.add_callback("R", reset_recording_instance)
+    keyboard.add_callback("S", toggle_teleoperation)
 
     # simulate environment
     while simulation_app.is_running():
