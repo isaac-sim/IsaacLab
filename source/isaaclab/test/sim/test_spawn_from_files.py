@@ -19,7 +19,7 @@ import omni.kit.app
 from isaacsim.core.api.simulation_context import SimulationContext
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
 
@@ -48,7 +48,7 @@ def sim():
 def test_spawn_usd(sim):
     """Test loading prim from Usd file."""
     # Spawn cone
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd")
     prim = cfg.func("/World/Franka", cfg)
     # Check validity
     assert prim.IsValid()
@@ -60,7 +60,9 @@ def test_spawn_usd(sim):
 def test_spawn_usd_fails(sim):
     """Test loading prim from Usd file fails when asset usd path is invalid."""
     # Spawn cone
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda2_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda2_instanceable.usd"
+    )
 
     with pytest.raises(FileNotFoundError):
         cfg.func("/World/Franka", cfg)

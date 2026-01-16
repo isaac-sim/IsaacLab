@@ -36,7 +36,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
 
@@ -82,7 +82,7 @@ def define_markers() -> VisualizationMarkers:
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
             "robot_mesh": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
             ),
