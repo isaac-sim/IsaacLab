@@ -498,6 +498,10 @@ Multirotor
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
+.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+
+.. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
+
 .. table::
     :widths: 33 37 30
 
@@ -506,7 +510,8 @@ Multirotor
     +========================================+=============================================+========================================================================================+
     | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |
     +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
-
+    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
 
 Others
 ~~~~~~
@@ -939,6 +944,14 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
+      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
+      - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
