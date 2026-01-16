@@ -701,6 +701,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.num_bodies"><code class="docutils literal notranslate"><span class="pre">RigidObject.num_bodies</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.body_names"><code class="docutils literal notranslate"><span class="pre">RigidObject.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObject.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObject.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObject.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.reset"><code class="docutils literal notranslate"><span class="pre">RigidObject.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObject.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.update"><code class="docutils literal notranslate"><span class="pre">RigidObject.update()</span></code></a></li>
@@ -817,6 +819,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.num_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.object_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.reset"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.update()</span></code></a></li>
@@ -911,6 +915,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.spatial_tendon_names"><code class="docutils literal notranslate"><span class="pre">Articulation.spatial_tendon_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.body_names"><code class="docutils literal notranslate"><span class="pre">Articulation.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.root_physx_view"><code class="docutils literal notranslate"><span class="pre">Articulation.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Articulation.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Articulation.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.reset"><code class="docutils literal notranslate"><span class="pre">Articulation.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>
@@ -1564,6 +1570,12 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObject.root_physx_view" title="isaaclab.assets.RigidObject.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Rigid body view for the asset (PhysX).</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObject.instantaneous_wrench_composer" title="isaaclab.assets.RigidObject.instantaneous_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">instantaneous_wrench_composer</span></code></a></p></td>
+<td><p>Instantaneous wrench composer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObject.permanent_wrench_composer" title="isaaclab.assets.RigidObject.permanent_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">permanent_wrench_composer</span></code></a></p></td>
+<td><p>Permanent wrench composer.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObject.device" title="isaaclab.assets.RigidObject.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
@@ -1684,6 +1696,25 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <p class="admonition-title">Note</p>
 <p>Use this view with caution. It requires handling of tensors in a specific way.</p>
 </div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.RigidObject.instantaneous_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">instantaneous_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.RigidObject.instantaneous_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Instantaneous wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+for instance.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.RigidObject.permanent_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">permanent_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.RigidObject.permanent_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Permanent wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+are constant over a period of time, things like the thrust of a motor for instance.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1896,18 +1927,6 @@ external wrench at (in the local link frame of the bodies).</p>
 of external wrench to the simulation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of disabling external wrench</span>
 <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">torques</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>If the function is called consecutively with and with different values for <code class="docutils literal notranslate"><span class="pre">is_global</span></code>, then the
-all the external wrenches will be applied in the frame specified by the last call.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of setting external wrench in the global frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="c1"># example of setting external wrench in the link frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="c1"># Both environments will have the external wrenches applied in the link frame</span>
 </pre></div>
 </div>
 </div>
@@ -2937,6 +2956,12 @@ could contain the same rigid object multiple times, leading to ambiguity.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObjectCollection.root_physx_view" title="isaaclab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Rigid body view for the rigid body collection (PhysX).</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer" title="isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">instantaneous_wrench_composer</span></code></a></p></td>
+<td><p>Instantaneous wrench composer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObjectCollection.permanent_wrench_composer" title="isaaclab.assets.RigidObjectCollection.permanent_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">permanent_wrench_composer</span></code></a></p></td>
+<td><p>Permanent wrench composer.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.RigidObjectCollection.device" title="isaaclab.assets.RigidObjectCollection.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
@@ -2999,6 +3024,25 @@ could contain the same rigid object multiple times, leading to ambiguity.</p>
 <p class="admonition-title">Note</p>
 <p>Use this view with caution. It requires handling of tensors in a specific way.</p>
 </div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">instantaneous_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Instantaneous wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+for instance.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.RigidObjectCollection.permanent_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">permanent_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.RigidObjectCollection.permanent_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Permanent wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+are constant over a period of time, things like the thrust of a motor for instance.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -3218,18 +3262,6 @@ into buffers which are then applied to the simulation at every step.</p>
 of external wrench to the simulation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of disabling external wrench</span>
 <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">torques</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>If the function is called consecutively with and with different values for <code class="docutils literal notranslate"><span class="pre">is_global</span></code>, then the
-all the external wrenches will be applied in the frame specified by the last call.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of setting external wrench in the global frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="c1"># example of setting external wrench in the link frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="c1"># Both environments will have the external wrenches applied in the link frame</span>
 </pre></div>
 </div>
 </div>
@@ -3954,6 +3986,12 @@ As an example, the following snippet shows how this can be used for position com
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.root_physx_view" title="isaaclab.assets.Articulation.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Articulation view for the asset (PhysX).</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.instantaneous_wrench_composer" title="isaaclab.assets.Articulation.instantaneous_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">instantaneous_wrench_composer</span></code></a></p></td>
+<td><p>Instantaneous wrench composer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.permanent_wrench_composer" title="isaaclab.assets.Articulation.permanent_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">permanent_wrench_composer</span></code></a></p></td>
+<td><p>Permanent wrench composer.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.assets.Articulation.device" title="isaaclab.assets.Articulation.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
@@ -4216,6 +4254,35 @@ attribute. They are used to compute the joint commands during the <a class="refe
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Use this view with caution. It requires handling of tensors in a specific way.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.Articulation.instantaneous_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">instantaneous_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.Articulation.instantaneous_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Instantaneous wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+for instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+applied to the simulation.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.assets.Articulation.permanent_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">permanent_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab.assets.Articulation.permanent_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Permanent wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+are constant over a period of time, things like the thrust of a motor for instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+applied to the simulation.</p>
 </div>
 </dd></dl>
 
@@ -4670,18 +4737,6 @@ external wrench at (in the local link frame of the bodies).</p>
 of external wrench to the simulation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of disabling external wrench</span>
 <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">torques</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>If the function is called consecutively with and with different values for <code class="docutils literal notranslate"><span class="pre">is_global</span></code>, then the
-all the external wrenches will be applied in the frame specified by the last call.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of setting external wrench in the global frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="c1"># example of setting external wrench in the link frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="c1"># Both environments will have the external wrenches applied in the link frame</span>
 </pre></div>
 </div>
 </div>
@@ -7344,6 +7399,8 @@ asset is already present in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.num_bodies"><code class="docutils literal notranslate"><span class="pre">RigidObject.num_bodies</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.body_names"><code class="docutils literal notranslate"><span class="pre">RigidObject.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObject.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObject.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObject.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.reset"><code class="docutils literal notranslate"><span class="pre">RigidObject.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObject.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObject.update"><code class="docutils literal notranslate"><span class="pre">RigidObject.update()</span></code></a></li>
@@ -7460,6 +7517,8 @@ asset is already present in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.num_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.object_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.reset"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.RigidObjectCollection.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.update()</span></code></a></li>
@@ -7554,6 +7613,8 @@ asset is already present in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.spatial_tendon_names"><code class="docutils literal notranslate"><span class="pre">Articulation.spatial_tendon_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.body_names"><code class="docutils literal notranslate"><span class="pre">Articulation.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.root_physx_view"><code class="docutils literal notranslate"><span class="pre">Articulation.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Articulation.instantaneous_wrench_composer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Articulation.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.reset"><code class="docutils literal notranslate"><span class="pre">Articulation.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>

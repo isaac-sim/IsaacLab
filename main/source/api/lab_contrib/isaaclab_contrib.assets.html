@@ -687,6 +687,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.find_spatial_tendons"><code class="docutils literal notranslate"><span class="pre">Multirotor.find_spatial_tendons()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.fixed_tendon_names"><code class="docutils literal notranslate"><span class="pre">Multirotor.fixed_tendon_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Multirotor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Multirotor.instantaneous_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.is_fixed_base"><code class="docutils literal notranslate"><span class="pre">Multirotor.is_fixed_base</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.is_initialized"><code class="docutils literal notranslate"><span class="pre">Multirotor.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.joint_names"><code class="docutils literal notranslate"><span class="pre">Multirotor.joint_names</span></code></a></li>
@@ -695,6 +696,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_instances"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_joints"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_joints</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_spatial_tendons"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_spatial_tendons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Multirotor.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.root_physx_view"><code class="docutils literal notranslate"><span class="pre">Multirotor.root_physx_view</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Multirotor.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">Multirotor.set_external_force_and_torque()</span></code></a></li>
@@ -972,29 +974,35 @@ with thruster actuators that can be applied at specific body locations.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.has_debug_vis_implementation" title="isaaclab_contrib.assets.Multirotor.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the asset has a debug visualization implemented.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.is_fixed_base" title="isaaclab_contrib.assets.Multirotor.is_fixed_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_fixed_base</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer" title="isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">instantaneous_wrench_composer</span></code></a></p></td>
+<td><p>Instantaneous wrench composer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.is_fixed_base" title="isaaclab_contrib.assets.Multirotor.is_fixed_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_fixed_base</span></code></a></p></td>
 <td><p>Whether the articulation is a fixed-base or floating-base system.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.is_initialized" title="isaaclab_contrib.assets.Multirotor.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.is_initialized" title="isaaclab_contrib.assets.Multirotor.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
 <td><p>Whether the asset is initialized.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.joint_names" title="isaaclab_contrib.assets.Multirotor.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.joint_names" title="isaaclab_contrib.assets.Multirotor.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
 <td><p>Ordered names of joints in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_bodies" title="isaaclab_contrib.assets.Multirotor.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_bodies" title="isaaclab_contrib.assets.Multirotor.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
 <td><p>Number of bodies in articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_fixed_tendons" title="isaaclab_contrib.assets.Multirotor.num_fixed_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_tendons</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_fixed_tendons" title="isaaclab_contrib.assets.Multirotor.num_fixed_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_tendons</span></code></a></p></td>
 <td><p>Number of fixed tendons in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_instances" title="isaaclab_contrib.assets.Multirotor.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_instances" title="isaaclab_contrib.assets.Multirotor.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_joints" title="isaaclab_contrib.assets.Multirotor.num_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_joints</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_joints" title="isaaclab_contrib.assets.Multirotor.num_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_joints</span></code></a></p></td>
 <td><p>Number of joints in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_spatial_tendons" title="isaaclab_contrib.assets.Multirotor.num_spatial_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_spatial_tendons</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.num_spatial_tendons" title="isaaclab_contrib.assets.Multirotor.num_spatial_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_spatial_tendons</span></code></a></p></td>
 <td><p>Number of spatial tendons in articulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.permanent_wrench_composer" title="isaaclab_contrib.assets.Multirotor.permanent_wrench_composer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">permanent_wrench_composer</span></code></a></p></td>
+<td><p>Permanent wrench composer.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.assets.Multirotor.root_physx_view" title="isaaclab_contrib.assets.Multirotor.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Articulation view for the asset (PhysX).</p></td>
@@ -1348,6 +1356,21 @@ in the articulation are searched.</p></li>
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">instantaneous_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Instantaneous wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+for instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+applied to the simulation.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="isaaclab_contrib.assets.Multirotor.is_fixed_base">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_fixed_base</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.assets.Multirotor.is_fixed_base" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the articulation is a fixed-base or floating-base system.</p>
@@ -1398,6 +1421,20 @@ in the articulation are searched.</p></li>
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.assets.Multirotor.permanent_wrench_composer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">permanent_wrench_composer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">WrenchComposer</span></em><a class="headerlink" href="#isaaclab_contrib.assets.Multirotor.permanent_wrench_composer" title="Permalink to this definition">#</a></dt>
+<dd><p>Permanent wrench composer.</p>
+<p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">WrenchComposer</span></code> instance. Wrenches added or set to this wrench
+composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+are constant over a period of time, things like the thrust of a motor for instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+applied to the simulation.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="isaaclab_contrib.assets.Multirotor.root_physx_view">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_physx_view</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">omni.physics.tensors.impl.api.ArticulationView</span></em><a class="headerlink" href="#isaaclab_contrib.assets.Multirotor.root_physx_view" title="Permalink to this definition">#</a></dt>
 <dd><p>Articulation view for the asset (PhysX).</p>
@@ -1436,18 +1473,6 @@ external wrench at (in the local link frame of the bodies).</p>
 of external wrench to the simulation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of disabling external wrench</span>
 <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">torques</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>If the function is called consecutively with and with different values for <code class="docutils literal notranslate"><span class="pre">is_global</span></code>, then the
-all the external wrenches will be applied in the frame specified by the last call.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of setting external wrench in the global frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="c1"># example of setting external wrench in the link frame</span>
-<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="c1"># Both environments will have the external wrenches applied in the link frame</span>
 </pre></div>
 </div>
 </div>
@@ -3811,6 +3836,7 @@ after all actuator model processing, including clipping and saturation.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.find_spatial_tendons"><code class="docutils literal notranslate"><span class="pre">Multirotor.find_spatial_tendons()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.fixed_tendon_names"><code class="docutils literal notranslate"><span class="pre">Multirotor.fixed_tendon_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Multirotor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.instantaneous_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Multirotor.instantaneous_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.is_fixed_base"><code class="docutils literal notranslate"><span class="pre">Multirotor.is_fixed_base</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.is_initialized"><code class="docutils literal notranslate"><span class="pre">Multirotor.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.joint_names"><code class="docutils literal notranslate"><span class="pre">Multirotor.joint_names</span></code></a></li>
@@ -3819,6 +3845,7 @@ after all actuator model processing, including clipping and saturation.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_instances"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_joints"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_joints</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.num_spatial_tendons"><code class="docutils literal notranslate"><span class="pre">Multirotor.num_spatial_tendons</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.permanent_wrench_composer"><code class="docutils literal notranslate"><span class="pre">Multirotor.permanent_wrench_composer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.root_physx_view"><code class="docutils literal notranslate"><span class="pre">Multirotor.root_physx_view</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Multirotor.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.assets.Multirotor.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">Multirotor.set_external_force_and_torque()</span></code></a></li>

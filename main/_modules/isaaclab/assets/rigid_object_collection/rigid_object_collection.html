@@ -615,6 +615,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physics.tensors.impl.api</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">physx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
@@ -623,6 +624,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.string</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">string_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.wrench_composer</span><span class="w"> </span><span class="kn">import</span> <span class="n">WrenchComposer</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..asset_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBase</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.rigid_object_collection_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">RigidObjectCollectionData</span>
@@ -736,6 +738,27 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span>  <span class="c1"># type: ignore</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">instantaneous_wrench_composer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WrenchComposer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Instantaneous wrench composer.</span>
+
+<span class="sd">        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench</span>
+<span class="sd">        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set</span>
+<span class="sd">        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces</span>
+<span class="sd">        for instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">permanent_wrench_composer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WrenchComposer</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Permanent wrench composer.</span>
+
+<span class="sd">        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench</span>
+<span class="sd">        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that</span>
+<span class="sd">        are constant over a period of time, things like the thrust of a motor for instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -753,9 +776,8 @@
         <span class="k">if</span> <span class="n">object_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
         <span class="c1"># reset external wrench</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.write_data_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.write_data_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Write external wrench to the simulation.</span>
@@ -765,23 +787,33 @@
 <span class="sd">            This ensures that the external wrench is applied at every simulation step.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># write external wrench</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
-                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">),</span>
-                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">),</span>
-                    <span class="n">position_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">),</span>
-                    <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
-                    <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">,</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">active</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+                <span class="c1"># Compose instantaneous wrench with permanent wrench</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">add_forces_and_torques</span><span class="p">(</span>
+                    <span class="n">forces</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">composed_force</span><span class="p">,</span>
+                    <span class="n">torques</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">composed_torque</span><span class="p">,</span>
+                    <span class="n">body_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES_WP</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES_WP</span><span class="p">,</span>
                 <span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Apply both instantaneous and permanent wrench to the simulation</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
-                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">),</span>
-                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">),</span>
+                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">composed_force_as_torch</span><span class="p">),</span>
+                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">composed_torque_as_torch</span><span class="p">),</span>
                     <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                     <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
-                    <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">,</span>
-                <span class="p">)</span></div>
+                    <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Apply permanent wrench to the simulation</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
+                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">composed_force_as_torch</span><span class="p">),</span>
+                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">composed_torque_as_torch</span><span class="p">),</span>
+                    <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
+                    <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.update"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span></div>
@@ -1106,18 +1138,6 @@
 <span class="sd">                # example of disabling external wrench</span>
 <span class="sd">                asset.set_external_force_and_torque(forces=torch.zeros(0, 0, 3), torques=torch.zeros(0, 0, 3))</span>
 
-<span class="sd">        .. caution::</span>
-<span class="sd">            If the function is called consecutively with and with different values for ``is_global``, then the</span>
-<span class="sd">            all the external wrenches will be applied in the frame specified by the last call.</span>
-
-<span class="sd">            .. code-block:: python</span>
-
-<span class="sd">                # example of setting external wrench in the global frame</span>
-<span class="sd">                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)</span>
-<span class="sd">                # example of setting external wrench in the link frame</span>
-<span class="sd">                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)</span>
-<span class="sd">                # Both environments will have the external wrenches applied in the link frame</span>
-
 <span class="sd">        .. note::</span>
 <span class="sd">            This function does not apply the external wrench to the simulation. It only fills the buffers with</span>
 <span class="sd">            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function</span>
@@ -1132,37 +1152,43 @@
 <span class="sd">            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,</span>
 <span class="sd">                the external wrench is applied in the link frame of the bodies.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">forces</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="n">torques</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="c1"># to be safe, explicitly set value to zero</span>
-            <span class="n">forces</span> <span class="o">=</span> <span class="n">torques</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;The function &#39;set_external_force_and_torque&#39; will be deprecated in a future release. Please&quot;</span>
+            <span class="s2">&quot; use &#39;permanent_wrench_composer.set_forces_and_torques&#39; instead.&quot;</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">forces</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">torques</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No forces or torques provided. No permanent external wrench will be applied.&quot;</span><span class="p">)</span>
 
         <span class="c1"># resolve all indices</span>
         <span class="c1"># -- env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES_WP</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">env_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
         <span class="c1"># -- object_ids</span>
         <span class="k">if</span> <span class="n">object_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
-        <span class="c1"># set into internal buffers</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">forces</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span>
-
-        <span class="k">if</span> <span class="n">is_global</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;The external wrench frame has been changed from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">is_global</span><span class="si">}</span><span class="s2">. This&quot;</span>
-                <span class="s2">&quot; may lead to unexpected behavior.&quot;</span>
+            <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES_WP</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">object_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="n">object_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)[</span><span class="n">object_ids</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span>
             <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="n">is_global</span>
-
-        <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">positions</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">object_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">object_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">object_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+            <span class="n">object_ids</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">object_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+        <span class="c1"># Write to wrench composer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span><span class="o">.</span><span class="n">set_forces_and_torques</span><span class="p">(</span>
+            <span class="n">forces</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">)</span> <span class="k">if</span> <span class="n">forces</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">torques</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">torques</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">)</span> <span class="k">if</span> <span class="n">torques</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">positions</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">vec3f</span><span class="p">)</span> <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">body_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="n">is_global</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
@@ -1275,14 +1301,12 @@
         <span class="c1"># constants</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES_WP</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES_WP</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
-        <span class="c1"># external forces and torques</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># external wrench composer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_instantaneous_wrench_composer</span> <span class="o">=</span> <span class="n">WrenchComposer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_permanent_wrench_composer</span> <span class="o">=</span> <span class="n">WrenchComposer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
         <span class="c1"># set information about rigid body into data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_names</span>

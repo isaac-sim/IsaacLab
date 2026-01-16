@@ -1639,7 +1639,12 @@
     <span class="n">torques</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="o">*</span><span class="n">torque_range</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
     <span class="c1"># set the forces and torques into the buffers</span>
     <span class="c1"># note: these are only applied when you call: `asset.write_data_to_sim()`</span>
-    <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">torques</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">body_ids</span><span class="o">=</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">)</span></div>
+    <span class="n">asset</span><span class="o">.</span><span class="n">permanent_wrench_composer</span><span class="o">.</span><span class="n">set_forces_and_torques</span><span class="p">(</span>
+        <span class="n">forces</span><span class="o">=</span><span class="n">forces</span><span class="p">,</span>
+        <span class="n">torques</span><span class="o">=</span><span class="n">torques</span><span class="p">,</span>
+        <span class="n">body_ids</span><span class="o">=</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span>
+    <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="push_by_setting_velocity"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.push_by_setting_velocity">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">push_by_setting_velocity</span><span class="p">(</span>
