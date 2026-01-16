@@ -159,6 +159,7 @@ class ObservationsCfg:
 
     @configclass
     class PerceptionObsCfg(ObsGroup):
+        """Observations for perception group."""
 
         object_point_cloud = ObsTerm(
             func=mdp.object_point_cloud_b,

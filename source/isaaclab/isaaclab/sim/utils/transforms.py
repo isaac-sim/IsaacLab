@@ -116,7 +116,7 @@ def standardize_xform_ops(
         ...     prim,
         ...     translation=(1.0, 2.0, 3.0),
         ...     orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation (w, x, y, z)
-        ...     scale=(2.0, 2.0, 2.0)
+        ...     scale=(2.0, 2.0, 2.0),
         ... )
         >>>
         >>> # Batch processing for performance
@@ -410,9 +410,7 @@ def convert_world_pose_to_local(
         >>> # Convert world pose to local (relative to ref_prim)
         >>> world_pos = (10.0, 5.0, 0.0)
         >>> world_quat = (1.0, 0.0, 0.0, 0.0)  # identity rotation
-        >>> local_pos, local_quat = sim_utils.convert_world_pose_to_local(
-        ...     world_pos, world_quat, ref_prim
-        ... )
+        >>> local_pos, local_quat = sim_utils.convert_world_pose_to_local(world_pos, world_quat, ref_prim)
         >>> print(f"Local position: {local_pos}")
         >>> print(f"Local orientation: {local_quat}")
     """

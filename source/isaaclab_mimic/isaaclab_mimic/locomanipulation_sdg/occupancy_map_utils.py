@@ -40,7 +40,6 @@ class OccupancyMapDataValue(enum.IntEnum):
     OCCUPIED = 2
 
     def ros_image_value(self, negate: bool = False) -> int:
-
         values = [0, 127, 255]
 
         if negate:
@@ -60,7 +59,6 @@ class OccupancyMapMergeMethod(enum.IntEnum):
 
 
 class OccupancyMap:
-
     ROS_IMAGE_FILENAME = "map.png"
     ROS_YAML_FILENAME = "map.yaml"
     ROS_YAML_TEMPLATE = """
@@ -517,7 +515,6 @@ def _omap_world_to_px(
     width_pixels: int,
     height_pixels: int,
 ) -> np.ndarray:
-
     bot_left_world = (origin[0], origin[1])
     u = (points[:, 0] - bot_left_world[0]) / width_meters
     v = 1.0 - (points[:, 1] - bot_left_world[1]) / height_meters
@@ -553,7 +550,6 @@ def merge_occupancy_maps(
         raise ValueError(f"Unsupported merge method: {method}")
 
     for src_omap in src_omaps:
-
         omap_corners_in_world_coords = np.array(
             [src_omap.top_left_pixel_world_coords(), src_omap.bottom_right_pixel_world_coords()]
         )
@@ -623,12 +619,14 @@ def make_translate_transform(dx: float, dy: float) -> np.ndarray:
 def transform_occupancy_map(omap: OccupancyMap, transform: np.ndarray) -> OccupancyMap:
     """Transform an occupancy map using a 2D transform."""
 
-    src_box_world_coords = np.array([
-        [omap.origin[0], omap.origin[1]],
-        [omap.origin[0] + omap.width_meters(), omap.origin[1]],
-        [omap.origin[0] + omap.width_meters(), omap.origin[1] + omap.height_meters()],
-        [omap.origin[0], omap.origin[1] + omap.height_meters()],
-    ])
+    src_box_world_coords = np.array(
+        [
+            [omap.origin[0], omap.origin[1]],
+            [omap.origin[0] + omap.width_meters(), omap.origin[1]],
+            [omap.origin[0] + omap.width_meters(), omap.origin[1] + omap.height_meters()],
+            [omap.origin[0], omap.origin[1] + omap.height_meters()],
+        ]
+    )
 
     src_box_pixel_coords = omap.world_to_pixel_numpy(src_box_world_coords)
 
@@ -672,7 +670,6 @@ def occupancy_map_add_to_stage(
     draw_path: np.ndarray | torch.Tensor | None = None,
     draw_path_line_width_meter: float = 0.25,
 ) -> Usd.Prim:
-
     image_path = os.path.join(tempfile.mkdtemp(), "texture.png")
     image = occupancy_map.ros_image()
 

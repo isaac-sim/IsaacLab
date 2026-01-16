@@ -40,9 +40,11 @@ class FeatureExtractorNetwork(nn.Module):
             nn.Linear(128, 27),
         )
 
-        self.data_transforms = torchvision.transforms.Compose([
-            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        self.data_transforms = torchvision.transforms.Compose(
+            [
+                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
 
     def forward(self, x):
         x = x.permute(0, 3, 1, 2)

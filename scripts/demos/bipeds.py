@@ -56,11 +56,13 @@ def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Define origins
-    origins = torch.tensor([
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ]).to(device=sim.device)
+    origins = torch.tensor(
+        [
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    ).to(device=sim.device)
 
     # Robots
     cassie = Articulation(CASSIE_CFG.replace(prim_path="/World/Cassie"))

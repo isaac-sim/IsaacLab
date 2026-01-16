@@ -302,7 +302,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
     is_first_print = True
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
-
             actions = torch.zeros(env.unwrapped.action_space.shape)
 
             # get actions from all the data generators

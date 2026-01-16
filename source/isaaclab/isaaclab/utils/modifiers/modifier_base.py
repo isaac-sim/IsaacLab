@@ -32,7 +32,7 @@ class ModifierBase(ABC):
         from isaaclab.utils import modifiers
 
         # define custom keyword arguments to pass to ModifierCfg
-        kwarg_dict = {"arg_1" : VAL_1, "arg_2" : VAL_2}
+        kwarg_dict = {"arg_1": VAL_1, "arg_2": VAL_2}
 
         # create modifier configuration object
         # func is the class name of the modifier and params is the dictionary of arguments

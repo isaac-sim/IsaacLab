@@ -11,11 +11,7 @@ repos:
       - id: ruff
         args: ["--fix"]
       # Run the formatter
-      # - id: ruff-format
-  - repo: https://github.com/python/black
-    rev: 24.3.0
-    hooks:
-      - id: black
+      - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

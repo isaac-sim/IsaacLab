@@ -85,7 +85,9 @@ class EventCfg:
     )
 
     dead_zone_thresholds = EventTerm(
-        func=randomize_dead_zone, mode="interval", interval_range_s=(2.0, 2.0)  # (0.25, 0.25)
+        func=randomize_dead_zone,
+        mode="interval",
+        interval_range_s=(2.0, 2.0),  # (0.25, 0.25)
     )
 
 

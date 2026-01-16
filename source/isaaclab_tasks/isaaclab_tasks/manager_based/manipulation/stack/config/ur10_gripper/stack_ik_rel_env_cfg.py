@@ -16,6 +16,7 @@ from . import stack_joint_pos_env_cfg
 
 @configclass
 class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCubeStackEnvCfg):
+    """Configuration for the UR10 Long Suction Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -49,7 +50,6 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
 
 @configclass
 class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
