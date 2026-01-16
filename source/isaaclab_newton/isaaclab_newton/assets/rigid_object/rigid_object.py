@@ -761,6 +761,9 @@ class RigidObject(BaseRigidObject):
         self._external_force_b = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._external_torque_b = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
+        # Assign body names to the data
+        self._data.body_names = self.body_names
+
     def _process_cfg(self) -> None:
         """Post processing of configuration parameters."""
         # default pose with quaternion already in (x, y, z, w) format

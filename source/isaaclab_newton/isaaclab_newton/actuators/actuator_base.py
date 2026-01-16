@@ -220,6 +220,7 @@ class ActuatorBase(ABC):
                 wp.launch(
                     update_array2D_with_value_indexed,
                     dim=(self._num_envs, len(self._joint_indices)),
+                    device=self._device,
                     inputs=[
                         cfg_value,
                         original_value,
@@ -234,6 +235,7 @@ class ActuatorBase(ABC):
                 wp.launch(
                     update_array2D_with_array1D_indexed,
                     dim=(self._num_envs, len(indices_global)),
+                    device=self._device,
                     inputs=[
                         wp.array(values, dtype=wp.float32, device=self._device),
                         original_value,
