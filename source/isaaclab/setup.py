@@ -45,6 +45,7 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     "flaky",
     "packaging",
+    "xacro",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers

@@ -20,7 +20,7 @@
         <visual>
             <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
             <geometry>
-                <box size="0.1 0.5 3"/>
+                <box size="0.1 0.5 5"/>
             </geometry>
             <material name="blue">
                 <color rgba="0.0 0.0 0.8 1.0"/>
@@ -44,12 +44,12 @@
     </link>
     <link name="flywheel">
         <inertial>
-            <origin xyz="10.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
             <mass value="${wheel_mass}"/>
             <inertia ixx="${0.5 * axis_inertia}" ixy="0" ixz="0" iyy="${0.5 * axis_inertia}" iyz="0" izz="${axis_inertia}" />
         </inertial>
         <visual>
-            <origin xyz="10 0 0" rpy="0 0 0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
                 <cylinder length="0.4" radius="${wheel_radius}"/>
             </geometry>
@@ -61,17 +61,17 @@
     <joint name="world" type="fixed">
         <parent link="world"/>
         <child link="base"/>
-        <origin xyz="0.0 0.0 1.5" rpy="0.0 0.0 0.0"/>
+        <origin xyz="0.0 0.0 2.5" rpy="0.0 0.0 0.0"/>
     </joint>
     <joint name="axle" type="fixed">
         <parent link="base"/>
         <child link="axle"/>
-        <origin xyz="0.25 0.0 1" rpy="-1.570796327 0.0 -1.570796327"/>
+        <origin xyz="0.25 0.0 2" rpy="-1.570796327 0.0 -1.570796327"/>
     </joint>
     <joint name="wheel" type="revolute">
         <parent link="axle"/>
         <child link="flywheel"/>
-        <origin xyz="2.0 0.0 .1" rpy="0 0 0"/>
+        <origin xyz="0.0 0.0 .1" rpy="0 0 0"/>
         <axis xyz="0.0 0.0 1.0"/>
     </joint>
 </robot>

@@ -22,6 +22,8 @@ import pathlib
 import pytest
 import torch
 
+import xacro
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -37,6 +39,66 @@ from isaaclab.utils.version import get_isaac_sim_version
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
+
+
+def generate_flywheel_cfg(
+    stiffness: float | None = 10.0,
+    damping: float | None = 2.0,
+    velocity_limit: float | None = None,
+    effort_limit: float | None = None,
+    velocity_limit_sim: float | None = None,
+    effort_limit_sim: float | None = None,
+    drive_model: tuple[float, float, float] | None = None,
+    wheel_mass: float = 5.0,
+    wheel_radius: float = 2.0,
+) -> ArticulationCfg:
+    """Generate an articulation configuration for a flywheel articulation.
+
+    Args:
+        stiffness: Stiffness value for the articulation's actuators. Defaults to 10.0.
+        damping: Damping value for the articulation's actuators. Defaults to 2.0.
+        velocity_limit: Velocity limit for the actuators. (Not set to Physx)
+        effort_limit: Effort limit for the actuators. (Not set to Physx)
+        velocity_limit_sim: Velocity limit for the actuators (set in Physx Traditional Clipping).
+        effort_limit_sim: Effort limit for the actuators (set into the simulation, used in all modes).
+        drive_model: Drive Model Parameters (velocity dependent resistance, speed effort gradient, max actuator velocity).
+            Only used by the updated physx drive model.
+        wheel_mass: The flywheel's mass.
+        wheel_radius: The flywheel's radius.
+
+    Returns:
+        The articulation configuration.
+    """
+    fn = f"{pathlib.Path(__file__).parent.resolve()}/urdfs/flywheel.xacro"
+    outfile = "/tmp/flywheel.urdf"
+    urdf = xacro.process_file(fn, mappings={"wheel_mass": str(wheel_mass), "wheel_radius": str(wheel_radius)})
+    with open(outfile, "w") as file:
+        urdf.writexml(file, indent="  ", addindent="  ", newl="\n")
+    articulation_cfg = ArticulationCfg(
+        spawn=sim_utils.UrdfFileCfg(
+            fix_base=True,
+            merge_fixed_joints=False,
+            make_instanceable=False,
+            asset_path="/tmp/flywheel.urdf",
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=32, solver_velocity_iteration_count=32
+            ),
+            joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+                gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=stiffness, damping=damping)
+            ),
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(),
+        actuators={
+            "wheel": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                effort_limit_sim=effort_limit_sim,
+                stiffness=stiffness,
+                damping=damping,
+                drive_model=drive_model,
+            ),
+        },
+    )
+    return articulation_cfg
 
 
 def generate_articulation_cfg(
@@ -88,31 +150,6 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         articulation_cfg = SHADOW_HAND_CFG
-    elif articulation_type == "flywheel":
-        articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UrdfFileCfg(
-                fix_base=True,
-                merge_fixed_joints=False,
-                make_instanceable=False,
-                asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/flywheel.urdf",
-                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=True, solver_position_iteration_count=32, solver_velocity_iteration_count=32
-                ),
-                joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-                    gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=stiffness, damping=damping)
-                ),
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(),
-            actuators={
-                "wheel": ImplicitActuatorCfg(
-                    joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    stiffness=stiffness,
-                    damping=damping,
-                    drive_model=drive_model,
-                ),
-            },
-        )
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -1502,6 +1539,8 @@ def test_setting_drive_model_implicit(sim, num_articulations, device, drive_mode
             ),
             "velocity_state": 0.0,
             "effort_state": 0.0,
+            "wheel_mass": 10.0,
+            "wheel_radius": 5.0,
         },
         {
             "description": "Strictly effort limited. Test that effort is clipped at max effort.",
@@ -1513,6 +1552,8 @@ def test_setting_drive_model_implicit(sim, num_articulations, device, drive_mode
             ),
             "velocity_state": 0.0,
             "effort_state": 0.0,
+            "wheel_mass": 6.0,
+            "wheel_radius": 3.0,
         },
         {
             "description": "Effort and velocity limited. Test that effort is dependent on velocity.",
@@ -1522,8 +1563,23 @@ def test_setting_drive_model_implicit(sim, num_articulations, device, drive_mode
                 max_actuator_velocity=0.5,
                 velocity_dependent_resistance=1,
             ),
-            "velocity_state": 0.0,
+            "velocity_state": -0.5,
             "effort_state": 0.0,
+            "wheel_mass": 5.0,
+            "wheel_radius": 2.0,
+        },
+        {
+            "description": "Effort and velocity limited. Test that effort is dependent on velocity.",
+            "effort_limit": 10.0,
+            "drive_model": ActuatorBaseCfg.DriveModelCfg(
+                speed_effort_gradient=1,
+                max_actuator_velocity=10,
+                velocity_dependent_resistance=1,
+            ),
+            "velocity_state": 9.0,
+            "effort_state": 0.0,
+            "wheel_mass": 10.0,
+            "wheel_radius": 1.0,
         },
     ],
 )
@@ -1567,14 +1623,17 @@ def _test_drive_model_constraints_implicit(
     drive_model,
     velocity_state,
     effort_state,
+    wheel_mass,
+    wheel_radius,
 ):
     print(f"Test Description: {description}")
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="flywheel",
+    articulation_cfg = generate_flywheel_cfg(
         effort_limit_sim=effort_limit,
         drive_model=drive_model,
         stiffness=1.0,
         damping=1.0,
+        wheel_radius=wheel_radius,
+        wheel_mass=wheel_mass,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
