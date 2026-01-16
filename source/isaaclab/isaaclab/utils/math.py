@@ -2042,9 +2042,3 @@ def aggregate_inertia_about_robot_com(
     total_mass = m.sum(dim=1)
 
     return total_mass, I_total, com_robot_b
-
-
-@torch.jit.script
-def rand_range(lower, upper):
-    # type: (torch.Tensor, torch.Tensor) -> torch.Tensor
-    return (upper - lower) * torch.rand_like(upper) + lower
